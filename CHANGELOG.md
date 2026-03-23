@@ -361,3 +361,72 @@ All notable changes to cc-soul will be documented here.
 - Evolution: rules, hypotheses, correction attribution, structured reflection
 - Autonomous: dream mode, web rover, autonomous voice
 - Network: sync, federation, Knowledge Hub
+\n\n## [2.0.0] - 2026-03-24
+
+### Major Release — 168 features, 52 modules, 22,653 lines
+
+### Added — Knowledge & Memory
+- Knowledge graph: persistent graph DB, temporal relations (validFrom/validUntil), BFS walk recall, entity summaries, path queries
+- Memory tiering: HOT/WARM/COLD scoring based on access recency (24h/7d/30d)
+- Multi-user memory isolation: user-specific memories boosted 2x in recall
+- Context checkpoint: structured checkpoint saved at 70% context usage, auto-restored
+- Pin memory command: pinned memories never decay or get evicted
+- Semantic versioning: memory updates preserve up to 5 historical versions
+- Memory hygiene audit: auto-detect duplicates, short entries, untagged memories
+- Chain-of-Thought memory: stores reasoning process (context → conclusion)
+- Graph-of-Thoughts: complex questions trigger parallel reasoning paths
+
+### Added — Emotion & Personality
+- PADCN 5-dimension emotion vector (Pleasure/Arousal/Dominance/Certainty/Novelty)
+- Circadian rhythm: body state adjusts by time of day (energy recovery, mood)
+- Weekly mood report command
+- 10 personas total (5 new: strategist, explorer, executor, teacher, devil's advocate)
+
+### Added — User Features
+- Habit tracking: checkin + streak counting
+- Goal tracking: create goals, update progress, view milestones
+- Scheduled reminders: daily reminders via heartbeat (persistent across restarts)
+- Capability score display: domain confidence scores
+- Memory graph HTML visualization (vis.js)
+- Voice output: macOS say command for read-aloud
+- Import memories from Mem0/ChatGPT/Character Card v2 formats
+- Export Lorebook (sanitized, ClawHub compatible)
+- Import/export soul config
+
+### Added — Architecture
+- MCP tool provider: 4 tools (memory_search, memory_add, soul_state, persona_info) with rate limiting
+- Immutable audit log: SHA256 chain-linked operation log
+- Cross-user anonymous rule learning via federation
+- Incremental sync + CRDT conflict resolution
+- Tiered self-evolution: low-risk changes auto-execute, high-risk require confirmation
+- Five-stage reflection loop: plan → execute → verify → solidify
+- Adaptive reasoning depth: auto-adjusts by task complexity
+- Multi-agent orchestration prompts for complex tasks
+- Reverse prompting: asks clarifying questions for ambiguous messages
+- Ghost context detection: flags stale augments
+- Rule compression: auto-merge similar rules (trigram > 0.6)
+- Academic paper extraction in document ingestion
+- Code pattern memory from agent responses
+- Context-aware augment budget: technical/emotional/casual dynamic priority
+
+### Fixed — 41 bugs total
+- P0: Math.pow NaN in bodyTick, queryGraphPath infinite loop, command injection (execFileSync), JSON.parse unguarded, upgrade command no return, session fields undeclared, consolidation race condition, generateInsights empty state, hypothesis stage wrong init, MCP no rate limit
+- P1: emotionVector float comparison, persona blend formula, trigramCache not LRU, recall score pollution, IDF throttle imprecise, PII filtering incomplete, URL fetch no size limit, audit hash too short, require/import mixed
+- Previous releases: privacy mode leak, ts=0 memories, double decay, SOUL.md overflow, loadFeatures overwrite, daemon killed by cleanup, and 20+ more
+
+### Performance
+- contentIndex Map for O(1) dedup lookup
+- scopeIndex batch skip expired/decayed
+- clusterByTopic capped at 100
+- Graph walk Map lookup instead of .find()
+- buildIDF counter-based throttle (50 ops or 60s)
+- Trigram timestamp-based LRU cache (500 entries)
+- IDF invalidation counter + time hybrid
+
+### Changed
+- SOUL.md: 35.9KB → 5.3KB (85% reduction), dynamic content moved to augments
+- Full language auto-follow (replies in user's language)
+- OpenClaw 3.22 compatible, sessionMode=always
+- 52 modules, 22,653 lines, all obfuscated
+- 45 tests (40 unit + 5 E2E)
+
