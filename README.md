@@ -235,6 +235,42 @@ npm install && HUB_PORT=9900 HUB_ADMIN_KEY=secret npm start
 
 ---
 
+## Vector Search (Optional)
+
+cc-soul works out of the box with keyword-based search (TF-IDF + trigram). For better recall, you can enable **semantic vector search** — it understands meaning, not just keywords.
+
+### With vs Without
+
+| You ask | Without vector | With vector |
+|---------|---------------|-------------|
+| "that deployment thing we discussed" | ❌ Can't find it (no word "deployment" in memory) | ✅ Finds "server on Alibaba Cloud, SSH port 22" |
+| "the bug from last week" | Only finds memories containing "bug" | Finds related memories about errors, crashes, fixes |
+| "what did I say about performance" | Exact keyword match only | Understands performance ≈ speed, latency, optimization |
+
+**Without vector (default):** keyword matching — works well for < 10,000 memories.
+**With vector:** semantic understanding — recommended for 10,000+ memories or when you want "fuzzy" recall.
+
+### How to Enable
+
+Download the embedding model (~90MB) and place it in the data directory:
+
+```bash
+mkdir -p ~/.openclaw/plugins/cc-soul/data/models/minilm
+cd ~/.openclaw/plugins/cc-soul/data/models/minilm
+curl -L -o model.onnx "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx"
+curl -L -o vocab.json "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+```
+
+Restart gateway. You should see in logs:
+```
+[cc-soul][embedder] ready — all-MiniLM-L6-v2 (384d, CPU)
+[cc-soul][memory] embedder ready — vector search enabled
+```
+
+No configuration needed. If the model files are present, vector search activates automatically. If not, cc-soul silently falls back to keyword search — nothing breaks.
+
+---
+
 ## Feedback
 
 - **Issues & Feature Requests**: [github.com/wenroudeyu-collab/cc-soul/issues](https://github.com/wenroudeyu-collab/cc-soul/issues)
