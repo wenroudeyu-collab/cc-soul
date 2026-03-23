@@ -1,7 +1,7 @@
 ---
 name: cc-soul
 description: "Give your AI a soul — persistent memory, adaptive personality, emotional awareness, self-evolution"
-version: 1.6.0
+version: 1.7.0
 author: wenroudeyu-collab
 tags:
   - soul

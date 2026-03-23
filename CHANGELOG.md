@@ -2,6 +2,52 @@
 
 All notable changes to cc-soul will be documented here.
 
+## [1.7.0] - 2026-03-23
+
+### Added — New Features
+- **Chain-of-Thought Memory**: memories now store reasoning process (context → conclusion), auto-extracted from "because...therefore" patterns in conversation
+- **Graph Walk Recall**: BFS traversal on entity-relation graph to discover memories connected through knowledge links, supplements text-based recall
+- **Image/Screenshot Memory**: auto-detects image context in messages ([Image:...]), stores as visual scope memories
+- **Document Ingestion v2**: "摄入文档" / "ingest <path>" command — supports Markdown (split by ##), code files (split by function/class), plain text (split by paragraph), max 50 chunks
+- **MCP Tool Provider**: exposes cc-soul as MCP tools (cc_memory_search, cc_memory_add, cc_soul_state, cc_persona_info) for other AI agents to query
+- **Memory Search Command**: "搜索记忆 <keyword>" / "search memory <keyword>" — precision search through memories
+- **Memory Delete Command**: "删除记忆 <keyword>" / "delete memory <keyword>" — mark matching memories as expired
+- **Conversation Summary Command**: "对话摘要" / "conversation summary" — shows recent session summaries grouped by 30-min intervals
+- **Memory Health Command**: "记忆健康" / "memory health" — shows memory count, scope distribution, confidence spread, decay stats
+- **Metrics/Monitoring Command**: "metrics" / "监控" — shows total messages, avg response time, recall calls, CLI calls, augments injected
+- **Context-Aware Augment Budget**: technical questions boost rules/epistemic priority +2, emotional questions boost persona/emotion +2, casual reduces all -1
+- **Rule Compression**: when rules exceed 40, auto-merges similar rules (trigram similarity >0.6), keeps the one with higher hit count
+- **Incremental Sync**: sync export now supports "since" parameter, only exports memories modified after last sync (was full export every time)
+- **CRDT Conflict Resolution**: multi-device sync now uses last-write-wins + tag union merge for conflict resolution
+- **5 E2E Tests**: full message lifecycle, correction flow, dedup+compression, active commands, emotional flow (total tests: 40)
+- **Metrics Collection**: in-memory counters for messages, response time, recall calls, CLI calls, augments — zero persistence overhead
+- **Section Maps**: memory.ts (17 sections) and handler.ts (10 sections) annotated with navigation comments for future module splitting
+
+### Added — Language & UX
+- **Full language auto-follow**: soul prompt now instructs model to reply in whatever language user writes in (was hardcoded Chinese)
+- **Soul prompt internationalized**: speaking style rules rewritten in English (model auto-translates behavior to user's language)
+- **narrativeCache TTL**: auto-clears after 1 hour (was never released)
+
+### Fixed — P0 Data Risks
+- **recallStats unbounded growth**: now resets every 1000 queries, preserves last-cycle rate as fallback
+- **workingMemory Map unbounded**: added LRU cap at 100 sessions, oldest evicted on overflow
+- **Session eviction FIFO→LRU**: now evicts by lastAccessed timestamp instead of insertion order
+- **batch-tag race condition**: changed from content-only matching to index→ts+content→content three-tier fallback
+- **soul.json version mismatch**: synced to 1.7.0
+
+### Fixed — P1 Logic Issues
+- **agentBusy timeout 30s→60s**: complex code generation can exceed 30s, background tasks no longer preempt prematurely
+- **rules/hypotheses export let reference**: all array truncations changed from reassignment to in-place modification (splice/length=N), fixing stale import references
+- **addMemoryWithEmotion emotion loss**: emotion was silently lost when addMemory decided to skip (dedup). Rewritten to use ts+content positioning
+- **Augment duplicate selection**: selectAugments now deduplicates by content at entry, preventing same augment selected twice across categories
+
+### Changed
+- 50+ modules, 21,000+ lines
+- New file: mcp-provider.ts (69 lines) — MCP tool definitions
+- rag.ts rewritten: chunkText routes to chunkMarkdown/chunkCode/chunkByParagraph by file extension
+- sync.ts: resolveConflict() + incremental export + CRDT merge on import
+
+
 ## [1.6.0] - 2026-03-23
 
 ### Added
