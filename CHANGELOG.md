@@ -430,3 +430,28 @@ All notable changes to cc-soul will be documented here.
 - 52 modules, 22,653 lines, all obfuscated
 - 45 tests (40 unit + 5 E2E)
 
+\n\n## [2.1.0] - 2026-03-24
+
+### Added
+- **Web Dashboard**: `dashboard` / `仪表盘` command generates interactive HTML with Chart.js — memory distribution pie chart, 7-day mood curve, persona usage histogram, knowledge graph force-directed visualization
+- **SQLite fully operational**: fixed `db.transaction` incompatibility with `node:sqlite` DatabaseSync API (was failing silently since v1.0). 5011 memories now stored in SQLite with proper BEGIN/COMMIT/ROLLBACK transactions
+- **Embedding vector search enabled**: MiniLM-L6-v2 (384d, CPU) model loaded — semantic search now active alongside TF-IDF/trigram. "deployment thing" can now find "server on Alibaba Cloud"
+- **sqlite-vec extension loading**: added `enableLoadExtension(true)` before loading sqlite-vec
+- **Vector search documentation**: README explains with/without vector differences, download instructions
+- **handler.ts split into 5 files**: handler-state.ts (202), handler-commands.ts (661), handler-augments.ts (767), handler-heartbeat.ts (111), handler.ts (684) — from 2392 lines single file
+- **Core hash update**: diagnostic system no longer reports false "code tampering" after our modifications
+
+### Fixed
+- **SQLite migration permanently broken**: `db.transaction()` is better-sqlite3 API, not node:sqlite. Changed to manual `db.exec('BEGIN')`/`db.exec('COMMIT')`/`db.exec('ROLLBACK')` — migration now succeeds
+- **Embedding model path**: tokenizer.json was downloaded from wrong URL (got 15-byte error page). Fixed to correct HuggingFace tokenizer.json endpoint
+- **CLI concurrency alert still appearing**: found second alert in health.ts timeout detection (L264-273) that wasn't removed. Now fully disabled — both concurrency and timeout alerts removed
+- **handler.ts split import errors**: removed 3 non-existent imports (cleanupNetworkKnowledge, resolveNetworkConflicts, trackMemoryRecall)
+- **Claude CLI daily limit error**: `You've hit your limit` now handled gracefully (was crashing agent response)
+
+### Changed
+- handler.ts: 2392 → 684 lines (split into 5 modules)
+- Total modules: 56 (was 52)
+- SQLite: migration working, 5011 memories persisted
+- Vector search: enabled with MiniLM embedding model
+- All health alerts permanently disabled (OpenClaw 3.22 manages CLI lifecycle)
+
