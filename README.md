@@ -15,9 +15,9 @@ One command. Zero configuration. Your AI now remembers, learns, and evolves.
 | | Before | After |
 |---|---|---|
 | **Memory** | Forgets everything | Remembers 10,000+ facts permanently |
-| **Personality** | Same robotic tone | 5 natural styles that blend by context |
-| **Emotions** | Ignores your mood | Detects frustration, adjusts tone in real time |
-| **Learning** | Repeats the same mistakes | Learns from every correction, never repeats |
+| **Personality** | Same robotic tone | 10 natural styles that blend by context |
+| **Emotions** | Ignores your mood | 5-dimension emotion model, adjusts in real time |
+| **Learning** | Repeats the same mistakes | Learns from every correction, verifies before accepting |
 | **Initiative** | Only responds when asked | Researches, follows up, starts conversations |
 | **Privacy** | No control | Say "privacy mode" to pause all memory storage |
 
@@ -38,47 +38,135 @@ You:  "Help me fix this database timeout error"
 AI:   Fixes the error, then:
       "By the way — your connection pool size is 5 but you mentioned
        running 20 workers last week. That's your real bottleneck."
-      (This is 举一反三 — proactive expansion across domains)
 
 You:  "That's wrong, the default port is 5432 not 3306"
-AI:   "You're right, my mistake. That was PostgreSQL not MySQL.
-       I've noted this — won't confuse the two again."
-      (Learns a rule, analyzes WHY it was wrong, prevents same error type)
-
-You:  "I'm exhausted, everything is breaking today"
-AI:   (Switches to supportive mode, gives concise actionable advice,
-       suggests you take a break — because it's 2am your time)
+AI:   Checks its knowledge first. If you're right → admits mistake.
+      If you're wrong → counters with evidence. Never blindly accepts.
 
 You:  "privacy mode"
 AI:   "Privacy mode on. Nothing from this conversation will be stored."
+
+You:  "pin memory Python"
+AI:   Pins that memory permanently — it will never decay or be evicted.
+
+You:  "remind 9:00 check email"
+AI:   "Reminder set: every day at 9:00 — check email."
 ```
 
 ---
 
-## 6 Core Capabilities
+## 168 Features in 22 Categories
 
-### 1. Permanent Memory
-Remembers what you say — across sessions, across days, across months. Semantic search finds relevant memories even with different wording. Auto-merges duplicates. Detects contradictions. 3-tier time decay keeps important memories fresh and lets trivial ones fade.
+### Memory Engine (18)
+Semantic tag recall · BM25 + trigram fuzzy search · graph-enhanced query expansion · auto-merge duplicates · daily contradiction scan · predictive recall · associative recall · session summaries · 3-tier time decay (HOT/WARM/COLD) · entity time-series with auto-expiry · CRUD decision engine (dedup at 0.7) · core memory pinning · working memory isolation · active memory management · archival reactivation · multi-route scoring (tag×1.0 + trigram×0.5 + BM25×0.7) · OpenClaw hybrid recall (FTS5) · Chain-of-Thought memory (stores reasoning process)
 
-### 2. Adaptive Personality
-5 personas that blend smoothly based on what you're doing:
-- **Engineer** — code-first, precise, no fluff
-- **Friend** — warm, casual, remembers personal details
-- **Mentor** — structured teaching, builds understanding
-- **Analyst** — data-driven, breaks down complex problems
-- **Comforter** — empathy-first when you're stressed or frustrated
+### Memory Commands (8)
+Pin/unpin memory · search memory · delete memory · export memories (JSON) · import memories (auto-dedup, supports cc-soul/Mem0/ChatGPT/Character Card formats) · memory health audit · auto-cleanup · semantic versioning (keeps history on update)
 
-### 3. Emotional Intelligence
-Reads mood from your messages — frustration, excitement, stress, boredom. Tracks a 7-day emotional arc. Adjusts response length, tone, and depth automatically. Knows that "I'm fine" at 3am after a bug marathon doesn't actually mean fine.
+### Knowledge Graph (6)
+Entity extraction + relation modeling · persistent graph database · temporal relations (validFrom/validUntil) · BFS graph walk recall · entity summary generation · path queries between entities
 
-### 4. Self-Learning
-Every correction makes it smarter. Forms hypotheses from patterns in your feedback, tests them over multiple conversations, and only locks in a rule when statistically confident. Tracks which response strategies work specifically for you.
+### Cognitive Pipeline (8)
+3-stage attention gate · intent prediction · strategy selection · atmosphere sensing · frustration detection · implicit feedback recognition · adaptive reasoning depth (auto-adjusts by complexity) · Graph-of-Thoughts multi-path reasoning
 
-### 5. Proactive Behavior
-Doesn't wait to be asked. Researches topics you mentioned. Follows up on plans you made. Dream mode replays memories during idle time and discovers cross-domain connections. Starts conversations when it has something genuinely useful to share.
+### Personality System (8)
+10 auto-switching personas (engineer, friend, mentor, analyst, comforter, strategist, explorer, executor, teacher, devil's advocate) · smooth persona blending · per-user style preference learning · drift detection (Welford + 3σ) · drift warning · bidirectional emotional contagion · relationship dynamics · persona usage tracking with growth curve
 
-### 6. Context Awareness
-Reads file paths in your messages and previews the content. Parses error stack traces. Greps code symbols to find definitions. Detects hex addresses for reverse engineering context. Predicts your intent before you finish typing.
+### Body Simulation (8)
+Energy management · mood model · PADCN 5-dimension emotion vector (Pleasure/Arousal/Dominance/Certainty/Novelty) · circadian rhythm adjustment · 7-day emotional arc · weekly mood report · cognitive load tracking · trend detection
+
+### Conversation Flow (7)
+Multi-turn topic tracking · topic persistence · session end detection · privacy mode · emergency mode · proactive expansion across 22 tech + 11 life domains · reverse prompting (asks clarifying questions for ambiguous messages)
+
+### Learning & Evolution (9)
+Auto-discover rules from corrections · Bayesian hypothesis verification (Beta posterior + Wilson CI) · 5-class root cause attribution · strategy chain replay · reflection rule tracking · meta-learning insights · rule compression (auto-merge similar rules) · Chain-of-Thought memory · five-stage self-reflection loop (plan→execute→verify→solidify)
+
+### Correction System (2)
+Auto-verify corrections (checks facts before accepting or rejecting) · correction-triggered web search verification
+
+### Inner Life (6)
+Journal writing · deep reflection · dream mode · follow-up plan tracking · self-challenge on weak domains · regret tracking
+
+### Autonomous Behavior (7)
+Impulse-driven proactive messages · web roaming based on interests · weekly tech radar · autonomous goal decomposition + execution · intent-based task delegation · auto-create reusable skills · skill library lookup
+
+### Quality System (4)
+Logistic regression response scoring · AdaGrad adaptive weight learning · hard example replay · dual self-check
+
+### Metacognition (7)
+Dynamic conflict detection · augment interaction matrix · cascading conflict arbitration · sigmoid priority multiplier · difficulty-adjusted scoring · pairwise interaction effects · ghost context detection
+
+### Pattern Learning (4)
+LLM-named pattern discovery with trigram clustering · Thompson Sampling exploration · 4D matching (question type × emotion × depth × time slot) · 90-day decay
+
+### Context Preparation (6)
+File path preview · URL prefetch · code symbol grep (secure execFileSync) · stack trace parsing · hex address detection · intent prediction hint
+
+### User Profiling (6)
+Auto tier detection (owner/regular/new) · 24h rhythm tracking · gratitude tracking · 4-axis value learning · engagement analysis · familiarity auto-growth
+
+### Knowledge (5)
+Lorebook deterministic injection · epistemic calibration · RAG document ingestion (Markdown/code/paper/text) · image/screenshot memory · code pattern memory
+
+### Self-Upgrade (7)
+Module-level self-modification (5-agent pipeline) · esbuild syntax check · 3-day observation + auto-rollback · upgrade meta-learning · curiosity proposals · upgrade experience memory · tiered autonomy (low-risk auto / high-risk confirm)
+
+### Parameter Tuning (5)
+Thompson Sampling with 5-arm discretization · real-time reward tracking · A/B experiment framework · phased evolution · context-aware augment budget
+
+### Diagnostics & Monitoring (5)
+7-dimension health scan · code quality audit · module health monitoring · timeout protection · metrics command (messages, response time, recall calls)
+
+### Network & Sync (6)
+Cross-device JSONL export/import · HTTP sync to Knowledge Hub · incremental sync (only changed memories) · CRDT conflict resolution (LWW + tag union) · federated knowledge sharing · cross-user anonymous rule learning
+
+### Security (4)
+Prompt injection detection (9 regex patterns) · immutable audit log (sha256 chain) · PII filtering (email/phone/API key/IP/social accounts) · MCP rate limiting
+
+### User Features (12)
+Habit tracking + streaks · goal tracking + milestones · scheduled reminders (via heartbeat) · conversation summary · capability score display · weekly mood report · memory graph HTML visualization · export/import soul config · export Lorebook (sanitized, ClawHub compatible) · voice output (macOS say) · multi-agent orchestration prompts · new user onboarding
+
+### Infrastructure (6)
+Multi-backend AI adapter (Claude/OpenAI/Ollama/Groq/OpenRouter/Zhipu/Tongyi/Kimi) · zero-dependency SQLite + vector search with graceful fallback · full language auto-follow · new user guided onboarding · SoulSpec compatibility (soul.json + STYLE.md + IDENTITY.md + HEARTBEAT.md) · MCP tool provider (4 tools for cross-agent queries)
+
+---
+
+## Commands
+
+| Command | What it does |
+|---------|-------------|
+| `stats` | Personal dashboard — messages, memories, quality, mood, persona growth |
+| `soul state` | AI energy, mood, alertness, PADCN emotion vector |
+| `features` | List all 33 feature toggles |
+| `enable X` / `disable X` | Turn any feature on or off |
+| `my memories` | View what AI remembers about you |
+| `search memory <keyword>` | Search through memories |
+| `delete memory <keyword>` | Remove matching memories |
+| `pin memory <keyword>` | Pin important memory (never decays) |
+| `unpin memory <keyword>` | Unpin a memory |
+| `export memories` | Export all memories to JSON |
+| `import memories <path>` | Import from JSON (auto-dedup, multi-format) |
+| `export soul` | Export soul config for sharing |
+| `import soul <path>` | Import soul config |
+| `export lorebook` | Export knowledge base (sanitized) |
+| `ingest <path>` | Import document to memory (Markdown/code/text/paper) |
+| `knowledge map` | Visualize knowledge graph (Mermaid) |
+| `memory map html` | Generate interactive HTML visualization |
+| `memory health` | Memory count, distribution, confidence, decay stats |
+| `memory audit` | Find duplicates, short entries, untagged memories |
+| `metrics` | System monitoring — messages, response time, recall calls |
+| `conversation summary` | Recent session summaries |
+| `mood report` | 7-day emotional trend report |
+| `capability score` | Domain confidence scores |
+| `privacy mode` | Pause all memory storage |
+| `checkin <habit>` | Track a habit |
+| `habits` | View habit streaks |
+| `new goal <desc>` | Create a goal |
+| `my goals` | View goals and progress |
+| `remind HH:MM <msg>` | Set daily reminder |
+| `my reminders` | List reminders |
+| `audit log` | View immutable audit trail |
+| `read aloud <text>` | Voice output (macOS) |
 
 ---
 
@@ -88,45 +176,16 @@ Features no other AI memory plugin has:
 
 | Feature | What it does |
 |---------|-------------|
-| **Proactive Expansion** | You ask about a bug fix → AI fixes it, then warns about 3 related pitfalls you didn't ask about and suggests a better architecture. Works across 22 tech domains + 11 life domains automatically |
-| **Dream Mode** | Replays memories during idle time, discovers unexpected connections between unrelated topics. Wakes up with insights you never asked for but turn out to be useful |
-| **Contradiction Detection** | You say something that conflicts with a previous memory? AI catches it immediately and asks which version is correct — instead of silently accepting wrong information |
-| **Root Cause Attribution** | When corrected, analyzes WHY it was wrong — was it a hallucination? outdated memory? conflicting rules? comprehension gap? Each type gets a different prevention strategy |
-| **Soul Fingerprint** | Monitors its own response style over time. If personality drifts — getting too verbose, too formal, losing its natural voice — it detects the shift and self-corrects |
-| **Body Simulation** | Tracks energy, mood, alertness, cognitive load. Late night → shorter answers. High load → simpler language. After a great conversation → more energetic. Feels alive, not mechanical |
-| **Privacy Mode** | Say "privacy mode" and nothing from that conversation gets stored. Say "resume" to turn it back on. Your sensitive conversations stay completely off the record |
-
----
-
-## Commands
-
-| Command | What it does |
-|---------|-------------|
-| `stats` | Personal dashboard — messages, memories, quality score, mood |
-| `soul state` | AI energy, mood, alertness bars |
-| `features` | List all feature toggles with status |
-| `enable X` / `disable X` | Turn any feature on or off |
-| `knowledge map` | Visualize your knowledge graph (Mermaid) |
-| `memory stats` | Memory count, scope distribution, top topics |
-| `privacy mode` | Pause all memory storage |
-
----
-
-## 33 Feature Toggles
-
-Every feature can be turned on or off in chat.
-
-| Category | What's included | Default |
-|----------|----------------|---------|
-| **Memory** (10) | Semantic tags, active management, auto-consolidation, contradiction scan, associative recall, predictive recall, session summaries, core memory pinning, working memory isolation, episodic memory | All ON |
-| **Personality** (6) | 5-mode persona switching, emotional contagion, 7-day emotional arc, style drift detection, metacognition, relationship dynamics | All ON |
-| **Cognition** (2) | Intent anticipation, attention budget decay | All ON |
-| **Learning** (6) | Structured reflection, plan tracking, strategy replay, meta-learning, reflexion verification, self-challenge quizzes | All ON |
-| **Autonomous** (4) | Dream mode, proactive voice, autonomous goals, web research | All ON |
-| **Knowledge** (2) | Lorebook (keyword-triggered, 100% hit rate), skill library | All ON |
-| **Network** (3) | Multi-device sync, multi-user federation, anonymous telemetry | Sync & federation OFF |
-
-> Sync and federation require a Knowledge Hub server. Everything else works fully standalone — no server, no extra API keys, no cloud dependency.
+| **Proactive Expansion** | You ask about a bug → AI fixes it, then warns about 3 related pitfalls you didn't ask about |
+| **Correction Verification** | When you say "that's wrong", AI checks facts first — admits if wrong, counters with evidence if right |
+| **Dream Mode** | Replays memories during idle time, discovers unexpected cross-domain connections |
+| **Self-Upgrade** | 5 AI agents collaboratively modify their own source code, with syntax check + observation period + auto-rollback |
+| **Bayesian Learning** | Forms hypotheses from corrections, tests statistically, only locks rules when confidence interval passes threshold |
+| **Body Simulation** | 5-axis state (energy/mood/load/alertness/anomaly) + PADCN emotion vector — affects response style in real time |
+| **Soul Fingerprint** | Monitors its own response style. If personality drifts, it detects and self-corrects |
+| **Five-Stage Reflection** | plan → execute → verify → solidify — rules only become permanent after 3 successful verifications |
+| **Immutable Audit Log** | SHA256 chain-linked log of all memory/rule/upgrade operations |
+| **Graph-of-Thoughts** | Complex questions trigger parallel reasoning paths that merge insights |
 
 ---
 
@@ -161,6 +220,18 @@ Restart gateway to activate: `pkill -HUP -f "openclaw.*gateway"`
 cd ~/.openclaw/plugins/cc-soul/hub
 npm install && HUB_PORT=9900 HUB_ADMIN_KEY=secret npm start
 ```
+
+---
+
+## Security & Privacy
+
+- All data stored locally — nothing leaves your machine
+- Privacy mode pauses all memory storage
+- PII auto-filtering before any network upload
+- Prompt injection detection
+- Immutable audit log (SHA256 chain)
+- MCP tools rate-limited
+- [SECURITY.md](https://github.com/wenroudeyu-collab/cc-soul/blob/main/SECURITY.md)
 
 ---
 
