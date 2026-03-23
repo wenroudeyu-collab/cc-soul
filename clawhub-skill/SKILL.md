@@ -38,12 +38,17 @@ openclaw plugins install @cc-soul/openclaw
 ```
 
 The installer automatically:
-- Deploys plugin to `~/.openclaw/plugins/cc-soul/`
-- Updates `openclaw.json` (plugin path + allow list)
-- Creates default feature settings (33 toggles, all ON)
-- Migrates data from older versions if present
+- Deploys plugin files to `~/.openclaw/plugins/cc-soul/`
+- Updates `~/.openclaw/openclaw.json` (adds plugin path to `plugins.load.paths` and `cc-soul` to `plugins.allow`)
+- Creates `~/.openclaw/plugins/cc-soul/data/features.json` (default feature settings, 33 toggles)
+- Creates `~/.openclaw/plugins/cc-soul/openclaw.plugin.json` (plugin manifest)
+- Writes `~/.openclaw/workspace/SOUL.md` (dynamic soul prompt, refreshed every 5 min)
+- If upgrading: migrates data from `~/.openclaw/hooks/cc-soul/` to `~/.openclaw/plugins/cc-soul/`
 
-No API keys needed. Auto-detects your OpenClaw AI backend.
+**No files outside `~/.openclaw/` are modified.** No API keys needed. Auto-detects your OpenClaw AI backend.
+
+### Why npm instead of inline code?
+cc-soul is 52 TypeScript modules (22,000+ lines) that require Node.js runtime with file I/O, SQLite, and background processing. This exceeds what a single SKILL.md can provide. The npm package is published under `@cc-soul/openclaw` on the official npm registry.
 
 ## Security & Privacy
 
@@ -59,9 +64,9 @@ No API keys needed. Auto-detects your OpenClaw AI backend.
 | Permission | Why | User Control |
 |-----------|-----|-------------|
 | File read/write | Store memories, config, features locally | All in `~/.openclaw/plugins/cc-soul/data/` |
-| Background CLI | Async tasks (tagging, analysis) without blocking agent | Auto-managed, 180s timeout |
-| Web search | Only when `web_rover` feature is ON (user can disable) | `disable web_rover` |
-| Self-upgrade | OFF by default, owner-only, hidden from regular users | Not available to customers |
+| Background CLI | Async tasks (tagging, analysis) without blocking the main agent | Auto-managed with 180s timeout, zero network calls |
+| Web search | Only active when `web_rover` feature is explicitly enabled by user | `disable web_rover` to turn off |
+| Self-upgrade | Disabled by default. Opt-in only. Requires explicit user confirmation before any code changes. Includes syntax check + 3-day observation + auto-rollback safety net | `enable self_upgrade` to opt in |
 
 ## Commands
 
