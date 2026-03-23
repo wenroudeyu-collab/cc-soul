@@ -2,6 +2,64 @@
 
 All notable changes to cc-soul will be documented here.
 
+## [1.8.0] - 2026-03-23
+
+### Added
+- **Import memories command**: "导入记忆 <path>" / "import memories <path>" — import from JSON file with auto-dedup
+- **Import soul command**: "导入灵魂 <path>" / "import soul <path>" — import soul config (features + values), restart to apply
+- **Correction auto-verify**: when user says "you're wrong", AI now verifies before accepting or rejecting — uses evidence to counter incorrect corrections
+- **MCP Tool Provider**: 4 tools (cc_memory_search, cc_memory_add, cc_soul_state, cc_persona_info) for other AI agents
+- **Chain-of-Thought Memory**: memories store reasoning process (context → conclusion), auto-extracted from "because...therefore" patterns
+- **Graph Walk Recall**: BFS on entity-relation graph discovers memories through knowledge links
+- **Image/Screenshot Memory**: auto-detects image context, stores as visual scope
+- **Document Ingestion v2**: "摄入文档"/"ingest <path>" — Markdown/code/text smart chunking
+- **8 new commands**: search/delete/import memory, import soul, conversation summary, memory health, metrics, ingest
+- **Context-aware augment budget**: technical → rules +2, emotional → persona +2, casual → all -1
+- **Rule compression**: auto-merge similar rules when >40 (trigram >0.6)
+- **Incremental sync + CRDT**: only exports changed memories, last-write-wins + tag union merge
+- **Full language auto-follow**: replies in whatever language user writes in (was hardcoded Chinese)
+- **5 E2E tests** (total 40), metrics collection, section maps for module splitting
+
+### Fixed — P0 Crashes
+- **memory.ts missing readFileSync + homedir imports**: saveMemories and hybrid recall would crash
+- **handler.ts missing homedir + resolve**: import memory/soul commands would crash
+- **handler.ts augments TDZ**: correction verification pushed to augments before declaration — correction handling was completely broken
+- **context-prep.ts command injection**: grep exec with unescaped user input
+- **Double runPostResponseAnalysis**: same turn analyzed twice, now deduped with _lastAnalyzedPrompt flag
+- **recallFeedbackLoop writing to copy**: feedback tags never persisted, now writes to memoryState.memories directly
+- **auto-tune.ts bandit reward unbounded**: reward now clamped to [0,1]
+- **upgrade.ts git missing crash**: now checks git availability before use, skips gracefully
+
+### Fixed — P1 Data Integrity
+- **Eviction index corruption**: queueForTagging no longer uses index, uses content+ts matching
+- **addMemoryWithEmotion skip path**: emotion was set on wrong memory after dedup skip
+- **Consolidation race condition**: filter+push replaced with in-place splice to prevent concurrent recall seeing empty array
+- **FTS5 SQL injection**: MATCH query now strips * ( ) { } ^ ~ < > | \\ AND OR NOT NEAR
+- **sqlite-store embedding non-atomic**: DELETE+INSERT wrapped in BEGIN/COMMIT/ROLLBACK transaction
+- **evolution.ts sort instability**: added ts tiebreaker for equal scores
+- **quality.ts AdaGrad double decay**: L2 lambda reduced 0.001 → 0.0001
+- **auto-tune.ts gammaSample NaN**: alpha/beta clamped to min 0.01
+
+### Fixed — Other
+- **Daemon killed by cleanup**: disabled killGatewayClaude (OpenClaw 3.22 manages CLI lifecycle)
+- **Concurrency alert spam**: disabled permanently (unnecessary with sessionMode=always)
+- **CLI priority restored**: Persistent CLI > Haiku API > One-shot (was accidentally reversed)
+
+### Performance
+- **contentIndex Map**: decideMemoryAction O(1) exact match before O(n) trigram scan, limited to last 200
+- **scopeIndex in recall()**: batch skip expired/decayed without per-item check
+- **clusterByTopic capped**: O(n²) limited to most recent 100 entries
+- **Graph walk Map lookup**: replaced .find() with pre-built contentMap
+- **buildIDF throttled**: max once per 60 seconds
+- **Trigram LRU cache**: 500 entries, avoids recomputation
+- **Metrics deduplication**: metrics.totalMessages is now a getter referencing stats.totalMessages
+
+### Changed
+- OpenClaw 3.22 verified compatible, sessionMode=always configured
+- 51 modules, 22,000+ lines, all obfuscated
+- Soul prompt fully internationalized (English instructions, model auto-follows user language)
+
+
 ## [1.7.0] - 2026-03-23
 
 ### Added — New Features
