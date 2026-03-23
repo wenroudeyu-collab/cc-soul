@@ -2,6 +2,47 @@
 
 All notable changes to cc-soul will be documented here.
 
+## [1.6.0] - 2026-03-23
+
+### Added
+- **New user onboarding**: first-time users get a guided 3-question conversation to build initial profile and memory baseline
+- **Multi-language support**: auto-detects English messages and switches soul prompt to English mode
+- **"我的记忆" / "my memories" command**: view the 20 most recent memories AI has about you
+- **"导出记忆" / "export memories" command**: export all your memories to JSON file
+- **"导出灵魂" / "export soul" command**: export soul config (prompt + features + personas + values) for sharing or backup
+- **Recall rate visualization**: stats command now shows memory recall success rate
+- **Personality growth curve**: stats command shows persona usage histogram with trend analysis (e.g. "主要以工程师模式互动")
+- **Persona usage tracking**: every persona selection logged per user for growth visualization
+- **OpenClaw hybrid recall**: recall() now queries OpenClaw native FTS5 memory as secondary source, merges results with cc-soul's TF-IDF/trigram
+- **OpenClaw 3.22 verified**: full compatibility confirmed — plugin loading, hooks, SOUL.md injection all working
+
+### Fixed
+- **SOUL.md content pollution**: core_memory.json had 12 garbage entries ([goal completed], [Working Memory], Rating leaks, persona snapshots) — cleaned data + added reject filter in promoteToCore()
+- **System augment memory leak**: addMemory() now rejects content with system prefixes ([Working Memory], [当前面向], [System], etc.)
+- **saveMemories() crash protection**: refuses to overwrite non-empty file with empty array (prevents data loss on process kill)
+- **Relationship "relatively new" never updating**: familiarity was always 0 — now grows with messageCount (50 msgs → fully familiar)
+- **getBlendedPersonaOverlay double selection**: was calling selectPersona() again without intent/msg, always picking analyst — now uses activePersona directly
+- **New persona trigger too weak**: extended triggers (planning/learning/curiosity) now override vector similarity when detected from message content
+- **"我的记忆" intercepted by upgrade system**: new commands now skip upgrade check to avoid false interception
+- **type-mismatch NaN**: Date.now() - m.ts returns NaN when ts is string/undefined (handler.ts, rover.ts)
+- **unguarded JSON.parse**: sqlite-store.ts row.tags parsing could crash
+- **Claude concurrency false alarm**: excluded cc-soul daemon processes from count, threshold 8→3
+- **Feishu notification spam**: notifySoulActivity now console.log only
+
+### Changed
+- SOUL.md architecture overhaul: 35.9KB → 5.1KB (86% reduction, 864 tokens)
+- Dynamic content (memories, reflections, hypotheses, dreams, entity graph, rover, workflows, user model, values) moved from SOUL.md to per-message augment injection
+- 5 new personas (total 10): Strategist, Explorer, Executor, Teacher, Devil's Advocate
+- Context protection: 70%/85%/95% three-tier threshold
+- Prompt injection detection: 9 regex patterns
+- Competitive radar v2: dynamic inventory scan + 10 competitors + comparison matrix
+- SoulSpec compatibility: soul.json + STYLE.md + IDENTITY.md + HEARTBEAT.md + SECURITY.md
+- Owner-only features hidden from customers
+- All 50 modules fully obfuscated (build.sh auto-scan, no manual lists)
+- Memory recall: ts=0 repair (4986 memories) + double decay removed + RECALL_UPGRADE_COUNT 2→1 + archival reactivation + multi-route scoring
+- Byte-based SOUL.md truncation (19KB limit) for Chinese UTF-8
+
+
 ## [1.5.0] - 2026-03-23
 
 ### Major: SOUL.md Architecture Overhaul
