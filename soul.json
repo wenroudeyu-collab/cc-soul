@@ -2,7 +2,7 @@
   "specVersion": "0.4",
   "name": "cc-soul",
   "displayName": "cc-soul — AI Cognitive Architecture",
-  "version": "1.7.0",
+  "version": "2.2.0",
   "description": "Persistent memory, adaptive personality, emotional awareness, self-evolution for OpenClaw",
   "license": "MIT",
   "tags": ["memory", "personality", "cognitive", "evolution", "emotion"],
