@@ -106,9 +106,9 @@ cc-soul 在 `message:preprocessed` 阶段对用户消息进行 prompt injection 
 ### Telemetry
 
 - cc-soul 包含可选的 telemetry 模块（`telemetry.ts`）
-- telemetry 默认行为由配置控制
-- 用户可通过 feature toggle 命令禁用 telemetry
-- telemetry 数据不包含对话内容，仅包含使用统计
+- **telemetry 默认关闭（OFF）**，需用户主动执行 `enable telemetry` 才会启用
+- telemetry 数据不包含对话内容，仅包含匿名使用统计
+- 用户可随时通过 `disable telemetry` 关闭
 
 ### 同步安全
 
