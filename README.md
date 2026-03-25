@@ -8,6 +8,8 @@ openclaw plugins install @cc-soul/openclaw
 
 One command. Zero configuration. Your AI now remembers, learns, and evolves.
 
+**Say "help" or "帮助" to see all commands.**
+
 ---
 
 ## Vector Search — Understand Meaning, Not Just Keywords
@@ -352,10 +354,10 @@ AI:   Shows confidence scores per domain:
 
 ---
 
-## 168 Features in 19 Categories
+## 180+ Features in 22 Categories
 
-### Memory Engine (18)
-Semantic tag recall · BM25 + trigram fuzzy search · graph-enhanced query expansion · auto-merge duplicates · daily contradiction scan · predictive recall · associative recall · session summaries · 3-tier time decay (HOT/WARM/COLD) · entity time-series with auto-expiry · CRUD decision engine (dedup at 0.7) · core memory pinning · working memory isolation · active memory management · archival reactivation · multi-route scoring (tag×1.0 + trigram×0.5 + BM25×0.7) · OpenClaw hybrid recall (FTS5) · Chain-of-Thought memory (stores reasoning process)
+### Memory Engine (20)
+Semantic tag recall · BM25 + trigram fuzzy search · graph-enhanced query expansion · auto-merge duplicates · daily contradiction scan · predictive recall · associative recall · session summaries · 3-tier time decay (HOT/WARM/COLD) · entity time-series with auto-expiry · CRUD decision engine (dedup at 0.7) · core memory pinning · working memory isolation · active memory management · archival reactivation · multi-route scoring (tag×1.0 + trigram×0.5 + BM25×0.7) · OpenClaw hybrid recall (FTS5) · Chain-of-Thought memory (stores reasoning process) · **smart forget (Weibull survival + ACT-R activation)** · **context compression (ACON progressive summarization)**
 
 ### Memory Commands (8)
 Pin/unpin memory · search memory · delete memory · export memories (JSON) · import memories (auto-dedup, supports cc-soul/Mem0/ChatGPT/Character Card formats) · memory health audit · auto-cleanup · semantic versioning (keeps history on update)
@@ -363,11 +365,11 @@ Pin/unpin memory · search memory · delete memory · export memories (JSON) · 
 ### Knowledge Graph (6)
 Entity extraction + relation modeling · persistent graph database · temporal relations (validFrom/validUntil) · BFS graph walk recall · entity summary generation · path queries between entities
 
-### Cognitive Pipeline (8)
-3-stage attention gate · intent prediction · strategy selection · atmosphere sensing · frustration detection · implicit feedback recognition · adaptive reasoning depth (auto-adjusts by complexity) · Graph-of-Thoughts multi-path reasoning
+### Cognitive Pipeline (11)
+3-stage attention gate · intent prediction · strategy selection · atmosphere sensing · frustration detection · implicit feedback recognition · adaptive reasoning depth (auto-adjusts by complexity) · Graph-of-Thoughts multi-path reasoning · **internal debate (multi-persona deliberation for complex questions)** · **theory of mind (tracks user beliefs/knowledge/goals/frustrations)** · **context compression (ACON progressive summarization saves 50-80% tokens)**
 
-### Personality System (8)
-11 auto-switching personas (engineer, friend, mentor, analyst, comforter, strategist, explorer, executor, teacher, devil's advocate, socratic) · smooth persona blending · per-user style preference learning · drift detection (Welford + 3σ) · drift warning · bidirectional emotional contagion · relationship dynamics · persona usage tracking with growth curve
+### Personality System (9)
+11 auto-switching personas (engineer, friend, mentor, analyst, comforter, strategist, explorer, executor, teacher, devil's advocate, socratic) · smooth persona blending · per-user style preference learning · **Shannon entropy persona drift detection** · drift auto-correction · bidirectional emotional contagion · relationship dynamics · persona usage tracking with growth curve · Socratic mode triggers (帮我理解/引导我/教我/别告诉我答案)
 
 ### Body Simulation (8)
 Energy management · mood model · PADCN 5-dimension emotion vector (Pleasure/Arousal/Dominance/Certainty/Novelty) · circadian rhythm adjustment · 7-day emotional arc · weekly mood report · cognitive load tracking · trend detection
@@ -384,11 +386,11 @@ Auto-verify corrections (checks facts before accepting or rejecting) · correcti
 ### Inner Life (6)
 Journal writing · deep reflection · dream mode · follow-up plan tracking · self-challenge on weak domains · regret tracking
 
-### Autonomous Behavior (4)
-Impulse-driven proactive messages · autonomous goal decomposition + execution · auto-create reusable skills · skill library lookup
+### Autonomous Behavior (7)
+Impulse-driven proactive messages · autonomous goal decomposition + execution · auto-create reusable skills · skill library lookup · **cron agent (scheduled autonomous tasks: daily/weekly/interval)** · **skill extraction (n-gram pattern detection → reusable automations)** · **smart forget (Weibull+ACT-R intelligent memory decay)**
 
-### Quality System (4)
-Logistic regression response scoring · AdaGrad adaptive weight learning · hard example replay · dual self-check
+### Quality System (5)
+Logistic regression response scoring · AdaGrad adaptive weight learning · hard example replay · dual self-check · **LLM self-judge (1-10 scoring with trend tracking)**
 
 ### Metacognition (7)
 Dynamic conflict detection · augment interaction matrix · cascading conflict arbitration · sigmoid priority multiplier · difficulty-adjusted scoring · pairwise interaction effects · ghost context detection
@@ -417,8 +419,11 @@ Prompt injection detection (9 regex patterns) · immutable audit log (sha256 cha
 ### User Features (12)
 Habit tracking + streaks · goal tracking + milestones · scheduled reminders (via heartbeat) · conversation summary · capability score display · weekly mood report · memory graph HTML visualization · export/import soul config · export Lorebook (sanitized, ClawHub compatible) · voice output (macOS say) · multi-agent orchestration prompts · new user onboarding
 
+### Agent Interop (3)
+**A2A Protocol (Agent-to-Agent)** — exposes 5 capabilities (memory-recall, persona-switch, emotion-tracking, knowledge-graph, quality-eval) as standard Agent Card · MCP tool provider (4 tools for cross-agent queries) · multi-agent orchestration prompts
+
 ### Infrastructure (5)
-Multi-backend AI adapter (Claude/OpenAI/Ollama/Groq/OpenRouter/Zhipu/Tongyi/Kimi) · zero-dependency SQLite + vector search with graceful fallback · full language auto-follow · SoulSpec compatibility (soul.json + STYLE.md + IDENTITY.md + HEARTBEAT.md) · MCP tool provider (4 tools for cross-agent queries)
+Multi-backend AI adapter (Claude/OpenAI/Ollama/Groq/OpenRouter/Zhipu/Tongyi/Kimi) · zero-dependency SQLite + vector search with graceful fallback · full language auto-follow · SoulSpec compatibility (soul.json + STYLE.md + IDENTITY.md + HEARTBEAT.md) · brain module registry with circuit breaker fault isolation
 
 ---
 
@@ -426,6 +431,7 @@ Multi-backend AI adapter (Claude/OpenAI/Ollama/Groq/OpenRouter/Zhipu/Tongyi/Kimi
 
 | Command | What it does |
 |---------|-------------|
+| `help` / `帮助` | **Full command guide — start here** |
 | `stats` | Personal dashboard — messages, memories, quality, mood, persona growth |
 | `soul state` | AI energy, mood, alertness, PADCN emotion vector |
 | `features` | List all feature toggles |
@@ -456,8 +462,49 @@ Multi-backend AI adapter (Claude/OpenAI/Ollama/Groq/OpenRouter/Zhipu/Tongyi/Kimi
 | `my goals` | View goals and progress |
 | `remind HH:MM <msg>` | Set daily reminder |
 | `my reminders` | List reminders |
+| `delete reminder <N>` | Delete a reminder by number |
+| `memory timeline <keyword>` | View change history for a topic |
+| `cost` / `成本` | Token usage statistics |
+| `dashboard` / `仪表盘` | Open web dashboard (HTML) |
 | `audit log` | View immutable audit trail |
 | `read aloud <text>` | Voice output (macOS) |
+
+---
+
+## How Features Work — Automatic vs Manual
+
+**Say "help" or "帮助" anytime to see all commands.**
+
+### Runs automatically (no action needed)
+| Feature | What happens |
+|---------|-------------|
+| Memory recording | Every conversation is analyzed and stored |
+| Persona switching | 11 personas auto-select based on your message content |
+| Emotion tracking | Detects your mood and adjusts response style |
+| Learning from corrections | When you say "that's wrong", AI learns and remembers |
+| Proactive expansion | Adds related insights you didn't ask for |
+| Contradiction detection | Flags conflicts between memories |
+| Memory decay | Old unused memories gradually fade |
+| Smart forget | Weibull+ACT-R model decides what to forget |
+| Context compression | Long conversations auto-compress to save tokens |
+| Theory of mind | Tracks your knowledge gaps and adapts explanations |
+| Persona drift detection | Auto-corrects if personality style drifts |
+| A2A protocol | Other AI agents can query your soul's memory and knowledge |
+
+### Triggered by keywords (just say it)
+| Say this | What happens |
+|----------|-------------|
+| "帮我理解" / "引导我" / "别告诉我答案" | Socratic mode — guides you with questions instead of answers |
+| "隐私模式" / "别记了" | Pauses all memory storage |
+| "可以了" / "恢复记忆" | Resumes memory storage |
+| "上次聊..." / "接着聊..." | Recalls related topic from memory |
+
+### Opt-in features (off by default, enable with `enable X`)
+| Feature | Toggle name | Why off by default |
+|---------|------------|-------------------|
+| Internal debate | `debate` | Uses extra tokens for multi-perspective deliberation |
+| LLM self-judge | `llm_judge` | Requires extra API calls to self-evaluate |
+| Dream mode | `dream_mode` | Background activity during idle time |
 
 ---
 
@@ -467,13 +514,21 @@ Features no other AI memory plugin has:
 
 | Feature | What it does |
 |---------|-------------|
+| **A2A Protocol** ⭐ | Agent-to-Agent — other AI agents can query cc-soul's memory, persona, and knowledge graph via standard protocol |
+| **Theory of Mind** ⭐ | Tracks what you know, believe, and struggle with — detects repeated misconceptions and adapts explanations |
+| **Internal Debate** ⭐ | Complex questions trigger multi-perspective debate between personas before answering — you get the synthesized best answer |
+| **Smart Forget** | Weibull survival model + ACT-R activation — intelligently forgets low-value memories instead of hoarding everything |
+| **Context Compression** | ACON-based progressive compression — old context auto-summarizes to save tokens while keeping key facts |
+| **Cron Agent** | Schedule autonomous tasks: "every day 09:00 check my goals" — runs in the background |
 | **Proactive Expansion** | You ask about a bug → AI fixes it, then warns about 3 related pitfalls you didn't ask about |
 | **Correction Verification** | When you say "that's wrong", AI checks facts first — admits if wrong, counters with evidence if right |
 | **Dream Mode** | Replays memories during idle time, discovers unexpected cross-domain connections |
 | **Bayesian Learning** | Forms hypotheses from corrections, tests statistically, only locks rules when confidence interval passes threshold |
 | **Body Simulation** | 5-axis state (energy/mood/load/alertness/anomaly) + PADCN emotion vector — affects response style in real time |
-| **Soul Fingerprint** | Monitors its own response style. If personality drifts, it detects and self-corrects |
+| **Persona Drift Detection** | Shannon entropy monitoring — if personality style drifts, auto-corrects back |
 | **Five-Stage Reflection** | plan → execute → verify → solidify — rules only become permanent after 3 successful verifications |
+| **LLM Self-Judge** | AI rates its own responses 1-10, tracks quality trends, auto-adjusts when scores drop |
+| **Skill Extraction** | Detects repeated patterns in your work and suggests automating them as reusable skills |
 | **Immutable Audit Log** | SHA256 chain-linked log of all memory/rule operations |
 | **Graph-of-Thoughts** | Complex questions trigger parallel reasoning paths that merge insights |
 
@@ -568,8 +623,9 @@ Restart gateway to activate: `pkill -HUP -f "openclaw.*gateway"`
 
 ## Security & Privacy
 
-- All data stored locally — nothing leaves your machine
-- Zero network calls — no telemetry, no phone-home, no external APIs
+- Local-first — all data in `~/.openclaw/plugins/cc-soul/data/`
+- AI calls via OpenClaw's configured CLI backend — no direct API key management
+- No telemetry, no phone-home — plugin never contacts external analytics
 - Privacy mode pauses all memory storage
 - PII auto-filtering (email/phone/API key/IP)
 - Prompt injection detection (9 patterns)

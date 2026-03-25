@@ -1,7 +1,7 @@
 ---
 name: cc-soul
 description: "Give your AI a soul — persistent memory, adaptive personality, emotional awareness"
-version: 2.2.0
+version: 2.3.0
 author: wenroudeyu-collab
 tags:
   - soul
@@ -52,25 +52,25 @@ The installer makes **exactly 4 changes**, all within `~/.openclaw/`:
 
 ## Security & Privacy
 
-### Zero Network Activity
-- **100% local** — all data stored in `~/.openclaw/plugins/cc-soul/data/`
-- **Zero network calls** — the plugin makes no outbound connections of any kind
-- **No telemetry** — no usage data is collected or transmitted
-- **No external API calls** — all processing happens locally using the agent's own CLI
+### What This Plugin Does
+- **Stores data locally** — all memory, config, and state in `~/.openclaw/plugins/cc-soul/data/`
+- **Runs JavaScript code** — 50+ obfuscated JS modules execute as an OpenClaw plugin within the Node.js runtime
+- **Invokes your AI backend** — background tasks (tagging, reflection, self-eval) call the agent CLI configured in your OpenClaw settings (e.g. `claude -p`). These use whatever AI provider and API keys you have already configured — cc-soul does not manage API keys or endpoints directly
+- **Writes to `~/.openclaw/`** — creates plugin data files, feature configs, and a dynamic SOUL.md prompt file. No files outside `~/.openclaw/` are created or modified
+- **Optionally sends notifications** — if Feishu credentials are manually configured in `data/config.json`, activity notifications are sent via Feishu API. No notifications are sent without explicit configuration
+
+### What This Plugin Does NOT Do
+- **No telemetry** — does not transmit usage data, analytics, or metrics to any third-party service
+- **No phone-home** — never contacts cc-soul's own servers, npm registry, or any endpoint at runtime
+- Does not modify any files outside `~/.openclaw/`
+- Does not install background services, launch agents, or daemons
+- Does not access system credentials or keychains
 
 ### Data Safety
 - **Privacy mode** — say "privacy mode" to pause all memory storage instantly
 - **PII auto-filtering** — strips emails, phone numbers, API keys, and IP addresses before storage
-- **Prompt injection detection** — 9 regex patterns protect against adversarial input
+- **Prompt injection detection** — regex patterns protect against adversarial input
 - **Immutable audit log** — SHA256 chain-linked log of all memory operations
-
-### What This Plugin Does NOT Do
-- Does not collect or transmit any data
-- Does not make any network requests
-- Does not modify any files outside `~/.openclaw/`
-- Does not install background services, launch agents, or daemons
-- Does not access system credentials, keychains, or environment variables
-- Does not execute arbitrary code or modify its own source
 
 ## User Control
 
