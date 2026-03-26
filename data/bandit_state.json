@@ -1,0 +1,2259 @@
+{
+  "memory.recall_top_n": {
+    "key": "memory.recall_top_n",
+    "arms": [
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 4,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 1,
+    "totalPulls": 0
+  },
+  "memory.age_decay_rate": {
+    "key": "memory.age_decay_rate",
+    "arms": [
+      {
+        "value": 0.01,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.015,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.02,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.03,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.consolidation_cooldown_hours": {
+    "key": "memory.consolidation_cooldown_hours",
+    "arms": [
+      {
+        "value": 12,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 18,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 24,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 36,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.session_summary_cooldown_min": {
+    "key": "memory.session_summary_cooldown_min",
+    "arms": [
+      {
+        "value": 15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 23,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 38,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.contradiction_scan_cooldown_hours": {
+    "key": "memory.contradiction_scan_cooldown_hours",
+    "arms": [
+      {
+        "value": 12,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 18,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 24,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 36,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.energy_recovery_per_min": {
+    "key": "body.energy_recovery_per_min",
+    "arms": [
+      {
+        "value": 0.0075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0112,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.015,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0187,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.alertness_decay_per_min": {
+    "key": "body.alertness_decay_per_min",
+    "arms": [
+      {
+        "value": 0.004,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.006,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.008,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.01,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.012,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.alertness_recovery_per_min": {
+    "key": "body.alertness_recovery_per_min",
+    "arms": [
+      {
+        "value": 0.0025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0037,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.005,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0063,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.load_decay_per_min": {
+    "key": "body.load_decay_per_min",
+    "arms": [
+      {
+        "value": 0.01,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.015,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.02,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.03,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.mood_decay_factor": {
+    "key": "body.mood_decay_factor",
+    "arms": [
+      {
+        "value": 0.49,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.735,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.98,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.47,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.correction_alertness_boost": {
+    "key": "body.correction_alertness_boost",
+    "arms": [
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.correction_mood_penalty": {
+    "key": "body.correction_mood_penalty",
+    "arms": [
+      {
+        "value": 0.05,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.positive_energy_boost": {
+    "key": "body.positive_energy_boost",
+    "arms": [
+      {
+        "value": 0.025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.05,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.positive_mood_boost": {
+    "key": "body.positive_mood_boost",
+    "arms": [
+      {
+        "value": 0.04,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.06,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.08,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.12,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.positive_anomaly_reduction": {
+    "key": "body.positive_anomaly_reduction",
+    "arms": [
+      {
+        "value": 0.025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.05,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.resilience": {
+    "key": "body.resilience",
+    "arms": [
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.message_energy_base_cost": {
+    "key": "body.message_energy_base_cost",
+    "arms": [
+      {
+        "value": 0.01,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.015,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.02,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.03,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.message_energy_complexity_cost": {
+    "key": "body.message_energy_complexity_cost",
+    "arms": [
+      {
+        "value": 0.015,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.03,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.045,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.message_load_base": {
+    "key": "body.message_load_base",
+    "arms": [
+      {
+        "value": 0.05,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.message_load_complexity": {
+    "key": "body.message_load_complexity",
+    "arms": [
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1875,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.correction_anomaly_boost": {
+    "key": "body.correction_anomaly_boost",
+    "arms": [
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1875,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.anomaly_decay_per_min": {
+    "key": "body.anomaly_decay_per_min",
+    "arms": [
+      {
+        "value": 0.005,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.01,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.015,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "cognition.casual_max_length": {
+    "key": "cognition.casual_max_length",
+    "arms": [
+      {
+        "value": 8,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 11,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 19,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 23,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "cognition.quick_intent_max_length": {
+    "key": "cognition.quick_intent_max_length",
+    "arms": [
+      {
+        "value": 10,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 20,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "cognition.detailed_min_length": {
+    "key": "cognition.detailed_min_length",
+    "arms": [
+      {
+        "value": 100,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 150,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 200,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 250,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 300,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.frustration_shortening_rate": {
+    "key": "flow.frustration_shortening_rate",
+    "arms": [
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.frustration_terse": {
+    "key": "flow.frustration_terse",
+    "arms": [
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1875,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.frustration_keyword_rate": {
+    "key": "flow.frustration_keyword_rate",
+    "arms": [
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.frustration_question_rate": {
+    "key": "flow.frustration_question_rate",
+    "arms": [
+      {
+        "value": 0.05,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.frustration_repetition": {
+    "key": "flow.frustration_repetition",
+    "arms": [
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1875,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.frustration_decay_per_turn": {
+    "key": "flow.frustration_decay_per_turn",
+    "arms": [
+      {
+        "value": 0.025,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.05,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.0625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "flow.stuck_threshold": {
+    "key": "flow.stuck_threshold",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "prompt.augment_budget": {
+    "key": "prompt.augment_budget",
+    "arms": [
+      {
+        "value": 1000,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1500,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2000,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2500,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3000,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "voice.proactive_cooldown_hours": {
+    "key": "voice.proactive_cooldown_hours",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "voice.impulse_threshold": {
+    "key": "voice.impulse_threshold",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.hypothesis_verify_threshold": {
+    "key": "evolution.hypothesis_verify_threshold",
+    "arms": [
+      {
+        "value": 3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 4,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 6,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 8,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.hypothesis_reject_threshold": {
+    "key": "evolution.hypothesis_reject_threshold",
+    "arms": [
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 4,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.max_rules": {
+    "key": "evolution.max_rules",
+    "arms": [
+      {
+        "value": 25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 38,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 50,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 63,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "rover.roam_cooldown_hours": {
+    "key": "rover.roam_cooldown_hours",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "inner.journal_cooldown_min": {
+    "key": "inner.journal_cooldown_min",
+    "arms": [
+      {
+        "value": 15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 23,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 38,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "inner.reflection_cooldown_hours": {
+    "key": "inner.reflection_cooldown_hours",
+    "arms": [
+      {
+        "value": 12,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 18,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 24,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 36,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "inner.dream_idle_min": {
+    "key": "inner.dream_idle_min",
+    "arms": [
+      {
+        "value": 30,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 60,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 90,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "inner.dream_cooldown_hours": {
+    "key": "inner.dream_cooldown_hours",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.fusion_text_weight": {
+    "key": "memory.fusion_text_weight",
+    "arms": [
+      {
+        "value": 0.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.fusion_vec_weight": {
+    "key": "memory.fusion_vec_weight",
+    "arms": [
+      {
+        "value": 0.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.fusion_multi_source_boost": {
+    "key": "memory.fusion_multi_source_boost",
+    "arms": [
+      {
+        "value": 0.65,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.975,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.95,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.trigram_dedup_threshold": {
+    "key": "memory.trigram_dedup_threshold",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.bm25_k1": {
+    "key": "memory.bm25_k1",
+    "arms": [
+      {
+        "value": 0.6,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.9,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.8,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.bm25_b": {
+    "key": "memory.bm25_b",
+    "arms": [
+      {
+        "value": 0.375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.5625,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.9375,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1.125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "memory.time_decay_halflife_days": {
+    "key": "memory.time_decay_halflife_days",
+    "arms": [
+      {
+        "value": 45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 67.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 90,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 112.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 135,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.rule_dedup_threshold": {
+    "key": "evolution.rule_dedup_threshold",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.hypothesis_verify_ci_lb": {
+    "key": "evolution.hypothesis_verify_ci_lb",
+    "arms": [
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.6,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.9,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.hypothesis_reject_ci_ub": {
+    "key": "evolution.hypothesis_reject_ci_ub",
+    "arms": [
+      {
+        "value": 0.2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.4,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.6,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "evolution.hypothesis_match_min_sim": {
+    "key": "evolution.hypothesis_match_min_sim",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "body.contagion_max_shift": {
+    "key": "body.contagion_max_shift",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "fingerprint.length_upper_multiplier": {
+    "key": "fingerprint.length_upper_multiplier",
+    "arms": [
+      {
+        "value": 1.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 2.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3.75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 4.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "fingerprint.length_lower_multiplier": {
+    "key": "fingerprint.length_lower_multiplier",
+    "arms": [
+      {
+        "value": 0.075,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1125,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.1875,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.225,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "fingerprint.hedge_word_limit": {
+    "key": "fingerprint.hedge_word_limit",
+    "arms": [
+      {
+        "value": 2.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 3.75,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 6.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 7.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "graph.stale_days": {
+    "key": "graph.stale_days",
+    "arms": [
+      {
+        "value": 45,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 67.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 90,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 112.5,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 135,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "persona.blend_gap_threshold": {
+    "key": "persona.blend_gap_threshold",
+    "arms": [
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  },
+  "persona.attention_trigger_bonus": {
+    "key": "persona.attention_trigger_bonus",
+    "arms": [
+      {
+        "value": 0.1,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.15,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.2,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.25,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      },
+      {
+        "value": 0.3,
+        "alpha": 1,
+        "beta": 1,
+        "pulls": 0
+      }
+    ],
+    "currentArm": 2,
+    "totalPulls": 0
+  }
+}

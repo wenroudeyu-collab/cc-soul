@@ -1,0 +1,17 @@
+{
+  "phase": "idle",
+  "analysis": "",
+  "proposals": [],
+  "designedAt": 0,
+  "observationStart": 0,
+  "observationExtensions": 0,
+  "preUpgradeEval": null,
+  "preWindowStats": {
+    "messages": 0,
+    "corrections": 0,
+    "qualitySum": 0,
+    "qualityCount": 0
+  },
+  "backupPath": "",
+  "appliedDiff": ""
+}

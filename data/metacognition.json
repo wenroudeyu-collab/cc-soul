@@ -1,0 +1,77 @@
+{
+  "conflictPairs": [
+    {
+      "a": "简洁",
+      "b": "详细",
+      "source": "seed",
+      "coOccurrences": 0,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "简短",
+      "b": "展开",
+      "source": "seed",
+      "coOccurrences": 0,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "不擅长",
+      "b": "擅长",
+      "source": "seed",
+      "coOccurrences": 0,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "不确定",
+      "b": "确定",
+      "source": "seed",
+      "coOccurrences": 0,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "谨慎",
+      "b": "果断",
+      "source": "seed",
+      "coOccurrences": 0,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "先共情",
+      "b": "直接给方案",
+      "source": "seed",
+      "coOccurrences": 0,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "相关记忆",
+      "b": "认知",
+      "source": "learned",
+      "coOccurrences": 6,
+      "correctionCount": 6,
+      "correctionRate": 1
+    },
+    {
+      "a": "相关记忆",
+      "b": "注意规则",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 3,
+      "correctionRate": 1
+    }
+  ],
+  "interactions": [
+    {
+      "pairKey": "相关记忆::认知",
+      "coOccurrences": 8,
+      "qualitySum": 46,
+      "avgQuality": 5.75,
+      "correctionCount": 2
+    }
+  ]
+}

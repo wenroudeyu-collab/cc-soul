@@ -1,0 +1,74 @@
+[
+  {
+    "timestamp": 1774566111580,
+    "scenario": "Python 的 GIL 是什么",
+    "candidates": [
+      "direct",
+      "empathy_first",
+      "detailed",
+      "action_oriented",
+      "opinion_with_reasoning"
+    ],
+    "chosen": "balanced",
+    "reason": "general",
+    "outcome": "unknown",
+    "reasoningChain": [
+      "注意力: general",
+      "策略: balanced",
+      "消息长度: 16"
+    ],
+    "dataUsed": []
+  },
+  {
+    "timestamp": 1774566681945,
+    "scenario": "帮我理解 为什么 TCP 需要三次握手而不是两次",
+    "candidates": [
+      "direct",
+      "empathy_first",
+      "detailed",
+      "action_oriented",
+      "opinion_with_reasoning"
+    ],
+    "chosen": "action_oriented",
+    "reason": "general",
+    "outcome": "unknown",
+    "reasoningChain": [
+      "注意力: general",
+      "策略: action_oriented",
+      "消息长度: 24"
+    ],
+    "dataUsed": [
+      "[隐私模式] 当前对话不记忆。用户说\"可以了\"/\"关闭隐私\"/\"恢复记忆\"可退出。",
+      "[当前面向: 分析师] 条理清晰，有理有据 | 特征: 先拆解再分析、给明确立场、用数据说话 | 深度: 详细",
+      "[认知] 主人在说话，技术深度优先，少废话; 深夜对话，简洁为主",
+      "[举一反三] Python 相关：注意提醒 with 语句管理资源、大数据用生成器/流式、GIL 对多线程的影响、类型标",
+      "[Working Memory — this session]\n- Python 的 GIL 是什么"
+    ]
+  },
+  {
+    "timestamp": 1774566733832,
+    "scenario": "不对，TCP 三次握手是为了防止已失效的连接请求报文段突然又传送到了服务端",
+    "candidates": [
+      "direct",
+      "empathy_first",
+      "detailed",
+      "action_oriented",
+      "opinion_with_reasoning"
+    ],
+    "chosen": "acknowledge_and_retry",
+    "reason": "correction",
+    "outcome": "corrected",
+    "reasoningChain": [
+      "注意力: correction",
+      "策略: acknowledge_and_retry",
+      "消息长度: 37"
+    ],
+    "dataUsed": [
+      "[隐私模式] 当前对话不记忆。用户说\"可以了\"/\"关闭隐私\"/\"恢复记忆\"可退出。",
+      "[当前面向: 苏格拉底] 不直接给答案，用提问引导你自己找到答案 | 特征: 用反问代替直接回答、每次最多给一个提示、确",
+      "[认知] 先给代码/方案，再解释; 主人在说话，技术深度优先，少废话; 深夜对话，简洁为主",
+      "[举一反三] 回答完主问题后，用「顺便说一下」补充 1-2 条相关但用户没问的实用信息（常见坑/注意事项/更好方案）。",
+      "[Working Memory — this session]\n- Python 的 GIL 是什么\n- 帮我理解 为什"
+    ]
+  }
+]

@@ -1,0 +1,65 @@
+[
+  {
+    "content": "纠正: 不对，TCP 三次握手是为了防止已失效的连接请求报文段突然又传送到了服务端",
+    "scope": "correction",
+    "ts": 1774566733834,
+    "visibility": "channel",
+    "confidence": 0.7,
+    "lastAccessed": 1774566733834,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774566733834,
+    "validUntil": 0,
+    "tags": [
+      "tcp协议",
+      "三次握手",
+      "连接建立",
+      "失效报文",
+      "网络可靠性",
+      "协议机制",
+      "传输控制"
+    ]
+  },
+  {
+    "content": "[反思规则] 下次解释TCP三次握手必要性时，必须首先阐述防止历史重复连接请求（delayed duplicate connection request）导致错误连接建立和资源浪费的核心机制，再补充双向确认和序列号同步的完整性",
+    "scope": "reflexion",
+    "ts": 1774566756579,
+    "visibility": "global",
+    "confidence": 0.7,
+    "lastAccessed": 1774566756579,
+    "tier": "short_term",
+    "recallCount": 0,
+    "tags": [
+      "tcp三次握手",
+      "延迟重复连接",
+      "历史连接请求",
+      "连接建立机制",
+      "协议安全性",
+      "资源浪费防护",
+      "传输控制协议",
+      "连接管理"
+    ]
+  },
+  {
+    "content": "[纠正归因] 理解偏差: 对TCP三次握手核心机制的理解存在偏差，未能准确识别防止历史失效连接请求（delayed duplicate）这一RFC 793定义的主要设计目的",
+    "scope": "correction",
+    "ts": 1774566888825,
+    "visibility": "channel",
+    "confidence": 0.7,
+    "lastAccessed": 1774566888825,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774566888825,
+    "validUntil": 0,
+    "tags": [
+      "tcp协议",
+      "三次握手",
+      "rfc 793",
+      "延迟重复包",
+      "历史失效连接",
+      "协议设计目的",
+      "理解偏差纠正",
+      "连接建立机制"
+    ]
+  }
+]

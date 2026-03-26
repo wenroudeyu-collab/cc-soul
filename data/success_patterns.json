@@ -1,0 +1,14 @@
+[
+  {
+    "patternName": "direct_answer",
+    "questionType": "quick",
+    "emotion": "neutral",
+    "depth": "short",
+    "timeSlot": "morning",
+    "userId": "test_user",
+    "alpha": 2,
+    "beta": 1,
+    "lastUsed": 1774256473675,
+    "description": "直接给答案不废话"
+  }
+]

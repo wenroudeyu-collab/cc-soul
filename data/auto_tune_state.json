@@ -1,0 +1,37 @@
+{
+  "currentExperiment": null,
+  "history": [
+    {
+      "paramKey": "memory.recall_top_n",
+      "originalValue": 3,
+      "testValue": 3.75,
+      "startedAt": 1774142684432,
+      "endsAt": 1774401884432,
+      "preMetrics": {
+        "avgQuality": 5,
+        "correctionRate": 0.1,
+        "messages": 374991
+      },
+      "postMetrics": {
+        "avgQuality": 5,
+        "correctionRate": 0.1,
+        "messages": 97
+      },
+      "status": "reverted"
+    }
+  ],
+  "lastTuneCheck": 1774490592108,
+  "paramQueue": [
+    "memory.age_decay_rate",
+    "body.energy_recovery_per_min",
+    "body.resilience",
+    "body.mood_decay_factor",
+    "quality.reasoning_bonus",
+    "quality.relevance_weight",
+    "flow.stuck_threshold",
+    "flow.frustration_decay_per_turn",
+    "prompt.augment_budget",
+    "voice.impulse_threshold",
+    "evolution.hypothesis_verify_threshold"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "model": {
+    "beliefs": {},
+    "knowledge": {},
+    "goals": [],
+    "frustrations": []
+  },
+  "corrections": [],
+  "recentTopics": [
+    {
+      "topic": "打卡 冥想",
+      "ts": 1774490403654
+    },
+    {
+      "topic": "pin 记忆 芒果",
+      "ts": 1774490493288
+    },
+    {
+      "topic": "unpin 记忆 芒果",
+      "ts": 1774490547468
+    },
+    {
+      "topic": "记忆时间线 芒果",
+      "ts": 1774490601745
+    },
+    {
+      "topic": "记忆审计",
+      "ts": 1774490614112
+    }
+  ]
+}

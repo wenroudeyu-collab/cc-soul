@@ -1,14 +1,4 @@
-# Ignore everything
-*
-
-# Allow only documentation files
-!.gitignore
-!README.md
-!CHANGELOG.md
-!SECURITY.md
-!soul.json
-!STYLE.md
-!IDENTITY.md
-!HEARTBEAT.md
-!clawhub-skill/
-!clawhub-skill/SKILL.md
+node_modules/
+dist/
+*.tgz
+.DS_Store

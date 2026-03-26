@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "instanceId": "cc-z-mac-main",
+  "instanceName": "cc-mac",
+  "method": "http",
+  "remote": "http://localhost:9900",
+  "hubUrl": "http://localhost:9900",
+  "hubApiKey": "csk-79d828d8ef65dc8d37c9e96b7317c727",
+  "federationEnabled": true,
+  "syncIntervalMinutes": 30,
+  "lastSync": 1774566550210
+}

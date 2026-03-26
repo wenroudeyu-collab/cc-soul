@@ -1,0 +1,31 @@
+{
+  "operations": [
+    {
+      "action": "打卡 冥想",
+      "success": true,
+      "ts": 1774490403654
+    },
+    {
+      "action": "pin 记忆 芒果",
+      "success": true,
+      "ts": 1774490493288
+    },
+    {
+      "action": "unpin 记忆 芒果",
+      "success": true,
+      "ts": 1774490547468
+    },
+    {
+      "action": "记忆时间线 芒果",
+      "success": true,
+      "ts": 1774490601745
+    },
+    {
+      "action": "记忆审计",
+      "success": true,
+      "ts": 1774490614112
+    }
+  ],
+  "patterns": [],
+  "suggestedSkills": []
+}

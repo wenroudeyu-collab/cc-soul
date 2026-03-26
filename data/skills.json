@@ -1,0 +1,136 @@
+[
+  {
+    "name": "frida-hook-objc",
+    "description": "用 Frida hook ObjC 方法",
+    "solution": "const resolver = new ApiResolver('objc');\nconst matches = resolver.enumerateMatches('-[ClassName methodName:]');\nInterceptor.attach(matches[0].address, {\n  onEnter(args) { console.log('called', ObjC.Object(args[2])); },\n  onLeave(retval) { console.log('ret', retval); }\n});",
+    "keywords": [
+      "frida",
+      "hook",
+      "objc",
+      "interceptor",
+      "方法"
+    ],
+    "verified": true,
+    "usedCount": 61,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774478399668
+  },
+  {
+    "name": "frida-hook-swift",
+    "description": "用 Frida hook Swift 函数（mangled name）",
+    "solution": "// 1. 先找符号: frida-trace -U -m '*ClassName*' App\n// 2. 用 demangle 确认: swift demangle $s...\n// 3. Hook:\nInterceptor.attach(Module.findExportByName(null, '$s...mangled...'), {\n  onEnter(args) { /* swift calling convention: self=args[0] */ }\n});",
+    "keywords": [
+      "frida",
+      "swift",
+      "hook",
+      "mangle",
+      "符号"
+    ],
+    "verified": true,
+    "usedCount": 86,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774399546624
+  },
+  {
+    "name": "ida-find-xref",
+    "description": "IDA 中查找交叉引用定位关键函数",
+    "solution": "// 1. Strings window (Shift+F12) 搜关键字符串\n// 2. 对字符串按 X 看 xref\n// 3. 跟进到调用函数，F5 反编译\n// 4. 对函数再按 X 看上层调用链\n// 也可以用 IDAPython: for xref in idautils.XrefsTo(ea): print(hex(xref.frm))",
+    "keywords": [
+      "ida",
+      "xref",
+      "交叉引用",
+      "定位",
+      "字符串",
+      "反编译"
+    ],
+    "verified": true,
+    "usedCount": 42,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774312333432
+  },
+  {
+    "name": "python-async-timeout",
+    "description": "Python 异步请求加超时和重试",
+    "solution": "import aiohttp, asyncio\n\nasync def fetch(url, timeout=10, retries=3):\n    for i in range(retries):\n        try:\n            async with aiohttp.ClientSession() as s:\n                async with s.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as r:\n                    return await r.json()\n        except (aiohttp.ClientError, asyncio.TimeoutError):\n            if i == retries - 1: raise\n            await asyncio.sleep(2 ** i)",
+    "keywords": [
+      "python",
+      "async",
+      "timeout",
+      "重试",
+      "aiohttp",
+      "请求"
+    ],
+    "verified": true,
+    "usedCount": 657,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774566733845
+  },
+  {
+    "name": "macho-dump-header",
+    "description": "查看 Mach-O 文件头信息",
+    "solution": "# 基础信息\notool -h binary\n# Load Commands\notool -l binary\n# 查看所有导入的动态库\notool -L binary\n# 查看符号表\nnm -m binary | head -50\n# 或用 jtool2:\njtool2 -h binary\njtool2 -l binary",
+    "keywords": [
+      "mach-o",
+      "otool",
+      "header",
+      "load command",
+      "jtool",
+      "二进制"
+    ],
+    "verified": true,
+    "usedCount": 56,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774485006554
+  },
+  {
+    "name": "git-rebase-fixup",
+    "description": "Git 交互式 rebase 合并提交",
+    "solution": "# 合并最近 3 个 commit\ngit rebase -i HEAD~3\n# 编辑器里把要合并的 commit 从 pick 改成 fixup (f)\n# 或者用 autosquash:\ngit commit --fixup=<target-sha>\ngit rebase -i --autosquash <base>",
+    "keywords": [
+      "git",
+      "rebase",
+      "fixup",
+      "合并",
+      "commit",
+      "squash"
+    ],
+    "verified": true,
+    "usedCount": 51,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774512171169
+  },
+  {
+    "name": "ts-type-guard",
+    "description": "TypeScript 类型守卫 narrowing",
+    "solution": "// 用 type predicate\nfunction isError(x: unknown): x is Error {\n  return x instanceof Error\n}\n// 用 in operator\nif ('code' in err && typeof err.code === 'number') { ... }\n// 用 discriminated union\ntype Result = { ok: true; data: T } | { ok: false; error: string }\nif (result.ok) { result.data /* narrowed */ }",
+    "keywords": [
+      "typescript",
+      "类型",
+      "guard",
+      "narrowing",
+      "type",
+      "判断"
+    ],
+    "verified": true,
+    "usedCount": 127,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774476987542
+  },
+  {
+    "name": "dyld-interpose",
+    "description": "通过 DYLD_INSERT_LIBRARIES 注入 dylib 做函数替换",
+    "solution": "// interpose.c\n#include <dlfcn.h>\ntypedef struct { void *replacement; void *original; } interpose_t;\n\nint my_open(const char *path, int flags, ...) {\n  printf(\"open: %s\\n\", path);\n  return ((int(*)(const char*,int,...))original_open)(path, flags);\n}\n\n__attribute__((used)) static const interpose_t interpose[] \\\n  __attribute__((section(\"__DATA,__interpose\"))) = {\n  { (void *)my_open, (void *)open },\n};\n// 编译: clang -shared -o interpose.dylib interpose.c\n// 注入: DYLD_INSERT_LIBRARIES=./interpose.dylib ./target",
+    "keywords": [
+      "dyld",
+      "interpose",
+      "注入",
+      "dylib",
+      "hook",
+      "替换"
+    ],
+    "verified": true,
+    "usedCount": 1070,
+    "createdAt": 1710547200000,
+    "lastUsed": 1774544909331
+  }
+]

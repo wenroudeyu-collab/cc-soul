@@ -1,0 +1,546 @@
+/**
+ * context-engine.ts — cc-soul as OpenClaw Context Engine Plugin
+ *
+ * This module transforms cc-soul from a hook-only plugin into a full
+ * Context Engine provider, solving:
+ * - message:sent not always firing → afterTurn() always fires
+ * - Soul prompt truncation → systemPromptAddition is first-class, never truncated
+ * - Augments being budget-cut → systemPromptAddition is first-class
+ *
+ * Strategy: register as kind:"context-engine", implement the ContextEngine interface,
+ * and also register hooks for message:preprocessed augment injection.
+ * Compaction is delegated to OpenClaw's built-in runtime.
+ */
+
+import { buildSoulPrompt, selectAugments, estimateTokens } from './prompt-builder.ts'
+import { memoryState, addMemory, addMemoryWithEmotion, parseMemoryCommands, executeMemoryCommands, recall, ensureMemoriesLoaded } from './memory.ts'
+import { bodyOnPositiveFeedback } from './body.ts'
+import { addEntitiesFromAnalysis } from './graph.ts'
+import { runPostResponseAnalysis, setAgentBusy, killGatewayClaude } from './cli.ts'
+import { isEnabled } from './features.ts'
+// ── Optional modules (absent in public build) ──
+let roverState: { discoveries: any[]; topics: string[] } = { discoveries: [], topics: [] }
+import('./rover.ts').then(m => { roverState = m.roverState }).catch(() => {})
+// ── End optional modules ──
+import { taskState } from './tasks.ts'
+import { trackQuality } from './quality.ts'
+import { getSessionState, getLastActiveSessionKey } from './handler-state.ts'
+import { updateFingerprint, checkPersonaConsistency } from './fingerprint.ts'
+// ── New module hooks (optional, loaded async) ──
+let trackPersonaStyle: (text: string, personaId: string) => void = () => {}
+let judgeSelfReply: (user: string, bot: string, cb: (r: any) => void) => void = () => {}
+let updateBeliefFromMessage: (user: string, bot: string) => void = () => {}
+let trackUserPattern: (msg: string, ok: boolean) => void = () => {}
+let trackRecallImpact: (contents: string[], score: number) => void = () => {}
+let getActivePersona: () => { id: string } | null = () => null
+import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle }).catch(() => {})
+import('./llm-judge.ts').then(m => { judgeSelfReply = m.judgeSelfReply }).catch(() => {})
+import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage }).catch(() => {})
+import('./skill-extract.ts').then(m => { trackUserPattern = m.trackUserPattern }).catch(() => {})
+import('./memory.ts').then(m => { trackRecallImpact = m.trackRecallImpact }).catch(() => {})
+import('./persona.ts').then(m => { getActivePersona = m.getActivePersona }).catch(() => {})
+
+function syncResponseToSession(sessionKey: string | undefined, content: string) {
+  try {
+    const sk = sessionKey || getLastActiveSessionKey()
+    const sess = getSessionState(sk)
+    if (sess) sess.lastResponseContent = content
+  } catch (_) {}
+}
+
+// ── State — use globalThis to ensure single instance across module boundaries ──
+
+const _g = globalThis as any
+if (!_g.__ccSoulState) {
+  _g.__ccSoulState = {
+    lastUserMsg: '',
+    lastBotResponse: '',
+    lastSenderId: '',
+    lastAugments: [] as string[],
+    _sessionFile: '',
+  }
+}
+const _state = _g.__ccSoulState as {
+  lastUserMsg: string
+  lastBotResponse: string
+  lastSenderId: string
+  lastAugments: string[]
+  _sessionFile: string
+}
+
+/** Called from hook handler to pass sender context */
+export function setLastSenderId(id: string) { _state.lastSenderId = id }
+
+/** Called from handler.ts to cache augments for assemble() */
+export function setLastAugments(augments: string[]) { _state.lastAugments = augments }
+
+// ── Stats accessor (avoids circular import from handler.ts) ──
+
+let statsAccessor: () => { totalMessages: number; corrections: number; firstSeen: number } = () => ({
+  totalMessages: 0, corrections: 0, firstSeen: Date.now(),
+})
+
+export function setStatsAccessor(fn: typeof statsAccessor) { statsAccessor = fn }
+
+// ── The Context Engine implementation ──
+
+export function createCcSoulContextEngine() {
+  return {
+    info: {
+      id: 'cc-soul',
+      name: 'cc-soul Context Engine',
+      version: '1.3.0',
+      ownsCompaction: false, // delegate compaction to OpenClaw runtime
+    },
+
+    async bootstrap(_params: {
+      sessionId: string
+      sessionKey?: string
+      sessionFile: string
+    }) {
+      console.log(`[cc-soul][context-engine] bootstrap`)
+      // Save session file path for dispose() to read bot response
+      _state._sessionFile = _params.sessionFile
+      return { bootstrapped: true }
+    },
+
+    async ingest(params: {
+      sessionId: string
+      sessionKey?: string
+      message: { role: string; content: unknown; [key: string]: unknown }
+      isHeartbeat?: boolean
+    }) {
+      // Track messages for afterTurn analysis
+      if (params.message.role === 'user' && typeof params.message.content === 'string') {
+        _state.lastUserMsg = params.message.content
+      }
+      if (params.message.role === 'assistant' && typeof params.message.content === 'string') {
+        _state.lastBotResponse = params.message.content
+        // Sync to session state so handlePreprocessed's "Previous turn analysis" has data
+        syncResponseToSession(params.sessionKey, params.message.content)
+      }
+      return { ingested: true }
+    },
+
+    async ingestBatch(params: {
+      sessionId: string
+      sessionKey?: string
+      messages: { role: string; content: unknown; [key: string]: unknown }[]
+      isHeartbeat?: boolean
+    }) {
+      for (const msg of params.messages) {
+        if (msg.role === 'user' && typeof msg.content === 'string') _state.lastUserMsg = msg.content
+        if (msg.role === 'assistant' && typeof msg.content === 'string') _state.lastBotResponse = msg.content
+      }
+      return { ingestedCount: params.messages.length }
+    },
+
+    /**
+     * afterTurn — always fires after a turn, solving message:sent unreliability.
+     */
+    async afterTurn(params: {
+      sessionId: string
+      sessionKey?: string
+      sessionFile: string
+      messages: { role: string; content: unknown; [key: string]: unknown }[]
+      prePromptMessageCount: number
+      autoCompactionSummary?: string
+      isHeartbeat?: boolean
+      tokenBudget?: number
+    }) {
+      // Release agent + cleanup
+      setAgentBusy(false)
+      killGatewayClaude()
+
+      if (params.isHeartbeat) return
+
+      // Extract user/assistant messages from params if ingest() wasn't called
+      if (!_state.lastUserMsg || !_state.lastBotResponse) {
+        if (params.messages?.length > 0) {
+          for (let i = params.messages.length - 1; i >= 0; i--) {
+            const m = params.messages[i]
+            let text = ''
+            if (typeof m.content === 'string') {
+              text = m.content
+            } else if (Array.isArray(m.content)) {
+              text = (m.content as any[])
+                .filter((p: any) => p?.type === 'text')
+                .map((p: any) => p.text || '')
+                .join(' ')
+            }
+            if (!text) continue
+            if (m.role === 'assistant' && !_state.lastBotResponse) {
+              _state.lastBotResponse = text
+            }
+            if (m.role === 'user' && !_state.lastUserMsg) {
+              const cleaned = text.replace(/^Conversation info[\s\S]*?```\n*/m, '').replace(/^Sender[\s\S]*?```\n*/m, '').trim()
+              if (cleaned) _state.lastUserMsg = cleaned
+            }
+            if (_state.lastUserMsg && _state.lastBotResponse) break
+          }
+        }
+      }
+
+      if (!_state.lastUserMsg || !_state.lastBotResponse) return
+
+      const userMsg = _state.lastUserMsg
+      const botResponse = _state.lastBotResponse
+
+      _afterTurnCalled = true
+      console.log(`[cc-soul][context-engine] afterTurn: post-response analysis`)
+
+      // Active memory management from response text
+      if (isEnabled('memory_active')) {
+        const memCommands = parseMemoryCommands(botResponse)
+        if (memCommands.length > 0) {
+          executeMemoryCommands(memCommands, _state.lastSenderId)
+        }
+      }
+
+      // Fingerprint update
+      if (isEnabled('fingerprint')) {
+        updateFingerprint(botResponse)
+        const drift = checkPersonaConsistency(botResponse)
+        if (drift) console.log(`[cc-soul][fingerprint] ${drift}`)
+      }
+
+      // Full post-response analysis
+      runPostResponseAnalysis(userMsg, botResponse, (result) => {
+        for (const m of result.memories) {
+          addMemoryWithEmotion(m.content, m.scope, _state.lastSenderId, m.visibility, undefined, result.emotion)
+        }
+        addEntitiesFromAnalysis(result.entities)
+
+        // LLM-driven memory operations
+        if (result.memoryOps && result.memoryOps.length > 0) {
+          for (const op of result.memoryOps) {
+            if (!op.keyword || op.keyword.length < 4) continue
+            if (!op.reason || op.reason.length < 3) continue
+            const kw = op.keyword.toLowerCase()
+            if (op.action === 'delete') {
+              let deleted = 0
+              for (const mem of memoryState.memories) {
+                if (deleted >= 2) break
+                if (mem.content.toLowerCase().includes(kw) && mem.scope !== 'expired') {
+                  mem.scope = 'expired'
+                  deleted++
+                }
+              }
+              if (deleted > 0) console.log(`[cc-soul][memory-ops] DELETE ${deleted} (keyword: ${op.keyword}, reason: ${op.reason})`)
+            } else if (op.action === 'update' && op.newContent) {
+              for (const mem of memoryState.memories) {
+                if (mem.content.toLowerCase().includes(kw) && mem.scope !== 'expired') {
+                  console.log(`[cc-soul][memory-ops] UPDATE: "${mem.content.slice(0, 40)}" → "${op.newContent.slice(0, 40)}"`)
+                  mem.content = op.newContent
+                  mem.ts = Date.now()
+                  mem.tags = undefined
+                  break
+                }
+              }
+            }
+          }
+        }
+
+        if (result.satisfaction === 'POSITIVE') bodyOnPositiveFeedback()
+        trackQuality(result.quality.score)
+        if (result.reflection) addMemory(`[反思] ${result.reflection}`, 'reflection', _state.lastSenderId, 'private')
+        if (result.curiosity) addMemory(`[好奇] ${result.curiosity}`, 'curiosity', _state.lastSenderId, 'private')
+
+        console.log(`[cc-soul][context-engine] afterTurn complete: sat=${result.satisfaction} q=${result.quality.score}`)
+
+        // ── New module hooks (run inside callback so we have quality score) ──
+        try { trackPersonaStyle(botResponse, getActivePersona()?.id ?? 'default') } catch (_) {}
+        try { judgeSelfReply(userMsg, botResponse, (r: any) => { console.log(`[cc-soul][llm-judge] score=${r?.score}`) }) } catch (_) {}
+        try { updateBeliefFromMessage(userMsg, botResponse) } catch (_) {}
+        try { trackUserPattern(userMsg, true) } catch (_) {}
+        try { trackRecallImpact([], result.quality.score) } catch (_) {}
+      })
+
+      // Reset
+      _state.lastUserMsg = ''
+      _state.lastBotResponse = ''
+    },
+
+    /**
+     * assemble — inject soul prompt as systemPromptAddition (first-class, never truncated).
+     */
+    async assemble(params: {
+      sessionId: string
+      sessionKey?: string
+      messages: { role: string; content: unknown; [key: string]: unknown }[]
+      tokenBudget?: number
+    }) {
+      const s = statsAccessor()
+      const soulPrompt = buildSoulPrompt(
+        s.totalMessages, s.corrections, s.firstSeen,
+        roverState, taskState.workflows,
+      )
+
+      // Extract lastUserMsg from params.messages if ingest() wasn't called
+      // console.log(`[cc-soul][context-engine] assemble: _state.lastUserMsg="${(_state.lastUserMsg||'').slice(0,20)}", msgs=${params.messages?.length || 0}`)
+      if (!_state.lastUserMsg && params.messages?.length > 0) {
+        for (let i = params.messages.length - 1; i >= 0; i--) {
+          const m = params.messages[i]
+          if (m.role !== 'user') continue
+          // Content can be string or array of {type: 'text', text: '...'}
+          let text = ''
+          if (typeof m.content === 'string') {
+            text = m.content
+          } else if (Array.isArray(m.content)) {
+            text = (m.content as any[])
+              .filter(p => p?.type === 'text')
+              .map(p => p.text || '')
+              .join(' ')
+          }
+          if (text.length > 0) {
+            // Strip OpenClaw metadata envelope:
+            // "Conversation info (untrusted metadata):\n```json\n{...}\n```\n\nSender...\n```json\n{...}\n```\n\n[message_id: xxx]\nwang: actual message"
+            let cleaned = text
+            // Remove OpenClaw metadata: find the last ``` and take everything after it
+            const lastBacktick = text.lastIndexOf('```')
+            if (lastBacktick !== -1) {
+              cleaned = text.slice(lastBacktick + 3).trim()
+            }
+            // Remove [message_id: xxx] prefix
+            cleaned = cleaned.replace(/^\[message_id:\s*\S+\]\s*/i, '')
+            // Remove "name: " prefix (e.g. "wang: ")
+            cleaned = cleaned.replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s/, '')
+            cleaned = cleaned.trim()
+            if (cleaned) {
+              _state.lastUserMsg = cleaned
+              break
+            }
+          }
+        }
+        if (_state.lastUserMsg) {
+          console.log(`[cc-soul][context-engine] assemble: extracted lastUserMsg="${_state.lastUserMsg.slice(0, 40)}"`)
+          // Command detection in assemble (reliable fallback when preprocessed hook doesn't fire)
+          try {
+            const { routeCommandDirect, wasHandledByDirect } = await import('./handler-commands.ts')
+            if (typeof routeCommandDirect === 'function') {
+              const rawMsg = _state.lastUserMsg
+                .replace(/^\[message_id:\s*\S+\]\s*/i, '')
+                .replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s/, '')
+                .trim()
+              // Skip if already handled by inbound_claim path
+              if (!wasHandledByDirect(rawMsg)) {
+                routeCommandDirect(rawMsg, params)
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // If preprocessed hook hasn't populated augments yet (async race),
+      // do a synchronous memory recall directly in assemble() as fallback
+      let augmentsToUse = _state.lastAugments
+      if (augmentsToUse.length === 0 && _state.lastUserMsg) {
+        console.log(`[cc-soul][context-engine] assemble: no augments from hook, running recall fallback for "${_state.lastUserMsg.slice(0, 40)}"`)
+        const recalled = recall(_state.lastUserMsg, 5, _state.lastSenderId || undefined)
+        if (recalled.length > 0) {
+          const memAugment = '[相关记忆] ' + recalled.map(m => {
+            const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
+            return m.content + emotionTag
+          }).join('; ')
+          augmentsToUse = [memAugment]
+          console.log(`[cc-soul][context-engine] assemble: fallback recall found ${recalled.length} memories`)
+        }
+      }
+
+      // Merge SOUL.md + augments
+      const parts = [soulPrompt]
+      if (augmentsToUse.length > 0) {
+        parts.push(augmentsToUse.join('\n\n'))
+      }
+      const fullPrompt = parts.join('\n\n')
+
+      console.log(`[cc-soul][context-engine] assemble: ${soulPrompt.length} chars soul + ${augmentsToUse.length} augments = ${fullPrompt.length} chars total`)
+      if (augmentsToUse.length > 0) {
+        console.log(`[cc-soul][context-engine] augment preview: ${augmentsToUse.map(a => a.slice(0, 60)).join(' | ')}`)
+        const hasMemory = augmentsToUse.some(a => a.includes('[相关记忆]'))
+        console.log(`[cc-soul][context-engine] assemble: has [相关记忆]=${hasMemory}`)
+      }
+
+      return {
+        messages: params.messages,
+        estimatedTokens: 0,
+        systemPromptAddition: fullPrompt,
+      }
+    },
+
+    /**
+     * compact — delegate to runtime with soul-aware instructions.
+     */
+    async compact(params: {
+      sessionId: string
+      sessionKey?: string
+      sessionFile: string
+      tokenBudget?: number
+      force?: boolean
+      currentTokenCount?: number
+      compactionTarget?: 'budget' | 'threshold'
+      customInstructions?: string
+    }) {
+      // Add core memory hints to compaction instructions
+      const coreHints = memoryState.memories
+        .filter(m => m.scope === 'core' || m.scope === 'important')
+        .slice(0, 10)
+        .map(m => m.content.slice(0, 50))
+        .join('; ')
+
+      const soulInstructions = coreHints
+        ? `IMPORTANT: Preserve these key user facts during compaction: ${coreHints}`
+        : undefined
+
+      const merged = [params.customInstructions, soulInstructions].filter(Boolean).join('\n\n')
+
+      try {
+        // Dynamic import — resolved at runtime through OpenClaw's module system
+        const mod = await import('openclaw/plugin-sdk')
+        return await mod.delegateCompactionToRuntime({
+          ...params,
+          customInstructions: merged || params.customInstructions,
+        })
+      } catch {
+        console.log('[cc-soul][context-engine] delegateCompactionToRuntime unavailable')
+        return { ok: true, compacted: false, reason: 'delegate unavailable' }
+      }
+    },
+
+    async dispose() {
+      console.log('[cc-soul][context-engine] dispose')
+
+      // WORKAROUND: OpenClaw API mode doesn't call afterTurn() or message:sent hook.
+      // Use dispose() as fallback trigger for post-response analysis.
+      // Extract bot response from session JSONL if ingest() wasn't called
+      if (!_state.lastBotResponse && _state._sessionFile) {
+        try {
+          const { readFileSync, existsSync } = await import('fs')
+          if (existsSync(_state._sessionFile)) {
+            const lines = readFileSync(_state._sessionFile, 'utf-8').split('\n').filter((l: string) => l.trim())
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const entry = JSON.parse(lines[i])
+                if (entry?.type === 'message' && entry?.message?.role === 'assistant') {
+                  const content = entry.message.content
+                  if (typeof content === 'string') {
+                    _state.lastBotResponse = content
+                  } else if (Array.isArray(content)) {
+                    const texts = content.filter((p: any) => p?.type === 'text').map((p: any) => p.text || '')
+                    _state.lastBotResponse = texts.join(' ')
+                  }
+                  if (_state.lastBotResponse) break
+                }
+              } catch (_) {}
+            }
+            if (_state.lastBotResponse) {
+              console.log(`[cc-soul][context-engine] dispose: recovered bot response from session (${_state.lastBotResponse.length} chars)`)
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (_state.lastUserMsg && _state.lastBotResponse) {
+        console.log(`[cc-soul][context-engine] dispose: triggering afterTurn fallback (user=${_state.lastUserMsg.slice(0, 30)}, bot=${_state.lastBotResponse.slice(0, 30)})`)
+        const userMsg = _state.lastUserMsg
+        const botResponse = _state.lastBotResponse
+
+        // Active memory management from response text
+        if (isEnabled('memory_active')) {
+          const memCommands = parseMemoryCommands(botResponse)
+          if (memCommands.length > 0) {
+            executeMemoryCommands(memCommands, _state.lastSenderId)
+          }
+        }
+
+        // Fingerprint update
+        if (isEnabled('fingerprint')) {
+          updateFingerprint(botResponse)
+        }
+
+        // Full post-response analysis (async, fire-and-forget)
+        runPostResponseAnalysis(userMsg, botResponse, (result) => {
+          for (const m of result.memories) {
+            addMemoryWithEmotion(m.content, m.scope, _state.lastSenderId, m.visibility, undefined, result.emotion)
+          }
+          addEntitiesFromAnalysis(result.entities)
+
+          if (result.memoryOps && result.memoryOps.length > 0) {
+            for (const op of result.memoryOps) {
+              if (!op.keyword || op.keyword.length < 4) continue
+              if (!op.reason || op.reason.length < 3) continue
+              const kw = op.keyword.toLowerCase()
+              if (op.action === 'delete') {
+                let deleted = 0
+                for (const mem of memoryState.memories) {
+                  if (deleted >= 2) break
+                  if (mem.content.toLowerCase().includes(kw) && mem.scope !== 'expired') {
+                    mem.scope = 'expired'
+                    deleted++
+                  }
+                }
+                if (deleted > 0) console.log(`[cc-soul][memory-ops] DELETE ${deleted} (keyword: ${op.keyword})`)
+              } else if (op.action === 'update' && op.newContent) {
+                for (const mem of memoryState.memories) {
+                  if (mem.content.toLowerCase().includes(kw) && mem.scope !== 'expired') {
+                    mem.content = op.newContent
+                    mem.ts = Date.now()
+                    mem.tags = undefined
+                    break
+                  }
+                }
+              }
+            }
+          }
+
+          if (result.satisfaction === 'POSITIVE') bodyOnPositiveFeedback()
+          trackQuality(result.quality.score)
+          if (result.reflection) addMemory(`[反思] ${result.reflection}`, 'reflection', _state.lastSenderId, 'private')
+          if (result.curiosity) addMemory(`[好奇] ${result.curiosity}`, 'curiosity', _state.lastSenderId, 'private')
+          console.log(`[cc-soul][context-engine] dispose-afterTurn complete: sat=${result.satisfaction} q=${result.quality.score}`)
+
+          // New module hooks
+          try { trackPersonaStyle(botResponse, getActivePersona()?.id ?? 'default') } catch (_) {}
+          try { updateBeliefFromMessage(userMsg, botResponse) } catch (_) {}
+          try { trackUserPattern(userMsg, true) } catch (_) {}
+        })
+
+        // Reset
+        _state.lastUserMsg = ''
+        _state.lastBotResponse = ''
+      }
+    },
+  }
+}
+
+// ── Plugin registration helper ──
+
+let _registered = false
+let _afterTurnCalled = false
+
+/**
+ * Try to register cc-soul as a Context Engine via plugin-sdk.
+ * Returns true if registered, false if falling back to hook mode.
+ */
+export function tryRegisterContextEngine(): boolean {
+  if (_registered) return true
+
+  try {
+    const { registerContextEngine } = require('openclaw/plugin-sdk')
+    const result = registerContextEngine('cc-soul', () => createCcSoulContextEngine())
+    if (result.ok) {
+      _registered = true
+      console.log('[cc-soul][context-engine] ✅ registered as Context Engine')
+      return true
+    }
+    console.log(`[cc-soul][context-engine] registration blocked: ${result.existingOwner}`)
+    return false
+  } catch (e: any) {
+    console.log(`[cc-soul][context-engine] not available (${e.message?.slice(0, 60)}), hook mode`)
+    return false
+  }
+}
+
+export function isContextEngineActive(): boolean {
+  return _registered && _afterTurnCalled
+}

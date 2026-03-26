@@ -1,0 +1,210 @@
+/**
+ * values.ts — Behavioral value alignment
+ *
+ * Learns user preferences from interaction patterns, not hand-coded rules.
+ * Each dimension is a spectrum; the system nudges scores based on signal words
+ * found in user messages. Positive feedback amplifies the signal.
+ */
+
+import { resolve } from 'path'
+import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
+import type { SoulModule } from './brain.ts'
+import type { Augment } from './types.ts'
+
+const VALUES_PATH = resolve(DATA_DIR, 'values.json')
+
+// ── Types ──
+
+interface ValueDimension {
+  name: string              // e.g., "efficiency_vs_understanding"
+  leftLabel: string         // e.g., "直接给方案"
+  rightLabel: string        // e.g., "先解释原理"
+  score: number             // -1 to 1, negative = prefers left, positive = prefers right
+  evidence: number          // how many data points
+  lastUpdated: number
+}
+
+interface DimensionDef {
+  name: string
+  leftLabel: string
+  rightLabel: string
+  leftSignals: string[]
+  rightSignals: string[]
+}
+
+// ── Dimension definitions ──
+
+const VALUE_DIMENSIONS: DimensionDef[] = [
+  {
+    name: 'efficiency_vs_understanding',
+    leftLabel: '直接给方案',
+    rightLabel: '先解释原理',
+    leftSignals: ['直接', '代码', '给我', '快', '别解释', '太长了', '简洁'],
+    rightSignals: ['为什么', '原理', '解释', '怎么理解', '能说说', '详细'],
+  },
+  {
+    name: 'formal_vs_casual',
+    leftLabel: '正式严谨',
+    rightLabel: '随意轻松',
+    leftSignals: ['分析', '报告', '文档', '请', '总结'],
+    rightSignals: ['哈哈', '牛', '靠', '啊', '呢', '嘿', '😂', '👍'],
+  },
+  {
+    name: 'depth_vs_breadth',
+    leftLabel: '深入钻研',
+    rightLabel: '广泛涉猎',
+    leftSignals: ['深入', '细节', '具体', '底层', '源码', '原理'],
+    rightSignals: ['概览', '大概', '简单说', '总结', '对比', '哪些'],
+  },
+  {
+    name: 'proactive_vs_reactive',
+    leftLabel: '主动建议',
+    rightLabel: '只回答问题',
+    leftSignals: ['顺便', '还有', '建议', '你觉得'],
+    rightSignals: ['别多说', '回答就行', '不用补充', '太长'],
+  },
+]
+
+// ── State — per-user value maps ──
+
+const userValues = new Map<string, ValueDimension[]>()
+
+function createDefaultValues(): ValueDimension[] {
+  return VALUE_DIMENSIONS.map(d => ({
+    name: d.name,
+    leftLabel: d.leftLabel,
+    rightLabel: d.rightLabel,
+    score: 0,
+    evidence: 0,
+    lastUpdated: 0,
+  }))
+}
+
+function getUserValues(userId?: string): ValueDimension[] {
+  if (!userId) return createDefaultValues()
+  let values = userValues.get(userId)
+  if (!values) {
+    values = createDefaultValues()
+    userValues.set(userId, values)
+  }
+  return values
+}
+
+// ── Public API ──
+
+export function loadValues() {
+  const loaded = loadJson<Record<string, ValueDimension[]> | ValueDimension[]>(VALUES_PATH, {})
+  if (Array.isArray(loaded)) {
+    // Migration: old format was a flat array (single-user). Store under '_default'.
+    if (loaded.length > 0) {
+      userValues.set('_default', loaded)
+    }
+  } else {
+    for (const [userId, vals] of Object.entries(loaded)) {
+      userValues.set(userId, vals)
+    }
+  }
+}
+
+/** Export all values as a plain object (for soul export) */
+export function getAllValues(): Record<string, any[]> {
+  const obj: Record<string, any[]> = {}
+  for (const [userId, vals] of userValues) obj[userId] = vals
+  return obj
+}
+
+function saveValues() {
+  const obj: Record<string, ValueDimension[]> = {}
+  for (const [userId, vals] of userValues) {
+    obj[userId] = vals
+  }
+  debouncedSave(VALUES_PATH, obj)
+}
+
+/** Call on each user message to detect preference signals */
+export function detectValueSignals(userMsg: string, wasPositiveFeedback: boolean, userId?: string) {
+  if (!userId) return
+  const values = getUserValues(userId)
+  const m = userMsg.toLowerCase()
+
+  for (const dim of VALUE_DIMENSIONS) {
+    const val = values.find(v => v.name === dim.name)
+    if (!val) continue
+
+    const leftHits = dim.leftSignals.filter(s => m.includes(s)).length
+    const rightHits = dim.rightSignals.filter(s => m.includes(s)).length
+
+    if (leftHits === 0 && rightHits === 0) continue
+
+    // Positive feedback amplifies the signal (user liked what we did)
+    const amplifier = wasPositiveFeedback ? 1.5 : 1.0
+
+    const delta = ((rightHits - leftHits) / Math.max(1, leftHits + rightHits)) * 0.1 * amplifier
+    val.score = Math.max(-1, Math.min(1, val.score + delta))
+    val.evidence++
+    val.lastUpdated = Date.now()
+  }
+
+  saveValues()
+}
+
+/** Generate prompt guidance based on learned values (for soul prompt) */
+export function getValueGuidance(userId?: string): string {
+  const values = getUserValues(userId)
+  const meaningful = values.filter(v => v.evidence >= 3 && Math.abs(v.score) > 0.2)
+  if (meaningful.length === 0) return ''
+
+  const lines = meaningful.map(v => {
+    const pref = v.score < 0 ? v.leftLabel : v.rightLabel
+    const strength = Math.abs(v.score) > 0.6 ? '强烈' : '倾向'
+    return `- ${strength}偏好: ${pref} (${v.evidence}次观察)`
+  })
+
+  return `## 从行为中学到的偏好\n${lines.join('\n')}`
+}
+
+/** Short context line for augment injection */
+export function getValueContext(userId?: string): string {
+  const values = getUserValues(userId)
+  const meaningful = values.filter(v => v.evidence >= 5 && Math.abs(v.score) > 0.3)
+  if (meaningful.length === 0) return ''
+
+  const hints = meaningful.map(v => {
+    const pref = v.score < 0 ? v.leftLabel : v.rightLabel
+    return pref
+  })
+
+  return `[用户偏好] ${hints.join('、')}`
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SOUL MODULE — brain-managed lifecycle
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const valuesModule: SoulModule = {
+  id: 'values',
+  name: '价值观追踪',
+  priority: 30,
+
+  init() {
+    loadValues()
+  },
+
+  onPreprocessed(event: any): Augment[] | void {
+    const senderId = event?.context?.senderId
+    if (!senderId) return
+    const userMsg = event?.context?.userMessage || event?.message?.text || ''
+    if (userMsg) detectValueSignals(userMsg, false, senderId)
+    const ctx = getValueContext(senderId)
+    if (ctx) return [{ content: ctx, priority: 3, tokens: Math.ceil(ctx.length / 3) }]
+  },
+
+  onSent(event: any) {
+    const senderId = event?.context?.senderId
+    const satisfaction = event?.context?.satisfaction
+    if (senderId && satisfaction === 'POSITIVE') {
+      const userMsg = event?.context?.userMessage || ''
+      if (userMsg) detectValueSignals(userMsg, true, senderId)
+    }
+  },
+}

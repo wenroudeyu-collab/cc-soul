@@ -1,0 +1,20 @@
+{
+  "avgLength": 310.1885222979723,
+  "avgSentenceLength": 17.747848517186508,
+  "questionRatio": 0.7460744634523228,
+  "codeBlockRatio": 0.005315784182438701,
+  "emojiRatio": 0.16077896749385814,
+  "firstPersonRatio": 0.854619018587771,
+  "samples": 162,
+  "lastUpdated": 1774490642298,
+  "lengthStats": {
+    "mean": 197.33928571428575,
+    "m2": 8349021.107142855,
+    "count": 112
+  },
+  "sentenceLengthStats": {
+    "mean": 23.98395028592783,
+    "m2": 24007.00273993297,
+    "count": 112
+  }
+}

@@ -1,0 +1,11 @@
+[
+  {
+    "rule": "下次解释TCP三次握手必要性时，必须首先阐述防止历史重复连接请求（delayed duplicate connection request）导致错误连接建立和资源浪费的核心机制，再补充双向确认和序列号同步的完整性",
+    "createdAt": 1774566756584,
+    "correctionsBefore": 1,
+    "correctionsAfter": 0,
+    "messagesAtCreation": 76,
+    "messagesChecked": 0,
+    "verdict": "pending"
+  }
+]

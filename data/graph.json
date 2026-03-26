@@ -1,0 +1,156 @@
+{
+  "entities": [
+    {
+      "name": "wang",
+      "type": "person",
+      "attrs": [],
+      "firstSeen": 1774482861870,
+      "mentions": 15,
+      "valid_at": 1774482861870,
+      "invalid_at": null
+    },
+    {
+      "name": "北京朝阳区",
+      "type": "place",
+      "attrs": [],
+      "firstSeen": 1774482861870,
+      "mentions": 2,
+      "valid_at": 1774482861870,
+      "invalid_at": null
+    },
+    {
+      "name": "Rust",
+      "type": "tech",
+      "attrs": [],
+      "firstSeen": 1774483667383,
+      "mentions": 2,
+      "valid_at": 1774483667383,
+      "invalid_at": null
+    },
+    {
+      "name": "dream_mode",
+      "type": "tech",
+      "attrs": [],
+      "firstSeen": 1774484303205,
+      "mentions": 1,
+      "valid_at": 1774484303205,
+      "invalid_at": null
+    },
+    {
+      "name": "moonshot/kimi-k2.5",
+      "type": "tech",
+      "attrs": [],
+      "firstSeen": 1774487642058,
+      "mentions": 1,
+      "valid_at": 1774487642058,
+      "invalid_at": null
+    },
+    {
+      "name": "agent:cc:main",
+      "type": "project",
+      "attrs": [],
+      "firstSeen": 1774487642059,
+      "mentions": 1,
+      "valid_at": 1774487642059,
+      "invalid_at": null
+    }
+  ],
+  "relations": [
+    {
+      "source": "wang",
+      "target": "用户",
+      "type": "用户",
+      "ts": 1774482861870,
+      "valid_at": 1774482861870,
+      "invalid_at": null
+    },
+    {
+      "source": "北京朝阳区",
+      "target": "用户",
+      "type": "居住地",
+      "ts": 1774482861870,
+      "valid_at": 1774482861870,
+      "invalid_at": null
+    },
+    {
+      "source": "北京朝阳区",
+      "target": "用户",
+      "type": "用户居住地",
+      "ts": 1774482998270,
+      "valid_at": 1774482998270,
+      "invalid_at": null
+    },
+    {
+      "source": "Rust",
+      "target": "用户",
+      "type": "用户计划学习的技术",
+      "ts": 1774483667383,
+      "valid_at": 1774483667383,
+      "invalid_at": null
+    },
+    {
+      "source": "wang",
+      "target": "用户",
+      "type": "当前用户",
+      "ts": 1774483667383,
+      "valid_at": 1774483667383,
+      "invalid_at": null
+    },
+    {
+      "source": "wang",
+      "target": "用户",
+      "type": "sender",
+      "ts": 1774483671069,
+      "valid_at": 1774483671069,
+      "invalid_at": null
+    },
+    {
+      "source": "Rust",
+      "target": "用户",
+      "type": "mentioned in incorrect respons",
+      "ts": 1774483671070,
+      "valid_at": 1774483671070,
+      "invalid_at": null
+    },
+    {
+      "source": "wang",
+      "target": "用户",
+      "type": "发送者",
+      "ts": 1774484303205,
+      "valid_at": 1774484303205,
+      "invalid_at": null
+    },
+    {
+      "source": "dream_mode",
+      "target": "用户",
+      "type": "被开启的功能",
+      "ts": 1774484303205,
+      "valid_at": 1774484303205,
+      "invalid_at": null
+    },
+    {
+      "source": "wang",
+      "target": "用户",
+      "type": "user",
+      "ts": 1774487602191,
+      "valid_at": 1774487602191,
+      "invalid_at": null
+    },
+    {
+      "source": "moonshot/kimi-k2.5",
+      "target": "用户",
+      "type": "当前使用的AI模型",
+      "ts": 1774487642059,
+      "valid_at": 1774487642059,
+      "invalid_at": null
+    },
+    {
+      "source": "agent:cc:main",
+      "target": "用户",
+      "type": "会话标识",
+      "ts": 1774487642059,
+      "valid_at": 1774487642059,
+      "invalid_at": null
+    }
+  ]
+}
