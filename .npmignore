@@ -1,0 +1,21 @@
+# 源码（npm 只发 dist/ 加密后的）
+cc-soul/
+scripts/
+promo/
+
+# 用户数据（绝对不能发）
+data/
+*.db
+*.sqlite
+
+# 开发文件
+node_modules/
+.git/
+.github/
+.clawhub/
+*.tgz
+.DS_Store
+
+# 测试和文档源文件
+*.test.*
+tests.*

@@ -10,30 +10,56 @@ import { body, bodyOnCorrection, bodyOnPositiveFeedback, emotionVector } from '.
 import { getProfile, getProfileTier } from './user-profiles.ts'
 import { CORRECTION_WORDS, CORRECTION_EXCLUDE, EMOTION_ALL, EMOTION_NEGATIVE, TECH_WORDS, CASUAL_WORDS } from './signals.ts'
 
-// ── Layer 0: Attention Gate ──
+// ── Layer 0: Bayesian Attention Gate ──
+// Instead of first-match-wins, compute probability for ALL intent types simultaneously.
+// Human analogy: when you hear "这段代码让我很烦", you simultaneously consider:
+//   technical (代码) + emotional (烦) + correction (implicit frustration)
+// The old if-else would pick just one. Bayesian picks the strongest signal.
+
+interface AttentionHypothesis { type: string; score: number }
 
 function attentionGate(msg: string): { type: string; priority: number } {
   const m = msg.toLowerCase()
+  const hypotheses: AttentionHypothesis[] = [
+    { type: 'correction', score: 0 },
+    { type: 'emotional', score: 0 },
+    { type: 'technical', score: 0 },
+    { type: 'casual', score: 0 },
+    { type: 'general', score: 1 }, // prior: general is default
+  ]
 
-  if (CORRECTION_WORDS.some(w => m.includes(w))) {
-    if (!CORRECTION_EXCLUDE.some(w => m.includes(w))) {
-      return { type: 'correction', priority: 10 }
-    }
+  // Accumulate evidence for each hypothesis (not first-match-wins)
+  const correctionHits = CORRECTION_WORDS.filter(w => m.includes(w)).length
+  const correctionExclude = CORRECTION_EXCLUDE.some(w => m.includes(w))
+  if (correctionHits > 0 && !correctionExclude) {
+    hypotheses[0].score += correctionHits * 3 // strong signal
   }
 
-  // Emotional
-  if (EMOTION_ALL.some(w => m.includes(w))) {
-    return { type: 'emotional', priority: 7 }
+  const emotionHits = EMOTION_ALL.filter(w => m.includes(w)).length
+  hypotheses[1].score += emotionHits * 2
+
+  const techHits = TECH_WORDS.filter(w => m.includes(w)).length
+  hypotheses[2].score += techHits * 2
+
+  const casualHits = CASUAL_WORDS.filter(w => m === w || m === w + '的').length
+  hypotheses[3].score += casualHits * 2
+  if (msg.length < 15) hypotheses[3].score += 1 // short messages lean casual
+
+  // Length-based priors
+  if (msg.length > 100) hypotheses[2].score += 0.5 // long messages lean technical
+  if (msg.length < 8) hypotheses[3].score += 1 // very short lean casual
+
+  // Negative emotion + technical = still emotional (not just technical)
+  const negEmotionHits = EMOTION_NEGATIVE.filter(w => m.includes(w)).length
+  if (negEmotionHits > 0 && techHits > 0) {
+    hypotheses[1].score += 1 // boost emotional even when technical words present
   }
-  // Technical
-  if (TECH_WORDS.some(w => m.includes(w))) {
-    return { type: 'technical', priority: 8 }
-  }
-  // Casual
-  if (msg.length < 15 || CASUAL_WORDS.some(w => m === w || m === w + '的')) {
-    return { type: 'casual', priority: 3 }
-  }
-  return { type: 'general', priority: 5 }
+
+  // Pick winner
+  hypotheses.sort((a, b) => b.score - a.score)
+  const winner = hypotheses[0]
+  const priority = Math.min(10, Math.round(winner.score * 2 + 3))
+  return { type: winner.type, priority }
 }
 
 // ── Layer 1: Intent Detection ──

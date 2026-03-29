@@ -206,6 +206,7 @@ export async function handleA2ARequest(request: A2ARequest): Promise<A2AResponse
 export const a2aModule: SoulModule = {
   id: 'a2a',
   name: 'A2A 协议 (Agent Card)',
+  features: ['a2a'],
   dependencies: [],
   priority: 30,
   enabled: true,

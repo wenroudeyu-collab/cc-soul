@@ -8,44 +8,28 @@
 import {
   metrics, stats, getHeartbeatRunning, setHeartbeatRunning,
   getHeartbeatStartedAt, setHeartbeatStartedAt,
-  getSessionState, getLastActiveSessionKey,
 } from './handler-state.ts'
-import { loadJson, saveJson, REMINDERS_PATH } from './persistence.ts'
 import { dbGetDueReminders, dbMarkReminderFired } from './sqlite-store.ts'
 import { bodyTick } from './body.ts'
 import {
-  memoryState, consolidateMemories, scanForContradictions,
+  consolidateMemories, scanForContradictions,
   autoPromoteToCoreMemory, cleanupWorkingMemory, processMemoryDecay,
-  batchTagUntaggedMemories, saveMemories, auditMemoryHealth,
+  batchTagUntaggedMemories, auditMemoryHealth,
   sqliteMaintenance,
+  pruneExpiredMemories, reviveDecayedMemories,
 } from './memory.ts'
-import { writeJournalWithCLI, checkDreamMode, triggerStructuredReflection, checkActivePlans, cleanupPlans, selfChallenge } from './inner-life.ts'
+import { cleanupPlans } from './inner-life.ts'
+import { computePageRank, decayActivations } from './graph.ts'
 import { isEnabled } from './features.ts'
-// ── Optional modules (absent in public build) ──
-let reportTelemetry: (...args: any[]) => void = () => {}
-import('./telemetry.ts').then(m => { reportTelemetry = m.reportTelemetry }).catch(() => {})
-let autoFederate: () => void = () => {}
-import('./federation.ts').then(m => { autoFederate = m.autoFederate }).catch(() => {})
-let autoSync: () => void = () => {}
-import('./sync.ts').then(m => { autoSync = m.autoSync }).catch(() => {})
-let checkSoulUpgrade: (stats: any) => void = (_stats: any) => {}
-import('./upgrade.ts').then(m => { checkSoulUpgrade = m.checkSoulUpgrade }).catch(() => {})
-let webRoam: () => void = () => {}, techRadarScan: () => void = () => {}, verifyDiscoveries: () => void = () => {}
-import('./rover.ts').then(m => { webRoam = m.webRoam; techRadarScan = m.techRadarScan; verifyDiscoveries = m.verifyDiscoveries }).catch(() => {})
-let runCompetitiveRadar: () => void = () => {}
-import('./competitive-radar.ts').then(m => { runCompetitiveRadar = m.runCompetitiveRadar }).catch(() => {})
-// ── End optional modules ──
 import { checkAutoTune } from './auto-tune.ts'
-import { autoPopulateFromMemories } from './lorebook.ts'
-import { checkSpontaneousVoice } from './voice.ts'
-import { checkAllSessionEnds, generateSessionSummary } from './flow.ts'
-import { analyzeMetaLearning, evaluateReflexionRules } from './evolution.ts'
 import { resampleHardExamples } from './quality.ts'
-import { checkExperiments, checkEvolutionProgress } from './experiment.ts'
+import { runDistillPipeline } from './distill.ts'
 import { healthCheck, recordModuleError, recordModuleActivity } from './health.ts'
 import { notifySoulActivity } from './notify.ts'
 import { brain } from './brain.ts'
-import { checkScheduledReports } from './reports.ts'
+import { distillPersonModel } from './person-model.ts'
+// person synthesis now handled inside person-model.ts distillPersonModel() (every 5th distill)
+import { heartbeatScanAbsence } from './absence-detection.ts'
 
 /** Exported for plugin-entry.ts heartbeat interval */
 export function runHeartbeat() {
@@ -62,50 +46,44 @@ export function runHeartbeat() {
       const safe = (name: string, fn: () => void) => {
         try { fn(); recordModuleActivity(name) } catch (e: any) { recordModuleError(name, e.message); console.error(`[cc-soul][heartbeat][${name}] ${e.message}`) }
       }
+      // ══ 精简心跳：只保留直接影响用户体验的任务 ══
+      // 砍掉：journal(LLM自嗨)、dream(用户不可见)、voice(主动骚扰)
+      // 砍掉：reflection(LLM自省)、selfChallenge(LLM自测)、metaLearning/reflexionEval
+      // 砍掉：experiments/evolution进度、blindSpot、proactiveContradiction、freshness
+      // 砍掉：scheduledReports(没人要的推送)
+
       safe('bodyTick', () => bodyTick())
-      const hbSession = getSessionState(getLastActiveSessionKey())
-      safe('journal', () => writeJournalWithCLI(hbSession.lastPrompt, hbSession.lastResponseContent, stats))
-      if (isEnabled('web_rover')) safe('webRoam', () => webRoam())
-      if (isEnabled('tech_radar')) safe('techRadar', () => techRadarScan())
-      if (isEnabled('web_rover')) safe('verifyDiscoveries', () => verifyDiscoveries())
-      if (isEnabled('self_upgrade')) safe('competitiveRadar', () => runCompetitiveRadar())
-      if (isEnabled('dream_mode')) safe('dreamMode', () => checkDreamMode())
-      if (isEnabled('autonomous_voice')) safe('voice', () => checkSpontaneousVoice(stats.totalMessages))
-      if (isEnabled('self_upgrade')) safe('upgrade', () => checkSoulUpgrade(stats))
-      if (isEnabled('self_upgrade')) safe('autoTune', () => checkAutoTune(stats))
+
+      // ── 记忆维护（核心，不调 LLM）──
       if (isEnabled('memory_consolidation')) safe('consolidate', () => consolidateMemories())
-      if (isEnabled('lorebook')) safe('lorebook', () => autoPopulateFromMemories(memoryState.memories))
-      if (isEnabled('structured_reflection')) safe('reflection', () => triggerStructuredReflection(stats))
       if (isEnabled('memory_contradiction_scan')) safe('contradiction', () => scanForContradictions())
-      if (isEnabled('plan_tracking')) safe('planCleanup', () => cleanupPlans())
       if (isEnabled('memory_core')) safe('coreMemory', () => autoPromoteToCoreMemory())
       if (isEnabled('memory_working')) safe('workingCleanup', () => cleanupWorkingMemory())
       safe('memoryDecay', () => processMemoryDecay())
       if (isEnabled('memory_tags')) safe('batchTag', () => batchTagUntaggedMemories())
-      if (isEnabled('sync')) safe('sync', () => autoSync())
-      if (isEnabled('federation')) safe('federate', () => autoFederate())
-      if (isEnabled('memory_session_summary')) safe('sessionEnd', () => {
-        const endedSessions = checkAllSessionEnds()
-        for (const s of endedSessions) {
-          generateSessionSummary(s.topic, s.turnCount, s.flowKey)
-        }
-      })
-      if (isEnabled('meta_learning')) safe('metaLearning', () => analyzeMetaLearning())
-      safe('qualityResample', () => resampleHardExamples())
-      safe('reflexionEval', () => evaluateReflexionRules(stats.corrections, stats.totalMessages))
-      if (isEnabled('self_challenge')) safe('selfChallenge', () => selfChallenge())
-      safe('telemetry', () => { reportTelemetry(stats.totalMessages, stats.corrections, stats.firstSeen) })
-      safe('experiments', () => checkExperiments())
-      safe('evolution', () => checkEvolutionProgress())
-      safe('health', () => healthCheck())
-      safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) })
+      safe('pruneExpired', () => pruneExpiredMemories())
+      safe('reviveDecayed', () => reviveDecayedMemories())
       safe('memoryAudit', () => auditMemoryHealth())
-      // ── Brain modules heartbeat (cron-agent, smart-forget, etc.) ──
+      safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) })
+
+      // ── 蒸馏 + 图谱（核心，有条件调 LLM）──
+      safe('distill', () => runDistillPipeline())
+      safe('pageRank', () => computePageRank())
+      safe('activationDecay', () => decayActivations())
+      safe('personModel', () => distillPersonModel())
+      // person synthesis runs inside distillPersonModel() every 5th distill — no separate call needed
+
+      // ── 轻量维护 ──
       safe('brainHeartbeat', () => brain.fire('onHeartbeat'))
-      safe('scheduledReports', () => {
-        const report = checkScheduledReports()
-        if (report) notifySoulActivity(report)
-      })
+      if (isEnabled('self_upgrade')) safe('autoTune', () => checkAutoTune(stats))
+      if (isEnabled('plan_tracking')) safe('planCleanup', () => cleanupPlans())
+      safe('qualityResample', () => resampleHardExamples())
+      safe('health', () => healthCheck())
+
+      // ── 离开检测（扫描用户活跃度）──
+      if (isEnabled('absence_detection')) safe('absenceDetection', () => heartbeatScanAbsence())
+
+      // ── 提醒（用户主动设置的，不能砍）──
       safe('reminders', () => {
         const due = dbGetDueReminders()
         for (const r of due) {

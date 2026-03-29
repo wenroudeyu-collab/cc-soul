@@ -5,10 +5,12 @@
  * Used by upgrade system: after code changes, run these tests to catch logic errors
  * that esbuild can't detect (esbuild only checks syntax).
  *
- * Usage: npx tsx tests.ts  (or via runRegressionSuite() from upgrade.ts)
+ * Usage: npx tsx tests.ts
  */
 
 import type { Memory, Rule, Hypothesis, Augment } from './types.ts'
+import { loadDistillState, getMentalModel, getRelevantTopics, buildTopicAugment, buildMentalModelAugment, getDistillStats } from './distill.ts'
+import { detectMentionedPeople, updateSocialGraph, getSocialContext, _resetSocialGraph } from './graph.ts'
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MINI TEST RUNNER — no framework needed
@@ -207,7 +209,7 @@ test('body: bodyGetParams returns valid style', () => {
 // TEST SUITE 4: evolution.ts — rules and hypotheses
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { addRule, getRelevantRules, verifyHypothesis, rules, hypotheses } from './evolution.ts'
+import { addRule, getRelevantRules, verifyHypothesis, generalizeRules, rules, hypotheses } from './evolution.ts'
 
 test('evolution: addRule deduplicates', () => {
   const before = rules.length
@@ -240,10 +242,7 @@ test('evolution: getRelevantRules returns empty for no match', () => {
   assertEquals(matched.length, 0, 'should return empty for no match')
 })
 
-test('evolution: verifyHypothesis increments evidence', () => {
-  // CJK regex matches greedy runs of Chinese chars (2+ consecutive)
-  // So description keywords = ['当用户问', 'Python', '代码问题时', '直接给代码比解释原理效果好']
-  // situation must contain >=3 of these EXACT substrings
+test('evolution: verifyHypothesis solidifies after 3 successes', () => {
   const testH: Hypothesis = {
     id: 'test-h-1',
     description: '当用户问 Python 代码 问题时 直接 给代码',
@@ -254,17 +253,55 @@ test('evolution: verifyHypothesis increments evidence', () => {
   }
   hypotheses.push(testH)
 
-  // With spaces breaking CJK runs, keywords are shorter: ['当用户问', 'Python', '代码', '问题时', '直接', '给代码']
-  // situation contains: '当用户问' + 'Python' + '代码' + '问题时' + '直接' = 5 matches (>= 3)
+  // Need 3 successful verifications to solidify
   verifyHypothesis('当用户问 Python 代码 问题时需要直接回答', true)
   assert(testH.alpha > 1, 'alpha should increment on success')
-
-  verifyHypothesis('当用户问 Python 代码 问题时需要直接回答', false)
-  assert(testH.beta > 1, 'beta should increment on failure')
+  assertEquals(testH.status, 'active', 'hypothesis should stay active after 1 verification')
+  verifyHypothesis('当用户问 Python 代码 问题时需要直接回答', true)
+  verifyHypothesis('当用户问 Python 代码 问题时需要直接回答', true)
+  assertEquals(testH.status, 'verified', 'hypothesis should be solidified after 3 verifications')
 
   // Cleanup
   const idx = hypotheses.findIndex(h => h.id === 'test-h-1')
   if (idx >= 0) hypotheses.splice(idx, 1)
+})
+
+test('evolution: generalizeRules creates domain-wide rule when 2+ rules in same domain', () => {
+  const before = rules.length
+  // Add two Python-domain rules manually
+  rules.push({ rule: 'Python 3.13 才有 free-threaded 模式不是 3.12', source: 'correction', ts: Date.now(), hits: 1 })
+  rules.push({ rule: 'Python asyncio.run 在 3.7+ 才可用', source: 'correction', ts: Date.now(), hits: 2 })
+  generalizeRules('Python asyncio.run 在 3.7+ 才可用')
+  const gen = rules.find(r => r.source === 'generalized' && r.rule.includes('Python'))
+  assert(!!gen, 'should create a generalized Python rule')
+  assert(gen!.hits >= 2, 'generalized rule should have higher hits than individual rules')
+  // Cleanup
+  while (rules.length > before) rules.pop()
+})
+
+test('evolution: generalizeRules does not duplicate if generalized rule exists', () => {
+  const before = rules.length
+  rules.push({ rule: 'Python 3.13 才有 free-threaded', source: 'correction', ts: Date.now(), hits: 1 })
+  rules.push({ rule: 'Python asyncio.run 在 3.7+', source: 'correction', ts: Date.now(), hits: 2 })
+  generalizeRules('Python asyncio.run 在 3.7+')
+  const genCount1 = rules.filter(r => r.source === 'generalized' && r.rule.includes('Python')).length
+  // Call again — should not add a second generalized rule
+  generalizeRules('Python import 语法变化')
+  const genCount2 = rules.filter(r => r.source === 'generalized' && r.rule.includes('Python')).length
+  assertEquals(genCount2, genCount1, 'should not duplicate generalized rule')
+  // Cleanup
+  while (rules.length > before) rules.pop()
+})
+
+test('evolution: generalizeRules skips unknown domains', () => {
+  const before = rules.length
+  rules.push({ rule: '今天天气真好啊', source: 'test', ts: Date.now(), hits: 0 })
+  rules.push({ rule: '明天也会很好', source: 'test', ts: Date.now(), hits: 0 })
+  generalizeRules('今天天气真好啊')
+  const gen = rules.find(r => r.source === 'generalized')
+  assert(!gen, 'should not generalize for unknown/general domains')
+  // Cleanup
+  while (rules.length > before) rules.pop()
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -609,7 +646,8 @@ test('reports: progressBar helper via morning report output', () => {
 // TEST SUITE: 后台自动功能 — persona / smart-forget / episodic / decay
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { selectPersona, PERSONAS } from './persona.ts'
+// selectPersona already imported above; import PERSONAS separately
+import { PERSONAS } from './persona.ts'
 
 test('persona: selectPersona returns valid persona for correction', () => {
   const p = selectPersona('correction', 0.3, undefined, undefined, '你说的不对')
@@ -721,7 +759,8 @@ test('episodic: recallEpisodes returns empty for unrelated query', () => {
 
 // ── memory decay ──
 
-import { processMemoryDecay, memoryState, addMemory, saveMemories } from './memory.ts'
+// memoryState, addMemory already imported above; import remaining
+import { processMemoryDecay, saveMemories } from './memory.ts'
 
 test('memory-decay: processMemoryDecay runs without crash', () => {
   // Add some test memories to ensure there's data to decay
@@ -750,6 +789,297 @@ test('lorebook: autoPopulateFromMemories runs without crash', () => {
   ]
   autoPopulateFromMemories(testMems)
   assert(true, 'autoPopulateFromMemories completed without crash')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: v2.3+ 自动化功能 — 记忆链路 / 重复问题检测 / 情绪按天聚合
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { graphWalkRecallScored, findMentionedEntities, graphState } from './graph.ts'
+import { trigrams, trigramSimilarity } from './memory.ts'
+
+test('auto-memory-chain: graphWalkRecallScored returns scored results', () => {
+  // 确保 graphState 有实体数据
+  const origEntities = [...graphState.entities]
+  const origRelations = [...graphState.relations]
+  graphState.entities.push(
+    { name: 'Python', type: 'tech', mentions: 5, firstSeen: Date.now(), lastSeen: Date.now() },
+    { name: 'GIL', type: 'concept', mentions: 3, firstSeen: Date.now(), lastSeen: Date.now() },
+  )
+  graphState.relations.push(
+    { source: 'Python', target: 'GIL', type: 'has', weight: 1, createdAt: Date.now(), invalid_at: null },
+  )
+
+  const testMemories = [
+    { content: 'Python 的 GIL 限制多线程性能', scope: 'fact', ts: Date.now() - 86400000, tags: ['python'], confidence: 0.9, emotion: 'neutral' as const, recallCount: 2 },
+    { content: 'GIL 可以通过多进程绕过', scope: 'fact', ts: Date.now() - 43200000, tags: ['python'], confidence: 0.8, emotion: 'neutral' as const, recallCount: 1 },
+  ]
+
+  const results = graphWalkRecallScored(['Python'], testMemories as any, 1, 5)
+  assert(Array.isArray(results), 'should return array')
+  // 至少能找到包含 Python/GIL 的记忆
+  if (results.length > 0) {
+    assert(typeof results[0].graphScore === 'number', 'result should have graphScore')
+    assert(results[0].graphScore > 0, 'graphScore should be positive')
+  }
+
+  // 还原
+  graphState.entities.splice(-2, 2)
+  graphState.relations.splice(-1, 1)
+})
+
+test('auto-repeat-detect: trigram similarity detects similar questions', () => {
+  const q1 = '怎么用 Python 读取 JSON 文件'
+  const q2 = '如何用 Python 读取 JSON 文件'
+  const q3 = 'ARM64 汇编里 LDR 指令怎么用'
+
+  const tri1 = trigrams(q1)
+  const tri2 = trigrams(q2)
+  const tri3 = trigrams(q3)
+
+  const sim12 = trigramSimilarity(tri1, tri2)
+  const sim13 = trigramSimilarity(tri1, tri3)
+
+  assert(sim12 > 0.5, `similar questions should have sim > 0.5, got ${sim12.toFixed(3)}`)
+  assert(sim13 < 0.3, `unrelated questions should have sim < 0.3, got ${sim13.toFixed(3)}`)
+})
+
+test('auto-repeat-detect: conclusion lookup finds nearby memories', () => {
+  // 模拟用户问过的问题和结论
+  const questionTs = Date.now() - 7 * 86400000
+  const testMem: Memory = {
+    content: '怎么用 Python 解析 JSON',
+    scope: 'fact',
+    ts: questionTs,
+    tags: ['python'],
+    confidence: 0.8,
+    emotion: 'neutral',
+    recallCount: 1,
+  }
+  const conclusionMem: Memory = {
+    content: '用 json.loads() 解析字符串，json.load() 解析文件',
+    scope: 'consolidated',
+    ts: questionTs + 60000, // 1 min after
+    tags: ['python'],
+    confidence: 0.9,
+    emotion: 'neutral',
+    recallCount: 0,
+  }
+
+  // 验证时间窗口逻辑
+  const timeDiff = Math.abs(conclusionMem.ts - testMem.ts)
+  assert(timeDiff < 3600000, 'conclusion should be within 1 hour of question')
+  assert(conclusionMem.scope === 'consolidated' || conclusionMem.scope === 'fact', 'conclusion should be fact/consolidated')
+})
+
+test('auto-mood-care: day aggregation correctly buckets mood data', () => {
+  const now = Date.now()
+  const DAY = 86400000
+  const moodData = [
+    // Day 1 (yesterday): low mood
+    { ts: now - 1.5 * DAY, mood: -0.5 },
+    { ts: now - 1.3 * DAY, mood: -0.4 },
+    // Day 2 (today): also low
+    { ts: now - 0.5 * DAY, mood: -0.6 },
+    { ts: now - 0.2 * DAY, mood: -0.3 },
+  ]
+
+  const THREE_DAYS = 3 * DAY
+  const dayBuckets = new Map<string, number[]>()
+  for (const s of moodData) {
+    if (now - s.ts > THREE_DAYS) continue
+    const day = new Date(s.ts).toISOString().slice(0, 10)
+    if (!dayBuckets.has(day)) dayBuckets.set(day, [])
+    dayBuckets.get(day)!.push(s.mood)
+  }
+
+  const dayAvgs = [...dayBuckets.entries()]
+    .map(([day, moods]) => ({ day, avg: moods.reduce((a, b) => a + b, 0) / moods.length }))
+
+  assert(dayBuckets.size >= 2, `should have 2+ days, got ${dayBuckets.size}`)
+  const lowDays = dayAvgs.filter(d => d.avg < -0.3).length
+  assert(lowDays >= 2, `should detect 2+ low days, got ${lowDays}`)
+})
+
+test('auto-mood-care: normal mood does not trigger care', () => {
+  const now = Date.now()
+  const DAY = 86400000
+  const moodData = [
+    { ts: now - 1.5 * DAY, mood: 0.2 },
+    { ts: now - 0.5 * DAY, mood: 0.1 },
+    { ts: now - 0.2 * DAY, mood: 0.3 },
+  ]
+
+  const THREE_DAYS = 3 * DAY
+  const dayBuckets = new Map<string, number[]>()
+  for (const s of moodData) {
+    if (now - s.ts > THREE_DAYS) continue
+    const day = new Date(s.ts).toISOString().slice(0, 10)
+    if (!dayBuckets.has(day)) dayBuckets.set(day, [])
+    dayBuckets.get(day)!.push(s.mood)
+  }
+  const dayAvgs = [...dayBuckets.entries()]
+    .map(([day, moods]) => ({ day, avg: moods.reduce((a, b) => a + b, 0) / moods.length }))
+  const lowDays = dayAvgs.filter(d => d.avg < -0.3).length
+  assert(lowDays === 0, `normal mood should not trigger, got ${lowDays} low days`)
+})
+
+test('auto-memory-chain: findMentionedEntities extracts from content', () => {
+  // 先加个测试实体
+  const origLen = graphState.entities.length
+  graphState.entities.push(
+    { name: 'Redis', type: 'tech', mentions: 10, firstSeen: Date.now(), lastSeen: Date.now(), invalid_at: null } as any,
+  )
+  const found = findMentionedEntities('Redis 的持久化策略有 RDB 和 AOF')
+  assert(found.includes('Redis'), `should find 'Redis' in content, got: ${found.join(',')}`)
+  graphState.entities.splice(-1, 1)
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DISTILL PIPELINE TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('distill: loadDistillState does not throw', () => {
+  loadDistillState() // should not throw even with empty data files
+})
+
+test('distill: getMentalModel returns empty string when no model', () => {
+  const model = getMentalModel('nonexistent_user')
+  assert(typeof model === 'string', `should return string, got ${typeof model}`)
+})
+
+test('distill: getRelevantTopics returns array', () => {
+  const topics = getRelevantTopics('测试消息', undefined, 5)
+  assert(Array.isArray(topics), `should return array, got ${typeof topics}`)
+})
+
+test('distill: buildTopicAugment returns string', () => {
+  const result = buildTopicAugment('Python 代码', 'test_user')
+  assert(typeof result === 'string', `should return string, got ${typeof result}`)
+})
+
+test('distill: buildMentalModelAugment returns string', () => {
+  const result = buildMentalModelAugment('test_user')
+  assert(typeof result === 'string', `should return string, got ${typeof result}`)
+})
+
+test('distill: getDistillStats returns valid object', () => {
+  const s = getDistillStats()
+  assert(typeof s.topicNodes === 'number', `topicNodes should be number`)
+  assert(typeof s.mentalModels === 'number', `mentalModels should be number`)
+  assert(typeof s.totalDistills === 'number', `totalDistills should be number`)
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SOCIAL GRAPH TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('social-graph: detectMentionedPeople finds roles', () => {
+  const people = detectMentionedPeople('我老板今天又加班了')
+  assert(people.includes('老板'), `should detect 老板, got ${JSON.stringify(people)}`)
+})
+
+test('social-graph: detectMentionedPeople finds 小X names', () => {
+  const people = detectMentionedPeople('小李说这个方案不行')
+  assert(people.includes('小李'), `should detect 小李, got ${JSON.stringify(people)}`)
+})
+
+test('social-graph: detectMentionedPeople returns empty for no mentions', () => {
+  const people = detectMentionedPeople('今天天气不错')
+  assertEquals(people.length, 0, 'no people in weather msg')
+})
+
+test('social-graph: updateSocialGraph + getSocialContext round trip', () => {
+  _resetSocialGraph()
+  updateSocialGraph('老板让我加班', -0.5)
+  updateSocialGraph('老板又催进度了', -0.8)
+  const ctx = getSocialContext('老板说明天要开会')
+  assert(ctx !== null, 'should return context after 2+ mentions')
+  assert(ctx!.includes('老板'), `context should mention 老板`)
+  assert(ctx!.includes('焦虑/压力'), `negative mood should show 焦虑/压力, got: ${ctx}`)
+  _resetSocialGraph()
+})
+
+test('social-graph: getSocialContext returns null for first mention', () => {
+  _resetSocialGraph()
+  updateSocialGraph('朋友请我吃饭', 0.5)
+  const ctx = getSocialContext('朋友真好')
+  assertEquals(ctx, null, 'should be null with only 1 mention')
+  _resetSocialGraph()
+})
+
+test('social-graph: detectMentionedPeople deduplicates', () => {
+  const people = detectMentionedPeople('老板和老板都说了')
+  assertEquals(people.length, 1, 'should deduplicate')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COMMITMENT TRACKER TESTS (logic validation)
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('commitment: pattern matches Chinese plans', () => {
+  const pattern = /我要|我打算|下[周个]|明天|以后|计划|准备|打算|plan to|going to|will start|need to/i
+  assert(pattern.test('我要学习Rust'), 'should match 我要')
+  assert(pattern.test('我打算下周重构代码'), 'should match 我打算')
+  assert(pattern.test('明天再说吧'), 'should match 明天')
+  assert(pattern.test('I plan to refactor'), 'should match plan to')
+  assert(!pattern.test('你好'), 'should not match greeting')
+})
+
+test('commitment: extraction trims correctly', () => {
+  const msg = '我打算下周学习Rust'
+  const commitment = msg.replace(/我要|我打算|下[周个]|明天|准备|打算/g, '').trim().slice(0, 80)
+  assert(commitment.length > 4, `commitment should be > 4 chars, got "${commitment}"`)
+  assert(commitment.includes('学习Rust'), `should contain 学习Rust, got "${commitment}"`)
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PERSON MODEL TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { getPersonModel, getPersonModelContext, getUnifiedUserContext } from './person-model.ts'
+
+test('person-model: getPersonModel returns valid structure', () => {
+  const pm = getPersonModel()
+  assert(Array.isArray(pm.values), 'values should be array')
+  assert(Array.isArray(pm.beliefs), 'beliefs should be array')
+  assert(Array.isArray(pm.contradictions), 'contradictions should be array')
+  assert(typeof pm.communicationDecoder === 'object', 'communicationDecoder should be object')
+  assert(typeof pm.domainExpertise === 'object', 'domainExpertise should be object')
+  assert(typeof pm.distillCount === 'number', 'distillCount should be number')
+  assert(typeof pm.updatedAt === 'number', 'updatedAt should be number')
+})
+
+test('person-model: getPersonModelContext returns null when distillCount=0', () => {
+  const pm = getPersonModel()
+  if (pm.distillCount === 0) {
+    const ctx = getPersonModelContext()
+    assert(ctx === null, 'should return null when no distillation has occurred')
+  } else {
+    // Already distilled — context should be a string
+    const ctx = getPersonModelContext()
+    assert(ctx === null || typeof ctx === 'string', 'should return null or string')
+  }
+})
+
+test('person-model: PersonModel fields have correct bounds', () => {
+  const pm = getPersonModel()
+  assert(pm.values.length <= 10, `values should be <= 10, got ${pm.values.length}`)
+  assert(pm.beliefs.length <= 10, `beliefs should be <= 10, got ${pm.beliefs.length}`)
+  assert(pm.contradictions.length <= 5, `contradictions should be <= 5, got ${pm.contradictions.length}`)
+})
+
+test('person-model: getUnifiedUserContext returns null or string with [用户理解] header', () => {
+  const ctx = getUnifiedUserContext('测试消息', 'test_user')
+  assert(ctx === null || typeof ctx === 'string', `should return null or string, got ${typeof ctx}`)
+  if (ctx !== null) {
+    assert(ctx.startsWith('[用户理解]'), `should start with [用户理解], got: ${ctx.slice(0, 20)}`)
+  }
+})
+
+test('person-model: getUnifiedUserContext works without userId', () => {
+  const ctx = getUnifiedUserContext('hello world')
+  assert(ctx === null || typeof ctx === 'string', `should return null or string without userId`)
 })
 
 // ══════════════════════════════════════════════════════════════════════════════

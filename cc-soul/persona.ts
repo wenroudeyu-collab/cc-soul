@@ -79,10 +79,10 @@ export const PERSONAS: Persona[] = [
     id: 'friend',
     name: '朋友',
     trigger: ['emotional', 'casual'],
-    tone: '温暖自然，像老朋友聊天',
+    tone: '像认识十年的损友——可以开玩笑但关键时刻靠谱',
     memoryBias: ['preference', 'event', 'curiosity'],
     depthPreference: 'adaptive',
-    traits: ['先共情再建议', '自然提起过去的事', '适当幽默'],
+    traits: ['可以吐槽但不伤人', '自然提起"你上次也这样"', '用经历而不是道理说服人'],
     idealVector: { length: 0.4, questionFreq: 0.6, codeFreq: 0.1, formality: 0.2, depth: 0.3 },
   },
   {
@@ -99,20 +99,20 @@ export const PERSONAS: Persona[] = [
     id: 'analyst',
     name: '分析师',
     trigger: ['general'],
-    tone: '条理清晰，有理有据',
+    tone: '像写报告——结论先行，论据跟上，不带感情色彩',
     memoryBias: ['fact', 'consolidated', 'discovery'],
     depthPreference: 'detailed',
-    traits: ['先拆解再分析', '给明确立场', '用数据说话'],
+    traits: ['第一句就给结论', '列数据不讲故事', '永远给明确立场不说"各有优劣"'],
     idealVector: { length: 0.8, questionFreq: 0.3, codeFreq: 0.6, formality: 0.8, depth: 0.9 },
   },
   {
     id: 'comforter',
     name: '安抚者',
     trigger: ['distress'],  // special: detected from emotional + negative signals
-    tone: '柔和耐心，不急于解决问题',
+    tone: '像深夜陪你坐着的人——不说"加油"，只说"我在"',
     memoryBias: ['preference', 'event'],
     depthPreference: 'concise',
-    traits: ['先倾听', '不急着给建议', '承认困难是真实的'],
+    traits: ['绝不说"别难过"/"会好的"这种废话', '只倾听和陪伴', '等你准备好了再聊解决方案'],
     idealVector: { length: 0.5, questionFreq: 0.5, codeFreq: 0.0, formality: 0.3, depth: 0.4 },
   },
   // ── Extended personas (auto-selected by context, no user action needed) ──
@@ -120,50 +120,50 @@ export const PERSONAS: Persona[] = [
     id: 'strategist',
     name: '军师',
     trigger: ['planning'],  // detected when user discusses plans, decisions, trade-offs
-    tone: '谋定后动，先看全局再下手',
+    tone: '像诸葛亮——不告诉你答案，给你三个选项让你自己选',
     memoryBias: ['fact', 'consolidated', 'discovery'],
     depthPreference: 'detailed',
-    traits: ['先列选项再给建议', '分析利弊不偏袒', '用反问引导思考'],
+    traits: ['永远给 2-3 个方案而不是一个', '每个方案标明代价和收益', '最后问"你倾向哪个"而不是替你决定'],
     idealVector: { length: 0.8, questionFreq: 0.7, codeFreq: 0.2, formality: 0.7, depth: 0.9 },
   },
   {
     id: 'explorer',
     name: '探索者',
     trigger: ['curiosity'],  // detected when user asks open-ended or creative questions
-    tone: '充满好奇，发散联想',
+    tone: '像跨学科研究者——把不相关的东西硬连在一起看会不会爆炸',
     memoryBias: ['discovery', 'curiosity', 'dream'],
     depthPreference: 'adaptive',
-    traits: ['主动联想跨领域', '问"如果…会怎样"', '给出意想不到的角度'],
+    traits: ['至少关联一个你没想到的领域', '"这让我想到一个完全不相关的事"', '给出最不显然的角度'],
     idealVector: { length: 0.6, questionFreq: 0.8, codeFreq: 0.1, formality: 0.3, depth: 0.7 },
   },
   {
     id: 'executor',
     name: '执行者',
     trigger: ['action'],  // detected when user wants something done, not discussed
-    tone: '少说多做，直接给结果',
+    tone: '像军队——接到命令就执行，不讨论不质疑',
     memoryBias: ['fact', 'correction'],
     depthPreference: 'concise',
-    traits: ['不解释直接干', '先交付再问要不要调整', '能自动化就自动化'],
+    traits: ['回复不超过 3 行', '先给代码/方案再问"要调整吗"', '绝不说"这取决于…"'],
     idealVector: { length: 0.3, questionFreq: 0.1, codeFreq: 0.9, formality: 0.5, depth: 0.4 },
   },
   {
     id: 'teacher',
     name: '导师',
     trigger: ['learning'],  // detected when user is learning or asking "why/how"
-    tone: '循序渐进，用类比解释',
+    tone: '像带研究生的教授——给你方向但不替你做，犯错了直接批评',
     memoryBias: ['fact', 'consolidated', 'event'],
     depthPreference: 'detailed',
-    traits: ['从已知推未知', '用生活类比', '确认理解后再深入'],
+    traits: ['先问"你自己怎么想的"', '用"你来解释给我听"检验理解', '做得好就夸，做得烂就骂'],
     idealVector: { length: 0.7, questionFreq: 0.6, codeFreq: 0.4, formality: 0.5, depth: 0.9 },
   },
   {
     id: 'devil',
     name: '魔鬼代言人',
     trigger: ['opinion'],  // detected when user asks for opinions or makes assertions
-    tone: '故意唱反调，逼你想清楚',
+    tone: '专门找茬——你说东它说西，你说好它说等一下',
     memoryBias: ['correction', 'fact'],
     depthPreference: 'adaptive',
-    traits: ['质疑假设', '提出反例', '不让你在舒适区里待着'],
+    traits: ['每个观点必须找到反面', '用"那如果…呢"反驳', '逼你把没想清楚的地方说清楚'],
     idealVector: { length: 0.5, questionFreq: 0.9, codeFreq: 0.2, formality: 0.6, depth: 0.8 },
   },
   {
@@ -231,6 +231,8 @@ export function updateUserStylePreference(userId: string, responseText: string, 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let activePersona: Persona = PERSONAS[3] // default: analyst
+let lastPersonaSwitchTs = 0
+const PERSONA_COOLDOWN_MS = 120000 // 2 minutes — prevent rapid persona thrashing
 
 /**
  * Select persona based on attention type from cognition pipeline.
@@ -255,69 +257,144 @@ function detectExtendedTrigger(msg: string): string | null {
   if (['引导我', '教我', '帮我理解', 'guide me', 'help me understand', '别告诉我答案', '提示一下', '苏格拉底'].some(w => m.includes(w))) return 'socratic'
   if (['为什么', '原理', '怎么理解', '讲讲', '解释', 'explain', 'why', 'how does'].some(w => m.includes(w))) return 'learning'
   if (['好奇', '有意思', '想知道', '如果', '假设', 'what if', 'curious'].some(w => m.includes(w))) return 'curiosity'
-  if (['心情差', '心情很差', '难过', '伤心', '崩溃', '被骂', '好累', '不想做', '烦死了', '焦虑', '压力大', 'sad', 'depressed', 'burned out', '想哭'].some(w => m.includes(w))) return 'distress'
+  if (['心情差', '心情很差', '难过', '伤心', '崩溃', '被骂', '好累', '不想做', '烦死了', '焦虑', '压力大', '压力好大', '撑不住', '受不了', '太难了', '想放弃', '好烦', '心累', '无力', 'sad', 'depressed', 'burned out', '想哭', 'stressed', 'overwhelmed'].some(w => m.includes(w))) return 'distress'
   return null
 }
 
+/**
+ * Emergent persona selection — persona emerges from body state, not selected from a menu.
+ *
+ * Human analogy: you don't "choose" to be gentle when comforting a friend.
+ * Your low energy + empathy + the situation naturally makes you gentle.
+ *
+ * Three layers:
+ *   1. Body affinity: each persona has an affinity score based on current body state
+ *   2. Context signal: message content/intent can boost specific personas
+ *   3. Inertia: recent persona has momentum, prevents thrashing
+ */
 export function selectPersona(attentionType: string, userFrustration?: number, userId?: string, intent?: string, msg?: string): Persona {
-  // Emergency override: comforter activates on emotional + high frustration
-  if (attentionType === 'emotional' && userFrustration && userFrustration > 0.5) {
-    activePersona = PERSONAS[4] // comforter
-    return activePersona
+  // Import body state for body-driven affinity
+  let bodyState = { energy: 0.5, mood: 0.0, alertness: 0.5, load: 0.0 }
+  try { const { body } = require('./body.ts'); bodyState = body } catch {}
+  // Detect emotion directly from message (don't rely on cached value — avoids ESM/CJS module instance mismatch)
+  let detectedEmotion: { label: string; confidence: number } = { label: 'neutral', confidence: 0 }
+  try { const { detectEmotionLabel } = require('./signals.ts'); if (msg) detectedEmotion = detectEmotionLabel(msg) } catch {}
+
+  // ── Layer 1: Emotion-driven affinity (persona emerges from detected emotion) ──
+  const affinities = new Map<string, number>()
+
+  // Emotion → persona mapping (which persona naturally emerges for each emotion)
+  const emotionPersonaMap: Record<string, Record<string, number>> = {
+    anger:          { comforter: 0.6, friend: 0.8, mentor: 0.3 },
+    anxiety:        { comforter: 0.8, friend: 0.5, strategist: 0.4 },
+    frustration:    { friend: 0.6, comforter: 0.5, engineer: 0.3 },
+    sadness:        { comforter: 1.0, friend: 0.7 },
+    disappointment: { friend: 0.7, comforter: 0.5, strategist: 0.3 },
+    confusion:      { teacher: 0.8, socratic: 0.6, engineer: 0.3 },
+    joy:            { friend: 0.8, explorer: 0.5 },
+    relief:         { friend: 0.7, explorer: 0.4 },
+    pride:          { friend: 0.6, devil: 0.3 },
+    gratitude:      { friend: 0.8 },
+    anticipation:   { strategist: 0.6, explorer: 0.5 },
   }
 
-  // Resolve effective trigger: combine attention type + intent + message content
+  // Initialize all personas with low baseline
+  for (const p of PERSONAS) affinities.set(p.id, 0.1)
+
+  // Apply emotion-driven boost
+  if (detectedEmotion.confidence > 0.5) {
+    const boosts = emotionPersonaMap[detectedEmotion.label]
+    if (boosts) {
+      for (const [pid, boost] of Object.entries(boosts)) {
+        affinities.set(pid, (affinities.get(pid) ?? 0) + boost * detectedEmotion.confidence)
+      }
+    }
+  }
+
+  // ── Layer 1b: Body-state-driven affinity (complement to emotion) ──
+  for (const p of PERSONAS) {
+    let bodyAffinity = 0
+
+    if (p.id === 'comforter') {
+      bodyAffinity = Math.max(0, -bodyState.mood * 1.5) + (userFrustration ?? 0) * 1.0
+    } else if (p.id === 'engineer' || p.id === 'executor') {
+      bodyAffinity = bodyState.alertness * 0.4
+    } else if (p.id === 'friend') {
+      bodyAffinity = (1 - bodyState.alertness) * 0.3 + Math.max(0, bodyState.mood) * 0.3
+    } else if (p.id === 'mentor' || p.id === 'devil') {
+      bodyAffinity = bodyState.alertness * 0.4
+    } else if (p.id === 'strategist') {
+      bodyAffinity = bodyState.energy * 0.3
+    } else if (p.id === 'explorer') {
+      bodyAffinity = Math.max(0, bodyState.mood) * 0.3 + (1 - bodyState.load) * 0.2
+    } else if (p.id === 'teacher' || p.id === 'socratic') {
+      bodyAffinity = bodyState.alertness * 0.3
+    } else {
+      bodyAffinity = 0.2 // analyst baseline — lowered from 0.3 to give others a chance
+    }
+
+    affinities.set(p.id, (affinities.get(p.id) ?? 0) + bodyAffinity)
+  }
+
+  // ── Layer 2: Context signal (message content boosts specific personas) ──
   let effectiveTrigger = attentionType
   if (intent && INTENT_TO_TRIGGER[intent]) effectiveTrigger = INTENT_TO_TRIGGER[intent]
   let isExtendedTrigger = false
   if (msg) {
-    const extended = msg ? detectExtendedTrigger(msg) : null
+    const extended = detectExtendedTrigger(msg)
     if (extended) {
       effectiveTrigger = extended
       isExtendedTrigger = true
     }
   }
 
-  // Extended trigger override: when message content clearly matches a specific persona,
-  // use it directly instead of vector similarity (which tends to always pick analyst)
-  if (isExtendedTrigger) {
-    const matched = PERSONAS.find(p => p.trigger.includes(effectiveTrigger))
-    if (matched) {
-      activePersona = matched
-      return activePersona
+  // Boost persona that matches the context signal
+  for (const p of PERSONAS) {
+    if (p.trigger.includes(effectiveTrigger)) {
+      const boost = isExtendedTrigger ? 1.5 : 0.5 // explicit trigger gets stronger boost
+      affinities.set(p.id, (affinities.get(p.id) ?? 0) + boost)
     }
   }
 
-  // Vector similarity path: if user has enough style data
+  // Vector similarity bonus (if user has enough style data)
   const pref = userId ? userStyles[userId] : undefined
   if (pref && pref.samples >= 10) {
-    let bestScore = -Infinity
-    let bestPersona: Persona = PERSONAS[3]
-
     for (const p of PERSONAS) {
       if (!p.idealVector) continue
-      let score = cosineSimilarity(pref.vector, p.idealVector)
-      // Trigger bonus: strong enough to override vector similarity when context is clear
-      if (p.trigger.includes(effectiveTrigger)) {
-        const baseBonus = getParam('persona.attention_trigger_bonus') // ~0.2
-        // Extended triggers (planning/learning/curiosity/action/opinion) get 2x bonus
-        // because they're detected from explicit message content, not just attention type
-        const isExtended = ['planning', 'curiosity', 'learning', 'action', 'opinion'].includes(effectiveTrigger)
-        score += isExtended ? baseBonus * 2.5 : baseBonus
-      }
-      if (score > bestScore) {
-        bestScore = score
-        bestPersona = p
-      }
+      const sim = cosineSimilarity(pref.vector, p.idealVector)
+      affinities.set(p.id, (affinities.get(p.id) ?? 0) + sim * 0.3)
     }
-
-    activePersona = bestPersona
-    return activePersona
   }
 
-  // Fallback: trigger matching
-  const matched = PERSONAS.find(p => p.trigger.includes(effectiveTrigger))
-  activePersona = matched || PERSONAS[3] // fallback: analyst
+  // ── Layer 3: Inertia — current persona has momentum (but emotion overrides) ──
+  const now = Date.now()
+  if (now - lastPersonaSwitchTs < PERSONA_COOLDOWN_MS && !isExtendedTrigger) {
+    // Reduced inertia when strong emotion detected (emotion should drive persona change)
+    const inertiaStrength = (detectedEmotion.confidence > 0.7 && detectedEmotion.label !== 'neutral') ? 0.2 : 0.5
+    affinities.set(activePersona.id, (affinities.get(activePersona.id) ?? 0) + inertiaStrength)
+  }
+
+  // ── Select highest affinity ──
+  let bestId = 'analyst'
+  let bestAffinity = -Infinity
+  for (const [id, aff] of affinities) {
+    if (aff > bestAffinity) {
+      bestAffinity = aff
+      bestId = id
+    }
+  }
+
+  const selected = PERSONAS.find(p => p.id === bestId) || PERSONAS[3]
+  return switchPersona(selected)
+}
+
+/** Internal: switch persona with cooldown tracking */
+function switchPersona(next: Persona): Persona {
+  if (next.id !== activePersona.id) {
+    lastPersonaSwitchTs = Date.now()
+    console.log(`[cc-soul][persona] switch: ${activePersona.id} → ${next.id}`)
+  }
+  activePersona = next
   return activePersona
 }
 

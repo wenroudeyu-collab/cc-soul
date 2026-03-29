@@ -73,6 +73,12 @@ echo "   ✅ hub files copied"
 echo ""
 echo "── Copying static files ──"
 cp "$ROOT/README.md" "$ROOT/dist/"
+cp "$ROOT/soul.json" "$ROOT/dist/"
+cp "$ROOT/IDENTITY.md" "$ROOT/dist/" 2>/dev/null || true
+cp "$ROOT/STYLE.md" "$ROOT/dist/" 2>/dev/null || true
+cp "$ROOT/HEARTBEAT.md" "$ROOT/dist/" 2>/dev/null || true
+cp "$ROOT/CHANGELOG.md" "$ROOT/dist/" 2>/dev/null || true
+echo "   ✅ soul.json + identity/style/heartbeat copied"
 
 # ── Generate package.json ──
 cat > "$ROOT/dist/package.json" << 'PKGJSON'
@@ -87,7 +93,7 @@ cat > "$ROOT/dist/package.json" << 'PKGJSON'
   "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul"},
   "bin": {"cc-soul":"./scripts/cli.js"},
   "main": "cc-soul/plugin-entry.js",
-  "files": ["cc-soul/","hub/","scripts/","README.md"],
+  "files": ["cc-soul/","hub/","scripts/","README.md","soul.json","IDENTITY.md","STYLE.md","HEARTBEAT.md","CHANGELOG.md"],
   "openclaw": {"extensions":["./cc-soul/plugin-entry.js"]},
   "peerDependencies": {"openclaw":">=2026.3"},
   "scripts": {"postinstall":"node scripts/install.js"}
@@ -116,7 +122,16 @@ if (existsSync(resolve(SOURCE, 'hub'))) {
   cpSync(resolve(SOURCE, 'hub'), resolve(PLUGIN_DIR, 'hub'), { recursive: true, force: true })
 }
 
-// 2. Create package.json (plugin mode)
+// 2. Copy soul definition files (identity, style, heartbeat)
+for (const f of ['soul.json', 'IDENTITY.md', 'STYLE.md', 'HEARTBEAT.md', 'CHANGELOG.md', 'README.md']) {
+  const src = resolve(SOURCE, f)
+  if (existsSync(src)) {
+    cpSync(src, resolve(PLUGIN_DIR, f), { force: true })
+  }
+}
+console.log('   ✅ soul files copied')
+
+// 3. Create package.json (plugin mode)
 if (!existsSync(resolve(PLUGIN_DIR, 'package.json'))) {
   writeFileSync(resolve(PLUGIN_DIR, 'package.json'), JSON.stringify({
     name: "cc-soul", version: "1.4.0", type: "module",
@@ -125,7 +140,7 @@ if (!existsSync(resolve(PLUGIN_DIR, 'package.json'))) {
   }, null, 2))
 }
 
-// 3. Create openclaw.plugin.json (plugin manifest)
+// 4. Create openclaw.plugin.json (plugin manifest)
 writeFileSync(resolve(PLUGIN_DIR, 'openclaw.plugin.json'), JSON.stringify({
   id: "cc-soul",
   name: "cc-soul",
@@ -134,7 +149,7 @@ writeFileSync(resolve(PLUGIN_DIR, 'openclaw.plugin.json'), JSON.stringify({
   configSchema: {}
 }, null, 2))
 
-// 4. Create default features
+// 5. Create default features
 if (!existsSync(resolve(PLUGIN_DIR, 'data/features.json'))) {
   writeFileSync(resolve(PLUGIN_DIR, 'data/features.json'), JSON.stringify({
     memory_active:true, memory_consolidation:true, memory_contradiction_scan:true,
@@ -150,7 +165,7 @@ if (!existsSync(resolve(PLUGIN_DIR, 'data/features.json'))) {
   }, null, 2))
 }
 
-// 5. Update openclaw.json — add plugin load path + allow
+// 6. Update openclaw.json — add plugin load path + allow
 try {
   const cfgPath = resolve(homedir(), '.openclaw/openclaw.json')
   if (existsSync(cfgPath)) {
@@ -175,7 +190,7 @@ try {
   console.log('   ⚠️  Could not update openclaw.json:', e.message)
 }
 
-// 6. Migrate from old hooks location if exists
+// 7. Migrate from old hooks location if exists
 const OLD_HOOKS = resolve(homedir(), '.openclaw/hooks/cc-soul')
 if (existsSync(resolve(OLD_HOOKS, 'data')) && !existsSync(resolve(PLUGIN_DIR, 'data/memories.json'))) {
   try {

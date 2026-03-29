@@ -228,7 +228,6 @@ export function postReplyCleanup() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function checkCliConcurrency() {
-  // Disabled — OpenClaw 3.22+ manages CLI lifecycle with sessionMode=always
 }
 
 // ── SoulModule registration ──

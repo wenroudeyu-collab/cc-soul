@@ -7,15 +7,17 @@ import type { SoulModule } from './brain.ts'
  */
 
 import { createHash } from 'crypto'
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import type { Rule, Hypothesis } from './types.ts'
 import { resolve } from 'path'
 import { RULES_PATH, HYPOTHESES_PATH, DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
-import { addMemory, memoryState, trigrams, trigramSimilarity } from './memory.ts'
+import { addMemory, trigrams, trigramSimilarity } from './memory.ts'
 import { notifySoulActivity } from './notify.ts'
 import { spawnCLI } from './cli.ts'
 import { extractJSON } from './utils.ts'
 import { getParam } from './auto-tune.ts'
 import { appendAudit } from './audit.ts'
+import { detectDomain } from './epistemic.ts'
 
 // ── Bayesian utilities ──
 
@@ -53,6 +55,7 @@ function md5(s: string): string {
 
 export function loadRules() {
   rules = loadJson<Rule[]>(RULES_PATH, [])
+  ;(globalThis as any).__ccSoulRules = rules
 }
 
 function saveRules() {
@@ -96,6 +99,37 @@ function compressRules() {
   }
 }
 
+const DOMAIN_GENERALIZATION: Record<string, string> = {
+  python: '回答 Python 相关问题时要特别谨慎，先确认版本号和具体特性再回答',
+  javascript: '回答 JS/TS 相关问题时注意区分运行时和框架版本差异',
+  swift: '回答 Swift 相关问题时注意区分 Swift 版本和 API 变更',
+  'ios-reverse': '回答 iOS 逆向问题时注意工具版本和系统兼容性',
+  rust: '回答 Rust 问题时注意 edition 和 API 稳定性差异',
+  golang: '回答 Go 问题时注意版本和模块系统差异',
+  database: '回答数据库问题时注意引擎差异和版本兼容',
+  devops: '回答运维问题时注意发行版和工具版本差异',
+  git: '回答 Git 问题时注意不同平台和版本的行为差异',
+}
+
+/** After adding a rule, check if its domain has 2+ rules → create a generalized rule */
+export function generalizeRules(newRuleText: string) {
+  const domain = detectDomain(newRuleText)
+  const template = DOMAIN_GENERALIZATION[domain]
+  if (!template) return
+  // Count rules in same domain (excluding generalized ones already present)
+  const sameDomain = rules.filter(r => detectDomain(r.rule) === domain && r.source !== 'generalized')
+  if (sameDomain.length < 2) return
+  // Already have a generalized rule for this domain?
+  const existing = rules.find(r => r.rule === template)
+  if (existing) {
+    existing.hits = Math.max(existing.hits, ...sameDomain.map(r => r.hits)) + 1
+    return
+  }
+  const maxHits = Math.max(...sameDomain.map(r => r.hits), 1)
+  rules.push({ rule: template, source: 'generalized', ts: Date.now(), hits: maxHits + 1 })
+  console.log(`[cc-soul][evolve] generalized rule for domain=${domain}: "${template.slice(0, 50)}"`)
+}
+
 export function addRule(rule: string, source: string) {
   if (!rule || rule.length < 5) return
   // Exact dedup
@@ -112,8 +146,19 @@ export function addRule(rule: string, source: string) {
     return
   }
 
-  rules.push({ rule, source: source.slice(0, 100), ts: Date.now(), hits: 0 })
+  // ── Causal context: extract conditions from rule content ──
+  const CJK_RE = /[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi
+  const conditions = (rule.match(CJK_RE) || []).map((w: string) => w.toLowerCase()).slice(0, 5)
+
+  rules.push({
+    rule, source: source.slice(0, 100), ts: Date.now(), hits: 0,
+    cause: source.includes('纠正') || source.includes('correction') ? source.slice(0, 80) : undefined,
+    conditions: conditions.length > 0 ? conditions : undefined,
+  })
   appendAudit('rule_add', `${rule.slice(0, 100)} (src: ${source.slice(0, 50)})`)
+
+  // Correction generalization: if domain has 2+ rules, create a broader rule
+  generalizeRules(rule)
 
   // Compress: when rules exceed 40, merge similar pairs via trigram similarity
   if (rules.length > 40) {
@@ -137,7 +182,24 @@ export function getRelevantRules(msg: string, topN = 3, trackHits = true): Rule[
   const scored = rules.map(r => {
     const ruleWords = (r.rule.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
     const overlap = ruleWords.filter(w => msgWords.has(w)).length
-    return { ...r, score: overlap + r.hits * 0.1 }
+
+    // ── Causal condition matching: rules with conditions get boosted when conditions match ──
+    let conditionBoost = 0
+    if (r.conditions && r.conditions.length > 0) {
+      const condHits = r.conditions.filter(c => msgWords.has(c)).length
+      conditionBoost = condHits / r.conditions.length // 0-1: how many conditions match
+      // Rules with unmet conditions get penalized (wrong context)
+      if (condHits === 0 && r.conditions.length >= 2) conditionBoost = -0.5
+    }
+
+    // Quality-aware scoring: rules that led to good responses get boosted
+    let qualityBoost = 0
+    if (r.matchedCount && r.matchedCount >= 3 && r.matchedQualitySum) {
+      const avgQuality = r.matchedQualitySum / r.matchedCount
+      qualityBoost = avgQuality >= 7 ? 0.5 : avgQuality <= 3 ? -0.5 : 0
+    }
+
+    return { ...r, score: overlap + r.hits * 0.1 + conditionBoost + qualityBoost }
   })
 
   scored.sort((a, b) => b.score - a.score)
@@ -181,7 +243,6 @@ export function formHypothesis(pattern: string, observation: string) {
     beta: 1,
     status: 'active',
     created: Date.now(),
-    reflexionStage: 'plan',  // #19: starts at plan stage (reflect already happened)
     verifyCount: 0,
   })
 
@@ -195,77 +256,57 @@ export function formHypothesis(pattern: string, observation: string) {
     hypotheses.push(...kept)
   }
 
-  debouncedSave(HYPOTHESES_PATH, hypotheses)
+  saveHypothesesSafe()
   console.log(`[cc-soul][evolve] 新假设: ${pattern.slice(0, 30)} → ${observation.slice(0, 40)}`)
   notifySoulActivity(`🧬 新假设: ${pattern.slice(0, 30)} → ${observation.slice(0, 40)}`).catch(() => {})
 }
 
-// ── #19: Five-stage reflexion loop ──
-// Stages: reflect → plan → execute → verify → solidify
-// reflexionStage tracks each hypothesis through the pipeline
+function saveHypothesesSafe() {
+  if (hypotheses === undefined || hypotheses === null) return
+  debouncedSave(HYPOTHESES_PATH, hypotheses)
+}
 
+let _verifyingHypotheses = false
 export function verifyHypothesis(situation: string, wasCorrect: boolean) {
+  if (_verifyingHypotheses) return // prevent recursion
+  _verifyingHypotheses = true
+  try {
+    if (hypotheses.length === 0) {
+      try { loadHypotheses() } catch {}
+    }
+    if (hypotheses.length === 0) { _verifyingHypotheses = false; return }
+    _verifyHypothesisInner(situation, wasCorrect)
+  } finally { _verifyingHypotheses = false }
+}
+
+function _verifyHypothesisInner(situation: string, wasCorrect: boolean) {
   for (const h of hypotheses) {
-    if (h.status === 'rejected') continue
+    if (h.status === 'rejected' || h.status === 'verified') continue
 
-    // Use trigram similarity instead of keyword count — more reliable matching
+    // Match hypothesis to current situation — lowered threshold for practical usage
     const sim = trigramSimilarity(trigrams(h.description), trigrams(situation))
-    if (sim < getParam('evolution.hypothesis_match_min_sim')) continue // need minimum similarity
+    if (sim < 0.3) continue
 
-    // Initialize reflexion stage tracking if missing
-    if (!h.reflexionStage) h.reflexionStage = 'plan'  // #9: should start at plan, not skip to verify
     if (!h.verifyCount) h.verifyCount = 0
 
-    // Stage transition: execute → verify (first time matched in a real scenario)
-    if (h.reflexionStage === 'execute') {
-      h.reflexionStage = 'verify'
-      console.log(`[cc-soul][evolve] stage execute → verify: ${h.description.slice(0, 40)}`)
-    }
-
-    // Bayesian update: Beta distribution α/β
-    if (wasCorrect) {
-      h.alpha++
-    } else {
-      h.beta++
-    }
-    // Legacy counters kept in sync for compatibility
-    if (wasCorrect) {
-      h.evidence_for = (h.evidence_for || 0) + 1
-    } else {
-      h.evidence_against = (h.evidence_against || 0) + 1
-    }
-
+    // Bayesian update
+    if (wasCorrect) { h.alpha++ } else { h.beta++ }
     const mean = betaMean(h.alpha, h.beta)
-    const lb = betaLowerBound(h.alpha, h.beta)
-    const n = h.alpha + h.beta - 2
-    console.log(`[cc-soul][evolve] 假设更新: "${h.description.slice(0, 40)}" α=${h.alpha} β=${h.beta} mean=${mean.toFixed(3)} CI_lb=${lb.toFixed(3)} n=${n} stage=${h.reflexionStage}`)
+    console.log(`[cc-soul][evolve] 假设验证: "${h.description.slice(0, 40)}" sim=${sim.toFixed(2)} correct=${wasCorrect} verify=${h.verifyCount} α=${h.alpha} β=${h.beta}`)
 
-    // Stage: verify — count consecutive successes in similar scenarios
-    if (wasCorrect && h.reflexionStage === 'verify') {
-      h.verifyCount = (h.verifyCount || 0) + 1
-      console.log(`[cc-soul][evolve] 验证计数: ${h.verifyCount}/3 for "${h.description.slice(0, 30)}"`)
-    } else if (!wasCorrect && h.reflexionStage === 'verify') {
-      h.verifyCount = 0 // reset on failure
+    if (wasCorrect) {
+      h.verifyCount++
+    } else {
+      h.verifyCount = 0
     }
 
-    // Stage: solidify — 3+ consecutive verifications promote to permanent rule
-    if (h.reflexionStage === 'verify' && (h.verifyCount || 0) >= 3 && h.status === 'active') {
+    if (wasCorrect && h.verifyCount >= 3 && h.status === 'active') {
       h.status = 'verified'
-      h.reflexionStage = 'solidified'
-      addRule(h.description, 'reflexion_solidified')
+      addRule(h.description, 'hypothesis_solidified')
       appendAudit('rule_solidified', h.description.slice(0, 150))
-      console.log(`[cc-soul][evolve] 五阶段固化 → 永久规则: ${h.description.slice(0, 40)} (verified ${h.verifyCount}x)`)
-      notifySoulActivity(`🔒 反思固化: ${h.description.slice(0, 40)} (验证${h.verifyCount}次)`).catch(() => {})
+      console.log(`[cc-soul][evolve] 规则固化: ${h.description.slice(0, 40)} (验证${h.verifyCount}次)`)
+      notifySoulActivity(`🔒 规则固化: ${h.description.slice(0, 40)}`).catch(() => {})
       continue
-    }
-
-    // Promote to rule when statistically significant and lower bound of success rate > 0.6
-    if (h.status === 'active' && isSignificant(h.alpha, h.beta) && betaLowerBound(h.alpha, h.beta) > getParam('evolution.hypothesis_verify_ci_lb')) {
-      h.status = 'verified'
-      h.reflexionStage = 'solidified'
-      addRule(h.description, 'hypothesis_verified')
-      console.log(`[cc-soul][evolve] 假设验证通过 → 规则: ${h.description.slice(0, 40)} (mean=${mean.toFixed(3)}, CI_lb=${lb.toFixed(3)})`)
-      notifySoulActivity(`✅ 假设验证: ${h.description.slice(0, 40)}`).catch(() => {})
     }
 
     // Reject when statistically significant and upper bound of success rate < 0.4
@@ -276,7 +317,7 @@ export function verifyHypothesis(situation: string, wasCorrect: boolean) {
       notifySoulActivity(`❌ 假设否定: ${h.description.slice(0, 40)}`).catch(() => {})
     }
   }
-  debouncedSave(HYPOTHESES_PATH, hypotheses)
+  saveHypothesesSafe()
 }
 
 // ── Correction Evolution (basic pattern extraction) ──
@@ -348,244 +389,6 @@ export function attributeCorrection(userMsg: string, lastResponse: string, augme
   )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STRATEGY REPLAY — record why we chose each response strategy
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const STRATEGY_TRACES_PATH = resolve(DATA_DIR, 'strategy_traces.json')
-const MAX_TRACES = 200
-
-interface StrategyTrace {
-  timestamp: number
-  scenario: string       // user's message (truncated)
-  candidates: string[]   // strategies considered
-  chosen: string         // which one was picked
-  reason: string         // why (attention type, user style, etc.)
-  outcome: 'success' | 'corrected' | 'unknown'
-  reasoningChain: string[]  // ["注意力: correction", "策略: empathy_first", "消息长度: 42"]
-  dataUsed: string[]        // ["记忆: xxx", "规则: yyy", "epistemic: zzz"]
-}
-
-let strategyTraces: StrategyTrace[] = []
-
-export function loadStrategyTraces() {
-  strategyTraces = loadJson<StrategyTrace[]>(STRATEGY_TRACES_PATH, [])
-}
-
-function saveTraces() {
-  debouncedSave(STRATEGY_TRACES_PATH, strategyTraces)
-}
-
-/**
- * Record a strategy decision with full reasoning context.
- */
-export function recordStrategy(scenario: string, chosen: string, reason: string, augmentsUsed?: string[]) {
-  strategyTraces.push({
-    timestamp: Date.now(),
-    scenario: scenario.slice(0, 100),
-    candidates: ['direct', 'empathy_first', 'detailed', 'action_oriented', 'opinion_with_reasoning'],
-    chosen,
-    reason,
-    outcome: 'unknown',
-    reasoningChain: [
-      `注意力: ${reason}`,
-      `策略: ${chosen}`,
-      `消息长度: ${scenario.length}`,
-    ],
-    dataUsed: (augmentsUsed || []).slice(0, 5).map(a => a.slice(0, 60)),
-  })
-  if (strategyTraces.length > MAX_TRACES) {
-    const kept = strategyTraces.slice(-Math.floor(MAX_TRACES * 0.8))
-    strategyTraces.length = 0
-    strategyTraces.push(...kept)
-  }
-  saveTraces()
-}
-
-/**
- * Mark the last strategy's outcome (called on correction or positive feedback).
- */
-export function markLastStrategyOutcome(outcome: 'success' | 'corrected') {
-  if (strategyTraces.length === 0) return
-  strategyTraces[strategyTraces.length - 1].outcome = outcome
-  saveTraces()
-}
-
-/**
- * Find similar past strategies for current scenario.
- */
-export function recallStrategy(msg: string): string {
-  if (strategyTraces.length < 5) return ''
-  const words = new Set((msg.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
-
-  const matches = strategyTraces
-    .filter(t => t.outcome === 'success')
-    .filter(t => {
-      const tWords = (t.scenario.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
-      return tWords.filter(w => words.has(w)).length >= 2
-    })
-    .slice(-3)
-
-  if (matches.length === 0) return ''
-  const strategies = matches.map(m => m.chosen)
-  const most = strategies.sort((a, b) => strategies.filter(s => s === b).length - strategies.filter(s => s === a).length)[0]
-  // Find the best match with reasoning chain for richer context
-  const bestMatch = matches.find(m => m.chosen === most) || matches[0]
-  const chainStr = bestMatch.reasoningChain && bestMatch.reasoningChain.length > 0
-    ? `，因为：${bestMatch.reasoningChain.join(' → ')}`
-    : ''
-  const dataStr = bestMatch.dataUsed && bestMatch.dataUsed.length > 0
-    ? `，参考了：${bestMatch.dataUsed.join('；')}`
-    : ''
-  const outcomeStr = bestMatch.outcome !== 'unknown' ? `，效果：${bestMatch.outcome}` : ''
-  return `[Strategy hint] 上次类似场景用了 ${most} 策略${chainStr}${dataStr}${outcomeStr}`
-}
-
-export { strategyTraces }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// META-LEARNING — insights about the learning process itself
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const META_INSIGHTS_PATH = resolve(DATA_DIR, 'meta_insights.json')
-
-interface MetaInsight {
-  insight: string
-  evidence: number
-  discoveredAt: number
-}
-
-let metaInsights: MetaInsight[] = []
-
-export function loadMetaInsights() {
-  metaInsights = loadJson<MetaInsight[]>(META_INSIGHTS_PATH, [])
-}
-
-function saveMetaInsights() {
-  debouncedSave(META_INSIGHTS_PATH, metaInsights)
-}
-
-/**
- * Periodic meta-analysis: analyze the learning system itself.
- * Called from heartbeat (daily cooldown).
- */
-let lastMetaAnalysis = 0
-export function analyzeMetaLearning() {
-  const now = Date.now()
-  if (now - lastMetaAnalysis < 24 * 3600000) return // daily
-  if (rules.length < 10) return // need enough rules
-  lastMetaAnalysis = now
-
-  const insights: string[] = []
-
-  // Insight: rule survival rate
-  const oldRules = rules.filter(r => now - r.ts > 7 * 86400000) // >7 days old
-  const highHitRules = oldRules.filter(r => r.hits > 5)
-  if (oldRules.length > 5) {
-    const survivalRate = (highHitRules.length / oldRules.length * 100).toFixed(0)
-    insights.push(`${survivalRate}% of rules older than 7 days are actively used (hits>5)`)
-  }
-
-  // Insight: correction time pattern
-  const correctionMems = memoryState.memories.filter(m => m.scope === 'correction')
-  if (correctionMems.length > 10) {
-    const nightCorrections = correctionMems.filter(m => {
-      const h = new Date(m.ts).getHours()
-      return h >= 23 || h < 6
-    })
-    const nightRatio = nightCorrections.length / correctionMems.length
-    if (nightRatio > 0.4) {
-      insights.push('Late-night corrections are disproportionately high — consider being more cautious after 11pm')
-    }
-  }
-
-  // Insight: hypothesis verification speed
-  const verifiedHyp = hypotheses.filter(h => h.status === 'verified')
-  const rejectedHyp = hypotheses.filter(h => h.status === 'rejected')
-  if (verifiedHyp.length + rejectedHyp.length > 5) {
-    const verifyRate = (verifiedHyp.length / (verifiedHyp.length + rejectedHyp.length) * 100).toFixed(0)
-    insights.push(`Hypothesis verification rate: ${verifyRate}% (${verifiedHyp.length} verified, ${rejectedHyp.length} rejected)`)
-  }
-
-  // Store new insights (dedup)
-  for (const ins of insights) {
-    if (!metaInsights.some(m => m.insight === ins)) {
-      metaInsights.push({ insight: ins, evidence: 1, discoveredAt: now })
-    }
-  }
-  if (metaInsights.length > 20) {
-    const kept = metaInsights.slice(-15)
-    metaInsights.length = 0
-    metaInsights.push(...kept)
-  }
-  saveMetaInsights()
-
-  if (insights.length > 0) {
-    console.log(`[cc-soul][meta] ${insights.length} meta-insights: ${insights[0].slice(0, 60)}`)
-  }
-}
-
-/**
- * Get meta-learning context for structured reflection.
- */
-export function getMetaContext(): string {
-  if (metaInsights.length === 0) return ''
-  return metaInsights.slice(-3).map(m => `[Meta] ${m.insight}`).join('\n')
-}
-
-export { metaInsights }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// REFLEXION TRACKING — monitor if reflexion-generated rules actually help
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const REFLEXION_TRACKER_PATH = resolve(DATA_DIR, 'reflexion_tracker.json')
-
-interface ReflexionEntry {
-  rule: string
-  createdAt: number
-  correctionsBefore: number   // correction count at creation time
-  correctionsAfter: number    // correction count checked later
-  messagesAtCreation: number  // total messages at creation
-  messagesChecked: number     // total messages at check time
-  verdict: 'pending' | 'effective' | 'ineffective' | 'inconclusive'
-}
-
-let reflexionTracker: ReflexionEntry[] = []
-
-export function loadReflexionTracker() {
-  reflexionTracker = loadJson<ReflexionEntry[]>(REFLEXION_TRACKER_PATH, [])
-}
-
-function saveReflexionTracker() {
-  debouncedSave(REFLEXION_TRACKER_PATH, reflexionTracker)
-}
-
-/**
- * Register a new reflexion-generated rule for tracking.
- * Called from triggerReflexion when a new rule is created.
- */
-export function trackReflexionRule(rule: string, currentCorrections: number, currentMessages: number) {
-  // Dedup
-  if (reflexionTracker.some(e => e.rule === rule)) return
-  reflexionTracker.push({
-    rule,
-    createdAt: Date.now(),
-    correctionsBefore: currentCorrections,
-    correctionsAfter: 0,
-    messagesAtCreation: currentMessages,
-    messagesChecked: 0,
-    verdict: 'pending',
-  })
-  // Cap at 50 entries (in-place to preserve export let reference)
-  if (reflexionTracker.length > 50) {
-    const kept = reflexionTracker.slice(-40)
-    reflexionTracker.length = 0
-    reflexionTracker.push(...kept)
-  }
-  saveReflexionTracker()
-  console.log(`[cc-soul][reflexion-track] tracking rule: ${rule.slice(0, 50)}`)
-}
 
 /**
  * Record quality score for rules that were matched in the current response.
@@ -601,128 +404,158 @@ export function recordRuleQuality(matchedRules: Rule[], qualityScore: number) {
   saveRules()
 }
 
-/**
- * Evaluate reflexion rules using per-rule metrics (called from heartbeat, 24h cooldown).
- * Uses matchedCount + matchedQualitySum instead of global correction rate (avoids Simpson's paradox).
- */
-let lastReflexionEval = 0
+// ═══════════════════════════════════════════════════════════════════════════════
+// GEP — Generalized Evolution Protocol (标准化演化资产导出/导入)
+// ═══════════════════════════════════════════════════════════════════════════════
 
-export function evaluateReflexionRules(totalCorrections: number, totalMessages: number) {
-  if (Date.now() - lastReflexionEval < 24 * 3600000) return
-  lastReflexionEval = Date.now()
-
-  let evaluated = 0
-  for (const entry of reflexionTracker) {
-    if (entry.verdict !== 'pending') continue
-    // Need at least 7 days since creation
-    const daysSince = (Date.now() - entry.createdAt) / 86400000
-    if (daysSince < 7) continue
-
-    // Find the corresponding rule and use per-rule metrics
-    const ruleObj = rules.find(r => r.rule === entry.rule)
-    const matched = ruleObj?.matchedCount || 0
-    const avgQuality = matched > 0 ? (ruleObj?.matchedQualitySum || 0) / matched : 0
-
-    entry.correctionsAfter = totalCorrections
-    entry.messagesChecked = totalMessages
-
-    if (matched < 10) continue // not enough data for this specific rule
-
-    if (avgQuality < 4) {
-      entry.verdict = 'ineffective'
-      // Demote the rule — reduce its hits so it's more likely to be evicted
-      if (ruleObj) ruleObj.hits = Math.max(0, ruleObj.hits - 3)
-      console.log(`[cc-soul][reflexion-track] ❌ rule ineffective: ${entry.rule.slice(0, 40)} (matched ${matched}x, avgQ=${avgQuality.toFixed(1)})`)
-    } else if (avgQuality >= 7) {
-      entry.verdict = 'effective'
-      console.log(`[cc-soul][reflexion-track] ✅ rule effective: ${entry.rule.slice(0, 40)} (matched ${matched}x, avgQ=${avgQuality.toFixed(1)})`)
-    } else {
-      entry.verdict = 'inconclusive'
+export interface GEPAssets {
+  version: string
+  format: string
+  exportedAt: string
+  agent: string
+  assets: {
+    rules: Rule[]
+    hypotheses: Hypothesis[]
+    skills: string[]
+    stats: {
+      totalMessages: number
+      corrections: number
+      rulesSolidified: number
     }
-    evaluated++
+    // legacy fields (kept for backward compat)
+    corrections?: number
+    growthVectors?: string[]
+    metadata?: {
+      totalMessages: number
+      firstSeen: number
+      rulesSolidified: number
+    }
+  }
+}
+
+/**
+ * Export evolution assets in GEP format.
+ * Returns the JSON object and writes to DATA_DIR/export/evolution_assets_{date}.json.
+ */
+export function exportEvolutionAssets(stats: { totalMessages: number; firstSeen: number; corrections: number }): { data: GEPAssets; path: string } {
+  const exportDir = resolve(DATA_DIR, 'export')
+  if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true })
+
+  const solidifiedCount = hypotheses.filter(h => h.status === 'verified').length
+
+  // Collect auto-generated skill filenames
+  const skillsDir = resolve(DATA_DIR, 'skills/auto')
+  let skillNames: string[] = []
+  try {
+    if (existsSync(skillsDir)) {
+      const { readdirSync } = require('fs')
+      skillNames = (readdirSync(skillsDir) as string[]).filter((f: string) => f.endsWith('.md'))
+    }
+  } catch { /* no skills dir */ }
+
+  const growthVectors: string[] = []
+
+  const data: GEPAssets = {
+    version: '1.0',
+    format: 'GEP',
+    exportedAt: new Date().toISOString(),
+    agent: 'cc-soul',
+    assets: {
+      rules: rules.map(r => ({ ...r })),
+      hypotheses: hypotheses.map(h => ({ ...h })),
+      skills: skillNames,
+      stats: {
+        totalMessages: stats.totalMessages,
+        corrections: stats.corrections,
+        rulesSolidified: solidifiedCount,
+      },
+      // legacy fields for backward compat
+      corrections: stats.corrections,
+      growthVectors,
+      metadata: {
+        totalMessages: stats.totalMessages,
+        firstSeen: stats.firstSeen,
+        rulesSolidified: solidifiedCount,
+      },
+    },
   }
 
-  if (evaluated > 0) {
-    saveReflexionTracker()
+  const today = new Date().toISOString().slice(0, 10)
+  const exportPath = resolve(exportDir, `evolution_assets_${today}.json`)
+  writeFileSync(exportPath, JSON.stringify(data, null, 2), 'utf-8')
+  console.log(`[cc-soul][gep] exported ${rules.length} rules + ${hypotheses.length} hypotheses to ${exportPath}`)
+
+  return { data, path: exportPath }
+}
+
+/**
+ * Import evolution assets from GEP format file.
+ * Merges rules and hypotheses (dedup by content/id).
+ */
+export function importEvolutionAssets(filePath: string): { rulesAdded: number; hypothesesAdded: number } {
+  const raw = readFileSync(filePath, 'utf-8')
+  const data = JSON.parse(raw) as GEPAssets
+
+  if (!data.version || !data.assets) {
+    throw new Error('Invalid GEP format: missing version or assets')
+  }
+
+  let rulesAdded = 0
+  let hypothesesAdded = 0
+
+  // Import rules (dedup by rule text)
+  if (Array.isArray(data.assets.rules)) {
+    for (const r of data.assets.rules) {
+      if (!r.rule || r.rule.length < 5) continue
+      if (rules.some(existing => existing.rule === r.rule)) continue
+      rules.push({
+        rule: r.rule,
+        source: r.source || 'gep_import',
+        ts: r.ts || Date.now(),
+        hits: r.hits || 0,
+        matchedCount: r.matchedCount,
+        matchedQualitySum: r.matchedQualitySum,
+      })
+      rulesAdded++
+    }
+    if (rules.length > MAX_RULES) {
+      rules.sort((a, b) => (b.hits * 10 + b.ts / 1e10) - (a.hits * 10 + a.ts / 1e10) || b.ts - a.ts)
+      rules.length = MAX_RULES
+    }
     saveRules()
   }
-}
 
-/**
- * Get reflexion tracking summary for meta-learning context.
- */
-export function getReflexionSummary(): string {
-  const effective = reflexionTracker.filter(e => e.verdict === 'effective').length
-  const ineffective = reflexionTracker.filter(e => e.verdict === 'ineffective').length
-  const pending = reflexionTracker.filter(e => e.verdict === 'pending').length
-  if (effective + ineffective === 0) return ''
-  return `[反思规则追踪] 有效:${effective} 无效:${ineffective} 待评:${pending}`
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// REFLEXION — structured failure analysis → actionable memory
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * When cc gives a low-quality response or gets corrected, generate a structured
- * reflection that becomes an actionable rule + memory for next time.
- */
-export function triggerReflexion(question: string, response: string, score: number, correctionMsg?: string, stats?: { corrections: number; totalMessages: number }) {
-  // Only trigger on low scores or corrections
-  if (score > 5 && !correctionMsg) return
-
-  const prompt = [
-    `你的上一次回复质量不高。请反思：`,
-    ``,
-    `用户问题: "${question.slice(0, 150)}"`,
-    `你的回复: "${response.slice(0, 300)}"`,
-    `质量评分: ${score}/10`,
-    correctionMsg ? `用户纠正: "${correctionMsg.slice(0, 150)}"` : '',
-    ``,
-    `请分析：`,
-    `1. 具体哪里做得不好？`,
-    `2. 正确的做法应该是什么？`,
-    `3. 下次遇到类似问题应该怎么做？（写成一条可执行的规则）`,
-    ``,
-    `格式: {"what_went_wrong":"一句话","correct_approach":"一句话","rule":"下次遇到X时，应该Y"}`,
-  ].filter(Boolean).join('\n')
-
-  spawnCLI(prompt, (output) => {
-    try {
-      const result = extractJSON(output)
-      if (result && result.rule) {
-        // Store reflexion as high-priority memory
-        addMemory(
-          `[反思规则] ${result.rule}`,
-          'reflexion',
-          undefined, 'global'
-        )
-
-        // Also add as evolution rule for immediate effect
-        addRule(result.rule, `reflexion: score=${score}`)
-
-        // #19: Mark related hypotheses as "execute" stage
-        for (const h of hypotheses) {
-          if (h.reflexionStage === 'plan' && h.status === 'active') {
-            const sim = trigramSimilarity(trigrams(h.description), trigrams(result.rule))
-            if (sim > getParam('evolution.reflexion_sim_threshold')) {
-              h.reflexionStage = 'execute'
-              console.log(`[cc-soul][reflexion] stage → execute: ${h.description.slice(0, 40)}`)
-            }
-          }
-        }
-
-        // Track effectiveness of this reflexion rule
-        if (stats) {
-          trackReflexionRule(result.rule, stats.corrections, stats.totalMessages)
-        }
-
-        console.log(`[cc-soul][reflexion] learned: ${result.rule.slice(0, 60)}`)
-      }
-    } catch (e: any) {
-      console.error(`[cc-soul][reflexion] parse error: ${e.message}`)
+  // Import hypotheses (dedup by id)
+  if (Array.isArray(data.assets.hypotheses)) {
+    for (const h of data.assets.hypotheses) {
+      if (!h.id || !h.description) continue
+      if (hypotheses.some(existing => existing.id === h.id)) continue
+      hypotheses.push({
+        id: h.id,
+        description: h.description,
+        alpha: h.alpha ?? 2,
+        beta: h.beta ?? 1,
+        status: h.status || 'active',
+        created: h.created || Date.now(),
+        verifyCount: h.verifyCount || 0,
+      })
+      hypothesesAdded++
     }
-  }, 30000, 'reflexion')
+    if (hypotheses.length > 30) {
+      const kept = hypotheses
+        .filter(h => h.status !== 'rejected')
+        .sort((a, b) => (b.alpha / (b.alpha + b.beta)) - (a.alpha / (a.alpha + a.beta)) || b.created - a.created)
+        .slice(0, 25)
+      hypotheses.length = 0
+      hypotheses.push(...kept)
+    }
+    saveHypothesesSafe()
+  }
+
+  console.log(`[cc-soul][gep] imported ${rulesAdded} rules + ${hypothesesAdded} hypotheses from ${filePath}`)
+  appendAudit('gep_import', `rules:+${rulesAdded} hypotheses:+${hypothesesAdded} from ${filePath}`)
+
+  return { rulesAdded, hypothesesAdded }
 }
 
 export const evolutionModule: SoulModule = {
@@ -730,5 +563,5 @@ export const evolutionModule: SoulModule = {
   name: '进化引擎',
   dependencies: ['memory'],
   priority: 50,
-  init() { loadRules(); loadHypotheses(); loadStrategyTraces(); loadMetaInsights(); loadReflexionTracker() },
+  init() { loadRules(); loadHypotheses() },
 }

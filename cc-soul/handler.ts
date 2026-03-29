@@ -16,9 +16,10 @@
  * - command:new          → persist state, log stats
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, readdirSync } from 'fs'
 import { execFile } from 'child_process'
-import { platform } from 'os'
+import { platform, homedir } from 'os'
+import { resolve } from 'path'
 
 import type { Augment } from './types.ts'
 import {
@@ -35,16 +36,16 @@ import {
 } from './handler-state.ts'
 import { runHeartbeat } from './handler-heartbeat.ts'
 import { routeCommand } from './handler-commands.ts'
-import { buildAndSelectAugments, detectInjection } from './handler-augments.ts'
+import { buildAndSelectAugments, detectInjection, generatePrebuiltTips } from './handler-augments.ts'
 import { brain } from './brain.ts'
 
 import {
   ensureDataDir, loadJson, saveJson, debouncedSave, flushAll,
   MEMORIES_PATH, RULES_PATH, STATS_PATH, DATA_DIR, REMINDERS_PATH,
 } from './persistence.ts'
-import { spawnCLI, runPostResponseAnalysis, loadAIConfig, getActiveTaskStatus, setAgentBusy, setOnTaskDone, killGatewayClaude } from './cli.ts'
-import { notifySoulActivity } from './notify.ts'
-import { body, bodyTick, bodyOnMessage, bodyOnCorrection, bodyOnPositiveFeedback, bodyGetParams, processEmotionalContagion, getEmotionContext, loadBodyState, loadMoodHistory, getEmotionalArcContext, getEmotionSummary, emotionVector, generateMoodReport } from './body.ts'
+import { spawnCLI, runPostResponseAnalysis, loadAIConfig, getActiveTaskStatus, getAgentBusy, setAgentBusy, setOnTaskDone, killGatewayClaude } from './cli.ts'
+import { notifySoulActivity, notifyOwnerDM } from './notify.ts'
+import { body, bodyTick, bodyOnMessage, bodyOnCorrection, bodyOnPositiveFeedback, bodyGetParams, processEmotionalContagion, getEmotionContext, loadBodyState, loadMoodHistory, getEmotionalArcContext, getEmotionSummary, emotionVector, generateMoodReport, trackEmotionAnchor } from './body.ts'
 import {
   memoryState, loadMemories, addMemory, addMemoryWithEmotion,
   recall, recallFused, getCachedFusedRecall, invalidateIDF, addToHistory, buildHistoryContext,
@@ -69,10 +70,6 @@ import {
   rules, hypotheses, loadRules, loadHypotheses,
   getRelevantRules, onCorrectionAdvanced, verifyHypothesis,
   attributeCorrection,
-  loadStrategyTraces, recordStrategy, markLastStrategyOutcome, recallStrategy,
-  loadMetaInsights, analyzeMetaLearning, getMetaContext,
-  triggerReflexion,
-  loadReflexionTracker, evaluateReflexionRules, getReflexionSummary,
   recordRuleQuality,
 } from './evolution.ts'
 import {
@@ -85,61 +82,31 @@ import {
   writeJournalWithCLI, triggerDeepReflection,
   getRecentJournal, checkDreamMode,
   reflectOnLastResponse, extractFollowUp, peekPendingFollowUps,
-  triggerStructuredReflection,
   checkActivePlans, cleanupPlans,
-  selfChallenge,
 } from './inner-life.ts'
 // ── Optional modules: loaded dynamically, gracefully absent in public build ──
-let reportTelemetry: (...args: any[]) => void = () => {}
-let autoFederate: (...args: any[]) => void = () => {}
-let reportBadKnowledge: (...args: any[]) => void = () => {}
-let loadSyncConfig: () => void = () => {}
-let autoSync: (...args: any[]) => void = () => {}
-let handleSyncCommand: (...args: any[]) => any = () => false
-let checkSoulUpgrade: (...args: any[]) => void = () => {}
-let handleUpgradeCommand: (...args: any[]) => any = () => false
-let getUpgradeHistory: () => any[] = () => []
-let loadUpgradeMeta: () => void = () => {}
-let roverState: any = { discoveries: [], topics: [] }
-let webRoam: (...args: any[]) => void = () => {}
-let getRecentDiscoveries: () => any[] = () => []
-let addCorrectionTopic: (...args: any[]) => void = () => {}
-let techRadarScan: (...args: any[]) => void = () => {}
-let verifyDiscoveries: (...args: any[]) => void = () => {}
-let runCompetitiveRadar: (...args: any[]) => void = () => {}
-let handleRadarCommand: (...args: any[]) => any = () => false
-let getRadarUpgradeContext: () => string = () => ''
 let trackPersonaStyle: (...args: any[]) => void = () => {}
 let getPersonaDriftWarning: () => string | null = () => null
+let checkPersonaDrift: (replyText: string, personaId: string, personaName: string, personaTone: string, idealVector?: any) => number = () => 0
+let getPersonaDriftReinforcement: () => string | null = () => null
+let getDriftCount: () => number = () => 0
 let smartForgetSweep: (...args: any[]) => any = () => ({ toForget: [], toConsolidate: [] })
 let handleCronCommand: (...args: any[]) => any = () => false
 let tickCron: () => void = () => {}
 let compressAugments: (...args: any[]) => any[] = (a: any[]) => a
 let buildDebateAugment: (...args: any[]) => any = () => null
-let judgeSelfReply: (...args: any[]) => void = () => {}
 let updateBeliefFromMessage: (...args: any[]) => void = () => {}
 let getToMContext: () => string = () => ''
 let detectMisconception: (...args: any[]) => string | null = () => null
-let trackUserPattern: (...args: any[]) => void = () => {}
-let getSkillSuggestion: () => string | null = () => null
 
-import('./telemetry.ts').then(m => { reportTelemetry = m.reportTelemetry }).catch(() => {})
-import('./federation.ts').then(m => { autoFederate = m.autoFederate; reportBadKnowledge = m.reportBadKnowledge }).catch(() => {})
-import('./sync.ts').then(m => { loadSyncConfig = m.loadSyncConfig; autoSync = m.autoSync; handleSyncCommand = m.handleSyncCommand }).catch(() => {})
-import('./upgrade.ts').then(m => { checkSoulUpgrade = m.checkSoulUpgrade; handleUpgradeCommand = m.handleUpgradeCommand; getUpgradeHistory = m.getUpgradeHistory }).catch(() => {})
-import('./upgrade-meta.ts').then(m => { loadUpgradeMeta = m.loadUpgradeMeta }).catch(() => {})
-import('./rover.ts').then(m => { roverState = m.roverState; webRoam = m.webRoam; getRecentDiscoveries = m.getRecentDiscoveries; addCorrectionTopic = m.addCorrectionTopic; techRadarScan = m.techRadarScan; verifyDiscoveries = m.verifyDiscoveries }).catch(() => {})
-import('./competitive-radar.ts').then(m => { runCompetitiveRadar = m.runCompetitiveRadar; handleRadarCommand = m.handleRadarCommand; getRadarUpgradeContext = m.getRadarUpgradeContext }).catch(() => {})
 let recordTurnUsage: (inputText: string, outputText: string, augmentTokenCount: number) => void = () => {}
 import('./cost-tracker.ts').then(m => { recordTurnUsage = m.recordTurnUsage }).catch(() => {})
-import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle; getPersonaDriftWarning = m.getPersonaDriftWarning }).catch(() => {})
+import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle; getPersonaDriftWarning = m.getPersonaDriftWarning; checkPersonaDrift = m.checkPersonaDrift; getPersonaDriftReinforcement = m.getPersonaDriftReinforcement; getDriftCount = m.getDriftCount }).catch(() => {})
 import('./smart-forget.ts').then(m => { smartForgetSweep = m.smartForgetSweep }).catch(() => {})
 import('./cron-agent.ts').then(m => { handleCronCommand = m.handleCronCommand; tickCron = m.tickCron }).catch(() => {})
 import('./context-compress.ts').then(m => { compressAugments = m.compressAugments }).catch(() => {})
-import('./debate.ts').then(m => { buildDebateAugment = m.buildDebateAugment }).catch(() => {})
-import('./llm-judge.ts').then(m => { judgeSelfReply = m.judgeSelfReply }).catch(() => {})
+// debate.ts removed — multi-persona debate was too expensive (5x token per question)
 import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage; getToMContext = m.getToMContext; detectMisconception = m.detectMisconception }).catch(() => {})
-import('./skill-extract.ts').then(m => { trackUserPattern = m.trackUserPattern; getSkillSuggestion = m.getSkillSuggestion }).catch(() => {})
 // ── End optional modules ──
 
 import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
@@ -151,7 +118,6 @@ import {
   findSkills, autoExtractSkill,
   startAutonomousGoal, getActiveGoalHint, detectGoalIntent,
 } from './tasks.ts'
-import { checkSpontaneousVoice } from './voice.ts'
 import { loadProfiles, updateProfileOnMessage, updateProfileOnCorrection, getProfileContext, getRhythmContext, getProfile, getProfileTier, updateRelationship, getRelationshipContext, trackGratitude, trackPersonaUsage } from './user-profiles.ts'
 import { loadEpistemic, trackDomainQuality, trackDomainCorrection, getDomainConfidence, getCapabilityScore } from './epistemic.ts'
 import { updateFlow, getFlowHints, getFlowContext, checkAllSessionEnds, generateSessionSummary, setOnSessionResolved } from './flow.ts'
@@ -167,10 +133,13 @@ import { loadFeatures, isEnabled, handleFeatureCommand } from './features.ts'
 import { processIngestion, ingestFile } from './rag.ts'
 import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } from './user-dashboard.ts'
 import { autoImportHistory } from './history-import.ts'
+import { collectAvatarData } from './avatar.ts'
+import { loadDistillState } from './distill.ts'
+import { loadAbsenceState } from './absence-detection.ts'
 import { healthCheck, recordModuleError, recordModuleActivity, postReplyCleanup } from './health.ts'
 import { checkAutoTune, handleTuneCommand, getParam, updateBanditReward } from './auto-tune.ts'
 import { loadExperiments, checkExperiments, getExperimentSummary, startExperiment, loadEvolutions, checkEvolutionProgress, getEvolutionSummary } from './experiment.ts'
-import { isContextEngineActive, setLastAugments } from './context-engine.ts'
+import { isContextEngineActive, isContextEngineRegistered, setLastAugments } from './context-engine.ts'
 
 let agentBusyTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -193,12 +162,21 @@ export function initializeSoul(): void {
   try { loadBodyState() } catch (_) {}
 
   // Initialize SQLite early — ensure db connection is ready for command handlers
-  try { ensureSQLiteReady() } catch (_) {}
+  try { ensureSQLiteReady() } catch (e: any) { console.error('[cc-soul] SQLite early init failed:', e.message) }
+  // Initialize embedder early (non-blocking)
+  import('./embedder.ts').then(m => m.initEmbedder()).catch(() => {})
 
   // All data loading deferred — recall() queries SQLite/JSON directly
   try { loadFeatures() } catch (_) {}
   try { loadStats() } catch (_) {}
   try { loadProfiles() } catch (_) {}
+  // Auto-import historical conversations on first install (runs once, async, non-blocking)
+  try { autoImportHistory() } catch (_) {}
+  // Load distillation state (topic nodes + mental models)
+  try { loadDistillState() } catch (_) {}
+  // Load absence detection state
+  try { loadAbsenceState() } catch (_) {}
+
   console.log(`[cc-soul] initializeSoul done (lightweight, no memory loading)`)
 }
 
@@ -216,7 +194,7 @@ export function handleBootstrap(event: any): void {
   if (files) {
     const soulPrompt = buildSoulPrompt(
       stats.totalMessages, stats.corrections, stats.firstSeen,
-      roverState, taskState.workflows,
+      taskState.workflows,
     )
     files.push({ path: 'CC_SOUL.md', content: soulPrompt })
     console.log(`[cc-soul] bootstrap: injected soul (e=${body.energy.toFixed(2)}, m=${body.mood.toFixed(2)}, prompt=${soulPrompt.length} chars, ~${Math.round(soulPrompt.length * 0.4)} tokens)`)
@@ -244,6 +222,21 @@ export async function handlePreprocessed(event: any): Promise<void> {
     _lastPreprocessedTs = now
   }
 
+  // ── Early exit: skip augment/system content re-routed to preprocessed ──
+  // Must happen BEFORE setAgentBusy to avoid blocking the agent pipeline
+  {
+    const ctx0 = event.context || {}
+    const raw0 = (ctx0.body || '') as string  // 用原始 body，不用 bodyForAgent（可能包含上次注入的 augment）
+    const msg0 = raw0.replace(/^\[message_id:\s*\S+\]\s*/i, '').replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s/, '').trim()
+    if (!msg0) return
+    if (/^[\[(（]?(对话历史|当前面向|认知|相关记忆|Working Memory|内部矛盾|隐私模式|Goal|Intent|用户档案|情绪|举一反三|回答完主问题)/i.test(msg0)) {
+      console.log(`[cc-soul][preprocessed] skipped system augment content: ${msg0.slice(0, 40)}...`)
+      return // don't touch agentBusy, don't kill agent
+    }
+  }
+
+  // Kill gateway Claude so cc-soul can inject augments into bodyForAgent
+  // before OpenClaw restarts the agent with the modified message
   killGatewayClaude()
   setAgentBusy(true)
   if (agentBusyTimer) clearTimeout(agentBusyTimer)
@@ -260,13 +253,6 @@ export async function handlePreprocessed(event: any): Promise<void> {
     .replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s/, '')
     .trim()
   if (!userMsg) { setAgentBusy(false); return }
-
-  // Skip system/augment content or cmdReply output that got re-routed to preprocessed
-  if (userMsg.startsWith('[') && /^\[(对话历史|当前面向|认知|相关记忆|Working Memory|内部矛盾|隐私模式|Goal|Intent)/.test(userMsg)) {
-    console.log(`[cc-soul][preprocessed] skipped system augment content: ${userMsg.slice(0, 40)}...`)
-    setAgentBusy(false)
-    return
-  }
 
   // Dedup fallback: if no messageId, dedup by content + timestamp (within 3s)
   if (!eventId) {
@@ -312,6 +298,34 @@ export async function handlePreprocessed(event: any): Promise<void> {
   const topicShifted = detectTopicShiftAndReset(session, userMsg, sessionKey)
   if (topicShifted) {
     console.log(`[cc-soul][topic-shift] detected for ${sessionKey}, CLI session cleared`)
+
+    // ── Feature 3: 话题自动保存 — topic shift 时自动保存上一个话题到 branches/ ──
+    if (isEnabled('auto_topic_save')) {
+      try {
+        const { mkdirSync } = require('fs')
+        const branchDir = resolve(DATA_DIR, 'branches')
+        if (!existsSync(branchDir)) mkdirSync(branchDir, { recursive: true })
+        const recentMsgs = memoryState.chatHistory.slice(-10)
+        if (recentMsgs.length >= 2) {
+          const topicWordList = recentMsgs.flatMap(h => (h.user || '').match(/[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}/g) || [])
+          const freq = new Map<string, number>()
+          for (const w of topicWordList) { const k = w.toLowerCase(); freq.set(k, (freq.get(k) || 0) + 1) }
+          const topicLabel = [...freq.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || `topic_${Date.now()}`
+          const branchData = {
+            topic: topicLabel,
+            savedAt: Date.now(),
+            autoSaved: true,
+            chatHistory: recentMsgs,
+            persona: isEnabled('persona_splitting') ? getActivePersona()?.id || 'default' : 'default',
+          }
+          const branchPath = resolve(branchDir, `${topicLabel}.json`)
+          writeFileSync(branchPath, JSON.stringify(branchData, null, 2), 'utf-8')
+          console.log(`[cc-soul][auto-topic-save] saved topic「${topicLabel}」(${recentMsgs.length} turns) → ${branchPath}`)
+        }
+      } catch (e: any) {
+        console.log(`[cc-soul][auto-topic-save] failed: ${e.message}`)
+      }
+    }
   }
 
   // ── Previous turn analysis & learning loop ──
@@ -323,10 +337,6 @@ export async function handlePreprocessed(event: any): Promise<void> {
     prevScore = scoreResponse(session.lastPrompt, session.lastResponseContent)
     trackQuality(prevScore)
     trackDomainQuality(session.lastPrompt, prevScore)
-
-    if (isEnabled('reflexion') && prevScore <= 4) {
-      triggerReflexion(session.lastPrompt, session.lastResponseContent, prevScore, undefined, { corrections: stats.corrections, totalMessages: stats.totalMessages })
-    }
 
     const prevIssue = selfCheckSync(session.lastPrompt, session.lastResponseContent)
     if (prevIssue) {
@@ -388,7 +398,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
           addMemory(`[代码模式] 语言:${lang} | ${snapPrompt.slice(0, 50)}`, 'code_pattern', snapSenderId)
         }
         console.log(`[cc-soul][post-analysis] sat=${result.satisfaction} q=${result.quality.score} mem=${result.memories.length} ops=${result.memoryOps?.length || 0}`)
-        // ── Brain modules onSent (persona-drift, llm-judge, skill-extract, theory-of-mind) ──
+        // ── Brain modules onSent (persona-drift, theory-of-mind) ──
         brain.fire('onSent', { userMessage: snapPrompt, botReply: snapResponse, senderId: snapSenderId, channelId: snapChannelId, quality: result.quality })
       })
     }
@@ -401,6 +411,64 @@ export async function handlePreprocessed(event: any): Promise<void> {
   // ── Command routing ──
   if (routeCommand(userMsg, ctx, session, senderId, channelId, event)) {
     return
+  }
+
+  // ── WAL Protocol: persist key info from user message BEFORE AI reply ──
+  if (isEnabled('wal_protocol') && !getPrivacyMode()) {
+    try {
+      const walEntries: { content: string; type: string }[] = []
+
+      // Preference declarations: 我喜欢/我不喜欢/我是/我住在/我的...
+      const prefPatterns = [
+        /我(?:比较)?喜欢(.{2,30})/g,
+        /我(?:不|讨厌|很少|从不)喜欢(.{2,30})/g,
+        /我是(.{2,20})/g,
+        /我住在(.{2,20})/g,
+        /我的(.{2,20}?)(?:是|叫|在)(.{2,20})/g,
+        /(?:my |i (?:like|prefer|love|hate|am|live in) )(.{2,40})/gi,
+      ]
+      for (const pat of prefPatterns) {
+        pat.lastIndex = 0
+        let m: RegExpExecArray | null
+        while ((m = pat.exec(userMsg)) !== null) {
+          const extracted = m[0].trim()
+          if (extracted.length >= 4 && extracted.length <= 80) {
+            walEntries.push({ content: `[WAL偏好] ${extracted}`, type: 'preference' })
+          }
+        }
+      }
+
+      // Date/time/event facts: 明天/下周/X月X日 + 事件
+      const factPatterns = [
+        /(?:明天|后天|下周|下个月|今天|今晚|周[一二三四五六日天]|(?:\d{1,2}月\d{1,2}[日号])|(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}))(.{2,40})/g,
+        /(?:deadline|due|meeting|会议|截止|到期|出发|航班|考试|面试|约了)(.{2,30})/gi,
+      ]
+      for (const pat of factPatterns) {
+        pat.lastIndex = 0
+        let m: RegExpExecArray | null
+        while ((m = pat.exec(userMsg)) !== null) {
+          const extracted = m[0].trim()
+          if (extracted.length >= 4 && extracted.length <= 80) {
+            walEntries.push({ content: `[WAL事实] ${extracted}`, type: 'fact' })
+          }
+        }
+      }
+
+      // Deduplicate and write (max 3 per message to avoid spam)
+      const seen = new Set<string>()
+      let written = 0
+      for (const entry of walEntries) {
+        if (written >= 3) break
+        const key = entry.content.slice(0, 40)
+        if (seen.has(key)) continue
+        seen.add(key)
+        addMemory(entry.content, 'wal', senderId, 'private', channelId)
+        written++
+      }
+      console.log(`[cc-soul][wal] checked: ${walEntries.length} extracted, ${written} written from "${userMsg.slice(0, 30)}"`)
+    } catch (e: any) {
+      console.log(`[cc-soul][wal] error: ${e.message}`)
+    }
   }
 
   // Pending follow-ups
@@ -421,8 +489,6 @@ export async function handlePreprocessed(event: any): Promise<void> {
     learnConflict(session.lastAugmentsUsed, wasCorrected)
     recordInteraction(session.lastAugmentsUsed, prevScore, wasCorrected)
   }
-
-  if (isEnabled('strategy_replay')) recordStrategy(userMsg, cog.strategy, cog.attention, session.lastAugmentsUsed)
 
   const recentUserMsgs = memoryState.chatHistory.slice(-3).map(h => h.user)
   const intentHints = predictIntent(userMsg, senderId, recentUserMsgs)
@@ -453,20 +519,17 @@ export async function handlePreprocessed(event: any): Promise<void> {
     updateProfileOnCorrection(senderId)
     if (isEnabled('relationship_dynamics')) updateRelationship(senderId, 'correction')
     onCorrectionAdvanced(userMsg, session.lastResponseContent)
-    if (isEnabled('reflexion')) {
-      const corrScore = scoreResponse(session.lastPrompt, session.lastResponseContent)
-      triggerReflexion(session.lastPrompt, session.lastResponseContent, corrScore, userMsg, { corrections: stats.corrections, totalMessages: stats.totalMessages })
-    }
-    markLastStrategyOutcome('corrected')
     trackDomainCorrection(userMsg)
     attributeCorrection(userMsg, session.lastResponseContent, session.lastAugmentsUsed)
-    addCorrectionTopic(userMsg.slice(0, 50))
     session._pendingCorrectionVerify = true
-    for (const recalled of session.lastRecalledContents) {
-      if (recalled.startsWith('[网络知识')) {
-        reportBadKnowledge(recalled)
-      }
-    }
+  }
+
+  // Hypothesis verification — runs on every non-correction message
+  // (session.lastPrompt is empty in per-message contexts, so we verify here instead)
+  if (cog.attention !== 'correction') {
+    verifyHypothesis(userMsg, true)
+  } else {
+    verifyHypothesis(userMsg, false)
   }
 
   // Track topics
@@ -474,6 +537,11 @@ export async function handlePreprocessed(event: any): Promise<void> {
   const topicWords = userMsg.match(CJK_TOPIC_REGEX)
   if (topicWords) {
     topicWords.slice(0, 3).forEach(w => stats.topics.add(w))
+  }
+
+  // Track emotion anchors: correlate current topics with mood
+  if (topicWords && topicWords.length > 0) {
+    try { trackEmotionAnchor(topicWords.slice(0, 3)) } catch (_) {}
   }
 
   // Update stats
@@ -505,9 +573,16 @@ export async function handlePreprocessed(event: any): Promise<void> {
     const misconception = detectMisconception(userMsg)
     if (misconception) _extraAugments.push(`[认知偏差] ${misconception}`)
   } catch (_) {}
+  // Persona drift reinforcement (from previous turn's checkPersonaDrift)
+  if (isEnabled('persona_drift_detection')) {
+    try {
+      const reinforcement = getPersonaDriftReinforcement()
+      if (reinforcement) _extraAugments.push(reinforcement)
+    } catch (_) {}
+  }
 
   // ── Augment building & selection ──
-  const { selected } = await buildAndSelectAugments({
+  const { selected, associated } = await buildAndSelectAugments({
     userMsg, session, senderId, channelId,
     cog, flow, flowKey,
     followUpHints, workingMemKey,
@@ -527,13 +602,65 @@ export async function handlePreprocessed(event: any): Promise<void> {
 
   session.lastAugmentsUsed = selected
   setLastAugments(selected)
-  console.log(`[cc-soul][augment-inject] ${selected.length} augments selected`)
+  // Log augment names for debugging
+  const augNames = selected.map(s => {
+    const m = s.match(/^\[([^\]]+)\]/)
+    return m ? m[1] : s.slice(0, 20)
+  })
+  console.log(`[cc-soul][augment-inject] ${selected.length} augments: ${augNames.join(', ')}`)
 
   // Inject history + selected augments
   const historyCtx = buildHistoryContext()
-  const allContext = [historyCtx, ...selected].filter(Boolean)
+  // Inject augments as hidden system context — must be clearly separated from user message
+  // to prevent LLM from "analyzing" augments and leaking thinking process
+  const cleanedSelected = selected.map(s => s.replace(/^\[([^\]]+)\]\s*/, ''))
+  // Move 举一反三 augment to the end (closest to user message) for better LLM attention
+  const extraThinkIdx = cleanedSelected.findIndex(s => s.includes('顺便说一下') || s.includes('举一反三'))
+  let extraThinkItem: string | null = null
+  if (extraThinkIdx !== -1) {
+    extraThinkItem = cleanedSelected.splice(extraThinkIdx, 1)[0]
+  }
+  const allContext = [historyCtx, ...cleanedSelected, extraThinkItem].filter(Boolean) as string[]
   if (allContext.length > 0) {
-    ctx.bodyForAgent = allContext.join('\n\n') + '\n\n---\n[当前消息]\n' + userMsg
+    const suffix = '\n\n---\n'
+    const postfix = '' // bodyForAgent is NOT visible to LLM — postfix is useless
+    const injected = allContext.join('\n\n') + suffix + userMsg + postfix
+    ctx.bodyForAgent = injected
+    // Also set on event.context in case OpenClaw reads from there
+    if (event.context) event.context.bodyForAgent = injected
+    console.log(`[cc-soul][bodyForAgent] set ${injected.length} chars on ctx + event.context`)
+  } else {
+    console.log(`[cc-soul][bodyForAgent] EMPTY — no augments to inject`)
+  }
+
+  // Dynamic SOUL.md rewrite: append augments + pre-built 举一反三
+  // This is the ONLY reliable path to inject content into LLM
+  try {
+    const workspaceDir = resolve(homedir(), '.openclaw/workspace')
+    const soulPath = resolve(workspaceDir, 'SOUL.md')
+    const baseSoul = buildSoulPrompt(stats.totalMessages, stats.corrections, stats.firstSeen, taskState.workflows)
+    const augmentSection = cleanedSelected.length > 0
+      ? '\n\n## 内部指令（仅本轮有效）\n' + cleanedSelected.join('\n')
+      : ''
+
+    // 举一反三: combine association chain memories + static tips
+    const staticTips = generatePrebuiltTips(userMsg)
+    // If association chain found related memories, use them as tip material
+    let tipsSection = ''
+    if (associated && associated.length > 0) {
+      const assocTips = associated.slice(0, 3).map((m: any, i: number) =>
+        `${i + 1}. ${m.content.slice(0, 80)}`
+      ).join('\n')
+      tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落（基于用户历史记忆生成）\n顺便说一下：\n${assocTips}`
+    } else if (staticTips) {
+      tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落\n${staticTips}`
+    }
+
+    writeFileSync(soulPath, baseSoul + augmentSection + tipsSection, 'utf-8')
+    import('./plugin-entry.ts').then(m => m.setSoulDynamicLock?.(30000)).catch(() => {})
+    console.log(`[cc-soul] SOUL.md updated: ${cleanedSelected.length} augments${tipsSection ? ' + 举一反三' : ''}`)
+  } catch (e: any) {
+    console.log(`[cc-soul] SOUL.md dynamic update failed: ${e.message}`)
   }
 
   triggerDeepReflection(stats)
@@ -548,6 +675,94 @@ export async function handlePreprocessed(event: any): Promise<void> {
   session.lastChannelId = channelId
   session.lastResponseContent = ''
   innerState.lastActivityTime = Date.now()
+
+  // Delayed post-processing: afterTurn() doesn't fire reliably,
+  // so we do it here with a setTimeout to wait for LLM response
+  const _snapPrompt = userMsg
+  const _snapSenderId = senderId
+  const _snapChannelId = channelId
+  const _isCasual = /^(哈哈|嗯|好的?|ok|早|晚安|谢谢|收到|了解|明白|懂了)$/i.test(userMsg.trim())
+  if (!_isCasual && userMsg.length >= 5) {
+    setTimeout(async () => {
+      try {
+        // Read bot response from session JSONL
+        const sessionDir = resolve(homedir(), '.openclaw/agents/cc/sessions')
+        const files = readdirSync(sessionDir).filter((f: string) => f.endsWith('.jsonl')).sort()
+        if (files.length === 0) return
+        const lastFile = resolve(sessionDir, files[files.length - 1])
+        const lines = readFileSync(lastFile, 'utf-8').trim().split('\n')
+        let botResponse = ''
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const obj = JSON.parse(lines[i])
+            if (obj?.message?.role === 'assistant') {
+              botResponse = Array.isArray(obj.message.content)
+                ? obj.message.content.filter((c: any) => c?.type === 'text').map((c: any) => c.text || '').join('')
+                : (obj.message.content || '')
+              break
+            }
+          } catch {}
+        }
+        if (!botResponse || botResponse.length < 20) return
+
+        session.lastResponseContent = botResponse
+        console.log(`[cc-soul][delayed-post] processing response (${botResponse.length} chars) for "${_snapPrompt.slice(0, 30)}"`)
+
+        // Self-correction
+        if (isEnabled('self_correction')) {
+          const selfIssue = selfCheckSync(_snapPrompt, botResponse)
+          if (selfIssue) {
+            const scScore = scoreResponse(_snapPrompt, botResponse)
+            if (scScore <= 3) {
+              notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。评分 ${scScore}/10`).catch(() => {})
+              console.log(`[cc-soul][delayed-post] self-correction: ${selfIssue} (score=${scScore})`)
+            }
+          }
+        }
+
+        // Persona drift
+        if (isEnabled('persona_drift_detection')) {
+          try {
+            const persona = getActivePersona()
+            if (persona) {
+              const driftScore = checkPersonaDrift(botResponse, persona.id, persona.name, persona.tone, persona.idealVector)
+              if (driftScore > 0.5) { stats.driftCount++; saveStats() }
+            }
+          } catch {}
+        }
+
+        // Cost tracking
+        try { recordTurnUsage(_snapPrompt, botResponse, 0) } catch {}
+
+        // Brain modules onSent
+        try { brain.fire('onSent', { userMessage: _snapPrompt, botReply: botResponse, senderId: _snapSenderId, channelId: _snapChannelId }) } catch {}
+
+        // Memory commands from response
+        if (isEnabled('memory_active')) {
+          const memCmds = parseMemoryCommands(botResponse)
+          if (memCmds.length > 0) executeMemoryCommands(memCmds, _snapSenderId, _snapChannelId)
+        }
+
+        // History + post-response analysis
+        addToHistory(_snapPrompt, botResponse)
+        const prevScore = scoreResponse(_snapPrompt, botResponse)
+        trackQuality(prevScore)
+
+        if (!getPrivacyMode()) {
+          runPostResponseAnalysis(_snapPrompt, botResponse, (result) => {
+            for (const m of result.memories) {
+              addMemoryWithEmotion(m.content, m.scope, _snapSenderId, m.visibility, _snapChannelId, result.emotion)
+            }
+            addEntitiesFromAnalysis(result.entities)
+            if (result.satisfaction === 'POSITIVE') bodyOnPositiveFeedback()
+            console.log(`[cc-soul][delayed-post] analysis done: sat=${result.satisfaction} q=${result.quality.score} mem=${result.memories.length}`)
+          })
+        }
+      } catch (e: any) {
+        console.log(`[cc-soul][delayed-post] error: ${e.message}`)
+      }
+    }, 45000)
+  }
 }
 
 /**
@@ -562,13 +777,16 @@ export function handleSent(event: any): void {
   const sentSessionKey = event.sessionKey || getLastActiveSessionKey()
   const session = getSessionState(sentSessionKey)
 
-  const content = (event.context?.content || '') as string
+  const content = (event.context?.content || event.content || event.text || '') as string
+  console.log(`[cc-soul][handleSent] content=${content.length} chars, keys=${Object.keys(event).join(',')}`)
   if (content) {
     session.lastResponseContent = content
 
     // Cost tracking (optional module)
-    const augTokens = session.lastAugmentsUsed.reduce((sum, a) => sum + estimateTokens(a), 0)
-    try { recordTurnUsage(session.lastPrompt || '', content, augTokens) } catch (_) { /* cost-tracker not available */ }
+    if (isEnabled('cost_tracker')) {
+      const augTokens = session.lastAugmentsUsed.reduce((sum, a) => sum + estimateTokens(a), 0)
+      try { recordTurnUsage(session.lastPrompt || '', content, augTokens) } catch (_) { /* cost-tracker not available */ }
+    }
 
     // #14 语音朗读
     if (getReadAloudPending() && platform() === 'darwin') {
@@ -577,6 +795,8 @@ export function handleSent(event: any): void {
       execFile('say', [safeText], (err) => { if (err) console.log(`[cc-soul][tts] say failed: ${err.message}`) })
     }
     setReadAloudPending(false)
+
+    // 举一反三 post-processing moved to context-engine.ts afterTurn()
 
     // Update soul fingerprint
     if (isEnabled('fingerprint')) {
@@ -588,12 +808,49 @@ export function handleSent(event: any): void {
       }
     }
 
+    // Persona drift detection (rule-based)
+    if (isEnabled('persona_drift_detection')) {
+      try {
+        const persona = getActivePersona()
+        if (persona) {
+          const driftScore = checkPersonaDrift(content, persona.id, persona.name, persona.tone, persona.idealVector)
+          if (driftScore > 0.5) {
+            stats.driftCount++
+            saveStats()
+          }
+        }
+      } catch (_) {}
+    }
+
+    // ── #8 自我纠错 ──
+    if (isEnabled('self_correction') && session.lastPrompt && content.length > 20) {
+      const selfIssue = selfCheckSync(session.lastPrompt, content)
+      if (selfIssue) {
+        const scScore = scoreResponse(session.lastPrompt, content)
+        if (scScore <= 3) {
+          notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。补充：回复质量评分 ${scScore}/10，问题="${session.lastPrompt.slice(0, 60)}"`)
+            .catch(() => {})
+          console.log(`[cc-soul][self-correction] issue detected (score=${scScore}): ${selfIssue}`)
+        }
+      }
+    }
+
     // Active memory management
     if (isEnabled('memory_active')) {
       const memCommands = parseMemoryCommands(content)
       if (memCommands.length > 0) {
         executeMemoryCommands(memCommands, session.lastSenderId, session.lastChannelId)
       }
+    }
+
+    // Record reasoning chain (recalled memories) to journal
+    if (session.lastRecalledContents.length > 0) {
+      const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      innerState.journal.push({
+        time: timeStr,
+        thought: `[推理链] 回复「${session.lastPrompt.slice(0, 30)}」时召回 ${session.lastRecalledContents.length} 条记忆: ${session.lastRecalledContents.slice(0, 3).map(c => c.slice(0, 40)).join('; ')}`,
+        type: 'observation',
+      })
     }
 
     const snapPrompt = session.lastPrompt
@@ -660,7 +917,6 @@ export function handleSent(event: any): void {
             bodyOnPositiveFeedback()
             detectValueSignals(snapPrompt, true, snapSenderId)
             learnSuccessPattern(snapPrompt, snapResponse, snapSenderId)
-            markLastStrategyOutcome('success')
             if (isEnabled('relationship_dynamics')) updateRelationship(snapSenderId, 'positive')
             stats.positiveFeedback++
             trackGratitude(snapPrompt, snapResponse, snapSenderId)
@@ -694,9 +950,6 @@ export function handleSent(event: any): void {
 
         writeJournalWithCLI(snapPrompt, snapResponse, stats)
         detectWorkflowOpportunity(snapPrompt, snapResponse)
-        if (isEnabled('self_upgrade')) checkSoulUpgrade(stats)
-        if (isEnabled('web_rover')) webRoam()
-        if (isEnabled('autonomous_voice')) checkSpontaneousVoice(stats.totalMessages)
         if (isEnabled('dream_mode')) checkDreamMode()
 
         if (isEnabled('memory_predictive')) {
@@ -711,9 +964,15 @@ export function handleSent(event: any): void {
 
         // ── New module post-response hooks ──
         try { const ap = getActivePersona(); trackPersonaStyle(snapResponse, ap?.id ?? 'default') } catch (_) {}
-        try { judgeSelfReply(snapPrompt, snapResponse, (result: any) => { console.log(`[cc-soul][llm-judge] ${JSON.stringify(result)}`) }) } catch (_) {}
         try { updateBeliefFromMessage(snapPrompt, snapResponse) } catch (_) {}
-        try { trackUserPattern(snapPrompt, true) } catch (_) {}
+
+        // Session summary — write conversation digest for cross-session continuity
+        if (isEnabled('memory_session_summary') && (stats.totalMessages % 10 === 0 || memoryState.chatHistory.length >= 8)) {
+          triggerSessionSummary()
+        }
+
+        // ── Avatar data collection: extract expression/decisions/social from every message ──
+        try { collectAvatarData(snapPrompt, snapResponse, snapSenderId) } catch (_) {}
 
         innerState.lastActivityTime = Date.now()
       }
@@ -757,7 +1016,7 @@ const handler = async (event: any): Promise<void> => {
     }
 
     if (event.type === 'message' && event.action === 'sent') {
-      if (isContextEngineActive()) return
+      // Always handle sent — CE afterTurn() may not fire
       handleSent(event)
       return
     }

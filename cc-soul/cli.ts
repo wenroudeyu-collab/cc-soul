@@ -225,6 +225,7 @@ let activeCLICount = 0
 
 // ── Agent 优先机制 ──
 let agentBusy = false
+export function getAgentBusy(): boolean { return agentBusy }
 export function setAgentBusy(busy: boolean) {
   agentBusy = busy
   // Agent 释放后，自动处理排队任务
@@ -714,94 +715,3 @@ JSON格式(严格):
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// UPGRADE-ONLY CLI — always uses Claude CLI regardless of ai_config
-// Self-upgrade needs file editing capabilities that only CLI backends have.
-// If user configured OpenAI API as default, upgrade still uses claude -p.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export function spawnCLIForUpgrade(prompt: string, callback: (output: string) => void, timeoutMs = 600000, label = 'upgrade-engineer') {
-  // Detect CLI command from OpenClaw config, fall back to 'claude'
-  let cliCommand = 'claude'
-  try {
-    if (existsSync(OPENCLAW_CONFIG_PATH)) {
-      const raw = JSON.parse(readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8'))
-      const backends = raw?.agents?.defaults?.cliBackends || {}
-      const primary = raw?.agents?.defaults?.model?.primary || ''
-      const [provider] = primary.split('/')
-      if (backends[provider]?.command) {
-        cliCommand = backends[provider].command
-      }
-    }
-  } catch { /* use default 'claude' */ }
-
-  // Check if CLI command exists before spawning
-  if (!/^[a-zA-Z0-9_-]+$/.test(cliCommand)) {
-    console.error(`[cc-soul][upgrade] invalid CLI command name: "${cliCommand}"`)
-    callback('')
-    return
-  }
-  try {
-    execSync(`which ${cliCommand}`, { timeout: 3000, stdio: 'pipe' })
-  } catch {
-    console.error(`[cc-soul][upgrade] CLI command "${cliCommand}" not found — self-upgrade requires a CLI backend (claude/codex/gemini)`)
-    callback('')
-    return
-  }
-
-  console.log(`[cc-soul][upgrade] using CLI command: ${cliCommand} (forced CLI mode for file editing)`)
-
-  const taskId = taskIdCounter++
-  activeCLICount++
-  activeTasks.set(taskId, { label, startedAt: Date.now(), hasOutput: false })
-  let settled = false
-  function release() {
-    if (!settled) { settled = true; activeCLICount--; activeTasks.delete(taskId) }
-  }
-
-  try {
-    const proc = spawn(cliCommand, ['-p', prompt, '--no-input'], {
-      cwd: MODULE_DIR,
-      timeout: timeoutMs,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
-
-    let output = ''
-    proc.stdout?.on('data', (d: Buffer) => {
-      const task = activeTasks.get(taskId)
-      if (task) task.hasOutput = true
-      output += d.toString()
-      if (output.length > 512 * 1024) output = output.slice(0, 512 * 1024)
-    })
-    proc.stderr?.on('data', () => {})
-
-    const heartbeat = setInterval(() => {
-      const elapsed = Math.round((Date.now() - (activeTasks.get(taskId)?.startedAt || Date.now())) / 1000)
-      console.log(`[cc-soul][upgrade] ${label}: ${output.length > 0 ? '工作中' : '等待中'} (${elapsed}s, ${Math.round(output.length / 1024)}kb)`)
-    }, 30000)
-
-    proc.on('close', (code: number | null, signal: string | null) => {
-      clearInterval(heartbeat)
-      release()
-      if (signal === 'SIGTERM') {
-        console.log(`[cc-soul][upgrade] ${label}: 超时 (${timeoutMs}ms)`)
-        callback('')
-      } else {
-        consecutiveFailures = 0
-        callback(output.trim())
-      }
-      setTimeout(() => drainQueue(), 100)
-    })
-
-    proc.on('error', (err: Error) => {
-      clearInterval(heartbeat)
-      release()
-      console.error(`[cc-soul][upgrade] ${label}: spawn error: ${err.message}`)
-      callback('')
-      setTimeout(() => drainQueue(), 100)
-    })
-  } catch (e: any) {
-    release()
-    console.error(`[cc-soul][upgrade] ${label}: fatal error: ${e.message}`)
-    callback('')
-  }
-}

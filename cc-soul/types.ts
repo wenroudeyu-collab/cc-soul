@@ -75,6 +75,7 @@ export interface Memory {
   tier?: 'short_term' | 'mid_term' | 'long_term'  // lifecycle stage (default: short_term)
   recallCount?: number   // how many times this memory has been recalled
   lastRecalled?: number  // timestamp of last recall
+  recallContexts?: string[]  // reconsolidation: contexts in which this memory was recalled
   // ── Semantic versioning: previous versions of this memory ──
   history?: { content: string; ts: number }[]
   // ── Chain-of-Thought reasoning trace ──
@@ -82,6 +83,13 @@ export interface Memory {
     context: string      // 触发这条记忆的上下文
     conclusion: string   // 结论
     confidence: number   // 推理置信度 0-1
+  }
+  // ── Situational context at creation time ──
+  situationCtx?: {
+    attention?: string   // technical/emotional/casual/correction
+    intent?: string      // wants_opinion/wants_action/wants_answer
+    mood?: number        // body.mood at creation (-1 to 1)
+    energy?: number      // body.energy at creation (0-1)
   }
 }
 
@@ -117,6 +125,7 @@ export interface UserProfile {
   personaHistory?: { persona: string; count: number }[]  // persona usage tracking
   language?: string  // auto-detected: 'zh', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'ru', etc.
   bio?: string       // user self-description: occupation, expertise, interests — extracted from conversation
+  languageDna?: { topWords: Record<string, number>; avgLength: number; samples: number }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -130,6 +139,10 @@ export interface Rule {
   hits: number // how many times this rule was relevant
   matchedCount?: number         // how many times this rule was injected into a prompt
   matchedQualitySum?: number    // sum of quality scores when this rule was present
+  // ── Causal context: WHY this rule exists and WHEN it applies ──
+  cause?: string                // what caused this rule ("用户纠正了我的ARM64指令解释")
+  conditions?: string[]         // when this rule applies (["technical", "ARM64", "assembly"])
+  invalidatedBy?: string        // what would make this rule obsolete
 }
 
 export interface Hypothesis {
@@ -141,8 +154,6 @@ export interface Hypothesis {
   created: number
   evidence_for?: number    // legacy, kept for migration
   evidence_against?: number // legacy, kept for migration
-  // #19: Five-stage reflexion tracking
-  reflexionStage?: 'reflect' | 'plan' | 'execute' | 'verify' | 'solidified'
   verifyCount?: number     // consecutive successful verifications
 }
 
@@ -158,6 +169,8 @@ export interface Entity {
   mentions: number
   valid_at: number      // creation timestamp (legacy data defaults to 0)
   invalid_at: number | null  // invalidation timestamp (null = still valid)
+  activation?: number        // 0-1, dynamic energy from recent mentions (spreading activation)
+  lastActivatedAt?: number   // timestamp of last activation boost
 }
 
 export interface Relation {
@@ -180,6 +193,7 @@ export interface InteractionStats {
   positiveFeedback: number
   tasks: number
   topics: Set<string>
+  driftCount: number
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -355,9 +369,6 @@ export interface SyncConfig {
   instanceName: string
   method: 'file' | 'http'           // file = JSONL export/import, http = API sync
   remote?: string                    // rsync target or HTTP endpoint
-  hubUrl?: string                    // Knowledge Hub API URL (for federation)
-  hubApiKey?: string                 // Knowledge Hub API key
-  federationEnabled: boolean         // opt-in to knowledge network
   syncIntervalMinutes: number        // auto-sync interval (0 = manual only)
   lastSync: number
 }

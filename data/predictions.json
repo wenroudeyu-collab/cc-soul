@@ -1,0 +1,12 @@
+[
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中python出现5次",
+    "domain": "python",
+    "createdAt": 1774655005212,
+    "expiresAt": 1775259805232,
+    "status": "hit",
+    "hitAt": 1774655023477,
+    "confidence": 0.7
+  }
+]

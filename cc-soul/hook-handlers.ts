@@ -28,7 +28,7 @@ export async function onMessagePreprocessed(event: any): Promise<void> {
 export async function onMessageSent(event: any): Promise<void> {
   const ceActive = isContextEngineActive()
   console.log(`[cc-soul][hook] message:sent fired (CE active: ${ceActive})`)
-  if (ceActive) return
+  // Always call handleSent — CE's afterTurn() may not fire reliably
   const { handleSent } = await import('./handler.ts')
   handleSent(event)
 }

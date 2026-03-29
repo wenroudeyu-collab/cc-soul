@@ -1330,5 +1330,17 @@
     "action": "memory_add",
     "detail": "[correction] [纠正归因] 理解偏差: 对TCP三次握手核心机制的理解存在偏差，未能准确识别防止历史失效连接请求（delayed duplicate）这一RFC 793定义的主要设计目的",
     "hash": "e70f3c8282968e4fb99c8f22ffc70cf7ef4ee8111ec3faec93a434481f29c94c"
+  },
+  {
+    "ts": 1774823366058,
+    "action": "memory_add",
+    "detail": "[fact] 用户偏好'军师'风格：谋定后动、先看全局再下手，特征包括先列选项再给建议、分析利弊不偏袒、用反问引导思考，且要求深度详细",
+    "hash": "d883b034d36285115e297a9c3124bc572b6b924de38ac58186a9bac73ef02364"
+  },
+  {
+    "ts": 1774823366070,
+    "action": "memory_add",
+    "detail": "[task] [遗留问题] null",
+    "hash": "042b146a97c782f8c21e4e2172f7f1e27627e4bca96e2673a7bb0305080cf004"
   }
 ]

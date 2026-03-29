@@ -1,77 +1,92 @@
 {
   "effectiveness": [
     {
-      "augmentType": "相关记忆",
-      "totalInjections": 18,
-      "qualitySum": 117,
-      "avgQuality": 6.5,
-      "correctionCount": 3,
-      "complexitySum": 0,
-      "avgComplexity": 0,
-      "recentScores": [
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        7,
-        4,
-        7,
-        4,
-        7,
-        4
-      ]
-    },
-    {
-      "augmentType": "认知",
-      "totalInjections": 3,
-      "qualitySum": 21,
-      "avgQuality": 7,
+      "augmentType": "unknown",
+      "totalInjections": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
       "correctionCount": 0,
       "complexitySum": 0,
       "avgComplexity": 0,
       "recentScores": [
-        7,
-        7,
-        7
+        8.5
       ]
     },
     {
-      "augmentType": "注意规则",
-      "totalInjections": 3,
-      "qualitySum": 12,
-      "avgQuality": 4,
-      "correctionCount": 3,
+      "augmentType": "用户理解",
+      "totalInjections": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0,
+      "complexitySum": 0.15,
+      "avgComplexity": 0.15,
+      "recentScores": [
+        8.5
+      ]
+    },
+    {
+      "augmentType": "相关记忆",
+      "totalInjections": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0,
+      "complexitySum": 0.55,
+      "avgComplexity": 0.55,
+      "recentScores": [
+        8.5
+      ]
+    },
+    {
+      "augmentType": "Goal detected",
+      "totalInjections": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0,
       "complexitySum": 0,
       "avgComplexity": 0,
       "recentScores": [
-        4,
-        4,
-        4
+        8.5
       ]
     }
   ],
   "pairEffects": [
     {
-      "pair": "相关记忆|认知",
-      "coCount": 3,
-      "qualitySum": 21,
-      "avgQuality": 7
+      "pair": "unknown|用户理解",
+      "coCount": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5
     },
     {
-      "pair": "注意规则|相关记忆",
-      "coCount": 3,
-      "qualitySum": 12,
-      "avgQuality": 4
+      "pair": "unknown|相关记忆",
+      "coCount": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5
+    },
+    {
+      "pair": "Goal detected|unknown",
+      "coCount": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5
+    },
+    {
+      "pair": "用户理解|相关记忆",
+      "coCount": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5
+    },
+    {
+      "pair": "Goal detected|用户理解",
+      "coCount": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5
+    },
+    {
+      "pair": "Goal detected|相关记忆",
+      "coCount": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5
     }
   ],
-  "globalAvgComplexity": 0,
-  "globalSampleCount": 24
+  "globalAvgComplexity": 0.175,
+  "globalSampleCount": 4
 }

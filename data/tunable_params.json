@@ -38,12 +38,9 @@
   "flow.frustration_decay_per_turn": 0.05,
   "flow.stuck_threshold": 0.5,
   "prompt.augment_budget": 2000,
-  "voice.proactive_cooldown_hours": 1,
-  "voice.impulse_threshold": 0.5,
   "evolution.hypothesis_verify_threshold": 5,
   "evolution.hypothesis_reject_threshold": 3,
   "evolution.max_rules": 50,
-  "rover.roam_cooldown_hours": 1,
   "inner.journal_cooldown_min": 30,
   "inner.reflection_cooldown_hours": 24,
   "inner.dream_idle_min": 60,
@@ -66,5 +63,8 @@
   "fingerprint.hedge_word_limit": 5,
   "graph.stale_days": 90,
   "persona.blend_gap_threshold": 0.3,
-  "persona.attention_trigger_bonus": 0.2
+  "persona.attention_trigger_bonus": 0.2,
+  "voice.proactive_cooldown_hours": 1,
+  "voice.impulse_threshold": 0.5,
+  "rover.roam_cooldown_hours": 1
 }

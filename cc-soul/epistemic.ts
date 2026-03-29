@@ -157,7 +157,7 @@ export function getDomainConfidence(msg: string): { domain: string; confidence: 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// WEAK DOMAINS — for rover directed learning
+// WEAK DOMAINS — domains with high correction rate or low quality
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Returns domain names with high correction rate or low quality, sorted by worst first */
@@ -235,6 +235,132 @@ export function getEpistemicSummary(): string {
     }
   }
 
+  return lines.join('\n')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// #6 Growth Vectors — quantify agent growth trajectory
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface GrowthVector {
+  dimension: string
+  current: number
+  trend: 'up' | 'down' | 'stable'
+  label: string
+}
+
+/**
+ * Compute growth vectors from stats, rules, memories, epistemic domains.
+ * No extra storage needed — all computed from existing data.
+ */
+export function getGrowthVectors(): GrowthVector[] {
+  // Get dependencies from globalThis or dynamic refs to avoid circular deps + ESM require issue
+  let rules: any[] = []
+  let stats: any = { totalMessages: 0, corrections: 0 }
+  let getDb: any = () => null
+  try { rules = (globalThis as any).__ccSoulRules || [] } catch {}
+  try { stats = (globalThis as any).__ccSoulStats || stats } catch {}
+  try { getDb = (globalThis as any).__ccSoulSqlite?.db ? () => (globalThis as any).__ccSoulSqlite.db : getDb } catch {}
+
+  const vectors: GrowthVector[] = []
+  const now = Date.now()
+  const WEEK = 7 * 86400000
+
+  // 1. correction_rate: 7-day window vs previous 7-day window
+  try {
+    const db = getDb()
+    if (db) {
+      const cur7d = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE scope = 'correction' AND ts > ?").get(now - WEEK) as any)?.c || 0
+      const prev7d = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE scope = 'correction' AND ts > ? AND ts <= ?").get(now - 2 * WEEK, now - WEEK) as any)?.c || 0
+      const curChats = (db.prepare("SELECT COUNT(*) as c FROM chat_history WHERE ts > ?").get(now - WEEK) as any)?.c || 1
+      const prevChats = (db.prepare("SELECT COUNT(*) as c FROM chat_history WHERE ts > ? AND ts <= ?").get(now - 2 * WEEK, now - WEEK) as any)?.c || 1
+      const curRate = cur7d / curChats
+      const prevRate = prev7d / prevChats
+      const trend = curRate < prevRate - 0.02 ? 'up' : curRate > prevRate + 0.02 ? 'down' : 'stable'
+      vectors.push({
+        dimension: 'correction_rate',
+        current: Math.round(curRate * 1000) / 10,
+        trend,
+        label: `纠正率 ${(curRate * 100).toFixed(1)}%${trend === 'up' ? ' (改善中)' : trend === 'down' ? ' (需注意)' : ''}`,
+      })
+    }
+  } catch {}
+
+  // 2. rule_count: rules growth
+  try {
+    const ruleCount = (rules as any[]).length
+    const recentRules = (rules as any[]).filter((r: any) => now - r.ts < WEEK).length
+    const trend = recentRules >= 3 ? 'up' : recentRules === 0 ? 'stable' : 'stable'
+    vectors.push({
+      dimension: 'rule_count',
+      current: ruleCount,
+      trend,
+      label: `规则 ${ruleCount} 条 (本周+${recentRules})`,
+    })
+  } catch {}
+
+  // 3. memory_quality: average confidence of active memories
+  try {
+    const db = getDb()
+    if (db) {
+      const curAvg = (db.prepare("SELECT AVG(confidence) as avg FROM memories WHERE scope != 'expired' AND scope != 'decayed' AND ts > ?").get(now - WEEK) as any)?.avg
+      const prevAvg = (db.prepare("SELECT AVG(confidence) as avg FROM memories WHERE scope != 'expired' AND scope != 'decayed' AND ts > ? AND ts <= ?").get(now - 2 * WEEK, now - WEEK) as any)?.avg
+      if (curAvg != null) {
+        const cur = Math.round(curAvg * 100) / 100
+        const trend = prevAvg != null ? (curAvg > prevAvg + 0.03 ? 'up' : curAvg < prevAvg - 0.03 ? 'down' : 'stable') : 'stable'
+        vectors.push({
+          dimension: 'memory_quality',
+          current: cur,
+          trend,
+          label: `记忆质量 ${cur.toFixed(2)}${trend === 'up' ? ' (提升)' : trend === 'down' ? ' (下降)' : ''}`,
+        })
+      }
+    }
+  } catch {}
+
+  // 4. recall_accuracy: ratio of recalled memories that were subsequently accessed again (proxy for accuracy)
+  try {
+    const db = getDb()
+    if (db) {
+      const totalRecalled = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE recallCount > 0 AND scope != 'expired'").get() as any)?.c || 0
+      const highRecall = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE recallCount >= 3 AND scope != 'expired'").get() as any)?.c || 0
+      const accuracy = totalRecalled > 0 ? highRecall / totalRecalled : 0
+      vectors.push({
+        dimension: 'recall_accuracy',
+        current: Math.round(accuracy * 100),
+        trend: accuracy > 0.3 ? 'up' : accuracy < 0.1 ? 'down' : 'stable',
+        label: `召回准确率 ${(accuracy * 100).toFixed(0)}% (高频命中 ${highRecall}/${totalRecalled})`,
+      })
+    }
+  } catch {}
+
+  // 5. domain_breadth: number of tracked domains
+  try {
+    const domainCount = domains.size
+    const activeDomains = [...domains.values()].filter(d => d.totalResponses >= 3).length
+    vectors.push({
+      dimension: 'domain_breadth',
+      current: activeDomains,
+      trend: activeDomains > 5 ? 'up' : 'stable',
+      label: `领域覆盖 ${activeDomains} 个活跃领域 (共 ${domainCount})`,
+    })
+  } catch {}
+
+  return vectors
+}
+
+/**
+ * Format growth vectors for display.
+ */
+export function formatGrowthVectors(): string {
+  const vectors = getGrowthVectors()
+  if (vectors.length === 0) return '成长轨迹: 数据不足，需要更多对话积累。'
+  const trendIcon = (t: string) => t === 'up' ? '📈' : t === 'down' ? '📉' : '➡️'
+  const lines = [
+    '🌱 成长轨迹',
+    '═══════════════════════════════',
+    ...vectors.map(v => `  ${trendIcon(v.trend)} ${v.label}`),
+  ]
   return lines.join('\n')
 }
 

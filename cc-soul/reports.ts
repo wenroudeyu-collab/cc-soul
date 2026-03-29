@@ -9,11 +9,12 @@
 
 import { getDb } from './sqlite-store.ts'
 import { body, emotionVector, getEmotionSummary, getMoodTrend, generateMoodReport } from './body.ts'
-import { getCapabilityScore } from './epistemic.ts'
+import { getCapabilityScore, formatGrowthVectors } from './epistemic.ts'
 import { rules } from './evolution.ts'
 import { stats } from './handler-state.ts'
 import { DATA_DIR, loadJson } from './persistence.ts'
 import { resolve } from 'path'
+import { isEnabled } from './features.ts'
 
 // ── Helpers ──
 
@@ -30,6 +31,7 @@ function fmtDay(ts: number): string {
 // Track last report fire times to avoid duplicates within the same hour
 let lastMorningReportDate = ''
 let lastWeeklyReportDate = ''
+let lastDailyReviewDate = ''
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MORNING REPORT — 每日晨报
@@ -150,6 +152,83 @@ export function generateMorningReport(): string {
     } catch {
       lines.push('  记忆数据不可用')
     }
+  }
+
+  // 6. 今日待发送定时消息 (scheduled_messages, pending only)
+  if (db) {
+    try {
+      const scheduled = db.prepare(
+        "SELECT * FROM scheduled_messages WHERE status = 'pending' ORDER BY scheduled_at ASC LIMIT 5"
+      ).all() as any[]
+      if (scheduled.length > 0) {
+        lines.push('')
+        lines.push('━━ 定时消息 ━━')
+        for (const s of scheduled) {
+          const time = (s.scheduled_at || '').slice(11, 16) || '??:??'
+          const snippet = (s.content || '').slice(0, 50).replace(/\n/g, ' ')
+          lines.push(`  • ${time} — ${snippet}${(s.content || '').length > 50 ? '...' : ''}`)
+        }
+      }
+    } catch { /* table may not exist — skip */ }
+  }
+
+  // 7. 最近收藏 (bookmarks2, 最近 3 天)
+  if (db) {
+    try {
+      const cutoff3dStr = new Date(now - 3 * 86400000).toISOString()
+      const bookmarks = db.prepare(
+        "SELECT title, url FROM bookmarks2 WHERE created_at > ? ORDER BY created_at DESC LIMIT 5"
+      ).all(cutoff3dStr) as any[]
+      if (bookmarks.length > 0) {
+        lines.push('')
+        lines.push('━━ 最近收藏 ━━')
+        for (const b of bookmarks) {
+          const title = (b.title || '无标题').slice(0, 50)
+          const titleDisplay = `${title}${(b.title || '').length > 50 ? '...' : ''}`
+          lines.push(`  • ${titleDisplay} — ${b.url || ''}`)
+        }
+      }
+    } catch { /* table may not exist — skip */ }
+  }
+
+  // 8. 最近日记 (journal_entries)
+  if (db) {
+    try {
+      const journals = db.prepare(
+        "SELECT date, content FROM journal_entries ORDER BY created_at DESC LIMIT 3"
+      ).all() as any[]
+      if (journals.length > 0) {
+        lines.push('')
+        lines.push('━━ 最近日记 ━━')
+        for (const j of journals) {
+          // Format date as [M/D]
+          const dateParts = (j.date || '').split('-')
+          const dateTag = dateParts.length >= 3
+            ? `[${parseInt(dateParts[1])}/${parseInt(dateParts[2])}]`
+            : `[${j.date || '?'}]`
+          const snippet = (j.content || '').slice(0, 60).replace(/\n/g, ' ')
+          lines.push(`  • ${dateTag} ${snippet}${(j.content || '').length > 60 ? '...' : ''}`)
+        }
+      }
+    } catch { /* table may not exist — skip */ }
+  }
+
+  // 9. 最近摄入文档 (kb_docs, 最近 7 天)
+  if (db) {
+    try {
+      const cutoff7dStr = new Date(now - 7 * 86400000).toISOString()
+      const docs = db.prepare(
+        "SELECT title, source, chunk_count, created_at FROM kb_docs WHERE created_at > ? ORDER BY created_at DESC LIMIT 5"
+      ).all(cutoff7dStr) as any[]
+      if (docs.length > 0) {
+        lines.push('')
+        lines.push('━━ 最近摄入文档 ━━')
+        for (const d of docs) {
+          const src = d.source ? ` (${d.source})` : ''
+          lines.push(`  • ${(d.title || '无标题').slice(0, 40)}${src} — ${d.chunk_count || 0} chunks`)
+        }
+      }
+    } catch { /* table may not exist — skip */ }
   }
 
   return lines.join('\n')
@@ -299,6 +378,21 @@ export function generateWeeklyReport(): string {
     lines.push('  规则数据不可用')
   }
 
+  // 7. 成长轨迹
+  lines.push('━━ 成长轨迹 ━━')
+  try {
+    const growth = formatGrowthVectors()
+    const growthLines = growth.split('\n').slice(2) // skip title + separator
+    for (const gl of growthLines) {
+      if (gl.trim()) lines.push(`  ${gl.trim()}`)
+    }
+    if (growthLines.filter(l => l.trim()).length === 0) {
+      lines.push('  数据不足')
+    }
+  } catch {
+    lines.push('  成长数据不可用')
+  }
+
   // 附加：总体统计
   lines.push('')
   lines.push('━━ 总览 ━━')
@@ -313,7 +407,8 @@ export function generateWeeklyReport(): string {
 
 /**
  * Called from handler-heartbeat.ts on every heartbeat.
- * Fires morning report (daily 8:00-9:00) and weekly report (Monday 8:00-9:00).
+ * Fires morning report (daily 8:00-9:00), weekly report (Monday 8:00-9:00),
+ * and daily review (21:00-21:59).
  * Returns the report text if fired, or null.
  */
 export function checkScheduledReports(): string | null {
@@ -322,23 +417,281 @@ export function checkScheduledReports(): string | null {
   const day = now.getDay() // 0=Sun, 1=Mon
   const todayStr = now.toISOString().slice(0, 10)
 
-  // Only fire during 8:00 - 8:59
-  if (hour < 8 || hour > 8) return null
+  // Morning/weekly reports: 8:00-8:59
+  if (hour === 8) {
+    // Weekly report: Monday 8:00-9:00
+    if (day === 1 && lastWeeklyReportDate !== todayStr) {
+      lastWeeklyReportDate = todayStr
+      lastMorningReportDate = todayStr // weekly includes morning, skip duplicate
+      return generateWeeklyReport()
+    }
 
-  // Weekly report: Monday 8:00-9:00
-  if (day === 1 && lastWeeklyReportDate !== todayStr) {
-    lastWeeklyReportDate = todayStr
-    lastMorningReportDate = todayStr // weekly includes morning, skip duplicate
-    return generateWeeklyReport()
+    // Morning report: every day 8:00-9:00 (except Monday which fires weekly)
+    if (lastMorningReportDate !== todayStr) {
+      lastMorningReportDate = todayStr
+      return generateMorningReport()
+    }
   }
 
-  // Morning report: every day 8:00-9:00 (except Monday which fires weekly)
-  if (lastMorningReportDate !== todayStr) {
-    lastMorningReportDate = todayStr
-    return generateMorningReport()
+  // Daily review: every day 21:00-21:59 (auto_daily_review feature toggle)
+  if (isEnabled('auto_daily_review') && hour === 21 && lastDailyReviewDate !== todayStr) {
+    lastDailyReviewDate = todayStr
+    return generateDailyReview()
   }
 
   return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RELATIONSHIP NARRATIVE — 关系叙事
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function generateRelationshipNarrative(): string {
+  const db = getDb()
+  if (!db) return '🌟 我们的故事\n═══════════════════════════════\n数据库初始化中，请稍后重试。'
+  const now = Date.now()
+
+  // ── First interaction date ──
+  let firstTs = stats.firstSeen || now
+  try {
+    const first = db.prepare('SELECT MIN(ts) as m FROM chat_history').get() as any
+    if (first?.m && first.m < firstTs) firstTs = first.m
+  } catch {}
+  const daysSince = Math.max(1, Math.floor((now - firstTs) / 86400000))
+  const firstDate = new Date(firstTs).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+
+  const lines: string[] = [
+    '🌟 我们的故事',
+    '═══════════════════════════════',
+    `相识于 ${firstDate}，至今 ${daysSince} 天`,
+    '',
+    '关键时刻：',
+  ]
+
+  // ── First conversation ──
+  try {
+    const firstChat = db.prepare('SELECT user_msg FROM chat_history ORDER BY ts ASC LIMIT 1').get() as any
+    if (firstChat?.user_msg) {
+      const snippet = (firstChat.user_msg || '').slice(0, 40).replace(/\n/g, ' ')
+      lines.push(`• 第一次对话：你问了关于 ${snippet}${firstChat.user_msg.length > 40 ? '...' : ''} 的问题`)
+    }
+  } catch {}
+
+  // ── First correction ──
+  try {
+    const firstCorr = db.prepare("SELECT content, ts FROM memories WHERE scope = 'correction' ORDER BY ts ASC LIMIT 1").get() as any
+    if (firstCorr?.content) {
+      const snippet = (firstCorr.content || '').slice(0, 40).replace(/\n/g, ' ')
+      lines.push(`• 第一次纠正：${snippet}${firstCorr.content.length > 40 ? '...' : ''}`)
+    }
+  } catch {}
+
+  // ── First goal ──
+  try {
+    const firstGoal = db.prepare("SELECT title FROM goals ORDER BY created_at ASC LIMIT 1").get() as any
+    if (firstGoal?.title) {
+      lines.push(`• 里程碑：一起设定了「${firstGoal.title}」的目标`)
+    }
+  } catch {}
+
+  // ── Memorable moments: emotional memories ──
+  try {
+    const emotional = db.prepare("SELECT content, ts FROM memories WHERE emotion IS NOT NULL AND emotion != 'neutral' AND scope != 'expired' ORDER BY ts DESC LIMIT 3").all() as any[]
+    for (const m of emotional) {
+      const snippet = (m.content || '').slice(0, 40).replace(/\n/g, ' ')
+      lines.push(`• 难忘时刻：${snippet}${m.content.length > 40 ? '...' : ''}`)
+    }
+  } catch {}
+
+  // ── Stats section ──
+  lines.push('')
+  lines.push('数据：')
+
+  let totalChats = stats.totalMessages || 0
+  let correctionCount = stats.corrections || 0
+  let goalCount = 0
+  let habitCount = 0
+  try { totalChats = (db.prepare('SELECT COUNT(*) as c FROM chat_history').get() as any)?.c || totalChats } catch {}
+  try { correctionCount = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE scope = 'correction'").get() as any)?.c || correctionCount } catch {}
+  try { goalCount = (db.prepare('SELECT COUNT(*) as c FROM goals').get() as any)?.c || 0 } catch {}
+  try { habitCount = (db.prepare('SELECT COUNT(DISTINCT name) as c FROM habits').get() as any)?.c || 0 } catch {}
+
+  lines.push(`• 对话 ${totalChats} 轮 | 纠正 ${correctionCount} 次 | 目标 ${goalCount} 个 | 习惯 ${habitCount} 个`)
+
+  // ── Frequent topics ──
+  try {
+    const recentChats = db.prepare('SELECT user_msg FROM chat_history ORDER BY ts DESC LIMIT 50').all() as any[]
+    const topicCounts = new Map<string, number>()
+    for (const r of recentChats) {
+      const words = (r.user_msg || '').match(/[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}/g) || []
+      for (const w of words) {
+        const key = w.toLowerCase()
+        topicCounts.set(key, (topicCounts.get(key) || 0) + 1)
+      }
+    }
+    const sorted = [...topicCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    if (sorted.length > 0) {
+      lines.push(`• 你常聊：${sorted.map(([t]) => t).join('、')}`)
+    }
+  } catch {}
+
+  // ── What I learned ──
+  try {
+    const recentRules = rules.slice(-3)
+    if (recentRules.length > 0) {
+      const ruleSnippet = recentRules[0].rule.slice(0, 40).replace(/\n/g, ' ')
+      lines.push(`• 我学会了：${ruleSnippet}${recentRules[0].rule.length > 40 ? '...' : ''}`)
+    }
+  } catch {}
+
+  lines.push('')
+  lines.push(`你让我从一个什么都不知道的 bot 变成了懂你偏好的伙伴。`)
+
+  return lines.join('\n')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DAILY REVIEW — 每日复盘
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function generateDailyReview(): string {
+  const db = getDb()
+  if (!db) return '📋 今日复盘\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n数据库初始化中，请稍后重试。'
+  const now = Date.now()
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const todayCutoff = todayStart.getTime()
+  const dateStr = new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+
+  const lines: string[] = [
+    `📋 今日复盘 (${dateStr})`,
+  ]
+
+  // ── 对话概览 ──
+  lines.push('━━ 对话概览 ━━')
+  try {
+    const chatRows = db.prepare('SELECT user_msg FROM chat_history WHERE ts > ? ORDER BY ts ASC').all(todayCutoff) as any[]
+    if (chatRows.length > 0) {
+      // Extract topics
+      const topicCounts = new Map<string, number>()
+      for (const r of chatRows) {
+        const words = (r.user_msg || '').match(/[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}/g) || []
+        for (const w of words) {
+          const key = w.toLowerCase()
+          topicCounts.set(key, (topicCounts.get(key) || 0) + 1)
+        }
+      }
+      const topTopics = [...topicCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t)
+      lines.push(`  今天 ${chatRows.length} 轮对话${topTopics.length > 0 ? `，涉及 ${topTopics.join('/')}` : ''}`)
+    } else {
+      lines.push('  今天暂无对话')
+    }
+  } catch {
+    lines.push('  对话数据不可用')
+  }
+
+  // ── 做出的决定（今天新增/更新的目标）──
+  lines.push('━━ 做出的决定 ━━')
+  let hasDecisions = false
+  try {
+    const todayGoals = db.prepare("SELECT title, progress FROM goals WHERE created_at > ? ORDER BY created_at DESC").all(new Date(todayCutoff).toISOString()) as any[]
+    for (const g of todayGoals) {
+      lines.push(`  • 设定了「${g.title}」目标`)
+      hasDecisions = true
+    }
+  } catch {}
+  try {
+    // Goal progress updates today (key_results table)
+    const todayKRs = db.prepare("SELECT description FROM key_results WHERE updated_at > ? ORDER BY updated_at DESC LIMIT 5").all(new Date(todayCutoff).toISOString()) as any[]
+    for (const kr of todayKRs) {
+      lines.push(`  • ${(kr.description || '').slice(0, 60)}`)
+      hasDecisions = true
+    }
+  } catch {}
+  if (!hasDecisions) lines.push('  今天暂无重大决定')
+
+  // ── 行动项（今天的提醒）──
+  lines.push('━━ 行动项 ━━')
+  try {
+    const reminders = db.prepare("SELECT * FROM reminders WHERE status = 'pending' ORDER BY remind_at ASC").all() as any[]
+    if (reminders.length > 0) {
+      for (const r of reminders) {
+        lines.push(`  • 提醒：${r.remind_at || '??:??'} ${r.content}`)
+      }
+    } else {
+      lines.push('  无待办提醒')
+    }
+  } catch {
+    lines.push('  提醒数据不可用')
+  }
+
+  // ── 学习成果 ──
+  lines.push('━━ 学习成果 ━━')
+  let hasLearning = false
+  try {
+    const todayCorrections = db.prepare("SELECT content FROM memories WHERE scope = 'correction' AND ts > ? ORDER BY ts DESC LIMIT 5").all(todayCutoff) as any[]
+    for (const c of todayCorrections) {
+      const snippet = (c.content || '').slice(0, 50).replace(/\n/g, ' ')
+      lines.push(`  • 规则固化：${snippet}${c.content.length > 50 ? '...' : ''}`)
+      hasLearning = true
+    }
+  } catch {}
+  try {
+    const todayRules = rules.filter(r => r.ts > todayCutoff)
+    if (todayRules.length > 0) {
+      lines.push(`  • 新规则：${todayRules.length} 条自动生成`)
+      hasLearning = true
+    }
+  } catch {}
+  if (!hasLearning) lines.push('  今天暂无新学习成果')
+
+  return lines.join('\n')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MEMORY CHAIN — 记忆链路可视化
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function generateMemoryChain(keyword: string): string {
+  const db = getDb()
+  if (!db) return `🔗 记忆链路「${keyword}」\n数据库初始化中，请稍后重试。`
+
+  const kw = `%${keyword.toLowerCase()}%`
+  let memories: any[] = []
+  try {
+    memories = db.prepare(
+      "SELECT content, scope, ts, tags FROM memories WHERE scope != 'expired' AND scope != 'decayed' AND (LOWER(content) LIKE ? OR LOWER(tags) LIKE ?) ORDER BY ts ASC LIMIT 30"
+    ).all(kw, kw) as any[]
+  } catch { return `🔗 记忆链路「${keyword}」\n查询失败。` }
+
+  if (memories.length === 0) {
+    return `🔗 记忆链路「${keyword}」\n没有找到相关记忆。`
+  }
+
+  const lines: string[] = [
+    `🔗 记忆链路「${keyword}」`,
+  ]
+
+  // Build a tree-like visualization: group by date, show scope-based indentation
+  const scopeDepth: Record<string, number> = {
+    'preference': 0, 'fact': 0, 'event': 0, 'topic': 0,
+    'correction': 1, 'discovery': 1, 'proactive': 1,
+    'reflection': 2, 'reflexion': 2,
+  }
+
+  let prevDate = ''
+  for (const m of memories) {
+    const date = new Date(m.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+    const depth = scopeDepth[m.scope] ?? 0
+    const indent = '  '.repeat(depth)
+    const connector = depth > 0 ? '└→ ' : ''
+    const snippet = (m.content || '').slice(0, 50).replace(/\n/g, ' ')
+    const dateTag = date !== prevDate ? ` (${date})` : ''
+    prevDate = date
+    lines.push(`  ${indent}${connector}[${snippet}${m.content.length > 50 ? '...' : ''}] ${m.scope}${dateTag}`)
+  }
+
+  return lines.join('\n')
 }
 
 // ── Progress bar helper ──

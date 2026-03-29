@@ -33,6 +33,9 @@ export const metrics = {
   // internal: rolling average helper
   _responseTimeSum: 0,
   _responseTimeCount: 0,
+  // ── Context compression tracking ──
+  totalAugmentTokens: 0,         // cumulative augment tokens injected
+  totalConversationTokens: 0,    // estimated full-context tokens if no augment compression
 }
 
 /** Record a response cycle's elapsed time */
@@ -42,10 +45,29 @@ export function metricsRecordResponseTime(ms: number) {
   metrics.avgResponseTimeMs = Math.round(metrics._responseTimeSum / metrics._responseTimeCount)
 }
 
+/** Record augment injection token stats for compression rate tracking */
+export function metricsRecordAugmentTokens(augmentTokens: number, conversationTokens: number) {
+  metrics.totalAugmentTokens += augmentTokens
+  metrics.totalConversationTokens += conversationTokens
+}
+
+/** Get compression rate: 1 - (augmentTokens / conversationTokens) */
+export function getCompressionRate(): { rate: number; augmentTokens: number; conversationTokens: number; saved: number } {
+  const a = metrics.totalAugmentTokens
+  const c = metrics.totalConversationTokens
+  if (c === 0) return { rate: 0, augmentTokens: a, conversationTokens: c, saved: 0 }
+  const rate = 1 - (a / c)
+  return { rate, augmentTokens: a, conversationTokens: c, saved: c - a }
+}
+
 /** Format metrics for display */
 export function formatMetrics(): string {
   const uptimeH = ((Date.now() - metrics.uptime) / 3600000).toFixed(1)
   const lastHbAgo = metrics.lastHeartbeat > 0 ? Math.round((Date.now() - metrics.lastHeartbeat) / 60000) : -1
+  const comp = getCompressionRate()
+  const compLine = comp.conversationTokens > 0
+    ? `Context compression: ${(comp.rate * 100).toFixed(1)}% (saved ~${comp.saved} tokens)`
+    : `Context compression: N/A (no data yet)`
   return [
     `cc-soul Metrics`,
     `───────────────────`,
@@ -55,6 +77,7 @@ export function formatMetrics(): string {
     `Recall calls: ${metrics.recallCalls}`,
     `CLI calls: ${metrics.cliCalls}`,
     `Augments injected: ${metrics.augmentsInjected}`,
+    compLine,
     `Last heartbeat: ${lastHbAgo >= 0 ? lastHbAgo + 'min ago' : 'never'}`,
   ].join('\n')
 }
@@ -67,6 +90,7 @@ export const stats: InteractionStats = {
   positiveFeedback: 0,
   tasks: 0,
   topics: new Set(),
+  driftCount: 0,
 }
 
 export function loadStats() {
@@ -78,9 +102,11 @@ export function loadStats() {
     stats.positiveFeedback = raw.positiveFeedback || 0
     stats.tasks = raw.tasks || 0
     stats.topics = new Set(raw.topics || [])
+    stats.driftCount = raw.driftCount || 0
   } else {
     stats.firstSeen = Date.now()
   }
+  ;(globalThis as any).__ccSoulStats = stats
 }
 
 export function saveStats() {
@@ -91,6 +117,7 @@ export function saveStats() {
     positiveFeedback: stats.positiveFeedback,
     tasks: stats.tasks,
     topics: [...stats.topics].slice(-100),
+    driftCount: stats.driftCount,
   })
 }
 
@@ -117,6 +144,7 @@ export interface SessionState {
   lastTopicKeywords: string[]  // keywords from last turn for topic-shift detection
   _pendingCorrectionVerify?: boolean
   _lastAnalyzedPrompt?: string
+  _skipNextMemory?: boolean
 }
 const sessionStates = new Map<string, SessionState>()
 const MAX_SESSIONS = 20

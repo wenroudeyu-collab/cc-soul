@@ -11,9 +11,9 @@
       "方法"
     ],
     "verified": true,
-    "usedCount": 61,
+    "usedCount": 62,
     "createdAt": 1710547200000,
-    "lastUsed": 1774478399668
+    "lastUsed": 1774820965653
   },
   {
     "name": "frida-hook-swift",
@@ -27,9 +27,9 @@
       "符号"
     ],
     "verified": true,
-    "usedCount": 86,
+    "usedCount": 88,
     "createdAt": 1710547200000,
-    "lastUsed": 1774399546624
+    "lastUsed": 1774820986212
   },
   {
     "name": "ida-find-xref",
@@ -61,9 +61,9 @@
       "请求"
     ],
     "verified": true,
-    "usedCount": 657,
+    "usedCount": 676,
     "createdAt": 1710547200000,
-    "lastUsed": 1774566733845
+    "lastUsed": 1774823360792
   },
   {
     "name": "macho-dump-header",
@@ -78,9 +78,9 @@
       "二进制"
     ],
     "verified": true,
-    "usedCount": 56,
+    "usedCount": 68,
     "createdAt": 1710547200000,
-    "lastUsed": 1774485006554
+    "lastUsed": 1774823360792
   },
   {
     "name": "git-rebase-fixup",
@@ -112,9 +112,9 @@
       "判断"
     ],
     "verified": true,
-    "usedCount": 127,
+    "usedCount": 130,
     "createdAt": 1710547200000,
-    "lastUsed": 1774476987542
+    "lastUsed": 1774822993621
   },
   {
     "name": "dyld-interpose",

@@ -16,27 +16,20 @@ import { buildSoulPrompt, selectAugments, estimateTokens } from './prompt-builde
 import { memoryState, addMemory, addMemoryWithEmotion, parseMemoryCommands, executeMemoryCommands, recall, ensureMemoriesLoaded } from './memory.ts'
 import { bodyOnPositiveFeedback } from './body.ts'
 import { addEntitiesFromAnalysis } from './graph.ts'
-import { runPostResponseAnalysis, setAgentBusy, killGatewayClaude } from './cli.ts'
+import { runPostResponseAnalysis, setAgentBusy, killGatewayClaude, spawnCLI } from './cli.ts'
+import { notifyOwnerDM } from './notify.ts'
 import { isEnabled } from './features.ts'
-// ── Optional modules (absent in public build) ──
-let roverState: { discoveries: any[]; topics: string[] } = { discoveries: [], topics: [] }
-import('./rover.ts').then(m => { roverState = m.roverState }).catch(() => {})
-// ── End optional modules ──
 import { taskState } from './tasks.ts'
 import { trackQuality } from './quality.ts'
 import { getSessionState, getLastActiveSessionKey } from './handler-state.ts'
 import { updateFingerprint, checkPersonaConsistency } from './fingerprint.ts'
 // ── New module hooks (optional, loaded async) ──
 let trackPersonaStyle: (text: string, personaId: string) => void = () => {}
-let judgeSelfReply: (user: string, bot: string, cb: (r: any) => void) => void = () => {}
 let updateBeliefFromMessage: (user: string, bot: string) => void = () => {}
-let trackUserPattern: (msg: string, ok: boolean) => void = () => {}
 let trackRecallImpact: (contents: string[], score: number) => void = () => {}
 let getActivePersona: () => { id: string } | null = () => null
 import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle }).catch(() => {})
-import('./llm-judge.ts').then(m => { judgeSelfReply = m.judgeSelfReply }).catch(() => {})
 import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage }).catch(() => {})
-import('./skill-extract.ts').then(m => { trackUserPattern = m.trackUserPattern }).catch(() => {})
 import('./memory.ts').then(m => { trackRecallImpact = m.trackRecallImpact }).catch(() => {})
 import('./persona.ts').then(m => { getActivePersona = m.getActivePersona }).catch(() => {})
 
@@ -187,7 +180,56 @@ export function createCcSoulContextEngine() {
       const botResponse = _state.lastBotResponse
 
       _afterTurnCalled = true
-      console.log(`[cc-soul][context-engine] afterTurn: post-response analysis`)
+      console.log(`[cc-soul][context-engine] afterTurn: post-response analysis (${userMsg.slice(0, 30)}...)`)
+
+      // Sync session state so handleSent-dependent code works
+      try {
+        const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
+        const sk = getLastActiveSessionKey()
+        const sess = getSessionState(sk)
+        if (sess) {
+          sess.lastResponseContent = botResponse
+        }
+      } catch {}
+
+      // Self-correction: check if response has issues
+      try {
+        const { selfCheckSync } = await import('./quality.ts')
+        const { scoreResponse } = await import('./quality.ts')
+        if (userMsg.length > 5 && botResponse.length > 20) {
+          const selfIssue = selfCheckSync(userMsg, botResponse)
+          if (selfIssue) {
+            const scScore = scoreResponse(userMsg, botResponse)
+            if (scScore <= 3) {
+              notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。评分 ${scScore}/10`)
+                .catch(() => {})
+              console.log(`[cc-soul][self-correction] issue: ${selfIssue} (score=${scScore})`)
+            }
+          }
+        }
+      } catch {}
+
+      // Persona drift detection
+      try {
+        const { checkPersonaDrift } = await import('./persona-drift.ts')
+        const { getActivePersona } = await import('./persona.ts')
+        const persona = getActivePersona()
+        if (persona) {
+          checkPersonaDrift(botResponse, persona.id, persona.name, persona.tone, persona.idealVector)
+        }
+      } catch {}
+
+      // Cost tracking
+      try {
+        const { recordTurnUsage } = await import('./cost-tracker.ts')
+        recordTurnUsage(userMsg, botResponse, 0)
+      } catch {}
+
+      // Brain modules onSent (theory-of-mind, persona-drift, values)
+      try {
+        const { brain } = await import('./brain.ts')
+        brain.fire('onSent', { userMessage: userMsg, botReply: botResponse, senderId: _state.lastSenderId })
+      } catch {}
 
       // Active memory management from response text
       if (isEnabled('memory_active')) {
@@ -250,9 +292,7 @@ export function createCcSoulContextEngine() {
 
         // ── New module hooks (run inside callback so we have quality score) ──
         try { trackPersonaStyle(botResponse, getActivePersona()?.id ?? 'default') } catch (_) {}
-        try { judgeSelfReply(userMsg, botResponse, (r: any) => { console.log(`[cc-soul][llm-judge] score=${r?.score}`) }) } catch (_) {}
         try { updateBeliefFromMessage(userMsg, botResponse) } catch (_) {}
-        try { trackUserPattern(userMsg, true) } catch (_) {}
         try { trackRecallImpact([], result.quality.score) } catch (_) {}
       })
 
@@ -270,10 +310,11 @@ export function createCcSoulContextEngine() {
       messages: { role: string; content: unknown; [key: string]: unknown }[]
       tokenBudget?: number
     }) {
+      console.log('[cc-soul][context-engine] ★★★ assemble() CALLED ★★★')
       const s = statsAccessor()
       const soulPrompt = buildSoulPrompt(
         s.totalMessages, s.corrections, s.firstSeen,
-        roverState, taskState.workflows,
+        taskState.workflows,
       )
 
       // Extract lastUserMsg from params.messages if ingest() wasn't called
@@ -347,10 +388,11 @@ export function createCcSoulContextEngine() {
         }
       }
 
-      // Merge SOUL.md + augments
+      // Merge SOUL.md + augments — strip bracket tags to prevent LLM "analysis" behavior
+      const cleanedAugments = augmentsToUse.map(a => a.replace(/^\[([^\]]+)\]\s*/, ''))
       const parts = [soulPrompt]
-      if (augmentsToUse.length > 0) {
-        parts.push(augmentsToUse.join('\n\n'))
+      if (cleanedAugments.length > 0) {
+        parts.push(cleanedAugments.join('\n'))
       }
       const fullPrompt = parts.join('\n\n')
 
@@ -502,8 +544,7 @@ export function createCcSoulContextEngine() {
           // New module hooks
           try { trackPersonaStyle(botResponse, getActivePersona()?.id ?? 'default') } catch (_) {}
           try { updateBeliefFromMessage(userMsg, botResponse) } catch (_) {}
-          try { trackUserPattern(userMsg, true) } catch (_) {}
-        })
+          })
 
         // Reset
         _state.lastUserMsg = ''
@@ -543,4 +584,8 @@ export function tryRegisterContextEngine(): boolean {
 
 export function isContextEngineActive(): boolean {
   return _registered && _afterTurnCalled
+}
+
+export function isContextEngineRegistered(): boolean {
+  return _registered
 }

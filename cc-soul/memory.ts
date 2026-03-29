@@ -38,10 +38,24 @@ import {
   sqliteFindByContent, sqliteCount, sqliteGetAll,
   sqliteAddChatTurn, sqliteGetRecentHistory, sqliteTrimHistory,
   sqliteCleanupExpired, backfillEmbeddings, hasVectorSearch,
+  sqliteUpdateRawLine, getDb,
 } from './sqlite-store.ts'
 import { initEmbedder } from './embedder.ts'
 import { findMentionedEntities, getRelatedEntities, graphWalkRecall } from './graph.ts'
 import { appendAudit } from './audit.ts'
+import { isEnabled } from './features.ts'
+
+/**
+ * Sync memory confidence/scope changes to SQLite.
+ * Call this whenever you modify mem.confidence or mem.scope in-memory.
+ */
+function syncToSQLite(mem: Memory, updates: { confidence?: number; scope?: string; tier?: string }) {
+  if (!useSQLite) return
+  const found = sqliteFindByContent(mem.content)
+  if (found) {
+    sqliteUpdateMemory(found.id, updates)
+  }
+}
 
 /** Whether SQLite is the active storage backend (vs JSON fallback) */
 let useSQLite = false
@@ -94,6 +108,24 @@ export function trackRecallImpact(recalledContents: string[], qualityScore: numb
     entry.helpedQuality += qualityScore
     entry.avgImpact = entry.helpedQuality / entry.recalled
     recallImpact.set(key, entry)
+
+    // ── Reinforcement feedback: propagate quality back to memory confidence ──
+    // Good response (≥7) → this memory helped → boost confidence
+    // Bad response (≤3) → this memory may have misled → reduce confidence
+    if (entry.recalled >= 2) { // only after enough data points
+      const mem = memoryState.memories.find(m => m.content.startsWith(key.slice(0, 40)) && m.scope !== 'expired')
+      if (mem) {
+        if (qualityScore >= 7) {
+          mem.confidence = Math.min(1.0, (mem.confidence ?? 0.7) + 0.03)
+        } else if (qualityScore <= 3) {
+          mem.confidence = Math.max(0.1, (mem.confidence ?? 0.7) - 0.05)
+          if (mem.confidence < 0.2) {
+            console.log(`[cc-soul][recall-feedback] low-quality memory demoted: "${content.slice(0, 50)}" (avgImpact=${entry.avgImpact.toFixed(1)})`)
+          }
+        }
+        syncToSQLite(mem, { confidence: mem.confidence })
+      }
+    }
   }
   // Cap map size
   if (recallImpact.size > 500) {
@@ -348,7 +380,7 @@ const INJECT_HISTORY = 30    // 注入最近 30 轮到 prompt（token 限制）
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const CORE_MEMORY_PATH = resolve(DATA_DIR, 'core_memory.json')
-const MAX_CORE_MEMORIES = 50
+const MAX_CORE_MEMORIES = 100
 
 interface CoreMemory {
   content: string
@@ -432,15 +464,27 @@ export function autoPromoteToCoreMemory() {
     let category: CoreMemory['category'] = 'user_fact'
 
     // High emotional importance
-    if (mem.emotion === 'important') {
+    if (mem.emotion === 'important' || mem.emotion === 'warm') {
       shouldPromote = true
       category = mem.scope === 'preference' ? 'preference' : 'user_fact'
     }
 
-    // Heavily tagged (frequently recalled = important)
-    if (mem.tags && mem.tags.length >= 10) {
+    // Frequently recalled (lowered from 10 → 3 to fix starvation)
+    if (mem.tags && mem.tags.length >= 3) {
       shouldPromote = true
       category = 'user_fact'
+    }
+
+    // Recalled multiple times (recallCount tracks actual usage)
+    if ((mem.recallCount ?? 0) >= 3) {
+      shouldPromote = true
+      category = mem.scope === 'preference' ? 'preference' : 'user_fact'
+    }
+
+    // Preference/fact scope — user's stated preferences are always important
+    if (mem.scope === 'preference' || mem.scope === 'fact') {
+      shouldPromote = true
+      category = mem.scope === 'preference' ? 'preference' : 'user_fact'
     }
 
     // Consolidated memories (already distilled from many)
@@ -601,9 +645,17 @@ export function batchTagUntaggedMemories() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Decide whether to add, update, or skip a new memory based on trigram similarity.
- * Returns { action, targetIndex } where targetIndex is the index of the similar memory (for update).
+ * AUDN Decision Gate — Decide whether to ADD, UPDATE, DELETE, or NOOP a new memory.
+ *
+ * Three-tier decision:
+ *   Fast path (rules):  exact match → NOOP, trigram > 0.9 → UPDATE, trigram < 0.3 → ADD
+ *   Medium path (rules): trigram 0.3-0.9 + same scope → UPDATE (merge)
+ *   Slow path (LLM):     fact/preference/correction in gray zone → async LLM arbitration
+ *
+ * Inspired by mem0's AUDN cycle but with rule-first approach to minimize LLM calls.
  */
+export type AUDNAction = 'add' | 'update' | 'delete' | 'noop'
+
 export function decideMemoryAction(newContent: string, scope?: string): { action: 'add' | 'update' | 'skip'; targetIndex: number } {
   if (memoryState.memories.length === 0) return { action: 'add', targetIndex: -1 }
 
@@ -611,36 +663,138 @@ export function decideMemoryAction(newContent: string, scope?: string): { action
   const shortKey = newContent.slice(0, 50).toLowerCase()
   const exactContent = contentIndex.get(shortKey)
   if (exactContent !== undefined && exactContent === newContent) {
-    // Find actual index for targetIndex (needed by callers)
     const exactIdx = memoryState.memories.findIndex(m => m.content === newContent)
     if (exactIdx >= 0) return { action: 'skip', targetIndex: exactIdx }
   }
 
-  // Trigram scan only the most recent 200 candidates (not full array)
+  // Trigram scan — find top 3 similar memories (not just top 1)
   const newTri = trigrams(newContent)
-  let bestSim = 0
-  let bestIdx = -1
-  const startIdx = Math.max(0, memoryState.memories.length - 200)
+  const candidates: { idx: number; sim: number }[] = []
+  const startIdx = Math.max(0, memoryState.memories.length - 500)
 
   for (let i = startIdx; i < memoryState.memories.length; i++) {
     const mem = memoryState.memories[i]
     if (mem.scope === 'expired') continue
-    // Scope mismatch — skip (different category memories can have similar content)
-    if (scope && mem.scope !== scope) continue
 
-    // Exact match → skip
+    // Exact match → NOOP
     if (mem.content === newContent) return { action: 'skip', targetIndex: i }
 
     const memTri = trigrams(mem.content)
     const sim = trigramSimilarity(newTri, memTri)
-    if (sim > bestSim) {
-      bestSim = sim
-      bestIdx = i
+    if (sim > 0.25) {
+      candidates.push({ idx: i, sim })
     }
   }
 
-  if (bestSim > getParam('memory.trigram_dedup_threshold') && bestIdx >= 0) return { action: 'update', targetIndex: bestIdx }
+  candidates.sort((a, b) => b.sim - a.sim)
+  const best = candidates[0]
+
+  if (!best) return { action: 'add', targetIndex: -1 }
+
+  // Fast path: very high similarity → UPDATE (near-duplicate)
+  if (best.sim > 0.9) return { action: 'update', targetIndex: best.idx }
+
+  // Fast path: low similarity → ADD (clearly new)
+  if (best.sim < 0.3) return { action: 'add', targetIndex: -1 }
+
+  // Medium path: moderate similarity — scope-aware decision
+  const existingMem = memoryState.memories[best.idx]
+  const dedupThreshold = getParam('memory.trigram_dedup_threshold')
+
+  if (best.sim > dedupThreshold) {
+    return { action: 'update', targetIndex: best.idx }
+  }
+
+  // Gray zone (0.3-0.7): for fact/preference/correction, fire async LLM arbitration
+  const AUDN_SCOPES = ['fact', 'preference', 'correction', 'consolidated']
+  if (AUDN_SCOPES.includes(scope || '') || AUDN_SCOPES.includes(existingMem.scope)) {
+    // Fire-and-forget: LLM decides in background, result applied retroactively
+    fireAUDNArbitration(newContent, scope || 'fact', candidates.slice(0, 3).map(c => ({
+      content: memoryState.memories[c.idx].content,
+      index: c.idx,
+      sim: c.sim,
+    })))
+  }
+
+  // Default: ADD now, LLM may UPDATE/DELETE later
   return { action: 'add', targetIndex: -1 }
+}
+
+/**
+ * Async LLM arbitration for gray-zone memories.
+ * Fires in background, applies ADD/UPDATE/DELETE/NOOP retroactively.
+ */
+let _audnQueue = 0
+const MAX_AUDN_CONCURRENT = 3
+
+function fireAUDNArbitration(
+  newContent: string,
+  scope: string,
+  candidates: { content: string; index: number; sim: number }[],
+) {
+  if (_audnQueue >= MAX_AUDN_CONCURRENT) return // throttle
+  _audnQueue++
+
+  const existingList = candidates.map((c, i) =>
+    `${i + 1}. [相似度${(c.sim * 100).toFixed(0)}%] ${c.content.slice(0, 120)}`
+  ).join('\n')
+
+  const prompt = [
+    '新记忆和已有记忆可能冲突或重复。决定操作：',
+    '',
+    `新记忆 [${scope}]: ${newContent.slice(0, 150)}`,
+    '',
+    '已有相似记忆:',
+    existingList,
+    '',
+    '回答格式（只回一行）:',
+    '  ADD — 新记忆是全新信息，保留',
+    '  UPDATE 序号 — 新记忆是对某条的更新/补充，合并内容',
+    '  DELETE 序号 — 新记忆与某条矛盾，删除旧的',
+    '  NOOP — 新记忆是冗余重复，丢弃',
+    '',
+    '如果 UPDATE，第二行写合并后的内容。',
+  ].join('\n')
+
+  spawnCLI(prompt, (output) => {
+    _audnQueue--
+    if (!output) return
+    const line = output.trim().split('\n')[0].toUpperCase()
+
+    if (line.startsWith('NOOP')) {
+      // Remove the just-added memory
+      const idx = memoryState.memories.findIndex(m => m.content === newContent && m.scope !== 'expired')
+      if (idx >= 0) {
+        memoryState.memories[idx].scope = 'expired'
+        console.log(`[cc-soul][AUDN] NOOP: "${newContent.slice(0, 50)}" (redundant)`)
+      }
+    } else if (line.startsWith('DELETE')) {
+      const num = parseInt(line.replace(/\D/g, ''))
+      if (num >= 1 && num <= candidates.length) {
+        const target = candidates[num - 1]
+        if (target.index >= 0 && target.index < memoryState.memories.length) {
+          memoryState.memories[target.index].scope = 'expired'
+          console.log(`[cc-soul][AUDN] DELETE: "${memoryState.memories[target.index]?.content.slice(0, 50)}" (contradicted by new)`)
+          saveMemories()
+        }
+      }
+    } else if (line.startsWith('UPDATE')) {
+      const num = parseInt(line.replace(/\D/g, ''))
+      const mergedLine = output.trim().split('\n')[1]
+      if (num >= 1 && num <= candidates.length && mergedLine && mergedLine.length > 10) {
+        const target = candidates[num - 1]
+        // Remove the just-added duplicate
+        const newIdx = memoryState.memories.findIndex(m => m.content === newContent && m.scope !== 'expired')
+        if (newIdx >= 0) memoryState.memories[newIdx].scope = 'expired'
+        // Update the existing one with merged content
+        if (target.index >= 0 && target.index < memoryState.memories.length) {
+          updateMemory(target.index, mergedLine.trim().slice(0, 300))
+          console.log(`[cc-soul][AUDN] UPDATE #${num}: merged "${mergedLine.trim().slice(0, 50)}"`)
+        }
+      }
+    }
+    // ADD: no action needed (already added synchronously)
+  }, 30000)
 }
 
 /**
@@ -717,6 +871,56 @@ export function compressMemory(memory: Memory): string {
 
   return text
 }
+// ═══════════════════════════════════════════════════════════════════════════════
+// Interference Forgetting — new memories suppress similar old memories
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * When a new fact/preference/correction is added, suppress (lower confidence of)
+ * similar older memories. This prevents the 60K memory pile-up.
+ *
+ * Mechanism: trigram similarity > 0.6 with same scope → reduce confidence by 0.15.
+ * If confidence drops below 0.2 → mark as expired (effectively forgotten).
+ * Only suppresses memories older than 1 hour (avoid self-interference).
+ */
+function suppressSimilarMemories(newMem: Memory) {
+  const newTri = trigrams(newMem.content)
+  const MIN_AGE_MS = 3600000 // 1 hour — don't suppress very recent memories
+  let suppressed = 0
+
+  const startIdx = Math.max(0, memoryState.memories.length - 500)
+  for (let i = startIdx; i < memoryState.memories.length - 1; i++) { // -1 to skip the just-added one
+    const old = memoryState.memories[i]
+    if (old.scope === 'expired' || old.scope === 'archived') continue
+    if (old.content === newMem.content) continue
+    if (Date.now() - old.ts < MIN_AGE_MS) continue
+
+    // Only suppress within same or related scopes
+    const relatedScope = old.scope === newMem.scope ||
+      (newMem.scope === 'correction' && old.scope === 'fact') ||
+      (newMem.scope === 'fact' && old.scope === 'fact')
+    if (!relatedScope) continue
+
+    const oldTri = trigrams(old.content)
+    const sim = trigramSimilarity(newTri, oldTri)
+
+    if (sim > 0.6) {
+      old.confidence = Math.max(0, (old.confidence ?? 0.7) - 0.15)
+      if (old.confidence < 0.2) {
+        old.scope = 'expired'
+        console.log(`[cc-soul][interference] expired: "${old.content.slice(0, 50)}" (suppressed by new memory)`)
+      }
+      syncToSQLite(old, { confidence: old.confidence, scope: old.scope })
+      suppressed++
+      if (suppressed >= 5) break // cap per new memory
+    }
+  }
+
+  if (suppressed > 0) {
+    console.log(`[cc-soul][interference] ${suppressed} old memories suppressed`)
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Memory CRUD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -826,9 +1030,10 @@ export function saveMemories() {
       }
     } catch { /* file doesn't exist, ok to write */ }
   }
-  // Always save JSON as backup/fallback
-  debouncedSave(MEMORIES_PATH, memoryState.memories)
-  // SQLite is kept in sync via individual CRUD calls (no bulk re-save needed)
+  // JSON backup alongside SQLite — prevents single-point-of-failure data loss
+  if (memoryState.memories.length > 0) {
+    debouncedSave(MEMORIES_PATH, memoryState.memories, 5000)
+  }
 }
 
 /**
@@ -952,7 +1157,18 @@ function detectMemoryPoisoning(content: string): boolean {
   return patterns.some(p => p.test(content))
 }
 
-export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string) {
+export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx']) {
+  // Check skip flag from session (inclusion/exclusion control)
+  try {
+    const { getSessionState, getLastActiveSessionKey } = require('./handler-state.ts')
+    const sess = getSessionState(getLastActiveSessionKey())
+    if (sess?._skipNextMemory) {
+      sess._skipNextMemory = false
+      console.log('[cc-soul][memory] skipped by user request (别记这个)')
+      return
+    }
+  } catch {}
+
   if (!content || content.length < 3) return
 
   // Reject system augment content that was accidentally fed back as memory
@@ -980,6 +1196,17 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     return
   }
 
+  // Auto-attach current emotional state to every memory
+  let autoSituationCtx = situationCtx
+  if (!autoSituationCtx) {
+    try {
+      const { body } = require('./body.ts')
+      if (body && typeof body.mood === 'number') {
+        autoSituationCtx = { mood: body.mood, energy: body.energy }
+      }
+    } catch {}
+  }
+
   const resolvedVisibility = visibility || defaultVisibility(scope)
   const newIndex = memoryState.memories.length
   const FACT_SCOPES = ['fact', 'preference', 'correction', 'discovery']
@@ -991,12 +1218,33 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     recallCount: 0,
     ...(FACT_SCOPES.includes(scope) ? { validFrom: Date.now(), validUntil: 0 } : {}),
     ...extractReasoning(content),
+    ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),
   }
   memoryState.memories.push(newMem)
 
   // Write to SQLite if available
   if (useSQLite) {
     sqliteAddMemory(newMem)
+  }
+
+  // ── Interference forgetting: new memory suppresses similar old memories ──
+  if (FACT_SCOPES.includes(scope)) {
+    suppressSimilarMemories(newMem)
+  }
+
+  // Memory competition: new memory suppresses similar old ones
+  if (scope === 'preference' || scope === 'fact') {
+    const newTri = trigrams(content)
+    for (const old of memoryState.memories) {
+      if (old === newMem) continue
+      if (old.scope !== scope || old.scope === 'expired') continue
+      const sim = trigramSimilarity(newTri, trigrams(old.content))
+      if (sim > 0.4 && sim < 0.9) {
+        // Similar but not duplicate — suppress old one's confidence
+        old.confidence = Math.max(0.1, (old.confidence ?? 0.7) - 0.15)
+        syncToSQLite(old, { confidence: old.confidence })
+      }
+    }
   }
 
   // Smart eviction: score-based instead of brute-force oldest-20%
@@ -1027,9 +1275,12 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     const ck = content.slice(0, 50).toLowerCase()
     contentIndex.set(ck, content)
   }
-  invalidateIDF()  // 新增记忆后重建 IDF 索引
+  invalidateIDF()
   saveMemories()
   appendAudit('memory_add', `[${scope}] ${content.slice(0, 100)}`)
+
+  // Async embedding store (fire-and-forget)
+  // (already handled by sqliteAddMemory → storeEmbedding)
 
   // Async: queue semantic tag generation for the new memory (batched)
   // Bug #8 fix: don't pass index — eviction may shift it; use content+ts for stable lookup
@@ -1065,22 +1316,17 @@ export function addMemoryWithEmotion(content: string, scope: string, userId?: st
     target.emotion = matched
     saveMemories()
   } else if (content.length > 20) {
-    // Only call CLI if no emotion provided
-    const targetTs = target.ts
-    spawnCLI(
-      `这条记忆的情感权重？"${content.slice(0, 100)}" 回答: neutral/warm/important/painful/funny 只回一个词`,
-      (output) => {
-        const emotion = output?.trim().toLowerCase() || 'neutral'
-        const validEmotions = ['neutral', 'warm', 'important', 'painful', 'funny']
-        const matched = validEmotions.find(e => emotion.includes(e)) || 'neutral'
-        // Re-find by ts + content (memory array may have shifted during async)
-        const idx = memoryState.memories.findIndex(m => m.ts === targetTs && m.content === content)
-        if (idx >= 0) {
-          memoryState.memories[idx].emotion = matched
-          saveMemories()
-        }
+    // Use rule-based emotion detection (no LLM call needed)
+    try {
+      const { detectEmotionLabel, emotionLabelToLegacy } = require('./signals.ts')
+      const detected = detectEmotionLabel(content)
+      if (detected.confidence > 0.4) {
+        target.emotion = emotionLabelToLegacy(detected.label)
+        // Store fine-grained label as well
+        ;(target as any).emotionLabel = detected.label
+        saveMemories()
       }
-    )
+    } catch {}
   }
 }
 
@@ -1151,7 +1397,7 @@ function bm25Score(queryWords: Set<string>, doc: string, avgDocLen: number): num
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Internal recall that preserves `score` on returned memories (for fusion ranking). */
-function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: string): (Memory & { score: number })[] {
+function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }): (Memory & { score: number })[] {
   if (memoryState.memories.length === 0 || !msg) return []
 
   // Extract query keywords (Chinese 2+ char sequences + English 3+ char words)
@@ -1240,7 +1486,7 @@ function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: st
       }
     }
 
-    if (sim < 0.05) continue
+    if (sim < 0.03) continue
 
     // Weighted scoring: recency + scope boost + emotion boost + userId boost + confidence + time decay
     // Exponential time decay: memories not recalled in 30+ days lose weight fast
@@ -1251,9 +1497,16 @@ function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: st
     const usageBoost = (mem.tags && mem.tags.length > 5) ? 1.2 : 1.0
     const scopeBoost = (mem.scope === 'preference' || mem.scope === 'fact') ? 1.3 :
                        (mem.scope === 'correction') ? 1.5 : 1.0
-    const emotionBoost = mem.emotion === 'important' ? 1.4 :
-                         mem.emotion === 'painful' ? 1.3 :
-                         mem.emotion === 'warm' ? 1.2 : 1.0
+    let emotionBoost = 1.0
+    // Legacy labels
+    if (mem.emotion === 'important') emotionBoost = 1.4
+    else if (mem.emotion === 'painful') emotionBoost = 1.3
+    else if (mem.emotion === 'warm') emotionBoost = 1.2
+    // New fine-grained labels (stored in emotionLabel)
+    const eLabel = (mem as any).emotionLabel
+    if (eLabel === 'anger' || eLabel === 'anxiety') emotionBoost = Math.max(emotionBoost, 1.4)
+    else if (eLabel === 'pride' || eLabel === 'relief') emotionBoost = Math.max(emotionBoost, 1.3)
+    else if (eLabel === 'frustration' || eLabel === 'sadness') emotionBoost = Math.max(emotionBoost, 1.3)
     // #5 Multi-user memory isolation: same user ×2.0, global ×1.0, other user's private → already filtered above
     const userBoost = (userId && mem.userId && mem.userId === userId) ? 2.0
                     : (userId && mem.userId && mem.userId !== userId) ? 0.7 : 1.0
@@ -1284,7 +1537,58 @@ function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: st
     }
 
     const impactBoost = getRecallImpactBoost(mem.content)
-    scored.push({ ...mem, score: sim * recency * scopeBoost * emotionBoost * userBoost * consolidatedBoost * usageBoost * reflexionBoost * confidenceWeight * temporalWeight * graphBoost * tierWeight * impactBoost })
+    // Archived memories participate in search but with reduced weight (DAG archive)
+    const archiveWeight = mem.scope === 'archived' ? 0.3 : 1.0
+
+    // ── Emotion-driven recall: mood/alertness influence memory scoring ──
+    let moodMatchBoost = 1.0
+    if (moodCtx) {
+      // Mood congruence: positive mood boosts warm memories, negative mood boosts painful memories
+      if (moodCtx.mood > 0.3 && mem.emotion === 'warm') moodMatchBoost = 1.3
+      else if (moodCtx.mood < -0.3 && mem.emotion === 'painful') moodMatchBoost = 1.3
+      else if (moodCtx.mood < -0.3 && mem.emotion === 'warm') moodMatchBoost = 0.8
+      // High alertness: boost corrections and important memories (hyper-vigilant state)
+      if (moodCtx.alertness > 0.7 && (mem.emotion === 'important' || mem.scope === 'correction')) moodMatchBoost *= 1.3
+
+      // Fine-grained emotion congruence: same emotion type → boost
+      if (eLabel && moodCtx) {
+        try {
+          const { lastDetectedEmotion } = require('./body.ts')
+          if (lastDetectedEmotion && eLabel === lastDetectedEmotion.label) {
+            moodMatchBoost *= 1.4 // same emotion state → strong context match
+          }
+        } catch {}
+      }
+
+      // Situational context match: same mood context at creation → boost
+      if (mem.situationCtx?.mood !== undefined) {
+        const moodDelta = Math.abs(moodCtx.mood - mem.situationCtx.mood)
+        if (moodDelta < 0.3) moodMatchBoost *= 1.2 // similar mood state → context-dependent recall
+      }
+    }
+
+    scored.push({ ...mem, score: sim * recency * scopeBoost * emotionBoost * userBoost * consolidatedBoost * usageBoost * reflexionBoost * confidenceWeight * temporalWeight * graphBoost * tierWeight * impactBoost * archiveWeight * moodMatchBoost })
+  }
+
+  // ── Spreading Activation: memories activate related memories ──
+  // High-scoring memories "wake up" other memories that share keywords
+  if (scored.length >= 3) {
+    const topActivators = scored.filter(s => s.score > 0.1).slice(0, 3)
+    const activatedWords = new Set<string>()
+    for (const act of topActivators) {
+      const words = (act.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+      words.forEach(w => activatedWords.add(w.toLowerCase()))
+    }
+    // Boost other scored memories that share keywords with top activators
+    for (const s of scored) {
+      if (topActivators.includes(s)) continue
+      const sWords = (s.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      let activationHits = 0
+      for (const w of sWords) { if (activatedWords.has(w)) activationHits++ }
+      if (activationHits >= 2) {
+        s.score *= (1 + activationHits * 0.15) // spreading activation boost
+      }
+    }
   }
 
   scored.sort((a, b) => b.score - a.score)
@@ -1322,6 +1626,17 @@ function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: st
       mem.confidence = Math.min(1.0, (mem.confidence ?? 0.7) + 0.02)
       mem.recallCount = (mem.recallCount ?? 0) + 1
       mem.lastRecalled = Date.now()
+      syncToSQLite(mem, { confidence: mem.confidence, recallCount: mem.recallCount, lastAccessed: mem.lastAccessed, lastRecalled: mem.lastRecalled })
+      // Memory reconsolidation: blend current context into recalled memory
+      if (mem.recallCount && mem.recallCount >= 3) {
+        // After 3+ recalls, memory starts absorbing context
+        if (!mem.recallContexts) mem.recallContexts = []
+        const ctxSnippet = msg.slice(0, 40)
+        if (!mem.recallContexts.includes(ctxSnippet)) {
+          mem.recallContexts.push(ctxSnippet)
+          if (mem.recallContexts.length > 5) mem.recallContexts.shift()
+        }
+      }
     }
   }
   if (topResults.length > 0) saveMemories()
@@ -1372,7 +1687,7 @@ function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: st
 }
 
 /** Public recall — strips internal score field from results. Merges OpenClaw native memory if available. */
-export function recall(msg: string, topN = 3, userId?: string, channelId?: string): Memory[] {
+export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }): Memory[] {
   // ── Fast path: SQLite direct query (no need for loadMemories) ──
   // If memories haven't been loaded into memoryState yet, use SQLite directly.
   // This avoids the 4-5 second loadMemories() cost on first call.
@@ -1383,10 +1698,22 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
     ccResults = sqliteTagRecall(msg, topN, userId, channelId)
   } else if (_memoriesLoaded) {
     // Memories already in-memory, use the full scoring pipeline
-    ccResults = recallWithScores(msg, topN, userId, channelId).map(({ score, ...rest }) => rest) as Memory[]
+    ccResults = recallWithScores(msg, topN, userId, channelId, moodCtx).map(({ score, ...rest }) => rest) as Memory[]
   } else {
     // No SQLite, no in-memory — lightweight JSON file search (no full load)
     ccResults = recallFromJsonFile(msg, topN)
+  }
+
+  // ── Async vector recall: fire-and-forget, cache for next turn ──
+  if (ensureSQLiteReady() && hasVectorSearch()) {
+    const cacheKey = `${userId || ''}:${channelId || ''}`
+    sqliteRecallAsync(msg, topN, userId, channelId).then(vecResults => {
+      if (vecResults.length > 0) {
+        console.log(`[cc-soul][recall] vector search found ${vecResults.length} semantic matches`)
+        _lastVectorResults = vecResults.slice(0, 5)
+        _lastVectorResultsKey = cacheKey
+      }
+    }).catch(() => {})
   }
 
   // Merge OpenClaw native memory results (best-effort, non-blocking)
@@ -1404,8 +1731,50 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
     }
   } catch (_) {}
 
+  // Merge cached vector results from previous turn (available synchronously)
+  const cacheKeyCheck = `${userId || ''}:${channelId || ''}`
+  if (_lastVectorResults.length > 0 && _lastVectorResultsKey === cacheKeyCheck) {
+    const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
+    for (const m of _lastVectorResults) {
+      if (!seen.has(m.content.slice(0, 60))) {
+        ccResults.push(m)
+        seen.add(m.content.slice(0, 60))
+      }
+    }
+  }
+
+  // Adaptive depth: if too few results, expand search
+  if (ccResults.length < topN && _memoriesLoaded) {
+    const expanded = recallWithScores(msg, topN * 3, userId, channelId, moodCtx)
+      .map(({ score, ...rest }) => rest) as Memory[]
+    const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
+    for (const m of expanded) {
+      if (!seen.has(m.content.slice(0, 60)) && ccResults.length < topN) {
+        ccResults.push(m)
+        seen.add(m.content.slice(0, 60))
+      }
+    }
+  }
+
+  // Fusion rerank: sort merged results by relevance
+  if (ccResults.length > topN) {
+    const queryTri = trigrams(msg)
+    ccResults.sort((a, b) => {
+      const simA = trigramSimilarity(queryTri, trigrams(a.content))
+      const simB = trigramSimilarity(queryTri, trigrams(b.content))
+      const scopeA = (a.scope === 'preference' || a.scope === 'fact') ? 1.3 : a.scope === 'correction' ? 1.5 : 1.0
+      const scopeB = (b.scope === 'preference' || b.scope === 'fact') ? 1.3 : b.scope === 'correction' ? 1.5 : 1.0
+      return (simB * scopeB) - (simA * scopeA)
+    })
+    ccResults = ccResults.slice(0, topN)
+  }
+
   return ccResults.slice(0, topN)
 }
+
+// Cache vector results from async search for synchronous use in next turn
+let _lastVectorResults: Memory[] = []
+let _lastVectorResultsKey = ''
 
 // ── Read from OpenClaw native memory (cc.sqlite FTS) ──
 
@@ -1448,7 +1817,8 @@ function recallFromJsonFile(msg: string, topN: number): Memory[] {
       if (hits === 0) continue
       const sim = hits / Math.max(1, keywords.length)
       const scopeBoost = m.scope === 'preference' || m.scope === 'fact' ? 1.3 : m.scope === 'correction' ? 1.5 : 1.0
-      scored.push({ ...m, score: sim * scopeBoost })
+      const archiveWeight = m.scope === 'archived' ? 0.3 : 1.0
+      scored.push({ ...m, score: sim * scopeBoost * archiveWeight })
     }
 
     scored.sort((a, b) => b.score - a.score)
@@ -1593,6 +1963,7 @@ export function degradeMemoryConfidence(content: string) {
     if (mem.confidence <= 0.1) {
       mem.scope = 'expired'
     }
+    syncToSQLite(mem, { confidence: mem.confidence, scope: mem.scope })
     saveMemories()
     console.log(`[cc-soul][confidence] degraded: "${content.slice(0, 50)}" → ${mem.confidence.toFixed(2)}${mem.scope === 'expired' ? ' (expired)' : ''}`)
   }
@@ -1640,7 +2011,9 @@ function clusterByTopic(mems: Memory[]): Memory[][] {
 
 export function consolidateMemories() {
   if (consolidating) return
-  if (memoryState.memories.length < 500) return
+  // Use SQLite count if available (memoryState.memories may be empty in lazy-load mode)
+  const totalCount = useSQLite ? sqliteCount() : memoryState.memories.length
+  if (totalCount < 500) return
   if (Date.now() - lastConsolidationTs < CONSOLIDATION_COOLDOWN_MS) return
   consolidating = true
   lastConsolidationTs = Date.now()
@@ -1882,59 +2255,125 @@ export function recallFeedbackLoop(userMsg: string, recalledContents: string[]) 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Associative Recall — CLI-powered "reminds me of..." for deeper connections
+// Unified Association Engine — three-layer associative recall
 // ═══════════════════════════════════════════════════════════════════════════════
+//
+// Layer A (sync, instant):  Graph entities + Topic nodes → association keywords → 2nd-hop recall
+// Layer B (async, cached):  LLM deep association → "reminds me of..." connections
+//
+// Layer A runs pre-response (available this turn).
+// Layer B runs post-response (cached for next turn).
+// Together they replace the old keyword-only + LLM-only split.
 
-/**
- * Given the user's message and top recall results, use CLI to find
- * deeper associations that keyword/tag matching would miss.
- * Returns augment text or empty string.
- * Called async — result stored for next turn if too slow for current.
- */
-let cachedAssociation: { query: string; result: string; ts: number } | null = null
+let cachedAssociation: { query: string; result: string; memories: string[]; ts: number } | null = null
 const ASSOCIATION_COOLDOWN = 30000 // 30s cooldown
 
+/**
+ * Layer A: Synchronous graph+topic association.
+ * Returns additional memories found through entity graph traversal and topic node matching.
+ * Called from handler-augments.ts during augment building.
+ */
+export function associateSync(userMsg: string, recalled: Memory[], userId?: string, channelId?: string): Memory[] {
+  if (userMsg.length < 5 || recalled.length < 2) return []
+
+  const CJK_RE = /[\u4e00-\u9fff]{2,}|[a-z]{4,}/gi
+  const seenContents = new Set(recalled.map(m => m.content.slice(0, 60)))
+  const associationKeywords = new Set<string>()
+
+  // Source 1: Graph entity activation — walk from mentioned entities to neighbors
+  const mentioned = findMentionedEntities(userMsg)
+  if (mentioned.length > 0) {
+    const related = getRelatedEntities(mentioned, 2, 6)
+    for (const entity of related) {
+      const words = (entity.match(CJK_RE) || []).map((w: string) => w.toLowerCase())
+      for (const w of words) associationKeywords.add(w)
+    }
+  }
+
+  // Source 2: Topic nodes — find matching topics from distilled knowledge
+  try {
+    const { getRelevantTopics } = require('./distill.ts')
+    const topics = getRelevantTopics(userMsg, userId, 3) as { topic: string; summary: string }[]
+    for (const t of topics) {
+      const words = ((t.topic + ' ' + t.summary).match(CJK_RE) || []).map((w: string) => w.toLowerCase())
+      for (const w of words.slice(0, 3)) associationKeywords.add(w)
+    }
+  } catch { /* distill module not loaded yet */ }
+
+  // Source 3: Keywords from top recalled memories (chain association)
+  for (const m of recalled.slice(0, 3)) {
+    const words = (m.content.match(CJK_RE) || []).map((w: string) => w.toLowerCase())
+    for (const w of words.slice(0, 2)) associationKeywords.add(w)
+  }
+
+  // Remove words already in user message
+  const userWords = new Set((userMsg.match(CJK_RE) || []).map((w: string) => w.toLowerCase()))
+  for (const w of userWords) associationKeywords.delete(w)
+
+  if (associationKeywords.size < 2) return []
+
+  // 2nd-hop recall using combined association keywords
+  const query = [...associationKeywords].slice(0, 8).join(' ')
+  const associated = recall(query, 6, userId, channelId)
+
+  // Dedup against first round
+  const novel = associated.filter(m => !seenContents.has(m.content.slice(0, 60)))
+  if (novel.length > 0) {
+    console.log(`[cc-soul][association] sync: "${query.slice(0, 30)}" → ${novel.length} associated memories`)
+  }
+  return novel.slice(0, 4)
+}
+
+/**
+ * Layer B: Async LLM deep association (post-response).
+ * Uses top recalled + Layer A results to ask LLM for hidden connections.
+ * Result cached for next turn.
+ */
 export function triggerAssociativeRecall(userMsg: string, topRecalled: string[]) {
   if (userMsg.length < 10) return
   if (cachedAssociation && Date.now() - cachedAssociation.ts < ASSOCIATION_COOLDOWN) return
 
-  // Sample 30 random memories (excluding already recalled)
+  // Use Layer A results + random sample for LLM to analyze
   const recalledSet = new Set(topRecalled)
   const pool = shuffleArray(memoryState.memories
-    .filter(m => !recalledSet.has(m.content) && m.content.length > 15 && m.scope !== 'proactive'))
-    .slice(0, 30)
+    .filter(m => !recalledSet.has(m.content) && m.content.length > 15 && m.scope !== 'proactive' && m.scope !== 'expired' && m.scope !== 'decayed'))
+    .slice(0, 20)
 
-  if (pool.length < 5) return
+  if (pool.length < 3) return
 
   const memList = pool.map((m, i) => `${i + 1}. ${m.content.slice(0, 80)}`).join('\n')
 
   spawnCLI(
     `用户说: "${userMsg.slice(0, 200)}"\n\n` +
-    `以下是一些历史记忆，哪些和用户当前的话题有隐含关联？（不是字面匹配，而是深层联想）\n` +
+    `已直接召回: ${topRecalled.slice(0, 3).map(r => r.slice(0, 40)).join('; ')}\n\n` +
+    `以下记忆中，哪些和用户话题有隐含关联？（不是字面匹配，是深层联想——比如话题相关、因果链、同一时期的事）\n` +
     `${memList}\n\n` +
-    `选出最相关的1-3条，输出编号和一句话说明为什么相关。格式: "编号: 原因"。都不相关就回答"无"`,
+    `选1-3条最相关的，格式: "序号. 内容摘要 — 关联原因"。都不相关回答"无"`,
     (output) => {
       if (!output || output.includes('无') || output.length < 5) {
         cachedAssociation = null
         return
       }
+      // Extract referenced memory contents for augment
+      const nums = output.match(/(\d+)\./g)?.map(n => parseInt(n)) || []
+      const referencedMems = nums.filter(n => n >= 1 && n <= pool.length).map(n => pool[n - 1].content.slice(0, 80))
+
       cachedAssociation = {
         query: userMsg.slice(0, 50),
         result: output.slice(0, 300),
+        memories: referencedMems,
         ts: Date.now(),
       }
-      console.log(`[cc-soul][associative] found deep associations: ${output.slice(0, 80)}`)
+      console.log(`[cc-soul][association] deep: ${referencedMems.length} hidden connections found`)
     }
   )
 }
 
 /**
- * Get cached associative recall result (from previous turn's async call).
- * Returns augment text or empty string.
+ * Get cached deep association result (from Layer B, previous turn).
  */
 export function getAssociativeRecall(): string {
   if (!cachedAssociation) return ''
-  // Only use if fresh (< 5 min)
   if (Date.now() - cachedAssociation.ts > 300000) {
     cachedAssociation = null
     return ''
@@ -2424,9 +2863,12 @@ export function processMemoryDecay() {
   let decayed = 0
   let compressed = 0
 
+  const useArchive = isEnabled('dag_archive')
+  let archived = 0
+
   for (const mem of memoryState.memories) {
-    // Skip already expired/consolidated/decayed/pinned
-    if (mem.scope === 'expired' || mem.scope === 'decayed' || mem.scope === 'pinned') continue
+    // Skip already expired/consolidated/decayed/pinned/archived
+    if (mem.scope === 'expired' || mem.scope === 'decayed' || mem.scope === 'pinned' || mem.scope === 'archived') continue
 
     const tier = mem.tier || 'short_term'
     const age = now - (mem.ts || mem.lastAccessed || now)
@@ -2438,10 +2880,14 @@ export function processMemoryDecay() {
         // Promoted: actively used memory → mid_term
         mem.tier = 'mid_term'
         upgraded++
+      } else if (useArchive) {
+        // DAG Archive: compress but preserve original in raw_line
+        archiveMemory(mem)
+        archived++
       } else {
-        // Decayed: not useful enough, mark but don't delete
+        // Legacy: hard decay
         mem.scope = 'decayed'
-        mem.tier = 'short_term' // keep original tier for archaeology
+        mem.tier = 'short_term'
         decayed++
       }
     } else if (tier === 'mid_term' && age > MID_TERM_THRESHOLD) {
@@ -2460,11 +2906,155 @@ export function processMemoryDecay() {
     // long_term memories stay as-is (already compressed, permanent storage)
   }
 
-  if (upgraded > 0 || decayed > 0 || compressed > 0) {
+  if (upgraded > 0 || decayed > 0 || compressed > 0 || archived > 0) {
     rebuildScopeIndex()
     saveMemories()
-    console.log(`[cc-soul][memory-decay] upgraded=${upgraded} decayed=${decayed} compressed=${compressed}`)
+    console.log(`[cc-soul][memory-decay] upgraded=${upgraded} decayed=${decayed} compressed=${compressed} archived=${archived}`)
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Expired Memory Physical Cleanup — remove truly dead memories from storage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Physically delete expired memories older than 30 days.
+ * Also cleans up decayed memories older than 90 days that were never recalled.
+ * Called from heartbeat (daily cadence).
+ */
+let lastPhysicalCleanup = 0
+const PHYSICAL_CLEANUP_COOLDOWN = 24 * 3600000 // once per day
+
+export function pruneExpiredMemories() {
+  const now = Date.now()
+  if (now - lastPhysicalCleanup < PHYSICAL_CLEANUP_COOLDOWN) return
+  lastPhysicalCleanup = now
+
+  // SQLite cleanup (handles both expired deletion + vector cleanup)
+  if (useSQLite) {
+    sqliteCleanupExpired()
+  }
+
+  // In-memory array cleanup
+  const before = memoryState.memories.length
+  const EXPIRED_CUTOFF = 30 * 86400000   // 30 days
+  const DECAYED_CUTOFF = 90 * 86400000   // 90 days
+
+  memoryState.memories = memoryState.memories.filter(m => {
+    if (m.scope === 'expired' && now - m.ts > EXPIRED_CUTOFF) return false
+    if (m.scope === 'decayed' && now - m.ts > DECAYED_CUTOFF && (m.recallCount ?? 0) === 0) return false
+    return true
+  })
+
+  const removed = before - memoryState.memories.length
+  if (removed > 0) {
+    rebuildScopeIndex()
+    saveMemories()
+    console.log(`[cc-soul][prune] physically removed ${removed} dead memories (${before} → ${memoryState.memories.length})`)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Decayed Memory Revival — rescue valuable memories from the graveyard
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Scan decayed memories for those still worth keeping:
+ * - Has tags (was processed by CLI)
+ * - confidence > 0.5
+ * - scope was fact/preference/correction before decay
+ * - Was recalled at least once
+ * Revive up to 20 per cycle.
+ */
+let lastRevival = 0
+const REVIVAL_COOLDOWN = 12 * 3600000 // twice per day
+
+export function reviveDecayedMemories() {
+  const now = Date.now()
+  if (now - lastRevival < REVIVAL_COOLDOWN) return
+  lastRevival = now
+
+  const candidates = memoryState.memories.filter(m =>
+    m.scope === 'decayed' &&
+    m.tags && m.tags.length > 0 &&
+    (m.confidence ?? 0) > 0.5 &&
+    ((m.recallCount ?? 0) > 0 || m.emotion === 'important' || m.emotion === 'warm')
+  )
+
+  if (candidates.length === 0) return
+
+  // Sort by value: recallCount + confidence + emotion importance
+  candidates.sort((a, b) => {
+    const scoreA = (a.recallCount ?? 0) * 2 + (a.confidence ?? 0) + (a.emotion === 'important' ? 1 : 0)
+    const scoreB = (b.recallCount ?? 0) * 2 + (b.confidence ?? 0) + (b.emotion === 'important' ? 1 : 0)
+    return scoreB - scoreA
+  })
+
+  let revived = 0
+  for (const mem of candidates.slice(0, 20)) {
+    mem.scope = 'fact' // restore to active scope
+    mem.tier = 'mid_term' // put in mid-term (not short, to avoid immediate re-decay)
+    mem.lastAccessed = now
+    revived++
+  }
+
+  if (revived > 0) {
+    rebuildScopeIndex()
+    saveMemories()
+    console.log(`[cc-soul][revival] revived ${revived} valuable decayed memories (from ${candidates.length} candidates)`)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DAG Archive — lossless memory compression (raw_line preserves original)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Archive a memory: generate summary, store original in raw_line, set scope='archived'.
+ * Preserves ts, tags, emotion and all metadata.
+ */
+function archiveMemory(mem: any) {
+  // Store original full content in raw_line (used by official DB column)
+  mem.raw_line = mem.content
+  // Generate summary: first 50 chars + ellipsis
+  const summary = mem.content.length > 50
+    ? mem.content.slice(0, 50).trimEnd() + '...'
+    : mem.content
+  mem.content = summary
+  mem.scope = 'archived'
+  // Keep original tier for potential restoration
+  if (!mem._originalTier) mem._originalTier = mem.tier || 'short_term'
+
+  // Sync to SQLite if available
+  if (useSQLite) {
+    const row = sqliteFindByContent(mem.raw_line)
+    if (row) {
+      sqliteUpdateMemory(row.id, { scope: 'archived', content: summary })
+      // Update raw_line directly via prepared statement
+      sqliteUpdateRawLine(row.id, mem.raw_line)
+    }
+  }
+}
+
+/**
+ * Restore archived memories matching a keyword.
+ * Moves raw_line back to content, sets scope to 'mid_term'.
+ * Returns count of restored memories.
+ */
+export function restoreArchivedMemories(keyword: string): number {
+  // Use DB directly — memoryState may not have archived memories
+  const _db = getDb()
+  if (!_db) return 0
+  const kw = `%${keyword}%`
+  const rows = _db.prepare("SELECT id, content, raw_line FROM memories WHERE scope = 'archived' AND (raw_line LIKE ? OR content LIKE ?) LIMIT 10").all(kw, kw) as any[]
+  let restored = 0
+  for (const row of rows) {
+    const newContent = row.raw_line || row.content
+    _db.prepare("UPDATE memories SET content = ?, scope = 'mid_term', tier = 'mid_term', lastAccessed = ?, raw_line = '' WHERE id = ?").run(newContent, Date.now(), row.id)
+    restored++
+  }
+  if (restored > 0) console.log(`[cc-soul][dag-archive] restored ${restored} memories matching "${keyword}"`)
+  return restored
 }
 
 export function resolveNetworkConflicts() {

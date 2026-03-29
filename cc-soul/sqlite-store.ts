@@ -61,7 +61,7 @@ export function initSQLite(): boolean {
     // Approach 2: createRequire with various anchor points (works in ESM where require is undefined)
     if (!DatabaseSyncCtor) {
       let metaUrl: string | undefined
-      try { metaUrl = import.meta?.url } catch {}
+      try { metaUrl = new Function('return import.meta.url')() } catch {}
       const anchors = [
         typeof __filename !== 'undefined' ? __filename : undefined,
         metaUrl,
@@ -87,26 +87,43 @@ export function initSQLite(): boolean {
   }
 
   try {
-    db = new DatabaseSyncCtor(DB_PATH)
+    db = new DatabaseSyncCtor(DB_PATH, { allowExtension: true })
   } catch (e: any) {
     console.error(`[cc-soul][sqlite] failed to open ${DB_PATH}: ${e.message}`)
     return false
   }
 
   // Try loading sqlite-vec for vector search
-  try { db.enableLoadExtension(true) } catch { /* may not be supported */ }
-  const vecPaths = [
+  // Method 1: require() the npm module
+  const _req = typeof require !== 'undefined' ? require : null
+  const vecModulePaths = [
     'sqlite-vec',
     resolve(process.execPath, '../../lib/node_modules/openclaw/node_modules/sqlite-vec'),
   ]
-  for (const p of vecPaths) {
+  for (const p of vecModulePaths) {
+    if (!_req) break
     try {
-      const sqliteVec = require(p)
+      const sqliteVec = _req(p)
       sqliteVec.load(db)
       hasVec = true
-      console.log(`[cc-soul][sqlite] sqlite-vec loaded from ${p}`)
+      console.log(`[cc-soul][sqlite] sqlite-vec loaded via require: ${p}`)
       break
     } catch { /* try next */ }
+  }
+  // Method 2: loadExtension() with direct .dylib path (works when require fails)
+  if (!hasVec) {
+    const dylibPaths = [
+      resolve(process.execPath, '../../lib/node_modules/openclaw/node_modules/sqlite-vec-darwin-arm64/vec0.dylib'),
+      resolve(homedir(), '.nvm/versions/node/v22.22.1/lib/node_modules/openclaw/node_modules/sqlite-vec-darwin-arm64/vec0.dylib'),
+    ]
+    for (const p of dylibPaths) {
+      try {
+        db.loadExtension(p)
+        hasVec = true
+        console.log(`[cc-soul][sqlite] sqlite-vec loaded via dylib: ${p}`)
+        break
+      } catch { /* try next */ }
+    }
   }
 
   if (!hasVec) {
@@ -166,6 +183,20 @@ export function initSQLite(): boolean {
 
   sqliteReady = true
   _syncState() // Share db connection across jiti module instances
+
+  // Trigger embedding backfill if embedder + vec available (delayed, non-blocking)
+  if (hasVec) {
+    setTimeout(() => {
+      if (isEmbedderReady()) {
+        backfillEmbeddings(200).catch(() => {})
+      } else {
+        // Embedder may init later — retry once after 5s
+        setTimeout(() => {
+          if (isEmbedderReady()) backfillEmbeddings(200).catch(() => {})
+        }, 5000)
+      }
+    }, 2000)
+  }
 
   // ── Entity graph: ALTER TABLE to add cc-soul columns ──
   const entityColumns: [string, string][] = [
@@ -360,6 +391,14 @@ export function sqliteUpdateMemory(id: number, updates: Partial<Memory>) {
   }
 }
 
+/**
+ * Update the raw_line column for DAG archiving (preserves original content).
+ */
+export function sqliteUpdateRawLine(id: number, rawLine: string): void {
+  if (!db) return
+  db.prepare('UPDATE memories SET raw_line = ? WHERE id = ?').run(rawLine, id)
+}
+
 export function sqliteExpireMemory(keyword: string): number {
   if (!db) return 0
   const result = db.prepare(`UPDATE memories SET scope = 'expired' WHERE content LIKE ? AND scope != 'expired'`).run(`%${keyword}%`)
@@ -450,7 +489,12 @@ export function tagRecall(msg: string, topN = 3, userId?: string, channelId?: st
     params.push(userId)
   }
 
+  // Search both recent memories AND preference/wal/fact memories (which are often older but important)
   const all = db.prepare(`SELECT * FROM memories WHERE 1=1 ${visWhere} ORDER BY ts DESC LIMIT 500`).all(...params) as any[]
+  // Also include important scopes that might be older
+  const important = db.prepare(`SELECT * FROM memories WHERE scope IN ('preference','wal','fact','consolidated','pinned') ${visWhere} ORDER BY ts DESC LIMIT 100`).all(...params) as any[]
+  const seenIds = new Set(all.map((r: any) => r.id))
+  for (const r of important) { if (!seenIds.has(r.id)) { all.push(r); seenIds.add(r.id) } }
 
   const scored: (Memory & { score: number })[] = []
   for (const row of all) {
@@ -486,8 +530,19 @@ export function tagRecall(msg: string, topN = 3, userId?: string, channelId?: st
       : 1.0
     const userBoost = (userId && mem.userId === userId) ? 1.3 : 1.0
     const confidenceWeight = mem.confidence ?? 0.7
+    // DAG archive: archived memories participate with reduced weight
+    const archiveWeight = mem.scope === 'archived' ? 0.3 : 1.0
+    // ── Parity with recallWithScores: add missing 5 dimensions ──
+    const usageBoost = (mem.tags && mem.tags.length > 5) ? 1.2 : 1.0
+    const consolidatedBoost = mem.scope === 'consolidated' ? 1.5 : mem.scope === 'pinned' ? 2.0 : 1.0
+    const lastAcc = mem.lastAccessed || mem.ts || 0
+    const accAgeDays = (Date.now() - lastAcc) / 86400000
+    const tierWeight = ((accAgeDays <= 1 || (mem.recallCount ?? 0) >= 5) ? 1.5
+                      : (accAgeDays <= 7) ? 1.0
+                      : (accAgeDays <= 30) ? 0.8 : 0.5)
+    const temporalWeight = (mem.validUntil && mem.validUntil > 0 && mem.validUntil < Date.now()) ? 0.3 : 1.0
 
-    scored.push({ ...mem, score: sim * recency * scopeBoost * emotionBoost * userBoost * confidenceWeight })
+    scored.push({ ...mem, score: sim * recency * scopeBoost * emotionBoost * userBoost * confidenceWeight * archiveWeight * usageBoost * consolidatedBoost * tierWeight * temporalWeight })
   }
 
   scored.sort((a, b) => b.score - a.score)
@@ -551,8 +606,10 @@ async function vectorRecall(msg: string, topN: number, userId?: string, channelI
         : mem.emotion === 'painful' ? 1.3
         : 1.0
       const confidenceWeight = mem.confidence ?? 0.7
+      // DAG archive: archived memories participate with reduced weight
+      const archiveWeight = mem.scope === 'archived' ? 0.3 : 1.0
 
-      scored.push({ ...mem, score: vecSim * recency * scopeBoost * emotionBoost * confidenceWeight })
+      scored.push({ ...mem, score: vecSim * recency * scopeBoost * emotionBoost * confidenceWeight * archiveWeight })
     }
 
     scored.sort((a, b) => b.score - a.score)
@@ -579,7 +636,7 @@ function storeEmbeddingAsync(memoryId: number, content: string) {
       db.exec('BEGIN')
       try {
         db.prepare('DELETE FROM mem_vec WHERE memory_id = ?').run(memoryId)
-        db.prepare('INSERT INTO mem_vec (memory_id, embedding) VALUES (?, ?)').run(
+        db.prepare('INSERT INTO mem_vec (memory_id, embedding) VALUES (CAST(? AS INTEGER), ?)').run(
           memoryId,
           Buffer.from(vec.buffer),
         )
@@ -598,12 +655,16 @@ function storeEmbeddingAsync(memoryId: number, content: string) {
  * Backfill embeddings for memories that don't have vectors yet.
  * Called from heartbeat. Processes a small batch each time.
  */
-export async function backfillEmbeddings(batchSize = 20) {
-  if (!db || !hasVec || !isEmbedderReady()) return
+export async function backfillEmbeddings(batchSize = 200) {
+  const _db = ensureDb()
+  _loadState()
+  if (!_db || !hasVec || !isEmbedderReady()) {
+    console.log(`[cc-soul][sqlite] backfill skipped: db=${!!_db} hasVec=${hasVec} embedderReady=${isEmbedderReady()}`)
+    return
+  }
 
   try {
-    // Find memories without embeddings
-    const rows = db.prepare(`
+    const rows = _db.prepare(`
       SELECT m.id, m.content FROM memories m
       LEFT JOIN mem_vec v ON m.id = v.memory_id
       WHERE v.memory_id IS NULL AND m.scope != 'expired'
@@ -613,23 +674,17 @@ export async function backfillEmbeddings(batchSize = 20) {
     if (rows.length === 0) return
 
     let stored = 0
-    db.exec('BEGIN')
-    try {
-      for (const row of rows) {
-        const vec = await embed(row.content)
-        if (!vec) continue
-        try {
-          db.prepare('INSERT INTO mem_vec (memory_id, embedding) VALUES (?, ?)').run(
-            row.id,
-            Buffer.from(vec.buffer),
-          )
-          stored++
-        } catch { /* skip duplicates */ }
-      }
-      db.exec('COMMIT')
-    } catch (txErr) {
-      try { db.exec('ROLLBACK') } catch { /* already rolled back */ }
-      throw txErr
+    for (const row of rows) {
+      const vec = await embed(row.content)
+      if (!vec) continue
+      try {
+        _db.prepare('DELETE FROM mem_vec WHERE memory_id = ?').run(row.id)
+        _db.prepare('INSERT INTO mem_vec (memory_id, embedding) VALUES (CAST(? AS INTEGER), ?)').run(
+          row.id,
+          Buffer.from(vec.buffer),
+        )
+        stored++
+      } catch { /* skip */ }
     }
 
     if (stored > 0) {
@@ -753,8 +808,8 @@ export function getDb() { return ensureDb() }
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function dbGetHabits(chatId?: string): { id: number; name: string; streak: number; total: number; lastDate: string }[] {
-  if (!ensureDb()) return []
-  const rows = db.prepare(`
+  const _db = ensureDb(); if (!_db) return []
+  const rows = _db.prepare(`
     SELECT h.id, h.name, h.description,
       (SELECT COUNT(*) FROM habit_logs WHERE habit_id = h.id) as total,
       (SELECT MAX(date) FROM habit_logs WHERE habit_id = h.id) as lastDate
@@ -764,7 +819,7 @@ export function dbGetHabits(chatId?: string): { id: number; name: string; streak
   return rows.map(r => {
     // Calculate streak from habit_logs
     let streak = 0
-    const logs = db.prepare('SELECT date FROM habit_logs WHERE habit_id = ? ORDER BY date DESC').all(r.id) as any[]
+    const logs = _db.prepare('SELECT date FROM habit_logs WHERE habit_id = ? ORDER BY date DESC').all(r.id) as any[]
     const today = new Date().toISOString().slice(0, 10)
     let checkDate = today
     for (const l of logs) {
@@ -785,10 +840,10 @@ function prevDay(dateStr: string): string {
 
 export function dbCheckin(habitName: string, chatId?: string): { streak: number; total: number; isNew: boolean } {
   let _db = ensureDb()
-  // If db not ready yet (concurrent init), retry once after short wait
+  // If db not ready yet (concurrent init), retry once after reloading state
   if (!_db) {
     _loadState()
-    _db = db
+    _db = ensureDb()
   }
   if (!_db) return { streak: 0, total: 0, isNew: false }
   const today = new Date().toISOString().slice(0, 10)
@@ -828,8 +883,8 @@ export function dbCheckin(habitName: string, chatId?: string): { streak: number;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function dbGetGoals(chatId?: string): { id: number; name: string; progress: number; milestones: number; created: number }[] {
-  if (!ensureDb()) return []
-  const rows = db.prepare(`
+  const _db = ensureDb(); if (!_db) return []
+  const rows = _db.prepare(`
     SELECT g.id, g.title, g.progress, g.created_at,
       (SELECT COUNT(*) FROM key_results WHERE goal_id = g.id) as milestones
     FROM goals g WHERE g.status != 'completed'
@@ -845,17 +900,17 @@ export function dbGetGoals(chatId?: string): { id: number; name: string; progres
 }
 
 export function dbAddGoal(name: string, chatId?: string): number {
-  if (!ensureDb()) return -1
+  const _db = ensureDb(); if (!_db) return -1
   const now = new Date().toISOString()
-  const result = db.prepare('INSERT INTO goals (title, status, progress, chat_id, created_at) VALUES (?, ?, 0, ?, ?)').run(name, 'active', chatId || '', now)
+  const result = _db.prepare('INSERT INTO goals (title, status, progress, chat_id, created_at) VALUES (?, ?, 0, ?, ?)').run(name, 'active', chatId || '', now)
   return Number(result.lastInsertRowid)
 }
 
 export function dbUpdateGoalProgress(goalId: number, progress: number, note?: string) {
-  if (!ensureDb()) return
-  db.prepare('UPDATE goals SET progress = ? WHERE id = ?').run(progress, goalId)
+  const _db = ensureDb(); if (!_db) return
+  _db.prepare('UPDATE goals SET progress = ? WHERE id = ?').run(progress, goalId)
   if (note) {
-    db.prepare('INSERT INTO goal_updates (goal_id, content, progress_delta, created_at) VALUES (?, ?, ?, ?)').run(goalId, note, progress, new Date().toISOString())
+    _db.prepare('INSERT INTO goal_updates (goal_id, content, progress_delta, created_at) VALUES (?, ?, ?, ?)').run(goalId, note, progress, new Date().toISOString())
   }
 }
 
@@ -864,8 +919,8 @@ export function dbUpdateGoalProgress(goalId: number, progress: number, note?: st
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function dbGetReminders(userId?: string): { id: number; msg: string; hour: number; minute: number; repeat: boolean; userId: string }[] {
-  if (!ensureDb()) return []
-  const rows = db.prepare("SELECT * FROM reminders WHERE status = 'pending' ORDER BY remind_at ASC").all() as any[]
+  const _db = ensureDb(); if (!_db) return []
+  const rows = _db.prepare("SELECT * FROM reminders WHERE status = 'pending' ORDER BY remind_at ASC").all() as any[]
   return rows
     .filter(r => !userId || !r.chat_id || r.chat_id === userId)
     .map(r => {
@@ -885,23 +940,23 @@ export function dbGetReminders(userId?: string): { id: number; msg: string; hour
 }
 
 export function dbAddReminder(msg: string, hour: number, minute: number, userId?: string): number {
-  if (!ensureDb()) return -1
+  const _db = ensureDb(); if (!_db) return -1
   const now = new Date().toISOString()
   const remindAt = `${hour}:${String(minute).padStart(2, '0')}`
-  const result = db.prepare("INSERT INTO reminders (chat_id, content, remind_at, repeat_type, status, created_at) VALUES (?, ?, ?, 'daily', 'pending', ?)").run(userId || '', msg, remindAt, now)
+  const result = _db.prepare("INSERT INTO reminders (chat_id, content, remind_at, repeat_type, status, created_at) VALUES (?, ?, ?, 'daily', 'pending', ?)").run(userId || '', msg, remindAt, now)
   return Number(result.lastInsertRowid)
 }
 
 export function dbDeleteReminder(id: number) {
-  if (!ensureDb()) return
-  db.prepare("UPDATE reminders SET status = 'cancelled' WHERE id = ?").run(id)
+  const _db = ensureDb(); if (!_db) return
+  _db.prepare("UPDATE reminders SET status = 'cancelled' WHERE id = ?").run(id)
 }
 
 export function dbGetDueReminders(): { id: number; msg: string; userId: string; lastFired: string | null }[] {
-  if (!ensureDb()) return []
+  const _db = ensureDb(); if (!_db) return []
   const now = new Date()
   const h = now.getHours(), m = now.getMinutes()
-  const rows = db.prepare("SELECT * FROM reminders WHERE status = 'pending'").all() as any[]
+  const rows = _db.prepare("SELECT * FROM reminders WHERE status = 'pending'").all() as any[]
   const due: any[] = []
   for (const r of rows) {
     const hm = (r.remind_at || '').match(/(\d{1,2}):(\d{2})/)
@@ -917,8 +972,35 @@ export function dbGetDueReminders(): { id: number; msg: string; userId: string; 
 }
 
 export function dbMarkReminderFired(id: number) {
-  if (!ensureDb()) return
-  db.prepare("UPDATE reminders SET last_fired = ?, fired_count = COALESCE(fired_count, 0) + 1 WHERE id = ?").run(new Date().toISOString(), id)
+  const _db = ensureDb(); if (!_db) return
+  _db.prepare("UPDATE reminders SET last_fired = ?, fired_count = COALESCE(fired_count, 0) + 1 WHERE id = ?").run(new Date().toISOString(), id)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTEXT REMINDERS — keyword-triggered reminders (repeat_type = 'context')
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function dbAddContextReminder(keyword: string, content: string, userId?: string): number {
+  const _db = ensureDb(); if (!_db) return -1
+  const now = new Date().toISOString()
+  // remind_at stores the keyword, repeat_type = 'context'
+  const result = _db.prepare(
+    "INSERT INTO reminders (chat_id, content, remind_at, repeat_type, status, created_at) VALUES (?, ?, ?, 'context', 'pending', ?)"
+  ).run(userId || '', content, keyword, now)
+  return Number(result.lastInsertRowid)
+}
+
+export function dbGetContextReminders(userId?: string): { id: number; keyword: string; content: string; userId: string }[] {
+  const _db = ensureDb(); if (!_db) return []
+  const rows = _db.prepare("SELECT * FROM reminders WHERE status = 'pending' AND repeat_type = 'context'").all() as any[]
+  return rows
+    .filter(r => !userId || !r.chat_id || r.chat_id === userId)
+    .map(r => ({
+      id: r.id,
+      keyword: r.remind_at || '',
+      content: r.content || '',
+      userId: r.chat_id || '',
+    }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -926,80 +1008,80 @@ export function dbMarkReminderFired(id: number) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function migrateHabitsFromJSON() {
-  if (!ensureDb()) return
+  const _db = ensureDb(); if (!_db) return
   const habitsPath = resolve(DATA_DIR, 'habits.json')
   if (!existsSync(habitsPath)) return
-  const existing = (db.prepare('SELECT COUNT(*) as c FROM habits').get() as any)?.c || 0
+  const existing = (_db.prepare('SELECT COUNT(*) as c FROM habits').get() as any)?.c || 0
   if (existing > 0) return
   try {
     const raw = JSON.parse(readFileSync(habitsPath, 'utf-8'))
     const now = new Date().toISOString()
-    db.exec('BEGIN')
+    _db.exec('BEGIN')
     for (const [name, data] of Object.entries(raw) as [string, any][]) {
-      db.prepare('INSERT OR IGNORE INTO habits (name, frequency, created_at) VALUES (?, ?, ?)').run(name, 'daily', now)
-      const habit = db.prepare('SELECT id FROM habits WHERE name = ?').get(name) as any
+      _db.prepare('INSERT OR IGNORE INTO habits (name, frequency, created_at) VALUES (?, ?, ?)').run(name, 'daily', now)
+      const habit = _db.prepare('SELECT id FROM habits WHERE name = ?').get(name) as any
       if (habit && data.checkins) {
         for (const dateStr of (data.checkins || [])) {
-          db.prepare('INSERT OR IGNORE INTO habit_logs (habit_id, date, value, created_at) VALUES (?, ?, 1, ?)').run(habit.id, dateStr, now)
+          _db.prepare('INSERT OR IGNORE INTO habit_logs (habit_id, date, value, created_at) VALUES (?, ?, 1, ?)').run(habit.id, dateStr, now)
         }
       }
     }
-    db.exec('COMMIT')
+    _db.exec('COMMIT')
     console.log(`[cc-soul][sqlite] migrated habits from JSON`)
   } catch (e: any) {
-    try { db.exec('ROLLBACK') } catch {}
+    try { _db.exec('ROLLBACK') } catch {}
     console.error(`[cc-soul][sqlite] habits migration failed: ${e.message}`)
   }
 }
 
 export function migrateGoalsFromJSON() {
-  if (!ensureDb()) return
+  const _db = ensureDb(); if (!_db) return
   const goalsPath = resolve(DATA_DIR, 'user-goals.json')
   if (!existsSync(goalsPath)) return
-  const existing = (db.prepare('SELECT COUNT(*) as c FROM goals').get() as any)?.c || 0
+  const existing = (_db.prepare('SELECT COUNT(*) as c FROM goals').get() as any)?.c || 0
   if (existing > 0) return
   try {
     const raw = JSON.parse(readFileSync(goalsPath, 'utf-8'))
     if (!Array.isArray(raw)) return
-    db.exec('BEGIN')
+    _db.exec('BEGIN')
     for (const g of raw) {
       const created = g.created ? new Date(g.created).toISOString() : new Date().toISOString()
-      db.prepare('INSERT INTO goals (title, status, progress, created_at) VALUES (?, ?, ?, ?)').run(g.name || '未命名', 'active', g.progress || 0, created)
+      const insertResult = _db.prepare('INSERT INTO goals (title, status, progress, created_at) VALUES (?, ?, ?, ?)').run(g.name || '未命名', 'active', g.progress || 0, created)
       if (g.milestones && Array.isArray(g.milestones)) {
-        const goalId = (db.prepare('SELECT last_insert_rowid() as id').get() as any)?.id
+        const goalId = Number(insertResult.lastInsertRowid)
         for (const m of g.milestones) {
-          db.prepare('INSERT INTO key_results (goal_id, title, current_value, target_value, created_at) VALUES (?, ?, ?, 1, ?)').run(goalId, m.text || m, m.done ? 1 : 0, created)
+          _db.prepare('INSERT INTO key_results (goal_id, title, current_value, target_value, created_at) VALUES (?, ?, ?, 1, ?)').run(goalId, m.text || m, m.done ? 1 : 0, created)
         }
       }
     }
-    db.exec('COMMIT')
+    _db.exec('COMMIT')
     console.log(`[cc-soul][sqlite] migrated goals from JSON`)
   } catch (e: any) {
-    try { db.exec('ROLLBACK') } catch {}
+    try { _db.exec('ROLLBACK') } catch {}
     console.error(`[cc-soul][sqlite] goals migration failed: ${e.message}`)
   }
 }
 
 export function migrateRemindersFromJSON() {
-  if (!ensureDb()) return
+  const _db = ensureDb(); if (!_db) return
   if (!existsSync(REMINDERS_PATH)) return
-  const existing = (db.prepare("SELECT COUNT(*) as c FROM reminders WHERE status = 'pending'").get() as any)?.c || 0
+  const existing = (_db.prepare("SELECT COUNT(*) as c FROM reminders WHERE status = 'pending'").get() as any)?.c || 0
   if (existing > 0) return
   try {
     const raw = JSON.parse(readFileSync(REMINDERS_PATH, 'utf-8'))
     if (!Array.isArray(raw) || raw.length === 0) return
     const now = new Date().toISOString()
-    db.exec('BEGIN')
+    _db.exec('BEGIN')
     for (const r of raw) {
       const remindAt = `${r.hour}:${String(r.minute).padStart(2, '0')}`
-      db.prepare("INSERT INTO reminders (chat_id, content, remind_at, repeat_type, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)").run(
+      _db.prepare("INSERT INTO reminders (chat_id, content, remind_at, repeat_type, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)").run(
         r.userId || '', r.msg, remindAt, r.repeat ? 'daily' : 'once', now
       )
     }
-    db.exec('COMMIT')
+    _db.exec('COMMIT')
     console.log(`[cc-soul][sqlite] migrated ${raw.length} reminders from JSON`)
   } catch (e: any) {
-    try { db.exec('ROLLBACK') } catch {}
+    try { _db.exec('ROLLBACK') } catch {}
     console.error(`[cc-soul][sqlite] reminders migration failed: ${e.message}`)
   }
 }

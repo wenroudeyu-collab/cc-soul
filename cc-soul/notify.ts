@@ -54,6 +54,11 @@ async function getFeishuToken(): Promise<string> {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function notifySoulActivity(message: string) {
+  // Block system detection alerts (not user content)
+  if (message.includes('检测到') && message.includes('进程') && (message.includes('并发运行') || message.includes('实例'))) {
+    console.log(`[cc-soul][notify] BLOCKED system alert: ${message.slice(0, 80)}`)
+    return
+  }
   // Always log locally
   console.log(`[cc-soul][notify] ${message}`)
 
@@ -86,6 +91,11 @@ export async function notifySoulActivity(message: string) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function notifyOwnerDM(message: string) {
+  // Block system detection alerts (not user content)
+  if (message.includes('检测到') && message.includes('进程') && (message.includes('并发运行') || message.includes('实例'))) {
+    console.log(`[cc-soul][owner] BLOCKED system alert: ${message.slice(0, 80)}`)
+    return
+  }
   // Always log locally
   console.log(`[cc-soul][owner] ${message}`)
 

@@ -324,6 +324,7 @@ export function handleCronCommand(msg: string): string | false {
 export const cronAgentModule: SoulModule = {
   id: 'cron-agent',
   name: 'Cron 自主调度',
+  features: ['cron_agent'],
   dependencies: [],
   priority: 40,
   enabled: true,

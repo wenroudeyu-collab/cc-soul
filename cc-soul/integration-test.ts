@@ -22,7 +22,6 @@ import { runFullDiagnostic, formatDiagnosticReport } from './diagnostic.ts'
 import { detectDomain, getDomainConfidence, getWeakDomains, getEpistemicSummary } from './epistemic.ts'
 import { selectPersona, getActivePersona, getBlendedPersonaOverlay } from './persona.ts'
 import { updateFingerprint, checkPersonaConsistency, getFingerprintSummary } from './fingerprint.ts'
-import { checkSpontaneousVoice } from './voice.ts'
 import { loadValues, detectValueSignals, getValueContext } from './values.ts'
 import { getProfile, updateProfileOnMessage, getRhythmContext } from './user-profiles.ts'
 import { scoreResponse } from './quality.ts'
@@ -549,14 +548,6 @@ test('21.1 getStorageStatus', () => {
   assert(status.backend !== undefined, 'should report backend type')
 })
 
-// ══════════════════════════════════════════════════════════════════════════════
-// 22. VOICE (4 features)
-// ══════════════════════════════════════════════════════════════════════════════
-
-test('22.1 checkSpontaneousVoice', () => {
-  const voice = checkSpontaneousVoice(100)
-  assert(voice == null || typeof voice === 'string', 'should return null/undefined or string')
-})
 
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORT

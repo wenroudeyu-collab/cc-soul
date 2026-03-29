@@ -118,6 +118,21 @@ export function updateProfileOnMessage(userId: string, msg: string) {
   p.messageCount++
   p.lastSeen = Date.now()
 
+  // Language DNA: track word patterns
+  if (!p.languageDna) p.languageDna = { topWords: {}, avgLength: 0, samples: 0 }
+  const words = msg.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []
+  for (const w of words.slice(0, 10)) {
+    const k = w.toLowerCase()
+    p.languageDna.topWords[k] = (p.languageDna.topWords[k] || 0) + 1
+  }
+  p.languageDna.avgLength = (p.languageDna.avgLength * p.languageDna.samples + msg.length) / (p.languageDna.samples + 1)
+  p.languageDna.samples++
+  // Keep only top 50 words
+  if (Object.keys(p.languageDna.topWords).length > 80) {
+    const sorted = Object.entries(p.languageDna.topWords).sort((a: any, b: any) => b[1] - a[1])
+    p.languageDna.topWords = Object.fromEntries(sorted.slice(0, 50))
+  }
+
   // Update familiarity: grows with interaction count, caps at 1.0
   p.familiarity = Math.min(1.0, p.messageCount / 50) // 50 messages → fully familiar
 

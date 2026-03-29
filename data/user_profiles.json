@@ -3,51 +3,41 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "displayName": "",
     "tier": "owner",
-    "messageCount": 38,
-    "corrections": 1,
-    "lastSeen": 1774566850722,
-    "firstSeen": 1774563272456,
+    "messageCount": 15,
+    "corrections": 0,
+    "lastSeen": 1774823360785,
+    "firstSeen": 1774820387059,
     "topics": [
-      "命令已处理",
-      "结果已发送",
-      "我应该先学",
-      "做后端",
-      "远程工作好还是去办公室好",
-      "新目标",
-      "每周读一本技术书",
-      "站立办公",
-      "我的提醒",
-      "我的目标",
-      "习惯状态",
-      "审计日志",
-      "记忆时间线",
-      "目标进度",
-      "开始实验",
-      "测试苏格拉底效果",
-      "上次聊",
-      "删除提醒",
-      "价值观",
-      "帮我理解",
-      "为什么",
-      "需要三次握手",
-      "记忆图谱",
-      "应该用",
-      "还是直接部署",
-      "是什么",
-      "导入灵魂",
-      "需要三次握手而不是两次",
-      "三次握手是为了防止已失效的连接请求报文段突然又传送到了服务端"
+      "对话历史",
+      "当前面向",
+      "谋定后动"
     ],
-    "style": "casual",
-    "trust": 0.47,
-    "familiarity": 0.76,
+    "style": "technical",
+    "trust": 0.5,
+    "familiarity": 0.3,
     "relationshipTrend": "stable",
-    "lastConflict": 1774566733833,
+    "lastConflict": 0,
     "sharedEpisodes": 0,
+    "languageDna": {
+      "topWords": {
+        "对话历史": 15,
+        "最近": 15,
+        "用户": 15,
+        "当前面向": 15,
+        "军师": 15,
+        "谋定后动": 15,
+        "先看全局": 15,
+        "再下手": 15,
+        "特征": 15,
+        "先列选项": 15
+      },
+      "avgLength": 1463.8,
+      "samples": 15
+    },
     "language": "zh",
     "rhythm": {
       "activeHours": [
-        6,
+        5,
         0,
         0,
         0,
@@ -70,41 +60,23 @@
         0,
         0,
         0,
-        32
+        10
       ],
       "weekdayTopics": [
-        "记忆时间线",
-        "目标进度",
-        "开始实验",
-        "测试苏格拉底效果",
-        "上次聊",
-        "删除提醒",
-        "价值观",
-        "帮我理解",
-        "为什么",
-        "记忆图谱",
-        "应该用",
-        "还是直接部署",
-        "是什么",
-        "导入灵魂",
-        "三次握手是为了防止已失效的连接请求报文段突然又传送到了服务端"
+        "对话历史",
+        "当前面向"
       ],
-      "weekendTopics": [],
-      "avgResponseDelay": 101.95436991609914,
-      "lastMessageTs": 1774566850722
+      "weekendTopics": [
+        "对话历史",
+        "当前面向"
+      ],
+      "avgResponseDelay": 202.07677992369042,
+      "lastMessageTs": 1774823360785
     },
     "personaHistory": [
       {
-        "persona": "analyst",
-        "count": 6
-      },
-      {
-        "persona": "socratic",
-        "count": 2
-      },
-      {
-        "persona": "mentor",
-        "count": 1
+        "persona": "strategist",
+        "count": 15
       }
     ]
   }

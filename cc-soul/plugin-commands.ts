@@ -13,42 +13,16 @@ import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 
 import { DATA_DIR, REMINDERS_PATH } from './persistence.ts'
-import { memoryState, recall, saveMemories, queryMemoryTimeline } from './memory.ts'
-import { stats, formatMetrics } from './handler-state.ts'
+import { saveMemories } from './memory.ts'
+import { formatMetrics } from './handler-state.ts'
 import { generateMoodReport, body } from './body.ts'
 import { getCapabilityScore } from './epistemic.ts'
-import { isEnabled } from './features.ts'
 import { getActivePersona } from './persona.ts'
-import { brain } from './brain.ts'
+import { executeSearch, executeMyMemories, executeStats, executeHealth, executeFeatures, executeTimeline } from './command-core.ts'
 
 // ── Optional modules ──
 let getCostSummary: () => string = () => '成本追踪模块未加载'
 import('./cost-tracker.ts').then(m => { getCostSummary = m.getCostSummary }).catch(() => {})
-
-// ── Helpers ──
-
-/** Read memories from JSON file (guaranteed fresh, no module instance issues) */
-function readMemoriesFromDisk(): any[] {
-  try {
-    const memPath = resolve(DATA_DIR, 'memories.json')
-    if (existsSync(memPath)) return JSON.parse(readFileSync(memPath, 'utf-8'))
-  } catch (_) {}
-  return memoryState.memories || []
-}
-
-function recallWithFallback(keyword: string, limit: number, senderId?: string): any[] {
-  let results = recall(keyword, limit, senderId)
-  if (results.length === 0) {
-    const allMems = readMemoriesFromDisk()
-    const kw = keyword.toLowerCase()
-    results = allMems.filter((m: any) =>
-      m.scope !== 'expired' && m.scope !== 'decayed' &&
-      (m.content.toLowerCase().includes(kw) ||
-       (m.tags && m.tags.some((t: string) => t.toLowerCase().includes(kw))))
-    ).slice(0, limit)
-  }
-  return results
-}
 
 // ── Command registration ──
 
@@ -89,6 +63,7 @@ export function registerPluginCommands(api: any) {
 /cc_features         — 功能开关状态
 /cc_enable <功能>    — 开启功能
 /cc_disable <功能>   — 关闭功能
+/cc_train <偏好>     — 主动训练偏好（存为最高优先级规则）
 /cc_checkin <习惯>   — 习惯打卡
 /cc_habits           — 查看打卡记录
 /cc_goal <描述>      — 创建目标
@@ -114,16 +89,7 @@ export function registerPluginCommands(api: any) {
     acceptsArgs: true,
     handler: (ctx: any) => {
       const keyword = (ctx.args || '').trim()
-      if (!keyword) return { text: '用法: /cc_search <关键词>' }
-      const results = recallWithFallback(keyword, 10, ctx.senderId)
-      if (results.length === 0) return { text: `没有找到关于「${keyword}」的记忆。` }
-      const lines = results.map((m: any, i: number) => {
-        const ago = Math.floor((Date.now() - m.ts) / 86400000)
-        const agoStr = ago === 0 ? '今天' : `${ago}天前`
-        const emotionStr = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
-        return `${i + 1}. [${m.scope}] ${m.content.slice(0, 80)}${emotionStr}（${agoStr}）`
-      })
-      return { text: `搜索「${keyword}」的记忆结果（${results.length} 条）：\n${lines.join('\n')}` }
+      return { text: executeSearch(keyword, ctx.senderId) }
     },
   })
 
@@ -132,18 +98,7 @@ export function registerPluginCommands(api: any) {
     name: 'cc_memories',
     nativeNames: { default: '我的记忆' },
     description: '查看最近记忆',
-    handler: (ctx: any) => {
-      const mems = readMemoriesFromDisk()
-      const active = mems.filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed')
-      const recent = active.sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0)).slice(0, 10)
-      if (recent.length === 0) return { text: '还没有记忆。' }
-      const lines = recent.map((m: any, i: number) => {
-        const ago = Math.floor((Date.now() - m.ts) / 86400000)
-        const agoStr = ago === 0 ? '今天' : `${ago}天前`
-        return `${i + 1}. [${m.scope}] ${m.content.slice(0, 60)}（${agoStr}）`
-      })
-      return { text: `最近记忆（共 ${active.length} 条活跃）：\n${lines.join('\n')}` }
-    },
+    handler: (ctx: any) => ({ text: executeMyMemories(ctx.senderId) }),
   })
 
   // ═══ cc_delete ═══
@@ -227,14 +182,7 @@ export function registerPluginCommands(api: any) {
     acceptsArgs: true,
     handler: (ctx: any) => {
       const keyword = (ctx.args || '').trim()
-      if (!keyword) return { text: '用法: /cc_timeline <关键词>' }
-      try {
-        const timeline = queryMemoryTimeline(keyword)
-        if (!timeline || timeline.length === 0) return { text: `没有找到「${keyword}」的历史记录。` }
-        return { text: `「${keyword}」记忆时间线：\n${timeline.join('\n')}` }
-      } catch (_) {
-        return { text: `查询失败。` }
-      }
+      return { text: executeTimeline(keyword) }
     },
   })
 
@@ -243,23 +191,7 @@ export function registerPluginCommands(api: any) {
     name: 'cc_health',
     nativeNames: { default: '记忆健康' },
     description: '记忆系统健康报告',
-    handler: () => {
-      const mems = readMemoriesFromDisk()
-      const active = mems.filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed')
-      const scopes = new Map<string, number>()
-      for (const m of active) {
-        const s = m.scope || 'unknown'
-        scopes.set(s, (scopes.get(s) || 0) + 1)
-      }
-      const tagged = active.filter((m: any) => m.tags && m.tags.length > 0).length
-      const lines = [
-        `记忆健康报告`,
-        `总记忆: ${mems.length} | 活跃: ${active.length} | 已标签: ${tagged}`,
-        `\n按类型:`,
-        ...[...scopes.entries()].sort((a, b) => b[1] - a[1]).map(([s, c]) => `  ${s}: ${c}`),
-      ]
-      return { text: lines.join('\n') }
-    },
+    handler: () => ({ text: executeHealth() }),
   })
 
   // ═══ cc_stats ═══
@@ -267,21 +199,7 @@ export function registerPluginCommands(api: any) {
     name: 'cc_stats',
     nativeNames: { default: 'cc状态' },
     description: 'cc-soul 个人仪表盘',
-    handler: (ctx: any) => {
-      const mems = readMemoriesFromDisk()
-      const active = mems.filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed').length
-      const days = stats.firstSeen ? Math.max(1, Math.floor((Date.now() - stats.firstSeen) / 86400000)) : 0
-      return {
-        text: `cc-soul 仪表盘
-━━━━━━━━━━━━━━━
-互动: ${stats.totalMessages} 次 | 认识: ${days} 天
-纠正率: ${stats.totalMessages > 0 ? (stats.corrections / stats.totalMessages * 100).toFixed(1) : 0}%
-记忆: ${active} 条活跃
-模块: ${brain.listModules().length} 个
-人格: ${getActivePersona()?.name || 'default'}
-能量: ${(body.energy * 100).toFixed(0)}% | 心情: ${(body.mood * 100).toFixed(0)}%`
-      }
-    },
+    handler: () => ({ text: executeStats() }),
   })
 
   // ═══ cc_soul ═══
@@ -334,18 +252,7 @@ export function registerPluginCommands(api: any) {
     name: 'cc_features',
     nativeNames: { default: '功能状态' },
     description: '查看功能开关状态',
-    handler: () => {
-      try {
-        const featPath = resolve(DATA_DIR, 'features.json')
-        const feats = existsSync(featPath) ? JSON.parse(readFileSync(featPath, 'utf-8')) : {}
-        const lines = Object.entries(feats)
-          .sort(([, a], [, b]) => (b ? 1 : 0) - (a ? 1 : 0))
-          .map(([k, v]) => `${v ? '✅' : '❌'} ${k}`)
-        return { text: `功能状态（${lines.length} 项）：\n${lines.join('\n')}` }
-      } catch (_) {
-        return { text: '无法读取功能状态。' }
-      }
-    },
+    handler: () => ({ text: executeFeatures() }),
   })
 
   // ═══ cc_enable / cc_disable ═══
@@ -566,6 +473,74 @@ export function registerPluginCommands(api: any) {
     },
   })
 
-  const count = 25 // approximate
+  // ═══ cc_train ═══
+  api.registerCommand({
+    name: 'cc_train',
+    nativeNames: { default: '训练' },
+    description: '主动训练偏好（比被动学习更精准）',
+    acceptsArgs: true,
+    handler: (ctx: any) => {
+      const input = (ctx.args || '').trim()
+
+      // 无参数 → 进入训练引导
+      if (!input) {
+        return {
+          text: `🎯 训练模式
+
+告诉我你的偏好，我会精确记住。格式：
+
+/cc_train 回答代码问题时直接给代码，不要解释
+/cc_train 被纠正时不要道歉，直接改
+/cc_train 我喜欢简洁的回答，不超过200字
+/cc_train 技术问题用中文，代码注释用英文
+
+每条偏好会作为高优先级规则存入记忆。`
+        }
+      }
+
+      // 有内容 → 存为高优先级偏好
+      try {
+        const { addMemory } = require('./memory.ts')
+        const { body } = require('./body.ts')
+
+        // 存为 preference scope + important emotion → 自动晋升 core
+        addMemory(
+          `[用户训练] ${input}`,
+          'preference',
+          ctx.senderId,
+          'global',
+          ctx.channelId,
+          { attention: 'training', mood: body.mood, energy: body.energy }
+        )
+
+        // 直接标记为 important（触发 core 晋升）
+        const { memoryState } = require('./memory.ts')
+        const last = memoryState.memories[memoryState.memories.length - 1]
+        if (last && last.content.includes(input)) {
+          last.emotion = 'important'
+          last.confidence = 1.0
+          last.tier = 'long_term'
+        }
+
+        // 也存一条 rule
+        try {
+          const { rules } = require('./evolution.ts')
+          const { saveJson } = require('./persistence.ts')
+          const { resolve } = require('path')
+          const { DATA_DIR } = require('./persistence.ts')
+          rules.push({ rule: input, source: 'user_training', ts: Date.now(), hits: 0 })
+          saveJson(resolve(DATA_DIR, 'rules.json'), rules)
+        } catch (_) {}
+
+        return { text: `✅ 记住了：「${input}」\n\n这条偏好已存为最高优先级规则，所有回复都会遵守。` }
+      } catch (e: any) {
+        return { text: `训练失败: ${e.message}` }
+      }
+    },
+  })
+
+  // cc_avatar — removed, testing via town.ts simulator only
+
+  const count = 26
   console.log(`[cc-soul][commands] registered ${count} slash commands via registerCommand`)
 }

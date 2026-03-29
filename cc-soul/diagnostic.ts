@@ -22,15 +22,8 @@ import { graphState } from './graph.ts'
 import { body } from './body.ts'
 import { DATA_DIR, MODULE_DIR, CONFIG_PATH } from './persistence.ts'
 import { getAllFeatures } from './features.ts'
-// ── Optional modules (absent in public build) ──
-let getMetaInsights: () => any[] = () => []
-import('./upgrade-meta.ts').then(m => { getMetaInsights = m.getMetaInsights }).catch(() => {})
-let roverState: { discoveries: any[]; topics: string[] } = { discoveries: [], topics: [] }
-import('./rover.ts').then(m => { roverState = m.roverState }).catch(() => {})
-// ── End optional modules ──
 import { getExperimentSummary, getEvolutionSummary } from './experiment.ts'
 import { getMetaFeedbackSummary } from './meta-feedback.ts'
-// NOTE: upgrade.ts excluded from public build — runPostUpgradeGuards stubbed.
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -65,9 +58,9 @@ function checkFeatureHealth(): DiagnosticResult[] {
   // Epistemic coverage: check if weak domains exist
   const weakDomains = getWeakDomains()
   if (weakDomains.length >= 3) {
-    results.push({ dimension: 'feature', issue: `${weakDomains.length} 个薄弱领域: ${weakDomains.slice(0, 3).join(', ')}`, severity: 'important', suggestion: '启用 web_rover 针对薄弱领域定向补课' })
+    results.push({ dimension: 'feature', issue: `${weakDomains.length} 个薄弱领域: ${weakDomains.slice(0, 3).join(', ')}`, severity: 'important', suggestion: '通过纠正和自我挑战改善薄弱领域' })
   } else if (weakDomains.length > 0) {
-    results.push({ dimension: 'feature', issue: `薄弱领域: ${weakDomains.join(', ')}`, severity: 'info', suggestion: '可通过 rover 定向学习改善' })
+    results.push({ dimension: 'feature', issue: `薄弱领域: ${weakDomains.join(', ')}`, severity: 'info', suggestion: '通过纠正和自我挑战改善薄弱领域' })
   }
 
   // Correction attribution distribution
@@ -121,11 +114,6 @@ function checkFeatureIntegration(): DiagnosticResult[] {
   const results: DiagnosticResult[] = []
   const features = getAllFeatures()
 
-  // Check if epistemic weak domains are being studied by rover
-  const weakDomains = getWeakDomains()
-  if (weakDomains.length > 0 && !features['web_rover']) {
-    results.push({ dimension: 'integration', issue: `有 ${weakDomains.length} 个薄弱领域但 web_rover 未启用`, severity: 'important', suggestion: '启用 web_rover 特性以自动补课' })
-  }
 
   // Check if correction rules actually reduce correction rate
   if (rules.length > 20) {
@@ -298,18 +286,6 @@ function checkSecurity(): DiagnosticResult[] {
   if (privNoUser.length > 0) {
     results.push({ dimension: 'security', issue: `${privNoUser.length} 条私有记忆缺少 userId`, severity: 'warning', suggestion: '私有记忆没有 userId 无法正确隔离，可能泄露给其他用户' })
   }
-
-  // Check upgrade.ts hasn't been self-modified (safety check)
-  // This is a soft check — just verify the file exists and has expected structure
-  try {
-    const upgradePath = resolve(MODULE_DIR, 'upgrade.ts')
-    if (existsSync(upgradePath)) {
-      const content = readFileSync(upgradePath, 'utf-8')
-      if (!content.includes('checkSoulUpgrade') || !content.includes('rollbackModules')) {
-        results.push({ dimension: 'security', issue: 'upgrade.ts 关键函数签名缺失，可能被错误修改', severity: 'critical', suggestion: '从备份恢复 upgrade.ts，自我升级不应修改回滚机制' })
-      }
-    }
-  } catch { /* ignore */ }
 
   return results
 }
@@ -517,28 +493,11 @@ function checkCodeHealth(): DiagnosticResult[] {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DIMENSION 9: Technology Radar (recent rover tech scan findings)
+// DIMENSION 9: (removed — rover/tech-radar modules deleted)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function checkTechRadar(): DiagnosticResult[] {
-  const results: DiagnosticResult[] = []
-
-  const radarFindings = roverState.discoveries.filter(d => d.topic.startsWith('[技术雷达]'))
-  if (radarFindings.length === 0) return results
-
-  // Show most recent radar findings (last 5)
-  const recent = radarFindings.slice(-5)
-  for (const finding of recent) {
-    const age = Math.round((Date.now() - finding.ts) / 86400000)
-    results.push({
-      dimension: 'code',
-      issue: `${finding.topic}: ${finding.insight}`,
-      severity: 'info',
-      suggestion: age > 0 ? `${age} 天前发现` : '今天发现',
-    })
-  }
-
-  return results
+  return []
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -546,33 +505,7 @@ function checkTechRadar(): DiagnosticResult[] {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function checkUpgradeMetaLearning(): DiagnosticResult[] {
-  const results: DiagnosticResult[] = []
-  const insights = getMetaInsights()
-  if (insights.length === 0) return results
-
-  // Surface high-confidence insights as info items
-  const strong = insights.filter(i => i.evidence >= 2 && i.confidence > 0.5)
-  for (const insight of strong.slice(0, 5)) {
-    results.push({
-      dimension: 'code',
-      issue: `[升级 meta] ${insight.pattern}`,
-      severity: 'info',
-      suggestion: `${insight.evidence}次观察, 信心${(insight.confidence * 100).toFixed(0)}%`,
-    })
-  }
-
-  // Warn if too many rollbacks dominate the insights
-  const riskInsights = insights.filter(i => i.pattern.includes('风险') || i.pattern.includes('不稳定'))
-  if (riskInsights.length >= 3) {
-    results.push({
-      dimension: 'code',
-      issue: `升级 meta-learning 检测到 ${riskInsights.length} 条风险模式`,
-      severity: 'warning',
-      suggestion: '近期升级回滚率偏高，建议收窄升级范围或延长观察期',
-    })
-  }
-
-  return results
+  return []
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -580,39 +513,7 @@ function checkUpgradeMetaLearning(): DiagnosticResult[] {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function checkUpgradeSafety(): DiagnosticResult[] {
-  const results: DiagnosticResult[] = []
-
-  try {
-    // ── Optional: runPostUpgradeGuards (absent in public build) ──
-    let guardResult = { issues: [] as string[] }
-    try { guardResult = require('./upgrade.ts').runPostUpgradeGuards() } catch {}
-    for (const issue of guardResult.issues) {
-      const isCritical = issue.includes('[核心篡改]') || issue.includes('[回归]')
-      results.push({
-        dimension: 'upgrade-safety',
-        issue,
-        severity: isCritical ? 'critical' : 'warning',
-        suggestion: isCritical ? '升级系统将自动回滚此类问题' : '建议关注但不阻塞',
-      })
-    }
-    if (guardResult.issues.length === 0) {
-      results.push({
-        dimension: 'upgrade-safety',
-        issue: '全部 6 项安全检查通过',
-        severity: 'info',
-        suggestion: '',
-      })
-    }
-  } catch (e: any) {
-    results.push({
-      dimension: 'upgrade-safety',
-      issue: `安全检查执行失败: ${e.message}`,
-      severity: 'warning',
-      suggestion: '检查 upgrade.ts 是否正常加载',
-    })
-  }
-
-  return results
+  return []
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -752,7 +653,7 @@ function checkFeatureActivity(): DiagnosticResult[] {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Deep Code Audit (async, CLI-powered)
-// Called from upgrade.ts on manual trigger; sends follow-up message
+// Called on manual trigger; sends follow-up message
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -786,7 +687,7 @@ export function runDeepCodeAudit(
       for (const f of sized) {
         if (flaggedModules.size >= 5) break
         // Skip immutable / tiny files
-        if (['upgrade.ts', 'diagnostic.ts', 'tests.ts', 'types.ts'].includes(f.name)) continue
+        if (['diagnostic.ts', 'tests.ts', 'types.ts'].includes(f.name)) continue
         if (f.size < 100) continue
         flaggedModules.add(f.name)
       }

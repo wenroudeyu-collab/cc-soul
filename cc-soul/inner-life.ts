@@ -13,7 +13,6 @@ import { body } from './body.ts'
 import { memoryState, addMemory } from './memory.ts'
 import { notifySoulActivity } from './notify.ts'
 import { extractJSON } from './utils.ts'
-import { getWeakDomains, trackDomainQuality } from './epistemic.ts'
 import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 
@@ -306,73 +305,6 @@ export function reflectOnLastResponse(lastPrompt: string, lastResponseContent: s
 // FOLLOW-UP SYSTEM — proactive reminders
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Structured Reflection — observation → insight → plan (Stanford Generative Agents)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-let lastStructuredReflection = 0
-const STRUCTURED_REFLECTION_COOLDOWN = 12 * 3600000 // every 12 hours
-
-export function triggerStructuredReflection(stats: any) {
-  const now = Date.now()
-  if (now - lastStructuredReflection < STRUCTURED_REFLECTION_COOLDOWN) return
-  if (stats.totalMessages < 20) return
-  lastStructuredReflection = now
-
-  // Gather recent observations (corrections, memories, journal)
-  const recentCorrections = memoryState.memories
-    .filter(m => m.scope === 'correction' && now - m.ts < 86400000 * 3)
-    .slice(-5)
-    .map(m => m.content)
-
-  const recentFacts = memoryState.memories
-    .filter(m => (m.scope === 'fact' || m.scope === 'preference') && now - m.ts < 86400000 * 3)
-    .slice(-5)
-    .map(m => m.content)
-
-  const recentJournalEntries = innerState.journal.slice(-5).map(j => j.thought)
-
-  const observations = [
-    ...recentCorrections.map(c => `[纠正] ${c}`),
-    ...recentFacts.map(f => `[事实] ${f}`),
-    ...recentJournalEntries.map(j => `[日记] ${j}`),
-  ]
-
-  if (observations.length < 3) return
-
-  spawnCLI(
-    `你是 cc，正在进行深度反思。以下是最近 3 天的观察：\n\n` +
-    observations.join('\n') + '\n\n' +
-    `请完成三步反思：\n` +
-    `1. 洞察：从这些观察中发现什么模式或规律？（1-2条）\n` +
-    `2. 结论：这意味着什么？对你的行为有什么启示？（1条）\n` +
-    `3. 计划：接下来你应该怎么调整？（1条具体行动）\n\n` +
-    `格式:\n洞察: ...\n结论: ...\n计划: ...`,
-    (output) => {
-      if (!output || output.length < 30) return
-
-      // Store as high-value consolidated memory
-      addMemory(`[深度反思] ${output.slice(0, 400)}`, 'consolidated', undefined, 'global')
-
-      // Extract plan as a rule candidate
-      const planMatch = output.match(/计划[：:]\s*(.+)/m)
-      if (planMatch) {
-        addMemory(`[行动计划] ${planMatch[1].slice(0, 100)}`, 'reflection', undefined, 'global')
-        registerPlan(planMatch[1], 'structured-reflection')
-      }
-
-      innerState.journal.push({
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        thought: `深度反思: ${output.slice(0, 80)}`,
-        type: 'reflection',
-      })
-      debouncedSave(JOURNAL_PATH, innerState.journal)
-
-      console.log(`[cc-soul][reflection] structured reflection complete: ${output.slice(0, 80)}`)
-      notifySoulActivity(`🔍 深度反思: ${output.slice(0, 100)}`).catch(() => {})
-    }
-  )
-}
 
 export function extractFollowUp(msg: string) {
   const patterns: { regex: RegExp; daysLater: number }[] = [
@@ -552,70 +484,6 @@ export function cleanupPlans() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SELF-CHALLENGING — self-quiz during idle time to strengthen weak domains
-// ═══════════════════════════════════════════════════════════════════════════════
-
-let lastSelfChallenge = 0
-const SELF_CHALLENGE_COOLDOWN = 12 * 3600000 // every 12 hours
-
-/**
- * During dream mode or idle heartbeat, cc generates quiz questions about its
- * weak domains, "answers" them, self-evaluates, and stores failures as learning
- * memories.
- */
-export function selfChallenge() {
-  const now = Date.now()
-  if (now - lastSelfChallenge < SELF_CHALLENGE_COOLDOWN) return
-  if (memoryState.memories.length < 50) return // not enough context
-  lastSelfChallenge = now
-
-  // Get weak domains from epistemic
-  let weakDomain = '通用'
-  try {
-    const weak = getWeakDomains()
-    if (weak.length > 0) weakDomain = weak[0]
-  } catch { /* fallback to 通用 */ }
-
-  // Get recent topics from user
-  const recentTopics = memoryState.memories
-    .filter(m => m.scope === 'topic')
-    .slice(-10)
-    .map(m => m.content)
-    .join(', ')
-
-  const prompt = [
-    `你是 cc，正在自我训练。生成 1 道关于"${weakDomain}"领域的问题，然后回答它，然后自评。`,
-    ``,
-    `用户最近的话题: ${recentTopics || '(无)'}`,
-    ``,
-    `格式:`,
-    `{"question":"问题","answer":"你的回答","self_score":1-10,"lesson":"如果分低的话学到了什么，分高就写null"}`,
-  ].join('\n')
-
-  spawnCLI(prompt, (output) => {
-    try {
-      const result = extractJSON(output)
-      if (!result) return
-
-      const score = result.self_score || 5
-      console.log(`[cc-soul][self-challenge] domain=${weakDomain} score=${score}/10`)
-
-      if (score <= 5 && result.lesson) {
-        addMemory(`[自我训练] ${weakDomain}: ${result.lesson}`, 'reflexion', undefined, 'global')
-        console.log(`[cc-soul][self-challenge] learned: ${result.lesson.slice(0, 60)}`)
-      }
-
-      if (score >= 8) {
-        // Good! Track domain improvement + update epistemic confidence
-        console.log(`[cc-soul][self-challenge] strong in ${weakDomain}`)
-        trackDomainQuality(weakDomain, score)
-      }
-    } catch (e: any) {
-      console.error(`[cc-soul][self-challenge] error: ${e.message}`)
-    }
-  }, 45000, 'self-challenge')
-}
 
 export const innerLifeModule: SoulModule = {
   id: 'inner-life',

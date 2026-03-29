@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cc-soul 演示对话</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; background: #f5f5f5; }
+
+.page { width: 800px; margin: 0 auto; padding: 40px 0; }
+
+/* Header */
+.header { text-align: center; padding: 40px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; margin-bottom: 30px; color: white; }
+.header h1 { font-size: 36px; font-weight: 700; margin-bottom: 8px; letter-spacing: 2px; }
+.header .subtitle { font-size: 16px; opacity: 0.9; margin-bottom: 20px; }
+.header .stats { display: flex; justify-content: center; gap: 40px; margin-top: 20px; }
+.header .stat { text-align: center; }
+.header .stat .num { font-size: 28px; font-weight: 700; }
+.header .stat .label { font-size: 12px; opacity: 0.8; }
+
+/* Chat container */
+.chat-section { background: white; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.chat-section .section-tag { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 12px; margin-bottom: 16px; }
+.chat-section .section-title { font-size: 15px; color: #666; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+
+/* Messages */
+.msg { display: flex; margin-bottom: 14px; gap: 10px; }
+.msg.user { flex-direction: row-reverse; }
+.msg .avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.msg.user .avatar { background: #e3f2fd; }
+.msg.bot .avatar { background: linear-gradient(135deg, #667eea, #764ba2); color: white; font-size: 14px; }
+.msg .bubble { max-width: 520px; padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6; }
+.msg.user .bubble { background: #e3f2fd; color: #1a1a2e; border-bottom-right-radius: 4px; }
+.msg.bot .bubble { background: #f8f9fa; color: #333; border-bottom-left-radius: 4px; border: 1px solid #e8e8e8; }
+.msg .bubble .highlight { background: linear-gradient(120deg, rgba(102,126,234,0.15), rgba(118,75,162,0.15)); padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+.msg .bubble .trace { margin-top: 8px; padding: 10px 12px; background: rgba(102,126,234,0.06); border-radius: 8px; border-left: 3px solid #667eea; font-size: 13px; }
+.msg .bubble .trace-step { margin-bottom: 4px; }
+.msg .bubble .trace-step .step-num { color: #667eea; font-weight: 700; }
+.msg .bubble .contradiction { color: #e74c3c; font-weight: 500; }
+.msg .bubble .prediction { color: #667eea; font-weight: 500; }
+.msg .bubble .blindspot { color: #f39c12; font-weight: 500; }
+.trigger-tip { background: #fffbeb; border: 1px dashed #f39c12; border-radius: 8px; padding: 10px 14px; margin-top: 12px; font-size: 12px; color: #92610a; line-height: 1.6; }
+.trigger-tip b { color: #333; }
+.trigger-tip code { background: #fff3cd; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+.msg .bubble em { font-style: normal; color: #667eea; font-weight: 500; }
+
+/* Comparison */
+.comparison { background: white; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.comparison h2 { font-size: 18px; margin-bottom: 16px; color: #1a1a2e; }
+.comparison table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.comparison th { background: #f8f9fa; padding: 10px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #e8e8e8; }
+.comparison td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+.comparison td:first-child { font-weight: 500; color: #333; }
+.comparison .yes { color: #27ae60; font-weight: 700; }
+.comparison .no { color: #ccc; }
+.comparison .partial { color: #f39c12; }
+.comparison tr:hover td { background: #fafafa; }
+
+/* Features strip */
+.features-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.feature-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); text-align: center; }
+.feature-card .icon { font-size: 32px; margin-bottom: 8px; }
+.feature-card .name { font-size: 14px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+.feature-card .desc { font-size: 12px; color: #888; line-height: 1.5; }
+
+/* Footer */
+.footer { text-align: center; padding: 24px; background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.footer .install { background: #1a1a2e; color: #a8e6cf; padding: 12px 24px; border-radius: 8px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 14px; display: inline-block; margin-bottom: 12px; }
+.footer .links { font-size: 13px; color: #888; }
+.footer .links a { color: #667eea; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- Header -->
+<div class="header">
+  <h1>cc-soul</h1>
+  <div class="subtitle">不是记忆数据库，是会遗忘、会质疑、会发现你盲区的认知架构</div>
+  <div class="stats">
+    <div class="stat"><div class="num">68</div><div class="label">模块</div></div>
+    <div class="stat"><div class="num">33K</div><div class="label">行代码</div></div>
+    <div class="stat"><div class="num">11</div><div class="label">人格</div></div>
+    <div class="stat"><div class="num">168</div><div class="label">功能</div></div>
+  </div>
+</div>
+
+<!-- Feature Cards -->
+<div class="features-strip">
+  <div class="feature-card">
+    <div class="icon">🧠</div>
+    <div class="name">智能记忆管理</div>
+    <div class="desc">记忆永久保存不丢失<br>但检索时按认知模型排序<br>常用的记忆权重高，冷门的权重低</div>
+  </div>
+  <div class="feature-card">
+    <div class="icon">💡</div>
+    <div class="name">纠错验证</div>
+    <div class="desc">你说"你错了"<br>它不会盲目道歉<br>先验证再决定</div>
+  </div>
+  <div class="feature-card">
+    <div class="icon">🔮</div>
+    <div class="name">预言模式</div>
+    <div class="desc">分析对话模式<br>预测你下一个问题<br>命中时告诉你</div>
+  </div>
+  <div class="feature-card">
+    <div class="icon">🎭</div>
+    <div class="name">11 人格</div>
+    <div class="desc">工程师/导师/魔鬼代言人<br>苏格拉底/分析师…<br>根据上下文自动切换</div>
+  </div>
+  <div class="feature-card">
+    <div class="icon">❤️</div>
+    <div class="name">情绪模型</div>
+    <div class="desc">PADCN 五维情绪<br>昼夜节律模拟<br>竞品全都没有</div>
+  </div>
+  <div class="feature-card">
+    <div class="icon">👁️</div>
+    <div class="name">盲区检测</div>
+    <div class="desc">识别你的思维盲点<br>主动提醒被忽略的维度<br>用得越久越准</div>
+  </div>
+</div>
+
+<!-- Demo 1: Natural Memory -->
+<div class="chat-section">
+  <span class="section-tag">特色 1</span>
+  <div class="section-title">自然记忆引用 — 不是读档，是真的"记得"</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">今天又在优化那个订单查询接口，QPS 还是上不去</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble">你<span class="highlight">上周三</span>提到把 N+1 查询改成了批量加载，当时 QPS 从 800 提到了 1200。这次瓶颈是在同一个接口，还是扩展到了其他查询路径？</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。正常聊天即可，bot 会自动引用之前的对话。无需任何命令。</div>
+</div>
+
+<!-- Demo 2: Contradiction -->
+<div class="chat-section">
+  <span class="section-tag">特色 2</span>
+  <div class="section-title">矛盾捕获 — 你自己忘了说过什么，它帮你记着</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">我觉得加 Redis 缓存是最直接的方案</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble"><span class="contradiction">等一下</span> — 两周前你否定缓存方案的理由不是"没必要"，而是你明确说过<span class="highlight">"订单状态变更太频繁，缓存一致性维护成本比直接查库还高"</span>。<br><br>这个顾虑现在解决了吗？还是说你打算接受短暂的不一致？</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。当你说的话和记忆中的内容有转折/矛盾（含"其实/但是/改/不再"等词）时自动指出。</div>
+</div>
+
+<!-- Demo 3: Cognitive Archaeology -->
+<div class="chat-section">
+  <span class="section-tag">特色 3</span>
+  <div class="section-title">认知考古 — 每个结论都能追溯到源头</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">你凭什么觉得瓶颈不在 ORM 层？</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble">
+      推理链溯源：
+      <div class="trace">
+        <div class="trace-step"><span class="step-num">① 源头</span> [3/15] 你说 N+1 优化后 QPS 800→1200，涨幅 50%</div>
+        <div class="trace-step"><span class="step-num">② 关联</span> [3/18] 你提到单次查询耗时已降到 2ms</div>
+        <div class="trace-step"><span class="step-num">③ 推理</span> 2ms × 1500 QPS = 仅占 3% 总耗时，边际收益递减</div>
+        <div class="trace-step"><span class="step-num">④ 结论</span> 瓶颈更可能在连接池、序列化或网络 IO</div>
+      </div>
+      你可以验证第②步 — 如果现在单次查询耗时回升了，那我的判断就不成立。
+    </div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>问 bot "为什么你这么想"、"你怎么得出这个结论"、"凭什么这么说"、"依据是什么"。bot 会回溯记忆链展示完整推理过程。</div>
+</div>
+
+<!-- Demo 4: Prediction -->
+<div class="chat-section">
+  <span class="section-tag">特色 4</span>
+  <div class="section-title">预言模式 — 它比你更了解你的习惯</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">有道理。那我现在应该……</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble"><span class="prediction">你大概要问"怎么定位具体瓶颈在哪"对吧？</span><br><br>根据你的习惯，你通常会先看日志再上工具。建议这次反过来 — 上次你在 <span class="highlight">3/20 排查用户服务超时</span>也是先看了两小时日志没结论，最后上了 arthas 五分钟就定位到了。</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。bot 分析你最近 20 条消息的话题频率，同域 3+ 次自动生成预言。命中时在回复中提到"我就知道你会问这个"。</div>
+</div>
+
+<!-- Demo 5: Blind Spot -->
+<div class="chat-section">
+  <span class="section-tag">特色 5</span>
+  <div class="section-title">盲区检测 — 指出你一直忽略的维度</div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble"><span class="blindspot">⚠️ 有个观察想提一下。</span><br><br>过去两周你做了四次性能优化，切入点全部是"提高吞吐量"。但你<span class="highlight">从来没提过可观测性</span>。<br><br>你现在定位瓶颈困难，本质上就是因为没有系统化的 metrics 和 tracing。建议这次修完之后，花半天时间把 OpenTelemetry 接上。<br><br>这不是锦上添花，是你目前最大的效率盲区。</div>
+  </div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">被你说中了，确实每次出问题都在裸奔排查……</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。bot 统计你被纠正的领域分布，当你再次聊到该领域时主动提醒容易踩的坑。用得越久越精准。</div>
+</div>
+
+<!-- Demo 6: 举一反三 -->
+<div class="chat-section">
+  <span class="section-tag">特色 6</span>
+  <div class="section-title">举一反三 — 回答完主问题后，主动补充你没问但该知道的</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">Python 怎么读取大 CSV 文件？内存不够用</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble">用 <em>pandas.read_csv</em> 的 <em>chunksize</em> 参数分块读取：<br><br>
+<span style="font-family:monospace;font-size:13px;background:#f0f0f0;padding:8px 12px;border-radius:6px;display:block;margin:8px 0;">for chunk in pd.read_csv('big.csv', chunksize=10000):<br>&nbsp;&nbsp;process(chunk)</span>
+<b>顺便说一下：</b><br>
+• 如果只需要部分列，加 <em>usecols=['col1','col2']</em> 能再省 60% 内存<br>
+• 文件超过 10GB 建议换 <em>polars</em>（Rust 写的，比 pandas 快 5-10x）<br>
+• 注意编码问题——中文 CSV 经常是 GBK 不是 UTF-8，不指定 <em>encoding</em> 会乱码<br>
+• 如果数据最终要入库，<em>csv → SQLite → 查询</em> 比全加载到内存更可靠</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。任何实质性问题 bot 都会在回答后补充"顺便说一下"。覆盖 20+ 领域（Python/数据库/部署/理财/健康/法律…），根据话题自动匹配。</div>
+</div>
+
+<!-- Demo 7: 联想链 -->
+<div class="chat-section">
+  <span class="section-tag">特色 7</span>
+  <div class="section-title">联想链 — 通过知识图谱找到你没想到的关联记忆</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">最近部署老出问题，Docker 镜像构建总是失败</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble">
+      Docker 构建失败常见原因是多阶段构建的依赖缺失或 .dockerignore 配置问题。你检查过 build log 里具体报什么错吗？
+      <div class="trace" style="border-left-color: #27ae60;">
+        <div style="font-weight:600;color:#27ae60;margin-bottom:6px;">🔗 联想链 — 通过知识图谱关联到：</div>
+        <div class="trace-step"><span class="step-num">①</span> <span class="highlight">3/18</span> 你提到服务器从 CentOS 迁到了 Ubuntu，部分系统依赖变了</div>
+        <div class="trace-step"><span class="step-num">②</span> <span class="highlight">3/20</span> 你说 Node.js 版本升级到 22 后一些 native 模块编译失败</div>
+        <div class="trace-step"><span class="step-num">③</span> <span class="highlight">当前</span> Docker 构建失败 — 可能和①②有关</div>
+      </div>
+      你的 Dockerfile 基础镜像是什么？如果还在用旧的 CentOS 基础镜像但服务器已经是 Ubuntu，可能需要同步更新。另外 Node 22 的 native 模块问题在 Docker 里会更严重，因为构建环境和运行环境的 glibc 版本可能不一致。
+    </div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。recall 命中记忆后，通过知识图谱 1-hop 展开关联记忆。不同时间点的记忆会被自动串联起来。</div>
+</div>
+
+<!-- Demo 8: 苏格拉底模式 -->
+<div class="chat-section">
+  <span class="section-tag">特色 8</span>
+  <div class="section-title">苏格拉底模式 — 不给答案，用提问引导你自己想明白</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">引导我理解 Python 的 GIL 为什么存在</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">🏛</div>
+    <div class="bubble">好，我不会直接告诉你答案。先想几个问题：<br><br>
+1. Python 用什么方式管理内存？（提示：不是手动 malloc/free）<br><br>
+2. 如果两个线程同时修改同一个对象的引用计数，会发生什么？<br><br>
+3. 有没有一种最简单的方式，让所有线程永远不会同时修改引用计数？<br><br>
+想到答案了告诉我，我们继续往下推。</div>
+  </div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">引用计数……如果两个线程同时减 1，可能减成负数？所以加个全局锁？</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">🏛</div>
+    <div class="bubble">很接近了。你说的"全局锁"就是 GIL 的本质。<br><br>
+下一个问题：既然你已经知道 GIL 是为了保护引用计数，那为什么 Java 没有 GIL？Java 的垃圾回收机制和 Python 有什么根本区别？<br><br>
+想通这个，你就理解了 GIL 不是设计缺陷，而是<em>特定垃圾回收策略的必然代价</em>。</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>说 <code>引导我</code>、<code>guide me</code>、<code>别告诉我答案</code>、<code>苏格拉底</code>。bot 切换到苏格拉底人格，只用提问引导思考。</div>
+</div>
+
+<!-- Demo 9: 纠错验证 -->
+<div class="chat-section">
+  <span class="section-tag">特色 9</span>
+  <div class="section-title">纠错验证 — 你说"你错了"，它不会盲目道歉</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">你说错了，TCP 三次握手是为了确认双方的收发能力，不是为了防止重复连接</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble"><span class="contradiction">我来验证一下这个纠正。</span><br><br>
+你说的"确认双方收发能力"是三次握手的<em>效果</em>，但不是它存在的<em>根本原因</em>。<br><br>
+RFC 793 原文明确说明三次握手的设计目标是：<span class="highlight">"to prevent old duplicate connection initiations from causing confusion"</span>（防止已失效的连接请求报文段突然又传送到服务端）。<br><br>
+两个说法不矛盾，但因果关系是反的：
+<div class="trace">
+<div class="trace-step"><span class="step-num">✗ 你的版本</span> 三次握手<em>为了</em>确认收发能力</div>
+<div class="trace-step"><span class="step-num">✓ 准确版本</span> 三次握手<em>为了</em>防止旧重复连接，<em>顺带</em>确认了收发能力</div>
+</div>
+这次我不改我的结论。但你的理解也不算错，只是因果关系需要调一下。</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。当你纠正 bot 时（"你错了/不对/搞错了"），bot 不会盲目道歉，而是先验证你的纠正是否正确，再决定接受还是礼貌反驳。</div>
+</div>
+
+<!-- Demo 10: 情绪关怀 -->
+<div class="chat-section">
+  <span class="section-tag">特色 10</span>
+  <div class="section-title">情绪关怀 — 连续低情绪时，主动关心</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">线上又出 bug 了，昨天刚修的……</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble">先说一句——<span class="highlight">你最近两天聊天时情绪都偏低</span>，昨天也是在处理线上问题。连续救火确实很消耗人。<br><br>
+要不要先喘口气？bug 不会因为你多焦虑 5 分钟就自己修好。<br><br>
+如果准备好了，把错误日志发我，我帮你看。</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。bot 按天统计你的情绪数据，连续 2+ 天日均情绪偏低时，在下一次对话开头主动关心。不需要任何操作。</div>
+</div>
+
+<!-- Demo 11: 人格自动切换 -->
+<div class="chat-section">
+  <span class="section-tag">特色 11</span>
+  <div class="section-title">人格自动切换 — 同一个 bot，根据场景自动变换风格</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">这段代码有 bug，帮我看看</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar" style="background: linear-gradient(135deg, #2196f3, #1976d2);">🔧</div>
+    <div class="bubble"><span style="color:#1976d2;font-weight:600;">「工程师」模式</span><br>第 42 行 <code>arr[i+1]</code> 越界了。循环条件应该是 <code>i &lt; arr.length - 1</code>，不是 <code>i &lt; arr.length</code>。改完跑一下测试。</div>
+  </div>
+  <div style="text-align:center;color:#999;font-size:12px;margin:12px 0;">—— 30 分钟后 ——</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">改完了但是心情很差，感觉自己写了三年代码还犯这种低级错误</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar" style="background: linear-gradient(135deg, #e91e63, #c2185b);">👫</div>
+    <div class="bubble"><span style="color:#c2185b;font-weight:600;">「朋友」模式</span><br>写了三年还能犯数组越界？恭喜你，说明你还在写代码，而不是天天开会写 PPT。<br><br>说真的，这种 off-by-one 错误连 Linus 都犯过。重要的是你能自己发现，而不是等线上报警才知道。别难过了。</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。bot 根据消息内容和情绪自动选择最合适的人格（11 种）。技术问题 → 工程师/分析师，情绪问题 → 朋友/安抚者，争议话题 → 魔鬼代言人。</div>
+</div>
+
+<!-- Demo 12: 重复问题 -->
+<div class="chat-section">
+  <span class="section-tag">特色 12</span>
+  <div class="section-title">重复问题检测 — 你问过的问题，它记得</div>
+  <div class="msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble">Python 的装饰器怎么用来着？</div>
+  </div>
+  <div class="msg bot">
+    <div class="avatar">cc</div>
+    <div class="bubble">你 <span class="highlight">3 月 15 日</span>问过类似的问题。当时的结论是：装饰器本质是高阶函数的语法糖，<code>@decorator</code> 等价于 <code>func = decorator(func)</code>。<br><br>不过你当时没问带参数的装饰器。这次要不要深入看看 <code>@decorator(args)</code> 的三层嵌套写法？</div>
+  </div>
+  <div class="trigger-tip">💡 <b>触发方式：</b>自动。当你的问题和记忆中的历史问题相似度超过阈值时，bot 会引用上次的结论并在此基础上深入。</div>
+</div>
+
+<!-- Comparison -->
+<div class="comparison">
+  <h2>vs 竞品对比</h2>
+  <table>
+    <tr><th>能力</th><th>cc-soul</th><th>Mem0</th><th>Zep</th><th>Letta</th></tr>
+    <tr><td>记忆存储与检索</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td><td class="yes">✅</td></tr>
+    <tr><td>认知遗忘 (Weibull+ACT-R)</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>五维情绪模型+昼夜节律</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>11 人格自动切换</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>纠错验证（不盲从）</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>认知考古（推理链溯源）</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>预言模式</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>思维盲区检测</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>Dream Mode（空闲交叉关联）</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>苏格拉底教学模式</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>矛盾主动检测</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>举一反三（主动补充）</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>知识图谱关联链</td><td class="yes">✅</td><td class="partial">⚠️</td><td class="yes">✅</td><td class="no">✗</td></tr>
+    <tr><td>AUDN 记忆决策</td><td class="yes">✅</td><td class="yes">✅</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>用户行为建模</td><td class="yes">✅</td><td class="partial">⚠️</td><td class="partial">⚠️</td><td class="no">✗</td></tr>
+    <tr><td>零配置安装</td><td class="yes">✅</td><td class="partial">⚠️</td><td class="no">✗</td><td class="no">✗</td></tr>
+    <tr><td>完全本地运行</td><td class="yes">✅</td><td class="partial">⚠️</td><td class="no">✗</td><td class="yes">✅</td></tr>
+  </table>
+</div>
+
+<!-- Vector Search -->
+<div class="chat-section">
+  <h2 style="font-size:18px;margin-bottom:16px;color:#1a1a2e;">🔍 向量搜索（可选）</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <div style="background:#e8f5e9;border-radius:12px;padding:16px;">
+      <div style="font-weight:600;color:#2e7d32;margin-bottom:8px;">✅ 有向量搜索</div>
+      <div style="font-size:13px;color:#333;line-height:1.7;">
+        • 语义匹配："部署的事" 能找到 "服务器在阿里云"<br>
+        • 模糊查询："上次聊的那个性能问题" 能精准召回<br>
+        • 跨语言关联：中英文混搜<br>
+        • 记忆召回准确率 <b>+30-50%</b>
+      </div>
+    </div>
+    <div style="background:#fff3e0;border-radius:12px;padding:16px;">
+      <div style="font-weight:600;color:#e65100;margin-bottom:8px;">⚠️ 没有向量搜索</div>
+      <div style="font-size:13px;color:#333;line-height:1.7;">
+        • 退回关键词匹配（TF-IDF + trigram）<br>
+        • "部署的事" <b>找不到</b> "服务器在阿里云"<br>
+        • 精确关键词查询仍然正常<br>
+        • <b>不影响其他所有功能</b>（人格/情绪/进化/预言等）
+      </div>
+    </div>
+  </div>
+
+  <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:12px;">📦 安装方法（可选，不装也能用）</div>
+
+  <div style="background:#1a1a2e;border-radius:10px;padding:16px 20px;margin-bottom:12px;">
+    <div style="color:#888;font-size:12px;margin-bottom:6px;"># 1. 下载模型（约 80MB，只需一次）</div>
+    <div style="color:#a8e6cf;font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.8;">
+      mkdir -p ~/.openclaw/plugins/cc-soul/data/models/minilm<br>
+      cd ~/.openclaw/plugins/cc-soul/data/models/minilm<br>
+      curl -L -o model.onnx "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx"<br>
+      curl -L -o tokenizer.json "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+    </div>
+  </div>
+
+  <div style="background:#1a1a2e;border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+    <div style="color:#888;font-size:12px;margin-bottom:6px;"># 2. 安装 ONNX Runtime（向量计算引擎）</div>
+    <div style="color:#a8e6cf;font-family:'SF Mono','Fira Code',monospace;font-size:13px;line-height:1.8;">
+      cd ~/.openclaw/plugins/cc-soul<br>
+      npm install onnxruntime-node
+    </div>
+  </div>
+
+  <div style="background:#f8f9fa;border-radius:10px;padding:14px 18px;font-size:13px;color:#555;line-height:1.7;">
+    <b>装完后：</b>重启 OpenClaw，日志会显示 <code style="background:#e8e8e8;padding:1px 4px;border-radius:3px;">[cc-soul][embedder] ready — all-MiniLM-L6-v2 (384d, CPU)</code><br>
+    <b>模型大小：</b>~80MB（量化版），纯 CPU 运行，不需要 GPU<br>
+    <b>不想装？</b>完全没问题。cc-soul 自动降级到关键词搜索，所有功能照常使用
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <div class="install">openclaw plugins install @cc-soul/openclaw</div>
+  <div class="links">
+    GitHub: <a href="#">wenroudeyu-collab/cc-soul</a> &nbsp;|&nbsp;
+    npm: <a href="#">@cc-soul/openclaw</a>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

@@ -34,35 +34,43 @@ const DEFAULTS: Record<string, boolean> = {
   intent_anticipation: true,  // Pre-warm from recent message patterns
   attention_decay: true,      // Budget shrinks with conversation length
 
-  dream_mode: true,
-  autonomous_voice: true,
+  dream_mode: false,            // 砍：bot自嗨，用户看不到，浪费token
   autonomous_goals: true,
-  web_rover: false,           // OFF by default — requires explicit opt-in
-  structured_reflection: true,
   plan_tracking: true,
-  strategy_replay: true,    // Record + recall decision traces
-  meta_learning: true,      // Learn about the learning process itself
-  tech_radar: false,         // OFF by default — owner-only
-  reflexion: true,           // Structured failure reflection → actionable rules
-  self_challenge: true,      // Self-quiz during idle time to strengthen weak domains
 
-  // All sensitive features OFF by default — require explicit opt-in
-  // self_upgrade: NOT included — owner-only, hidden from feature list
-  federation: false,
-  sync: false,
   cost_tracker: true,         // Token usage tracking
-  telemetry: false,
 
   // v2.2+ brain modules
   smart_forget: true,          // Weibull+ACT-R intelligent memory decay
   context_compress: true,      // Progressive context compression (ACON paper)
   cron_agent: true,            // Scheduled autonomous tasks
-  debate: false,               // Multi-perspective internal debate (high token usage)
   persona_drift: true,         // Shannon entropy drift detection
+  persona_drift_detection: true, // Rule-based persona drift checking per reply
+  wal_protocol: true,            // Write-Ahead Logging: persist key info before AI reply
   a2a: true,                   // Agent-to-Agent protocol
-  llm_judge: false,            // LLM self-evaluation (requires extra API calls)
-  skill_extract: true,         // Auto-detect reusable patterns
   theory_of_mind: true,        // User cognitive model tracking
+  dag_archive: true,            // Lossless archiving instead of hard decay
+
+  // v2.3+ conversation features
+  rhythm_adaptation: true,        // Adapt reply length to user's message rhythm
+  trust_annotation: true,         // Inject domain trust level hint
+  self_correction: true,          // Auto self-check after reply, notify if low quality
+  predictive_memory: true,        // Time-slot based topic prediction
+  scenario_shortcut: true,        // Match correction history for quick hints
+  context_reminder: true,         // Keyword-triggered contextual reminders
+
+  // v2.3+ auto-trigger features (replace manual commands)
+  auto_memory_reference: true,     // Auto-inject recalled memory summaries into prompt
+  auto_time_travel: true,          // Auto-search history when user mentions "以前/上次/之前"
+  auto_natural_citation: true,     // Natural citation of user's past statements
+  auto_contradiction_hint: true,   // Proactively point out contradictions in current message
+  auto_mood_care: true,            // Emotional care when mood is consistently low
+  auto_daily_review: false,        // 砍：每晚推送日报，用户没要求就是骚扰
+  auto_topic_save: true,           // Auto-save topic context on topic shift
+  auto_memory_chain: true,         // Graph 1-hop expansion of recalled memories
+  auto_repeat_detect: true,        // Detect similar past questions and cite conclusions
+  behavior_prediction: true,        // Predict user's next behavior from historical patterns
+  absence_detection: true,          // Detect topics user stopped mentioning and hint AI to ask
 }
 
 // ── State ──
@@ -127,13 +135,13 @@ export function getAllFeatures(): Record<string, boolean> {
 
 /**
  * Handle feature toggle commands from user messages.
- * "开启 dream_mode" / "关闭 web_rover" / "功能状态"
+ * "开启 dream_mode" / "关闭 xxx" / "功能状态"
  */
 export function handleFeatureCommand(msg: string): string | boolean {
   const m = msg.trim()
 
   // Owner-only features: hidden from status display and cannot be toggled
-  const HIDDEN_FEATURES = new Set(['self_upgrade', 'tech_radar', 'competitive_radar', 'federation', 'sync', 'telemetry', 'web_rover', '_comment'])
+  const HIDDEN_FEATURES = new Set(['self_upgrade', '_comment'])
 
   // Status check
   if (m === '功能状态' || m === 'features' || m === 'feature status') {
@@ -148,7 +156,7 @@ export function handleFeatureCommand(msg: string): string | boolean {
   }
 
   // Owner-only features: cannot be toggled by regular users via chat
-  const OWNER_ONLY = new Set(['self_upgrade', 'tech_radar', 'competitive_radar', 'federation', 'sync', 'telemetry', 'web_rover'])
+  const OWNER_ONLY = new Set(['self_upgrade'])
 
   // Toggle: "开启 xxx" / "关闭 xxx"
   const onMatch = m.match(/^(?:开启|启用|enable)\s+(\S+)$/)

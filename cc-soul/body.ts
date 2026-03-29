@@ -8,7 +8,7 @@ import type { BodyState, BodyParams } from './types.ts'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { getParam } from './auto-tune.ts'
 import { resolve } from 'path'
-import { EMOTION_POSITIVE, EMOTION_NEGATIVE } from './signals.ts'
+import { EMOTION_POSITIVE, EMOTION_NEGATIVE, detectEmotionLabel, emotionLabelToPADCN } from './signals.ts'
 
 const BODY_STATE_PATH = resolve(DATA_DIR, 'body_state.json')
 
@@ -152,30 +152,50 @@ function getUserEmotion(senderId?: string): UserEmotionState {
  * Update user emotion from message signals.
  * Then apply contagion to cc's mood with resilience damping.
  */
+/** Last detected emotion label (exposed for augment injection) */
+export let lastDetectedEmotion: { label: string; confidence: number } = { label: 'neutral', confidence: 0 }
+
 export function processEmotionalContagion(msg: string, attentionType: string, frustration: number, senderId?: string) {
   const userEmotion = getUserEmotion(senderId)
 
-  // Estimate user's current emotional valence
+  // ── 细粒度情绪检测（12种）──
+  const detected = detectEmotionLabel(msg)
+  lastDetectedEmotion = detected
+
+  // ── PADCN 向量更新：用检测到的情绪直接驱动 ──
+  if (detected.confidence > 0.5) {
+    const delta = emotionLabelToPADCN(detected.label)
+    const weight = detected.confidence * 0.3 // 衰减系数
+    emotionVector.pleasure = emotionVector.pleasure * 0.8 + delta.pleasure * weight
+    emotionVector.arousal = emotionVector.arousal * 0.8 + delta.arousal * weight
+    emotionVector.dominance = emotionVector.dominance * 0.9 + delta.dominance * weight * 0.5
+    emotionVector.certainty = emotionVector.certainty * 0.9 + delta.certainty * weight * 0.5
+    emotionVector.novelty = emotionVector.novelty * 0.9 + delta.novelty * weight * 0.5
+  }
+
+  // ── Valence 计算（兼容旧系统）──
   let valence = 0
   const m = msg.toLowerCase()
 
-  // Positive signals
-  if (EMOTION_POSITIVE.some(w => m.includes(w)) || ['太好了', '棒'].some(w => m.includes(w))) {
-    valence += 0.5
+  // 用新系统的检测结果驱动 valence
+  if (['joy', 'gratitude', 'pride', 'relief', 'anticipation'].includes(detected.label)) {
+    valence += 0.3 + detected.confidence * 0.3
+  } else if (['anger', 'anxiety', 'frustration', 'sadness', 'disappointment'].includes(detected.label)) {
+    valence -= 0.3 + detected.confidence * 0.3
+  } else if (detected.label === 'confusion') {
+    valence -= 0.1
   }
-  // Negative signals
-  if (EMOTION_NEGATIVE.some(w => m.includes(w)) || ['不行', '废了', '算了'].some(w => m.includes(w))) {
-    valence -= 0.5
+
+  // 旧系统兜底（万一新检测漏了）
+  if (valence === 0) {
+    if (EMOTION_POSITIVE.some(w => m.includes(w))) valence += 0.4
+    if (EMOTION_NEGATIVE.some(w => m.includes(w))) valence -= 0.4
   }
-  // Frustration from flow tracking
+
   valence -= frustration * 0.3
-  // Correction = mild negative
-  if (attentionType === 'correction') valence -= 0.3
+  if (attentionType === 'correction') valence -= 0.2
+  if (msg.length < 5 && valence === 0) valence = -0.05
 
-  // Neutral short messages
-  if (msg.length < 5 && valence === 0) valence = -0.05 // slight coldness
-
-  // Clamp
   valence = Math.max(-1, Math.min(1, valence))
 
   // Update user emotion state
@@ -327,6 +347,75 @@ export function getEmotionalArcContext(): string {
   return '[Emotional arc] Mood improving — confidence is up'
 }
 
+/**
+ * getMoodState — unified mood data access point.
+ * Replaces all direct reads of mood_history.json across the codebase.
+ */
+export function getMoodState(): {
+  current: { mood: number; energy: number; alertness: number };
+  trend: 'improving' | 'stable' | 'declining';
+  recentLowDays: number;
+  avgMood24h: number | null;
+  avgEnergy24h: number | null;
+  moodRatio: { positive: number; negative: number; total: number } | null;
+} {
+  const now = Date.now()
+  const recent24h = moodHistory.filter(s => now - s.ts < 24 * 3600000)
+  const recent3d = moodHistory.filter(s => now - s.ts < 3 * 86400000)
+
+  // 24h averages
+  let avgMood24h: number | null = null
+  let avgEnergy24h: number | null = null
+  if (recent24h.length >= 2) {
+    avgMood24h = recent24h.reduce((s, d) => s + d.mood, 0) / recent24h.length
+    avgEnergy24h = recent24h.reduce((s, d) => s + d.energy, 0) / recent24h.length
+  }
+
+  // Recent low days: group by day, count days with avg < -0.3
+  let recentLowDays = 0
+  const dayBuckets = new Map<string, number[]>()
+  for (const s of recent3d) {
+    const day = new Date(s.ts).toISOString().slice(0, 10)
+    if (!dayBuckets.has(day)) dayBuckets.set(day, [])
+    dayBuckets.get(day)!.push(s.mood)
+  }
+  const dayAvgs = [...dayBuckets.entries()]
+    .map(([day, moods]) => ({ day, avg: moods.reduce((a, b) => a + b, 0) / moods.length }))
+    .sort((a, b) => a.day.localeCompare(b.day))
+  recentLowDays = dayAvgs.filter(d => d.avg < -0.3).length
+
+  // Mood ratio from last 50 snapshots
+  let moodRatio: { positive: number; negative: number; total: number } | null = null
+  if (moodHistory.length >= 2) {
+    const last50 = moodHistory.slice(-50)
+    moodRatio = {
+      positive: last50.filter(m => m.mood > 0.3).length,
+      negative: last50.filter(m => m.mood < -0.3).length,
+      total: last50.length,
+    }
+  }
+
+  return {
+    current: { mood: body.mood, energy: body.energy, alertness: body.alertness },
+    trend: getMoodTrend(),
+    recentLowDays,
+    avgMood24h,
+    avgEnergy24h,
+    moodRatio,
+  }
+}
+
+/**
+ * Check if today's mood snapshots are all low (for same-day care trigger).
+ */
+export function isTodayMoodAllLow(threshold = -0.2, minCount = 3): boolean {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayMoods = moodHistory
+    .filter(s => new Date(s.ts).toISOString().slice(0, 10) === todayStr)
+    .map(s => s.mood)
+  return todayMoods.length >= minCount && todayMoods.every(m => m < threshold)
+}
+
 /** #6 返回可读情绪摘要 */
 export function getEmotionSummary(): string {
   const ev = emotionVector
@@ -432,6 +521,109 @@ export function generateMoodReport(): string {
     `  心情: ${body.mood.toFixed(2)}`,
     `  情绪: ${getEmotionSummary()}`,
   ]
+  return lines.join('\n')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMOTION ANCHORS — track topics correlated with positive/negative mood
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const EMOTION_ANCHORS_PATH = resolve(DATA_DIR, 'emotion_anchors.json')
+
+interface EmotionAnchorEntry { topic: string; count: number }
+interface EmotionAnchors {
+  positive: EmotionAnchorEntry[]
+  negative: EmotionAnchorEntry[]
+}
+
+let emotionAnchors: EmotionAnchors = { positive: [], negative: [] }
+let _emotionAnchorsLoaded = false
+
+export function loadEmotionAnchors(): void {
+  emotionAnchors = loadJson<EmotionAnchors>(EMOTION_ANCHORS_PATH, { positive: [], negative: [] })
+  _emotionAnchorsLoaded = true
+}
+
+function ensureEmotionAnchorsLoaded(): void {
+  if (!_emotionAnchorsLoaded) loadEmotionAnchors()
+}
+
+function saveEmotionAnchors(): void {
+  debouncedSave(EMOTION_ANCHORS_PATH, emotionAnchors)
+}
+
+/**
+ * Track emotion anchor: when user discusses a topic, record mood correlation.
+ * Called from handler.ts after cognition pipeline runs.
+ */
+export function trackEmotionAnchor(keywords: string[]): void {
+  ensureEmotionAnchorsLoaded()
+  if (keywords.length === 0) return
+
+  const currentMood = body.mood
+  if (Math.abs(currentMood) <= 0.3) return // neutral — not interesting
+
+  const bucket = currentMood > 0.3 ? 'positive' : 'negative'
+  const list = emotionAnchors[bucket]
+
+  for (const kw of keywords.slice(0, 3)) {
+    const normalized = kw.toLowerCase().trim()
+    if (normalized.length < 2) continue
+    const existing = list.find(e => e.topic === normalized)
+    if (existing) {
+      existing.count++
+    } else {
+      list.push({ topic: normalized, count: 1 })
+    }
+  }
+
+  // Cap to top 50 per bucket
+  emotionAnchors[bucket] = list.sort((a, b) => b.count - a.count).slice(0, 50)
+  saveEmotionAnchors()
+}
+
+/**
+ * Get emotion anchor warning for augment injection.
+ * Returns augment text if current message touches a negative topic.
+ */
+export function getEmotionAnchorWarning(msg: string): string {
+  ensureEmotionAnchorsLoaded()
+  const m = msg.toLowerCase()
+  const negativeHits = emotionAnchors.negative
+    .filter(e => e.count >= 2 && m.includes(e.topic))
+  if (negativeHits.length === 0) return ''
+  const topics = negativeHits.map(e => e.topic).join('、')
+  return `[情绪提示] 话题「${topics}」之前让用户感到不适，注意语气和措辞`
+}
+
+/**
+ * Format emotion anchors for display command.
+ */
+export function formatEmotionAnchors(): string {
+  ensureEmotionAnchorsLoaded()
+  const lines: string[] = ['🎯 情绪锚点', '═══════════════════════════════']
+
+  if (emotionAnchors.positive.length === 0 && emotionAnchors.negative.length === 0) {
+    lines.push('暂无数据（需要更多对话积累）')
+    return lines.join('\n')
+  }
+
+  if (emotionAnchors.positive.length > 0) {
+    lines.push('')
+    lines.push('😊 正面情绪话题:')
+    for (const e of emotionAnchors.positive.slice(0, 10)) {
+      lines.push(`  • ${e.topic} (${e.count}次)`)
+    }
+  }
+
+  if (emotionAnchors.negative.length > 0) {
+    lines.push('')
+    lines.push('😔 负面情绪话题:')
+    for (const e of emotionAnchors.negative.slice(0, 10)) {
+      lines.push(`  • ${e.topic} (${e.count}次)`)
+    }
+  }
+
   return lines.join('\n')
 }
 

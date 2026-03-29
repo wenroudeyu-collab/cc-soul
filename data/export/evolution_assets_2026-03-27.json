@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "format": "GEP",
+  "exportedAt": "2026-03-27T14:41:27.171Z",
+  "agent": "cc-soul",
+  "assets": {
+    "rules": [],
+    "hypotheses": [
+      {
+        "description": "当遇到关于Python数据结构性能比较时，应深入CPython实现层面说明tuple intern缓存",
+        "observation": "信息不准确",
+        "pattern": "tuple性能对比",
+        "alpha": 3,
+        "beta": 1,
+        "status": "verified",
+        "reflexionStage": "solidified",
+        "verifyCount": 1,
+        "ts": 1774570000000
+      },
+      {
+        "description": "解释TCP三次握手必要性时，必须首先阐述防止历史重复连接请求",
+        "observation": "信息不准确",
+        "pattern": "TCP三次握手",
+        "alpha": 2,
+        "beta": 1,
+        "status": "active",
+        "reflexionStage": "plan",
+        "verifyCount": 0,
+        "ts": 1774568000000
+      }
+    ],
+    "skills": [],
+    "stats": {
+      "totalMessages": 118,
+      "corrections": 2,
+      "rulesSolidified": 1
+    },
+    "corrections": 2,
+    "growthVectors": [],
+    "metadata": {
+      "totalMessages": 118,
+      "firstSeen": 1774490341184,
+      "rulesSolidified": 1
+    }
+  }
+}

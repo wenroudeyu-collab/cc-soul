@@ -1,65 +1,21 @@
 {
   "windows": {
-    "analyst": [
+    "strategist": [
       {
-        "ts": 1774490403649,
-        "personaId": "analyst",
+        "ts": 1774823360787,
+        "personaId": "strategist",
         "vector": {
-          "length": 196,
+          "length": 1606,
           "questionFreq": 0,
-          "codeFreq": 0,
+          "codeFreq": 0.7129514321295143,
           "formality": 0.5,
-          "depth": 0
-        }
-      },
-      {
-        "ts": 1774490493284,
-        "personaId": "analyst",
-        "vector": {
-          "length": 196,
-          "questionFreq": 0,
-          "codeFreq": 0,
-          "formality": 0.5,
-          "depth": 0
-        }
-      },
-      {
-        "ts": 1774490547464,
-        "personaId": "analyst",
-        "vector": {
-          "length": 201,
-          "questionFreq": 0.25,
-          "codeFreq": 0,
-          "formality": 0.5,
-          "depth": 0.25
-        }
-      },
-      {
-        "ts": 1774490601744,
-        "personaId": "analyst",
-        "vector": {
-          "length": 245,
-          "questionFreq": 0.23076923076923078,
-          "codeFreq": 0,
-          "formality": 0.5,
-          "depth": 0
-        }
-      },
-      {
-        "ts": 1774490614109,
-        "personaId": "analyst",
-        "vector": {
-          "length": 853,
-          "questionFreq": 0.16666666666666666,
-          "codeFreq": 0,
-          "formality": 0.5,
-          "depth": 0.16666666666666666
+          "depth": 0.3333333333333333
         }
       }
     ]
   },
   "lastEntropy": {
-    "analyst": 0.7229613568458786
+    "strategist": 0
   },
   "lastWarningTs": 0
 }

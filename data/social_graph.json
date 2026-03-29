@@ -1,0 +1,415 @@
+[
+  {
+    "name": "老板",
+    "mentions": 14,
+    "lastMentioned": 1774819285552,
+    "emotionSum": -5.768899622454173,
+    "emotions": {
+      "positive": 0,
+      "negative": 14,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "完蛋了压",
+      "难过",
+      "今天被骂",
+      "对话历史",
+      "又给我加"
+    ]
+  },
+  {
+    "name": "大了",
+    "mentions": 1,
+    "lastMentioned": 1774741745633,
+    "emotionSum": -0.23816419956161736,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "今天写了"
+    ]
+  },
+  {
+    "name": "大餐",
+    "mentions": 1,
+    "lastMentioned": 1774742178641,
+    "emotionSum": -0.07453111789110903,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "哈哈我刚"
+    ]
+  },
+  {
+    "name": "女朋友",
+    "mentions": 6,
+    "lastMentioned": 1774795163037,
+    "emotionSum": -1.8331347641054279,
+    "emotions": {
+      "positive": 0,
+      "negative": 5,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "哈哈",
+      "对话历史"
+    ]
+  },
+  {
+    "name": "哥",
+    "mentions": 1,
+    "lastMentioned": 1774742434792,
+    "emotionSum": 0.0826642297680308,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大量",
+    "mentions": 65,
+    "lastMentioned": 1774823362866,
+    "emotionSum": -20.36677997107851,
+    "emotions": {
+      "positive": 0,
+      "negative": 58,
+      "neutral": 7
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "领导",
+    "mentions": 3,
+    "lastMentioned": 1774798070591,
+    "emotionSum": -0.7634804860389639,
+    "emotions": {
+      "positive": 0,
+      "negative": 2,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大鹅",
+    "mentions": 1,
+    "lastMentioned": 1774743788471,
+    "emotionSum": -0.322611332121007,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "今天套圈"
+    ]
+  },
+  {
+    "name": "大飞",
+    "mentions": 1,
+    "lastMentioned": 1774744063024,
+    "emotionSum": -0.16999099926786287,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "今天买了"
+    ]
+  },
+  {
+    "name": "客户",
+    "mentions": 2,
+    "lastMentioned": 1774798070591,
+    "emotionSum": -0.9602036216103907,
+    "emotions": {
+      "positive": 0,
+      "negative": 2,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "今天被投",
+      "对话历史"
+    ]
+  },
+  {
+    "name": "朋友",
+    "mentions": 11,
+    "lastMentioned": 1774822993684,
+    "emotionSum": -4.1170956979567634,
+    "emotions": {
+      "positive": 0,
+      "negative": 11,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "和闹矛盾",
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大结",
+    "mentions": 3,
+    "lastMentioned": 1774798070591,
+    "emotionSum": -1.2315797156289003,
+    "emotions": {
+      "positive": 0,
+      "negative": 3,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "老朋",
+    "mentions": 10,
+    "lastMentioned": 1774822993684,
+    "emotionSum": -3.8384165349569415,
+    "emotions": {
+      "positive": 0,
+      "negative": 10,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大数",
+    "mentions": 9,
+    "lastMentioned": 1774822993684,
+    "emotionSum": -2.854995368006639,
+    "emotions": {
+      "positive": 0,
+      "negative": 8,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大文",
+    "mentions": 5,
+    "lastMentioned": 1774822399860,
+    "emotionSum": -1.7563711398921857,
+    "emotions": {
+      "positive": 0,
+      "negative": 5,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "姐",
+    "mentions": 1,
+    "lastMentioned": 1774795163037,
+    "emotionSum": -0.4666725976887227,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大概",
+    "mentions": 1,
+    "lastMentioned": 1774795360772,
+    "emotionSum": -0.32671654811769246,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大型",
+    "mentions": 1,
+    "lastMentioned": 1774795360772,
+    "emotionSum": -0.32671654811769246,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大表",
+    "mentions": 3,
+    "lastMentioned": 1774822245576,
+    "emotionSum": -1.1921145630922758,
+    "emotions": {
+      "positive": 0,
+      "negative": 3,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "同事",
+    "mentions": 4,
+    "lastMentioned": 1774819814879,
+    "emotionSum": -1.7025837744656513,
+    "emotions": {
+      "positive": 0,
+      "negative": 4,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "小企",
+    "mentions": 1,
+    "lastMentioned": 1774796359979,
+    "emotionSum": -0.21689553790451885,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "小时",
+    "mentions": 1,
+    "lastMentioned": 1774796359979,
+    "emotionSum": -0.21689553790451885,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大的",
+    "mentions": 1,
+    "lastMentioned": 1774796359979,
+    "emotionSum": -0.21689553790451885,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大会",
+    "mentions": 2,
+    "lastMentioned": 1774798702529,
+    "emotionSum": -0.8767067883221373,
+    "emotions": {
+      "positive": 0,
+      "negative": 2,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大语",
+    "mentions": 1,
+    "lastMentioned": 1774797155777,
+    "emotionSum": -0.26748586339683883,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "小元",
+    "mentions": 3,
+    "lastMentioned": 1774820988277,
+    "emotionSum": -1.11302893766523,
+    "emotions": {
+      "positive": 0,
+      "negative": 2,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "小化",
+    "mentions": 4,
+    "lastMentioned": 1774799220601,
+    "emotionSum": -2.016126676914269,
+    "emotions": {
+      "positive": 0,
+      "negative": 4,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "大火",
+    "mentions": 1,
+    "lastMentioned": 1774819044499,
+    "emotionSum": -0.4352553910910192,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  },
+  {
+    "name": "小火",
+    "mentions": 1,
+    "lastMentioned": 1774819044499,
+    "emotionSum": -0.4352553910910192,
+    "emotions": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0
+    },
+    "recentTopics": [
+      "对话历史"
+    ]
+  }
+]

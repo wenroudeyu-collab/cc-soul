@@ -14,36 +14,36 @@ import type { SessionState } from './handler-state.ts'
 import {
   stats, formatMetrics, shortcuts,
   getPrivacyMode, setPrivacyMode, saveStats,
+  getCompressionRate,
 } from './handler-state.ts'
 import { loadJson, debouncedSave, DATA_DIR, REMINDERS_PATH, soulConfig } from './persistence.ts'
 import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
-import { dbGetHabits, dbCheckin, dbGetGoals, dbAddGoal, dbUpdateGoalProgress, dbGetReminders, dbAddReminder, dbDeleteReminder } from './sqlite-store.ts'
+import { dbGetHabits, dbCheckin, dbGetGoals, dbAddGoal, dbUpdateGoalProgress, dbGetReminders, dbAddReminder, dbDeleteReminder, dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
 import { handleFeatureCommand, isEnabled } from './features.ts'
+import { getVectorStatus, installVectorSearch } from './embedder.ts'
 import {
   memoryState, recall, addMemory, addMemoryWithEmotion, saveMemories,
-  queryMemoryTimeline, ensureMemoriesLoaded,
+  queryMemoryTimeline, ensureMemoriesLoaded, restoreArchivedMemories,
+  trigrams, trigramSimilarity,
 } from './memory.ts'
-import { generateMoodReport } from './body.ts'
-import { generateMorningReport, generateWeeklyReport } from './reports.ts'
-import { getCapabilityScore } from './epistemic.ts'
+import { generateMoodReport, formatEmotionAnchors } from './body.ts'
+import { generateMorningReport, generateWeeklyReport, generateRelationshipNarrative, generateDailyReview, generateMemoryChain } from './reports.ts'
+import { getCapabilityScore, formatGrowthVectors } from './epistemic.ts'
 import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } from './user-dashboard.ts'
 // ── Optional modules (absent in public build) ──
-let handleSyncCommand: (msg: string) => boolean = () => false
-import('./sync.ts').then(m => { handleSyncCommand = m.handleSyncCommand }).catch(() => {})
-let handleUpgradeCommand: (msg: string, stats: any) => boolean = () => false
-import('./upgrade.ts').then(m => { handleUpgradeCommand = m.handleUpgradeCommand }).catch(() => {})
-let handleRadarCommand: (msg: string) => boolean = () => false
-import('./competitive-radar.ts').then(m => { handleRadarCommand = m.handleRadarCommand }).catch(() => {})
+let _exportEvolutionAssets: ((stats: any) => { data: any; path: string }) | null = null
+let _importEvolutionAssets: ((filePath: string) => { rulesAdded: number; hypothesesAdded: number }) | null = null
+import('./evolution.ts').then(m => { _exportEvolutionAssets = m.exportEvolutionAssets; _importEvolutionAssets = m.importEvolutionAssets }).catch(() => {})
 // ── End optional modules ──
 import { startExperiment } from './experiment.ts'
 import { handleTuneCommand } from './auto-tune.ts'
 import { ingestFile } from './rag.ts'
 import { innerState } from './inner-life.ts'
 import { getAllValues } from './values.ts'
-import { PERSONAS } from './persona.ts'
-import { parseGroupChatCommand, triggerGroupChat } from './debate.ts'
+import { PERSONAS, getActivePersona } from './persona.ts'
 import { checkTaskConfirmation } from './tasks.ts'
 import { replySender } from './notify.ts'
+import { executeSearch, executeMyMemories, executeStats, executeHealth, executeFeatures, executeTimeline } from './command-core.ts'
 // ── Optional modules ──
 let getCostSummary: () => string = () => '成本追踪模块未加载'
 import('./cost-tracker.ts').then(m => { getCostSummary = m.getCostSummary }).catch(() => {})
@@ -121,13 +121,12 @@ export function routeCommand(
 • 记忆时间线 <关键词>             — 查看变化历史
 • 记忆健康                        — 记忆统计报告
 • 记忆审计                        — 检查重复/异常
+• 恢复记忆 <关键词>               — 恢复归档记忆
 
 ━━ 导入导出 ━━
-• 导出记忆 / export memories      — 导出为 JSON
-• 导入记忆 <路径>                 — 导入（支持 cc-soul/Mem0/ChatGPT/Character Card 格式）
-• 导出灵魂 / export soul          — 导出灵魂配置
-• 导入灵魂 <路径>                 — 导入灵魂配置
 • 导出lorebook                    — 导出知识库（去敏）
+• 导出进化 / export evolution      — 导出 GEP 格式进化资产
+• 导入进化 <路径>                  — 导入 GEP 格式进化资产
 • 摄入文档 <路径> / ingest <path> — 导入文档到记忆
 
 ━━ 日常工具 ━━
@@ -147,14 +146,28 @@ export function routeCommand(
 • 周报 / weekly report           — 每周周报
 • 情绪周报 / mood report          — 7天情绪趋势
 • 能力评分 / capability score     — 各领域能力评分
+• 成长轨迹 / growth               — 成长趋势追踪
+• 我的技能 / my skills            — 自动生成的技能列表
 • metrics / 监控                  — 系统运行指标
 • cost / 成本                     — Token 使用统计
 • dashboard / 仪表盘              — 打开网页仪表盘
 • 记忆图谱 html                   — 打开记忆可视化
 • 对话摘要                        — 最近对话摘要
 
-━━ 群聊讨论 ━━
-• 群聊 <话题> / group chat <topic>  — 多角色群聊讨论（3-5 persona 多轮辩论+总结）
+━━ 记忆洞察 ━━
+• 时间旅行 <关键词>               — 追踪某个话题的观点演变
+• 推理链 / reasoning chain        — 查看上次回复用了哪些记忆
+• 情绪锚点 / emotion anchors      — 查看话题与情绪的关联
+• 记忆链路 <关键词>               — 搜索相关记忆并展示关联链
+
+━━ 体验功能 ━━
+• 讲讲我们的故事 / our story      — 生成关系叙事
+• 每日复盘 / daily review         — 今日对话、决定、行动项总结
+• 保存话题 / save topic           — 保存当前对话上下文为话题分支
+• 切换话题 <名称> / switch topic  — 恢复保存的话题分支
+• 话题列表 / topic list           — 查看所有话题分支
+• 共享记忆 <关键词>               — 将匹配记忆设为全局共享
+• 私有记忆 <关键词>               — 将匹配记忆设为私有
 
 ━━ 高级功能 ━━
 • 功能状态 / features             — 查看所有功能开关
@@ -163,24 +176,21 @@ export function routeCommand(
 • 开始实验 <描述>                 — 启动 A/B 实验
 
 ━━ 向量搜索（可选） ━━
-下载模型后记忆搜索从关键词匹配升级为语义理解：
-  mkdir -p ~/.openclaw/plugins/cc-soul/data/models/minilm
-  cd ~/.openclaw/plugins/cc-soul/data/models/minilm
-  curl -L -o model.onnx "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx"
-  curl -L -o vocab.json "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
-不下载也完全正常工作，只是用关键词匹配。`
+• 安装向量                         — 一键安装语义搜索（自动下载模型+运行时）
+• 向量状态                         — 查看安装状态
+不安装也完全正常工作，只是用关键词匹配。`
     cmdReply(ctx, event, session, helpText, userMsg)
     return true
   }
 
   // ── Privacy mode toggle (Feature 2) ──
-  if (userMsg.includes('别记了') || userMsg.includes('隐私模式') || userMsg.includes('privacy mode')) {
+  if (/^(别记了|隐私模式|privacy mode)$/i.test(userMsg.trim())) {
     setPrivacyMode(true)
     console.log('[cc-soul] privacy mode ON')
     cmdReply(ctx, event, session, '隐私模式已开启，对话内容不会被记忆。说"可以了"恢复。', userMsg)
     return true
   }
-  if (getPrivacyMode() && (userMsg.includes('可以了') || userMsg.includes('关闭隐私') || userMsg.includes('恢复记忆'))) {
+  if (getPrivacyMode() && /^(可以了|关闭隐私|恢复记忆)$/i.test(userMsg.trim())) {
     setPrivacyMode(false)
     console.log('[cc-soul] privacy mode OFF')
     cmdReply(ctx, event, session, '隐私模式已关闭，恢复记忆。', userMsg)
@@ -308,6 +318,16 @@ export function routeCommand(
     return true
   }
 
+  // Growth vectors command
+  if (/^(成长轨迹|growth)$/i.test(userMsg.trim())) {
+    try {
+      const report = formatGrowthVectors()
+      cmdReply(ctx, event, session, report, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '成长轨迹生成失败: ' + e.message, userMsg) }
+    return true
+  }
+
+
   // Cost / token usage command
   if (/^(cost|token cost|token使用|成本)$/i.test(userMsg.trim())) {
     cmdReply(ctx, event, session, getCostSummary(), userMsg)
@@ -321,12 +341,6 @@ export function routeCommand(
     return true
   }
 
-  // Sync command check
-  if (isEnabled('sync') && handleSyncCommand(userMsg)) {
-    cmdReply(ctx, event, session, '同步指令已执行。', userMsg)
-    return true
-  }
-
   // Manual experiment creation: "开始实验 <描述>"
   if (userMsg.includes('开始实验')) {
     const desc = userMsg.replace('开始实验', '').trim() || '手动实验'
@@ -335,22 +349,46 @@ export function routeCommand(
     return true
   }
 
-  // ── Memory / export / soul commands (before upgrade check to avoid interception) ──
-  const cmdMatch = userMsg.trim()
-  if (/^(我的记忆|my memories)$/i.test(cmdMatch) || /^(导出记忆|export memories)$/i.test(cmdMatch) || /^(导出灵魂|export soul)$/i.test(cmdMatch) || /^(导入记忆|import memories)/i.test(cmdMatch) || /^(导入灵魂|import soul)/i.test(cmdMatch) || /^(导出lorebook|export lorebook)$/i.test(cmdMatch)) {
-    // Let these fall through to their handlers below, skip upgrade check
-  } else {
-    // Upgrade command check
-    if (handleUpgradeCommand(userMsg, stats)) {
-      console.log(`[cc-soul] upgrade command matched: "${userMsg.slice(0, 30)}"`)
-      session.lastPrompt = userMsg
-      return true
-    }
-  }
-
-  // Competitive radar commands
-  if (handleRadarCommand(userMsg)) {
-    cmdReply(ctx, event, session, '竞品雷达指令已执行，结果会私聊通知你。', userMsg)
+  // ── 向量搜索安装/状态命令 ──
+  if (/^(安装向量|install vector|向量状态|vector status)$/i.test(userMsg.trim())) {
+    try {
+      const status = getVectorStatus()
+      if (/^(向量状态|vector status)$/i.test(userMsg.trim())) {
+        const readyLabel = status.ready ? '✅ 已启用' : (status.installed ? '⏳ 已安装，下次对话自动启用' : '❌ 未启用')
+        const lines = [
+          '向量搜索状态',
+          `  模型: ${status.hasModel ? '✅ 已安装' : '❌ 未安装'}`,
+          `  运行时: ${status.hasRuntime ? '✅ 已安装' : '❌ 未安装'}`,
+          `  就绪: ${readyLabel}`,
+        ]
+        if (!status.installed) {
+          lines.push('')
+          lines.push('━━ 自动安装 ━━')
+          lines.push('发送"安装向量"即可一键安装（需网络，约 2 分钟）')
+          lines.push('')
+          lines.push('━━ 手动安装 ━━')
+          lines.push('1. 下载模型到 ~/.openclaw/plugins/cc-soul/data/models/minilm/')
+          lines.push('   curl -L -o model.onnx "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx"')
+          lines.push('   curl -L -o vocab.json "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"')
+          lines.push('2. 安装运行时')
+          lines.push('   cd ~/.openclaw/plugins/cc-soul && npm i onnxruntime-node')
+          lines.push('3. 重启 gateway 自动生效')
+          lines.push('')
+          lines.push('不安装也完全正常工作，只是搜索用关键词匹配而非语义匹配。')
+        }
+        cmdReply(ctx, event, session, lines.join('\n'), userMsg)
+        return true
+      }
+      if (status.installed && status.ready) {
+        cmdReply(ctx, event, session, '✅ 向量搜索已安装并启用，无需重复操作。', userMsg)
+        return true
+      }
+      cmdReply(ctx, event, session, '📦 开始安装向量搜索，请稍候（约 2 分钟）...', userMsg)
+      const messages: string[] = []
+      installVectorSearch((msg: string) => messages.push(msg)).then(() => {
+        import('./notify.ts').then(({ notifyOwnerDM }: any) => notifyOwnerDM(messages.join('\n'))).catch(() => {})
+      })
+    } catch (e: any) { cmdReply(ctx, event, session, `向量安装失败: ${e.message}`, userMsg) }
     return true
   }
 
@@ -360,28 +398,11 @@ export function routeCommand(
     return true
   }
 
+  // Avatar (AI 分身) — removed from commands, testing via town.ts simulator only
+
   // ── Memory view / export commands ──
   if (/^(我的记忆|my memories)$/i.test(userMsg.trim())) {
-    // Read from JSON file (memoryState.memories may not be loaded in lightweight init)
-    try {
-      const memPath = resolve(DATA_DIR, 'memories.json')
-      const allMems = existsSync(memPath) ? JSON.parse(readFileSync(memPath, 'utf-8')) : []
-      const active = allMems.filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed')
-      const userMems = active
-        .filter((m: any) => !senderId || !m.userId || m.userId === senderId)
-        .sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0))
-        .slice(0, 20)
-      const total = active.filter((m: any) => !senderId || !m.userId || m.userId === senderId).length
-      const lines = userMems.map((m: any, i: number) => {
-        const ago = Math.floor((Date.now() - (m.ts || 0)) / 86400000)
-        const agoStr = ago === 0 ? '今天' : `${ago}天前`
-        return `${i + 1}. [${m.scope}] ${m.content.slice(0, 60)}（${agoStr}）`
-      })
-      const display = `你的记忆（共 ${total} 条）：\n${lines.join('\n')}`
-      cmdReply(ctx, event, session, display, userMsg)
-    } catch (e: any) {
-      cmdReply(ctx, event, session, `记忆读取失败: ${e.message}`, userMsg)
-    }
+    cmdReply(ctx, event, session, executeMyMemories(senderId), userMsg)
     return true
   }
 
@@ -389,41 +410,7 @@ export function routeCommand(
   const searchMatch = userMsg.match(/^(搜索记忆|search memory)\s+(.+)$/i)
   if (searchMatch) {
     const keyword = searchMatch[2].trim()
-    console.log(`[cc-soul][cmd-search] searching for "${keyword}", memoryState.memories.length=${memoryState?.memories?.length || 'N/A'}`)
-    let results = recall(keyword, 10, senderId)
-    console.log(`[cc-soul][cmd-search] recall returned ${results.length} results`)
-    // Fallback: if in-memory recall fails, search JSON file directly
-    if (results.length === 0) {
-      try {
-        const memPath = resolve(DATA_DIR, 'memories.json')
-        if (existsSync(memPath)) {
-          const allMems = JSON.parse(readFileSync(memPath, 'utf-8'))
-          const kw = keyword.toLowerCase()
-          results = allMems.filter((m: any) =>
-            m.scope !== 'expired' && m.scope !== 'decayed' &&
-            (m.content.toLowerCase().includes(kw) ||
-             (m.tags && m.tags.some((t: string) => t.toLowerCase().includes(kw))))
-          ).slice(0, 10)
-          if (results.length > 0) console.log(`[cc-soul][search] fallback found ${results.length} in JSON for "${keyword}"`)
-        }
-      } catch (e: any) {
-        console.error(`[cc-soul][search] fallback error: ${e.message}`)
-      }
-    }
-    if (results.length === 0) {
-      cmdReply(ctx, event, session, `Memory search results for "${keyword}":\n\n没有找到相关记忆。`, userMsg)
-      return true
-    } else {
-      const lines = results.map((m, i) => {
-        const ago = Math.floor((Date.now() - m.ts) / 86400000)
-        const agoStr = ago === 0 ? '今天' : `${ago}天前`
-        const emotionStr = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
-        return `${i + 1}. [${m.scope}] ${m.content.slice(0, 80)}${emotionStr}（${agoStr}）`
-      })
-      cmdReply(ctx, event, session, `搜索 "${keyword}" 的记忆结果（${results.length} 条）：\n${lines.join('\n')}`, userMsg)
-      return true
-    }
-    session.lastPrompt = userMsg
+    cmdReply(ctx, event, session, executeSearch(keyword, senderId), userMsg)
     return true
   }
 
@@ -453,39 +440,8 @@ export function routeCommand(
     }
   }
 
-  if (/^(导出记忆|export memories)$/i.test(userMsg.trim())) {
-    ensureMemoriesLoaded()
-    const exportDir = DATA_DIR + '/export'
-    if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true })
-    const userMems = memoryState.memories
-      .filter(m => !senderId || !m.userId || m.userId === senderId)
-      .map(m => ({ content: m.content, scope: m.scope, ts: m.ts, tags: m.tags || [] }))
-    const today = new Date().toISOString().slice(0, 10)
-    const exportPath = `${exportDir}/memories_${today}.json`
-    writeFileSync(exportPath, JSON.stringify(userMems, null, 2), 'utf-8')
-    cmdReply(ctx, event, session, `已导出 ${userMems.length} 条记忆到 ${exportPath}`, userMsg)
-    return true
-  }
+  // 导出记忆 — removed (memories are managed by OpenClaw's memory.db directly)
 
-  if (/^(导出灵魂|export soul)$/i.test(userMsg.trim())) {
-    const exportDir = DATA_DIR + '/export'
-    if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true })
-    const soulPrompt = innerState.evolvedSoul || '（尚未生成进化灵魂）'
-    let featuresData = {}
-    try { featuresData = existsSync(DATA_DIR + '/features.json')
-      ? JSON.parse(readFileSync(DATA_DIR + '/features.json', 'utf-8')) : {} } catch { /* corrupted features.json */ }
-    const soulConfig = {
-      soul_prompt: soulPrompt,
-      features: featuresData,
-      personas: PERSONAS.map(p => ({ id: p.id, name: p.name, tone: p.tone, traits: p.traits })),
-      values: getAllValues(),
-    }
-    const today = new Date().toISOString().slice(0, 10)
-    const exportPath = `${exportDir}/soul_config_${today}.json`
-    writeFileSync(exportPath, JSON.stringify(soulConfig, null, 2), 'utf-8')
-    cmdReply(ctx, event, session, `已导出灵魂配置到 ${exportPath}（包含 soul_prompt / features / personas / values）`, userMsg)
-    return true
-  }
 
   // ── P2-#16: Export lorebook (sanitized for sharing) ──
   if (/^(导出lorebook|export lorebook)$/i.test(userMsg.trim())) {
@@ -509,100 +465,186 @@ export function routeCommand(
     return true
   }
 
-  // ── Import memories command ──
-  const importMemMatch = userMsg.match(/^(导入记忆|import memories)\s+(.+)$/i)
-  if (importMemMatch) {
-    const filePath = importMemMatch[2].trim().replace(/^~/, homedir())
+  // 导入记忆 — removed (autoImportHistory handles migration from OpenClaw history)
+
+
+  // ── GEP: 导出进化 / export evolution ──
+  if (/^(导出进化|export evolution)$/i.test(userMsg.trim())) {
+    try {
+      if (!_exportEvolutionAssets) { cmdReply(ctx, event, session, '进化模块未加载', userMsg); return true }
+      const { data, path } = _exportEvolutionAssets({ totalMessages: stats.totalMessages, firstSeen: stats.firstSeen, corrections: stats.corrections })
+      cmdReply(ctx, event, session,
+        `进化资产已导出 (GEP v${data.version})\n` +
+        `  规则: ${data.assets.rules.length}\n` +
+        `  假设: ${data.assets.hypotheses.length}\n` +
+        `  技能: ${data.assets.skills.length}\n` +
+        `  已固化: ${data.assets.metadata.rulesSolidified}\n` +
+        `路径: ${path}`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, `导出进化失败: ${e.message}`, userMsg) }
+    return true
+  }
+
+  // ── GEP: 导入进化 / import evolution ──
+  const importEvoMatch = userMsg.match(/^(导入进化|import evolution)\s+(.+)$/i)
+  if (importEvoMatch) {
+    const filePath = importEvoMatch[2].trim().replace(/^~/, homedir())
     try {
       if (!existsSync(filePath)) {
         cmdReply(ctx, event, session, `文件不存在: ${filePath}`, userMsg)
         return true
       }
-      const raw = readFileSync(filePath, 'utf-8')
-      const imported = JSON.parse(raw) as any
-      let added = 0
-      let total = 0
-      let format = 'cc-soul'
-      if (Array.isArray(imported) && imported.length > 0 && imported[0]?.memory) {
-        format = 'mem0'
-        total = imported.length
-        for (const m of imported) {
-          if (m.memory && m.memory.length > 3) { addMemory(m.memory, 'fact', senderId); added++ }
-        }
-      } else if (!Array.isArray(imported) && imported?.data?.description) {
-        format = 'character-card-v2'
-        total = 0
-        if (imported.data.description) { addMemory(imported.data.description, 'persona_import', senderId); added++; total++ }
-        if (imported.data.personality) { addMemory(imported.data.personality, 'persona_import', senderId); added++; total++ }
-        if (imported.data.first_mes) { addMemory(`[首条消息] ${imported.data.first_mes}`, 'persona_import', senderId); added++; total++ }
-      } else if (Array.isArray(imported) && imported.length > 0 && imported[0]?.type === 'memory') {
-        format = 'chatgpt'
-        total = imported.length
-        for (const m of imported) {
-          if (m.content && m.content.length > 3) { addMemory(m.content, 'fact', senderId); added++ }
-        }
-      } else if (Array.isArray(imported)) {
-        total = imported.length
-        for (const m of imported) {
-          if (m.content && m.content.length > 3) { addMemory(m.content, m.scope || 'fact', senderId); added++ }
-        }
-      } else {
-        throw new Error('unrecognized format')
-      }
-      saveMemories()
-      console.log(`[cc-soul][import] imported ${added}/${total} memories from ${filePath} (format: ${format})`)
-      cmdReply(ctx, event, session, `已导入 ${added} 条记忆（格式: ${format}，共 ${total} 条，跳过重复和无效）`, userMsg)
-      return true
-    } catch (e: any) {
-      cmdReply(ctx, event, session, `导入失败: ${e.message}`, userMsg)
-      return true
-    }
-  }
-
-  // ── Import soul command ──
-  const importSoulMatch = userMsg.match(/^(导入灵魂|import soul)\s+(.+)$/i)
-  if (importSoulMatch) {
-    const filePath = importSoulMatch[2].trim().replace(/^~/, homedir())
-    try {
-      if (!existsSync(filePath)) {
-        cmdReply(ctx, event, session, `文件不存在: ${filePath}`, userMsg)
+      // Security: only allow home dir or /tmp
+      if (!filePath.startsWith(homedir()) && !filePath.startsWith('/tmp')) {
+        cmdReply(ctx, event, session, '安全限制：只能导入家目录或 /tmp 下的文件。', userMsg)
         return true
       }
-      const raw = readFileSync(filePath, 'utf-8')
-      const config = JSON.parse(raw) as { features?: Record<string, boolean>; values?: any }
-      let changes: string[] = []
-      if (config.features && typeof config.features === 'object') {
-        const featuresPath = resolve(DATA_DIR, 'features.json')
-        writeFileSync(featuresPath, JSON.stringify(config.features, null, 2), 'utf-8')
-        changes.push(`features: ${Object.keys(config.features).length} toggles`)
-      }
-      if (config.values && typeof config.values === 'object') {
-        const valuesPath = resolve(DATA_DIR, 'values.json')
-        writeFileSync(valuesPath, JSON.stringify(config.values, null, 2), 'utf-8')
-        changes.push('values imported')
-      }
-      cmdReply(ctx, event, session, changes.length > 0
-        ? `灵魂配置已导入: ${changes.join(', ')}。重启 gateway 后完全生效。`
-        : '配置文件中没有可导入的内容（需要 features 或 values 字段）', userMsg)
-      console.log(`[cc-soul][import-soul] imported from ${filePath}: ${changes.join(', ')}`)
-      return true
-    } catch (e: any) {
-      cmdReply(ctx, event, session, `导入失败: ${e.message}`, userMsg)
-      return true
-    }
+      if (!_importEvolutionAssets) { cmdReply(ctx, event, session, '进化模块未加载', userMsg); return true }
+      const { rulesAdded, hypothesesAdded } = _importEvolutionAssets(filePath)
+      cmdReply(ctx, event, session,
+        `进化资产已导入 (GEP)\n` +
+        `  新增规则: ${rulesAdded}\n` +
+        `  新增假设: ${hypothesesAdded}`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, `导入进化失败: ${e.message}`, userMsg) }
+    return true
   }
 
-  // ── 群聊命令 ──
-  const groupChatTopic = parseGroupChatCommand(userMsg)
-  if (groupChatTopic) {
-    cmdReply(ctx, event, session, `🗣 群聊讨论启动中：${groupChatTopic}\n参与者选择中，请稍候…`, userMsg)
-    const evCtx = event?.context || {}
-    const to = event?._replyTo || evCtx.conversationId || evCtx.chatId || ''
-    triggerGroupChat(groupChatTopic, (result) => {
-      // Use notifyOwnerDM because original request context may be destroyed by the time callback fires
-      import('./notify.ts').then(({ notifyOwnerDM }) => notifyOwnerDM(result))
-        .catch((e: any) => console.error(`[cc-soul][group-chat] reply failed: ${e.message}`))
-    })
+  // ── Feature 12: 关系叙事 ──
+  if (/^(讲讲我们的故事|our story|关系叙事)$/i.test(userMsg.trim())) {
+    try {
+      const narrative = generateRelationshipNarrative()
+      cmdReply(ctx, event, session, narrative, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '关系叙事生成失败: ' + e.message, userMsg) }
+    return true
+  }
+
+  // ── Feature 13: 每日复盘 ──
+  if (/^(每日复盘|daily review)$/i.test(userMsg.trim())) {
+    try {
+      const review = generateDailyReview()
+      cmdReply(ctx, event, session, review, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '每日复盘生成失败: ' + e.message, userMsg) }
+    return true
+  }
+
+  // ── Feature 14: 记忆链路可视化 ──
+  const chainMatch = userMsg.match(/^(记忆链路|memory chain)\s+(.+)$/i)
+  if (chainMatch) {
+    try {
+      const chain = generateMemoryChain(chainMatch[2].trim())
+      cmdReply(ctx, event, session, chain, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '记忆链路生成失败: ' + e.message, userMsg) }
+    return true
+  }
+
+  // ── Feature 15: 对话分支 ──
+  if (/^(保存话题|save topic)$/i.test(userMsg.trim())) {
+    try {
+      const branchDir = resolve(DATA_DIR, 'branches')
+      if (!existsSync(branchDir)) mkdirSync(branchDir, { recursive: true })
+      // Infer topic label from recent messages
+      const recentMsgs = memoryState.chatHistory.slice(-10)
+      const topicWords = recentMsgs.flatMap(h => (h.user || '').match(/[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}/g) || [])
+      const freq = new Map<string, number>()
+      for (const w of topicWords) { const k = w.toLowerCase(); freq.set(k, (freq.get(k) || 0) + 1) }
+      const topicLabel = [...freq.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || `topic_${Date.now()}`
+      const branchData = {
+        topic: topicLabel,
+        savedAt: Date.now(),
+        chatHistory: recentMsgs,
+        persona: getActivePersona().id,
+      }
+      const branchPath = resolve(branchDir, `${topicLabel}.json`)
+      writeFileSync(branchPath, JSON.stringify(branchData, null, 2), 'utf-8')
+      cmdReply(ctx, event, session, `话题已保存：「${topicLabel}」（${recentMsgs.length} 轮对话）\n路径: ${branchPath}`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '保存话题失败: ' + e.message, userMsg) }
+    return true
+  }
+  const switchTopicMatch = userMsg.match(/^(切换话题|switch topic)\s+(.+)$/i)
+  if (switchTopicMatch) {
+    try {
+      const topicName = switchTopicMatch[2].trim()
+      const branchDir = resolve(DATA_DIR, 'branches')
+      const branchPath = resolve(branchDir, `${topicName}.json`)
+      if (!branchPath.startsWith(branchDir)) {
+        cmdReply(ctx, event, session, '无效的话题名称。', userMsg)
+        return true
+      }
+      // Save current conversation before switching
+      if (memoryState.chatHistory.length > 0) {
+        if (!existsSync(branchDir)) mkdirSync(branchDir, { recursive: true })
+        const currentTopic = `_autosave_${Date.now()}`
+        const currentBranch = { topic: currentTopic, savedAt: Date.now(), chatHistory: memoryState.chatHistory.slice(-50) }
+        writeFileSync(resolve(branchDir, `${currentTopic}.json`), JSON.stringify(currentBranch, null, 2), 'utf-8')
+      }
+      if (!existsSync(branchPath)) {
+        cmdReply(ctx, event, session, `话题「${topicName}」不存在，用"话题列表"查看可用话题。`, userMsg)
+        return true
+      }
+      const branchData = JSON.parse(readFileSync(branchPath, 'utf-8'))
+      // Restore chat history
+      if (branchData.chatHistory && Array.isArray(branchData.chatHistory)) {
+        memoryState.chatHistory.length = 0
+        memoryState.chatHistory.push(...branchData.chatHistory)
+      }
+      const persona = branchData.persona || 'unknown'
+      cmdReply(ctx, event, session, `已切换到话题「${topicName}」（恢复 ${branchData.chatHistory?.length || 0} 轮对话，人格: ${persona}）`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '切换话题失败: ' + e.message, userMsg) }
+    return true
+  }
+  if (/^(话题列表|topic list)$/i.test(userMsg.trim())) {
+    try {
+      const branchDir = resolve(DATA_DIR, 'branches')
+      if (!existsSync(branchDir)) { cmdReply(ctx, event, session, '暂无保存的话题。', userMsg); return true }
+      const { readdirSync } = require('fs')
+      const files = (readdirSync(branchDir) as string[]).filter((f: string) => f.endsWith('.json'))
+      if (files.length === 0) { cmdReply(ctx, event, session, '暂无保存的话题。', userMsg); return true }
+      const lines: string[] = [`话题列表（${files.length} 个）：`]
+      for (const f of files) {
+        try {
+          const data = JSON.parse(readFileSync(resolve(branchDir, f), 'utf-8'))
+          const age = Math.floor((Date.now() - (data.savedAt || 0)) / 86400000)
+          const ageStr = age === 0 ? '今天' : `${age}天前`
+          lines.push(`• ${data.topic || f.replace('.json', '')} — ${data.chatHistory?.length || 0} 轮对话（${ageStr}）`)
+        } catch {
+          lines.push(`• ${f.replace('.json', '')} — 数据损坏`)
+        }
+      }
+      cmdReply(ctx, event, session, lines.join('\n'), userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '话题列表读取失败: ' + e.message, userMsg) }
+    return true
+  }
+
+  // ── Feature 16: 团队记忆（共享/私有） ──
+  const shareMemMatch = userMsg.match(/^(共享记忆|share memory)\s+(.+)$/i)
+  if (shareMemMatch) {
+    try {
+      const keyword = shareMemMatch[2].trim()
+      const _db = getDb()
+      if (!_db) { cmdReply(ctx, event, session, '数据库未就绪。', userMsg); return true }
+      const kw = `%${keyword.toLowerCase()}%`
+      const stmt = _db.prepare("UPDATE memories SET visibility = 'global' WHERE scope != 'expired' AND scope != 'decayed' AND (LOWER(content) LIKE ? OR LOWER(tags) LIKE ?)")
+      const result = stmt.run(kw, kw)
+      const changed = result.changes || 0
+      cmdReply(ctx, event, session, changed > 0
+        ? `已将 ${changed} 条匹配「${keyword}」的记忆设为全局共享。`
+        : `没有找到匹配「${keyword}」的记忆。`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '共享记忆失败: ' + e.message, userMsg) }
+    return true
+  }
+  const privateMemMatch = userMsg.match(/^(私有记忆|private memory)\s+(.+)$/i)
+  if (privateMemMatch) {
+    try {
+      const keyword = privateMemMatch[2].trim()
+      const _db = getDb()
+      if (!_db) { cmdReply(ctx, event, session, '数据库未就绪。', userMsg); return true }
+      const kw = `%${keyword.toLowerCase()}%`
+      const stmt = _db.prepare("UPDATE memories SET visibility = 'private' WHERE scope != 'expired' AND scope != 'decayed' AND (LOWER(content) LIKE ? OR LOWER(tags) LIKE ?)")
+      const result = stmt.run(kw, kw)
+      const changed = result.changes || 0
+      cmdReply(ctx, event, session, changed > 0
+        ? `已将 ${changed} 条匹配「${keyword}」的记忆设为私有。`
+        : `没有找到匹配「${keyword}」的记忆。`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, '私有记忆失败: ' + e.message, userMsg) }
     return true
   }
 
@@ -640,53 +682,40 @@ export function routeCommand(
 
   // ── Memory health command ──
   if (/^(记忆健康|memory health)$/i.test(userMsg.trim())) {
-    // Read from JSON file (memoryState.memories may not be loaded in lightweight init)
-    let mems: any[] = []
-    try {
-      const memPath = resolve(DATA_DIR, 'memories.json')
-      mems = existsSync(memPath) ? JSON.parse(readFileSync(memPath, 'utf-8')).filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed') : []
-    } catch (_) {}
-    const total = mems.length
-    const scopeDist: Record<string, number> = {}
-    const confidenceBuckets = { high: 0, medium: 0, low: 0, unset: 0 }
-    let decayedCount = 0
-    const now = Date.now()
-
-    for (const m of mems) {
-      scopeDist[m.scope] = (scopeDist[m.scope] || 0) + 1
-      const conf = (m as any).confidence ?? -1
-      if (conf >= 0.7) confidenceBuckets.high++
-      else if (conf >= 0.4) confidenceBuckets.medium++
-      else if (conf >= 0) confidenceBuckets.low++
-      else confidenceBuckets.unset++
-      if (now - m.ts > 30 * 86400000 && m.hits === 0) decayedCount++
-    }
-
-    const scopeLines = Object.entries(scopeDist)
-      .sort((a, b) => b[1] - a[1])
-      .map(([s, n]) => `  ${s}: ${n}`)
-      .join('\n')
-
-    const display = [
-      `记忆健康报告`,
-      `总数: ${total}`,
-      ``,
-      `Scope 分布:`,
-      scopeLines,
-      ``,
-      `置信度分布:`,
-      `  高 (>=0.7): ${confidenceBuckets.high}`,
-      `  中 (0.4-0.7): ${confidenceBuckets.medium}`,
-      `  低 (<0.4): ${confidenceBuckets.low}`,
-      `  未设置: ${confidenceBuckets.unset}`,
-      ``,
-      `衰减概况:`,
-      `  30天以上零命中: ${decayedCount} 条 (${total > 0 ? (decayedCount / total * 100).toFixed(1) : 0}%)`,
-      `  活跃记忆: ${total - decayedCount} 条`,
-    ].join('\n')
-
-    cmdReply(ctx, event, session, display, userMsg)
+    cmdReply(ctx, event, session, executeHealth(), userMsg)
     return true
+  }
+
+  // ── #11 上下文提醒命令 ──
+  {
+    const ctxMatch1 = userMsg.match(/^当聊到\s*(.+?)\s*时?提醒我\s+(.+)$/)
+    const ctxMatch2 = userMsg.match(/^remind\s+me\s+(.+?)\s+when\s+(?:we\s+)?talk(?:ing)?\s+about\s+(.+)$/i)
+    const ctxMatch3 = userMsg.match(/^when\s+(?:we\s+)?talk(?:ing)?\s+about\s+(.+?)\s+remind\s+me\s+(.+)$/i)
+    if (ctxMatch1) {
+      const keyword = ctxMatch1[1].trim()
+      const reminderContent = ctxMatch1[2].trim()
+      if (keyword.length >= 2 && reminderContent.length >= 2) {
+        const id = dbAddContextReminder(keyword, reminderContent, senderId)
+        cmdReply(ctx, event, session, `已添加上下文提醒：当聊到「${keyword}」时提醒你「${reminderContent}」(id=${id})`, userMsg)
+        return true
+      }
+    } else if (ctxMatch2) {
+      const reminderContent = ctxMatch2[1].trim()
+      const keyword = ctxMatch2[2].trim()
+      if (keyword.length >= 2 && reminderContent.length >= 2) {
+        const id = dbAddContextReminder(keyword, reminderContent, senderId)
+        cmdReply(ctx, event, session, `已添加上下文提醒：当聊到「${keyword}」时提醒你「${reminderContent}」(id=${id})`, userMsg)
+        return true
+      }
+    } else if (ctxMatch3) {
+      const keyword = ctxMatch3[1].trim()
+      const reminderContent = ctxMatch3[2].trim()
+      if (keyword.length >= 2 && reminderContent.length >= 2) {
+        const id = dbAddContextReminder(keyword, reminderContent, senderId)
+        cmdReply(ctx, event, session, `已添加上下文提醒：当聊到「${keyword}」时提醒你「${reminderContent}」(id=${id})`, userMsg)
+        return true
+      }
+    }
   }
 
   // ── #8 习惯追踪命令（使用官方 habits + habit_logs 表）──
@@ -789,6 +818,21 @@ export function routeCommand(
     }
   }
 
+  // ── 恢复记忆命令（DAG Archive） ──
+  const restoreMatch = userMsg.match(/^(?:恢复记忆|restore memory)\s+(.+)$/i)
+  if (restoreMatch) {
+    try {
+      const keyword = restoreMatch[1].trim()
+      const count = restoreArchivedMemories(keyword)
+      if (count > 0) {
+        cmdReply(ctx, event, session, `已恢复 ${count} 条匹配 "${keyword}" 的归档记忆。`, userMsg)
+      } else {
+        cmdReply(ctx, event, session, `没有找到匹配 "${keyword}" 的归档记忆。`, userMsg)
+      }
+    } catch (e: any) { cmdReply(ctx, event, session, `恢复失败: ${e.message}`, userMsg) }
+    return true
+  }
+
   // ── 提醒命令 ──
   const remindMatch = userMsg.match(/^(?:提醒|remind)\s+(?:每天)?\s*(\d{1,2})[:\uff1a](\d{2})\s+(.+)$/i)
   if (remindMatch) {
@@ -848,6 +892,98 @@ export function routeCommand(
       cmdReply(ctx, event, session, `记忆时间线 "${keyword}"（${results.length} 条）：\n${lines.join('\n')}`, userMsg)
     }
     session.lastPrompt = userMsg; return true
+  }
+
+  // ── 功能: 时间旅行 — 观点演变追踪 ──
+  const timeTravelMatch = userMsg.match(/^(?:时间旅行|time travel)\s+(.+)$/i)
+  if (timeTravelMatch) {
+    const keyword = timeTravelMatch[1].trim()
+    try {
+      const _db = getDb()
+      if (_db) {
+        const kw = `%${keyword.toLowerCase()}%`
+        const rows = _db.prepare(
+          "SELECT content, scope, ts FROM memories WHERE LOWER(content) LIKE ? AND scope != 'expired' AND scope != 'decayed' ORDER BY ts ASC LIMIT 30"
+        ).all(kw) as any[]
+        if (rows.length === 0) {
+          cmdReply(ctx, event, session, `没有找到关于「${keyword}」的记忆演变。`, userMsg)
+        } else {
+          const lines = rows.map((r: any) => {
+            const date = new Date(r.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+            return `  [${date}] ${r.content.slice(0, 80)}`
+          })
+          // Derive trend
+          let trend = '→ 持续关注中'
+          if (rows.length >= 3) {
+            const first = rows[0].content.toLowerCase()
+            const last = rows[rows.length - 1].content.toLowerCase()
+            if (first.includes('学') && last.includes('理解')) trend = '→ 从入门到深入，持续推进中'
+            else if (last.includes('完成') || last.includes('done')) trend = '→ 已完成'
+            else if (last.includes('放弃') || last.includes('算了')) trend = '→ 已放弃'
+          }
+          const display = `🕰 「${keyword}」观点演变（${rows.length} 条）\n${lines.join('\n')}\n\n${trend}`
+          cmdReply(ctx, event, session, display, userMsg)
+        }
+      } else {
+        cmdReply(ctx, event, session, '数据库未就绪，无法查询。', userMsg)
+      }
+    } catch (e: any) { cmdReply(ctx, event, session, `时间旅行查询失败: ${e.message}`, userMsg) }
+    return true
+  }
+
+  // ── 功能: 推理链 — 显示最近一次回复用了哪些记忆 + 因果追溯 + 反事实 ──
+  if (/^(推理链|reasoning chain)$/i.test(userMsg.trim())) {
+    const recalled = session.lastRecalledContents
+    if (recalled.length === 0) {
+      cmdReply(ctx, event, session, '上一次回复没有召回任何记忆。', userMsg)
+    } else {
+      const lines = recalled.map((c, i) => `  ${i + 1}. ${c.slice(0, 100)}`)
+      // ── 因果追溯: find correction/event memories among recalled, trace causes ──
+      const causalLines: string[] = []
+      const DAY_MS = 24 * 3600000
+      const allMems = memoryState.memories
+      const recalledMems = recalled.map(c => allMems.find(m => m.content === c)).filter(Boolean) as typeof allMems
+      const correctionMems = recalledMems.filter(m => m.scope === 'correction' || m.scope === 'event')
+      for (const mem of correctionMems.slice(0, 3)) {
+        const memTrigrams = trigrams(mem.content)
+        // Find memories within ±24h that share topic (potential causes)
+        const nearby = allMems.filter(m =>
+          m !== mem && Math.abs(m.ts - mem.ts) < DAY_MS &&
+          trigramSimilarity(trigrams(m.content), memTrigrams) > 0.15
+        ).sort((a, b) => a.ts - b.ts)
+        if (nearby.length > 0) {
+          const rootCause = nearby[0]
+          const fmtD = (ts: number) => new Date(ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+          causalLines.push(`  结果: ${mem.content.slice(0, 60)} (${fmtD(mem.ts)})`)
+          causalLines.push(`    ← 原因: ${nearby[nearby.length > 1 ? 1 : 0].content.slice(0, 60)} (${fmtD(nearby[0].ts)})`)
+          causalLines.push(`    ← 根因: ${rootCause.content.slice(0, 60)}`)
+          // Counterfactual: invert the root cause
+          const rootSnippet = rootCause.content.slice(0, 40).replace(/[。.!！？?]$/, '')
+          causalLines.push(`  💭 反事实: 如果当时没有「${rootSnippet}」，这个问题可能不会发生`)
+          causalLines.push('')
+        }
+      }
+      let display = `🧠 上次回复的推理链（召回 ${recalled.length} 条记忆）：\n${lines.join('\n')}`
+      if (causalLines.length > 0) {
+        display += `\n\n🔗 因果追溯：\n${causalLines.join('\n')}`
+      }
+      cmdReply(ctx, event, session, display, userMsg)
+    }
+    return true
+  }
+
+  // ── 功能: 情绪锚点 — 显示话题与情绪的关联 ──
+  if (/^(情绪锚点|emotion anchors?)$/i.test(userMsg.trim())) {
+    cmdReply(ctx, event, session, formatEmotionAnchors(), userMsg)
+    return true
+  }
+
+  // ── "别记这个" — skip next memory ──
+  if (/^(别记了?这[个条]?|别记住|don't remember|forget this|不要记)/i.test(userMsg.trim())) {
+    // Set a flag so the NEXT addMemory call skips
+    session._skipNextMemory = true
+    cmdReply(ctx, event, session, '🔇 收到，这条对话不会被记忆。', userMsg)
+    return true
   }
 
   // Task confirmation check
@@ -911,6 +1047,8 @@ soul state — AI 能量/心情
 我的提醒 — 查看提醒
 功能状态 — 功能开关
 记忆健康 — 记忆统计
+导出进化 — 导出 GEP 格式进化资产
+导入进化 <路径> — 导入 GEP 格式
 
 ━━ 触发词 ━━
 "别记了" → 暂停记忆 | "可以了" → 恢复
@@ -922,50 +1060,19 @@ soul state — AI 能量/心情
   // 搜索记忆
   const searchMatch = userMsg.match(/^(搜索记忆|search memory)\s+(.+)$/i)
   if (searchMatch) {
-    const keyword = searchMatch[2].trim()
-    let results = recall(keyword, 10)
-    // Fallback to JSON file
-    if (results.length === 0) {
-      try {
-        const memPath = resolve(DATA_DIR, 'memories.json')
-        if (existsSync(memPath)) {
-          const allMems = JSON.parse(readFileSync(memPath, 'utf-8'))
-          const kw = keyword.toLowerCase()
-          results = allMems.filter((m: any) =>
-            m.scope !== 'expired' && m.scope !== 'decayed' &&
-            (m.content.toLowerCase().includes(kw) || (m.tags && m.tags.some((t: string) => t.toLowerCase().includes(kw))))
-          ).slice(0, 10)
-        }
-      } catch (_) {}
-    }
-    const text = results.length === 0
-      ? `没有找到关于「${keyword}」的记忆。`
-      : `搜索「${keyword}」结果（${results.length} 条）：\n${results.map((m: any, i: number) => `${i + 1}. [${m.scope}] ${m.content.slice(0, 80)}`).join('\n')}`
-    reply(text)
+    reply(executeSearch(searchMatch[2].trim()))
     return true
   }
 
   // 我的记忆
   if (/^(我的记忆|my memories)$/i.test(userMsg.trim())) {
-    try {
-      const memPath = resolve(DATA_DIR, 'memories.json')
-      const mems = existsSync(memPath) ? JSON.parse(readFileSync(memPath, 'utf-8')) : []
-      const active = mems.filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed')
-      const recent = active.sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0)).slice(0, 10)
-      const lines = recent.map((m: any, i: number) => `${i + 1}. [${m.scope}] ${m.content.slice(0, 60)}`)
-      reply(lines.length > 0 ? `最近记忆（共 ${active.length} 条）：\n${lines.join('\n')}` : '还没有记忆。')
-    } catch (_) {}
+    reply(executeMyMemories())
     return true
   }
 
   // stats
   if (/^(stats)$/i.test(userMsg.trim())) {
-    try {
-      const memPath = resolve(DATA_DIR, 'memories.json')
-      const mems = existsSync(memPath) ? JSON.parse(readFileSync(memPath, 'utf-8')) : []
-      const active = mems.filter((m: any) => m.scope !== 'expired' && m.scope !== 'decayed').length
-      reply(`cc-soul 仪表盘\n记忆: ${active} 条\n模块: 41 个`)
-    } catch (_) {}
+    reply(executeStats())
     return true
   }
 
@@ -980,8 +1087,7 @@ soul state — AI 能量/心情
 
   // 功能状态
   if (/^(功能状态|features|feature status)$/i.test(userMsg.trim())) {
-    const result = handleFeatureCommand(userMsg)
-    reply(typeof result === 'string' ? result : '功能开关已更新。')
+    reply(executeFeatures())
     return true
   }
 
@@ -1037,17 +1143,18 @@ soul state — AI 能量/心情
     return true
   }
 
+  // 成长轨迹
+  if (/^(成长轨迹|growth)$/i.test(userMsg.trim())) {
+    try {
+      reply(formatGrowthVectors())
+    } catch (_) { reply('成长轨迹暂不可用') }
+    return true
+  }
+
+
   // 记忆健康（使用官方DB）
   if (/^(记忆健康|memory health)$/i.test(userMsg.trim())) {
-    try {
-      const { sqliteCount, getDb } = await import('./sqlite-store.ts')
-      const db = getDb()
-      const total = db ? (db.prepare('SELECT COUNT(*) as c FROM memories').get() as any)?.c || 0 : 0
-      const active = db ? (db.prepare("SELECT COUNT(*) as c FROM memories WHERE scope != 'expired' AND scope != 'decayed'").get() as any)?.c || 0 : 0
-      const scopes = db ? (db.prepare("SELECT scope, COUNT(*) as c FROM memories WHERE scope != 'expired' AND scope != 'decayed' GROUP BY scope ORDER BY c DESC").all() as any[]) : []
-      const scopeLines = scopes.map((r: any) => `  ${r.scope}: ${r.c}`).join('\n')
-      reply(`记忆健康\n总数: ${total}\n活跃: ${active}\nScope 分布:\n${scopeLines}`)
-    } catch (_) { reply('记忆健康检查失败') }
+    reply(executeHealth())
     return true
   }
 
@@ -1069,6 +1176,35 @@ soul state — AI 能量/心情
     if (mine.length === 0) { reply('暂无提醒。'); return true }
     const lines = mine.map((r, i) => `${i + 1}. ${r.hour}:${String(r.minute).padStart(2, '0')} — ${r.msg}`)
     reply(`我的提醒：\n${lines.join('\n')}`)
+    return true
+  }
+
+  // 导出进化 (GEP)
+  if (/^(导出进化|export evolution)$/i.test(userMsg.trim())) {
+    try {
+      const { exportEvolutionAssets } = await import('./evolution.ts')
+      const { data, path } = exportEvolutionAssets({ totalMessages: stats.totalMessages, firstSeen: stats.firstSeen, corrections: stats.corrections })
+      reply(
+        `进化资产已导出 (GEP v${data.version})\n` +
+        `  规则: ${data.assets.rules.length}\n` +
+        `  假设: ${data.assets.hypotheses.length}\n` +
+        `  已固化: ${data.assets.metadata.rulesSolidified}\n` +
+        `路径: ${path}`)
+    } catch (e: any) { reply(`导出进化失败: ${e.message}`) }
+    return true
+  }
+
+  // 导入进化 (GEP)
+  const importEvoMatchDirect = userMsg.match(/^(导入进化|import evolution)\s+(.+)$/i)
+  if (importEvoMatchDirect) {
+    const filePath = importEvoMatchDirect[2].trim().replace(/^~/, require('os').homedir())
+    try {
+      const { existsSync: _exists } = require('fs')
+      if (!_exists(filePath)) { reply(`文件不存在: ${filePath}`); return true }
+      const { importEvolutionAssets } = await import('./evolution.ts')
+      const { rulesAdded, hypothesesAdded } = importEvolutionAssets(filePath)
+      reply(`进化资产已导入 (GEP)\n  新增规则: ${rulesAdded}\n  新增假设: ${hypothesesAdded}`)
+    } catch (e: any) { reply(`导入进化失败: ${e.message}`) }
     return true
   }
 
@@ -1106,24 +1242,55 @@ soul state — AI 能量/心情
     return true
   }
 
-  // ── 群聊命令 ──
-  const groupTopic = parseGroupChatCommand(userMsg)
-  if (groupTopic) {
-    reply(`🗣 群聊讨论启动中：${groupTopic}\n参与者选择中，请稍候…`)
-    triggerGroupChat(groupTopic, (result) => {
-      import('./notify.ts').then(({ notifyOwnerDM }) => notifyOwnerDM(result)).catch(() => {})
-    })
+  // ── Feature 12: 关系叙事 (direct) ──
+  if (/^(讲讲我们的故事|our story|关系叙事)$/i.test(userMsg.trim())) {
+    try { reply(generateRelationshipNarrative()) } catch (_) { reply('关系叙事暂不可用') }
+    return true
+  }
+
+  // ── Feature 13: 每日复盘 (direct) ──
+  if (/^(每日复盘|daily review)$/i.test(userMsg.trim())) {
+    try { reply(generateDailyReview()) } catch (_) { reply('每日复盘暂不可用') }
+    return true
+  }
+
+  // ── Feature 14: 记忆链路 (direct) ──
+  const chainMatchDirect = userMsg.match(/^(记忆链路|memory chain)\s+(.+)$/i)
+  if (chainMatchDirect) {
+    try { reply(generateMemoryChain(chainMatchDirect[2].trim())) } catch (_) { reply('记忆链路暂不可用') }
+    return true
+  }
+
+  // ── Feature 15: 话题列表 (direct, read-only) ──
+  if (/^(话题列表|topic list)$/i.test(userMsg.trim())) {
+    try {
+      const branchDir = resolve(DATA_DIR, 'branches')
+      if (!existsSync(branchDir)) { reply('暂无保存的话题。'); return true }
+      const { readdirSync } = require('fs')
+      const files = (readdirSync(branchDir) as string[]).filter((f: string) => f.endsWith('.json'))
+      if (files.length === 0) { reply('暂无保存的话题。'); return true }
+      const lines: string[] = [`话题列表（${files.length} 个）：`]
+      for (const f of files) {
+        try {
+          const data = JSON.parse(readFileSync(resolve(branchDir, f), 'utf-8'))
+          const age = Math.floor((Date.now() - (data.savedAt || 0)) / 86400000)
+          const ageStr = age === 0 ? '今天' : `${age}天前`
+          lines.push(`• ${data.topic || f.replace('.json', '')} — ${data.chatHistory?.length || 0} 轮对话（${ageStr}）`)
+        } catch { lines.push(`• ${f.replace('.json', '')} — 数据损坏`) }
+      }
+      reply(lines.join('\n'))
+    } catch (_) { reply('话题列表暂不可用') }
     return true
   }
 
   // 隐私模式
-  if (userMsg.includes('别记了') || userMsg.includes('隐私模式') || userMsg.includes('privacy mode')) {
+  if (/^(别记了|隐私模式|privacy mode)$/i.test(userMsg.trim())) {
     setPrivacyMode(true)
     console.log('[cc-soul] privacy mode ON (via routeCommandDirect)')
     reply('隐私模式已开启，对话内容不会被记忆。说"可以了"恢复。')
     return true
   }
-  if (userMsg.includes('可以了') || userMsg.includes('关闭隐私') || userMsg.includes('恢复记忆')) {
+  if (getPrivacyMode() && /^(可以了|关闭隐私|恢复记忆)$/i.test(userMsg.trim())) {
     setPrivacyMode(false)
     console.log('[cc-soul] privacy mode OFF (via routeCommandDirect)')
     reply('隐私模式已关闭，恢复记忆。')
@@ -1168,9 +1335,22 @@ const CMD_PATTERNS = [
   /^(upgrade|更新)/i,
   /^(radar|竞品)/i,
   /^(dashboard|仪表盘|记忆地图)/i,
-  /^(群聊|group\s*chat)\s+/i,
+  /^(成长轨迹|growth)$/i,
+  /^(我的技能|my skills)$/i,
+  /^(时间旅行|time travel)\s+/i,
+  /^(推理链|reasoning chain)$/i,
+  /^(情绪锚点|emotion anchors?)$/i,
+  /^(讲讲我们的故事|our story|关系叙事)$/i,
+  /^(每日复盘|daily review)$/i,
+  /^(记忆链路|memory chain)\s+/i,
+  /^(保存话题|save topic)$/i,
+  /^(切换话题|switch topic)\s+/i,
+  /^(话题列表|topic list)$/i,
+  /^(共享记忆|share memory)\s+/i,
+  /^(私有记忆|private memory)\s+/i,
+  /^(别记了?这[个条]?|别记住|don't remember|forget this|不要记)$/i,
 ]
-const PRIVACY_TRIGGERS = ['别记了', '隐私模式', 'privacy mode', '可以了', '关闭隐私', '恢复记忆']
+const PRIVACY_TRIGGERS_RE = /^(别记了|隐私模式|privacy mode|可以了|关闭隐私|恢复记忆)$/i
 
 /**
  * Check if a message is a cc-soul command (for inbound_claim filtering).
@@ -1179,7 +1359,7 @@ export function isCommand(msg: string): boolean {
   const trimmed = (msg || '').trim()
   if (!trimmed) return false
   if (CMD_PATTERNS.some(p => p.test(trimmed))) return true
-  if (PRIVACY_TRIGGERS.some(t => trimmed.includes(t))) return true
+  if (PRIVACY_TRIGGERS_RE.test(trimmed)) return true
   return false
 }
 

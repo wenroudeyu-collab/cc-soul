@@ -9,6 +9,8 @@ import type { SoulModule } from './brain.ts'
 
 import type { Entity, Relation } from './types.ts'
 import { getParam } from './auto-tune.ts'
+import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
+import { resolve } from 'path'
 import {
   dbGetEntities, dbAddEntity, dbUpdateEntity,
   dbGetRelations, dbAddRelation,
@@ -26,6 +28,7 @@ function getStaleThresholdMs() { return getParam('graph.stale_days') * 24 * 60 *
 export const graphState = {
   entities: [] as Entity[],
   relations: [] as Relation[],
+  ranks: new Map<string, number>(),
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -118,12 +121,40 @@ export function invalidateStaleEntities(): number {
  * Find entities mentioned in message text (exact name match).
  */
 export function findMentionedEntities(msg: string): string[] {
-  return graphState.entities
+  const mentioned = graphState.entities
     .filter(e => e.invalid_at === null && e.name.length >= 3 &&
       new RegExp('\\b' + e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(msg))
     .sort((a, b) => b.mentions - a.mentions)
     .slice(0, 5)
-    .map(e => e.name)
+
+  // ── Spreading activation: boost mentioned entities + propagate to neighbors ──
+  for (const e of mentioned) {
+    e.activation = Math.min(1.0, (e.activation ?? 0) + 0.3)
+    e.lastActivatedAt = Date.now()
+    // Propagate to 1-hop neighbors with decay
+    for (const r of graphState.relations) {
+      if (r.invalid_at !== null) continue
+      const neighbor = r.source === e.name ? r.target : r.target === e.name ? r.source : null
+      if (!neighbor) continue
+      const ne = graphState.entities.find(n => n.name === neighbor && n.invalid_at === null)
+      if (ne) {
+        ne.activation = Math.min(1.0, (ne.activation ?? 0) + 0.1)
+        ne.lastActivatedAt = Date.now()
+      }
+    }
+  }
+
+  return mentioned.map(e => e.name)
+}
+
+/** Decay all entity activations. Called from heartbeat. */
+export function decayActivations(factor = 0.92) {
+  for (const e of graphState.entities) {
+    if (e.activation && e.activation > 0.01) {
+      e.activation *= factor
+      if (e.activation < 0.01) e.activation = 0
+    }
+  }
 }
 
 /**
@@ -235,8 +266,10 @@ export function graphWalkRecallScored(
         const freshness = Math.exp(-freshnessMs / (90 * 86400000)) // 90-day half-life
         const entityNode = graphState.entities.find(e => e.name === neighbor && e.invalid_at === null)
         const mentionBoost = entityNode ? Math.min(2.0, 1 + Math.log2(entityNode.mentions + 1) * 0.3) : 1.0
+        // Activation boost: recently mentioned entities score higher
+        const activationBoost = entityNode?.activation ? (1.0 + entityNode.activation * 0.5) : 1.0
 
-        const score = hopDecay * freshness * mentionBoost
+        const score = hopDecay * freshness * mentionBoost * activationBoost
         entityScores.set(neighbor, score)
         next.push(neighbor)
         if (entityScores.size >= maxResults * 3) break
@@ -323,7 +356,7 @@ export function queryGraphPath(from: string, to: string, maxHops = 3): string[] 
 }
 
 export function queryEntityContext(msg: string): string[] {
-  const results: string[] = []
+  const results: { text: string; rank: number }[] = []
   for (const entity of graphState.entities) {
     // Only return active (non-invalidated) entities
     if (entity.invalid_at !== null) continue
@@ -332,16 +365,152 @@ export function queryEntityContext(msg: string): string[] {
       const rels = graphState.relations.filter(r =>
         r.invalid_at === null && (r.source === entity.name || r.target === entity.name),
       )
+      const rank = graphState.ranks.get(entity.name) || 0
       if (rels.length > 0) {
         const relStr = rels.map(r => `${r.source} ${r.type} ${r.target}`).join(', ')
-        results.push(`[${entity.type}] ${entity.name}: ${relStr}`)
+        results.push({ text: `[${entity.type}] ${entity.name}: ${relStr}`, rank })
       } else if (entity.attrs.length > 0) {
-        results.push(`[${entity.type}] ${entity.name}: ${entity.attrs.join(', ')}`)
+        results.push({ text: `[${entity.type}] ${entity.name}: ${entity.attrs.join(', ')}`, rank })
       }
     }
   }
-  return results.slice(0, 3)
+  // Sort by PageRank descending
+  results.sort((a, b) => b.rank - a.rank)
+  return results.slice(0, 3).map(r => r.text)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// #5 PageRank — importance ranking for knowledge graph nodes
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Simplified PageRank with mention-based boost.
+ * Called from heartbeat to periodically recompute node importance.
+ */
+export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
+  const activeEntities = graphState.entities.filter(e => e.invalid_at === null)
+  const N = activeEntities.length
+  if (N === 0) { graphState.ranks.clear(); return }
+
+  const names = new Set(activeEntities.map(e => e.name))
+  const ranks = new Map<string, number>()
+
+  // Initial rank = 1/N
+  for (const name of names) ranks.set(name, 1 / N)
+
+  // Build adjacency: outDegree per node and neighbor lists
+  const outDegree = new Map<string, number>()
+  const inEdges = new Map<string, string[]>() // node -> list of neighbors pointing to it
+  for (const name of names) { outDegree.set(name, 0); inEdges.set(name, []) }
+
+  for (const r of graphState.relations) {
+    if (r.invalid_at !== null) continue
+    if (!names.has(r.source) || !names.has(r.target)) continue
+    outDegree.set(r.source, (outDegree.get(r.source) || 0) + 1)
+    outDegree.set(r.target, (outDegree.get(r.target) || 0) + 1)
+    inEdges.get(r.target)!.push(r.source)
+    inEdges.get(r.source)!.push(r.target)
+  }
+
+  // Iterative PageRank
+  for (let iter = 0; iter < iterations; iter++) {
+    const newRanks = new Map<string, number>()
+    for (const name of names) {
+      let sum = 0
+      const neighbors = inEdges.get(name) || []
+      for (const neighbor of neighbors) {
+        const neighborOut = outDegree.get(neighbor) || 1
+        sum += (ranks.get(neighbor) || 0) / neighborOut
+      }
+      newRanks.set(name, (1 - dampingFactor) / N + dampingFactor * sum)
+    }
+    // Apply mention boost: more mentions = higher rank
+    for (const entity of activeEntities) {
+      const base = newRanks.get(entity.name) || 0
+      const mentionBoost = 1 + Math.log2(Math.max(1, entity.mentions)) * 0.15
+      newRanks.set(entity.name, base * mentionBoost)
+    }
+    // Copy to ranks for next iteration
+    for (const [k, v] of newRanks) ranks.set(k, v)
+  }
+
+  graphState.ranks = ranks
+  console.log(`[cc-soul][graph] PageRank computed for ${N} entities`)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Social Graph — 关系图谱：追踪用户提到的人物及情绪关联
+// (merged from social-graph.ts)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SOCIAL_PATH = resolve(DATA_DIR, 'social_graph.json')
+
+interface SocialNode {
+  name: string
+  mentions: number
+  lastMentioned: number
+  emotionSum: number  // positive = good vibes, negative = stress
+  emotions: { positive: number; negative: number; neutral: number }  // categorized emotion counts
+  recentTopics: string[]
+}
+
+let socialGraph: SocialNode[] = loadJson<SocialNode[]>(SOCIAL_PATH, [])
+
+const ROLE_PATTERNS = /老板|领导|boss|同事|colleague|朋友|女朋友|男朋友|老婆|老公|爸|妈|哥|姐|弟|妹|老师|客户/g
+
+export function detectMentionedPeople(msg: string): string[] {
+  const roles = msg.match(ROLE_PATTERNS) || []
+  // Also detect names like 小李, 小王, etc
+  const names = msg.match(/[小大老][A-Z\u4e00-\u9fff]/g) || []
+  return [...new Set([...roles, ...names])]
+}
+
+export function updateSocialGraph(msg: string, mood: number) {
+  const people = detectMentionedPeople(msg)
+  for (const name of people) {
+    let node = socialGraph.find(n => n.name === name)
+    if (!node) {
+      node = { name, mentions: 0, lastMentioned: 0, emotionSum: 0, emotions: { positive: 0, negative: 0, neutral: 0 }, recentTopics: [] }
+      socialGraph.push(node)
+    }
+    node.mentions++
+    node.lastMentioned = Date.now()
+    node.emotionSum += mood
+    if (!node.emotions) node.emotions = { positive: 0, negative: 0, neutral: 0 }
+    if (mood > 0.2) node.emotions.positive++
+    else if (mood < -0.2) node.emotions.negative++
+    else node.emotions.neutral++
+    // Extract topic keyword
+    const topic = msg.replace(new RegExp(name, 'g'), '').match(/[\u4e00-\u9fff]{2,4}/)?.[0]
+    if (topic && !node.recentTopics.includes(topic)) {
+      node.recentTopics.push(topic)
+      if (node.recentTopics.length > 5) node.recentTopics.shift()
+    }
+  }
+  if (people.length > 0) debouncedSave(SOCIAL_PATH, socialGraph)
+}
+
+export function getSocialContext(msg: string): string | null {
+  const people = detectMentionedPeople(msg)
+  if (people.length === 0) return null
+  const hints: string[] = []
+  for (const name of people) {
+    const node = socialGraph.find(n => n.name === name)
+    if (!node || node.mentions < 2) continue
+    const emotions = node.emotions || { positive: 0, negative: 0, neutral: 0 }
+    const total = emotions.positive + emotions.negative + emotions.neutral
+    const emotionLabel = total < 2 ? '数据不足'
+      : emotions.negative > emotions.positive * 2 ? '明显焦虑/压力'
+      : emotions.positive > emotions.negative * 2 ? '积极/开心'
+      : '混合情绪'
+    hints.push(`${name}：提到${node.mentions}次，情绪倾向${emotionLabel}`)
+  }
+  if (hints.length === 0) return null
+  return `[关系图谱] ${hints.join('；')}。回复时可以用这个背景信息，比如知道他一提老板就焦虑`
+}
+
+/** Reset graph state (for testing) */
+export function _resetSocialGraph() { socialGraph.length = 0 }
 
 export const graphModule: SoulModule = {
   id: 'graph',

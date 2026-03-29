@@ -63,6 +63,54 @@
       "coOccurrences": 3,
       "correctionCount": 3,
       "correctionRate": 1
+    },
+    {
+      "a": "隐私模式:",
+      "b": "用户理解",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "相关记忆",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "[Goal",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "用户理解",
+      "b": "相关记忆",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "用户理解",
+      "b": "[Goal",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "相关记忆",
+      "b": "[Goal",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
     }
   ],
   "interactions": [
@@ -72,6 +120,48 @@
       "qualitySum": 46,
       "avgQuality": 5.75,
       "correctionCount": 2
+    },
+    {
+      "pairKey": "用户理解::隐私模式:",
+      "coOccurrences": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "相关记忆::隐私模式:",
+      "coOccurrences": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::隐私模式:",
+      "coOccurrences": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户理解::相关记忆",
+      "coOccurrences": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::用户理解",
+      "coOccurrences": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::相关记忆",
+      "coOccurrences": 1,
+      "qualitySum": 8.5,
+      "avgQuality": 8.5,
+      "correctionCount": 0
     }
   ]
 }

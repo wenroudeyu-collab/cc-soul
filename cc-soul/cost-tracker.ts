@@ -167,6 +167,7 @@ export function getDailyUsageData(): { dates: string[]; tokens: number[]; turns:
 export const costTrackerModule: SoulModule = {
   id: 'cost-tracker',
   name: 'Token 成本追踪',
+  features: ['cost_tracker'],
   priority: 10,
   init() { loadCostState() },
 }

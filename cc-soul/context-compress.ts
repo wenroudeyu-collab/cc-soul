@@ -209,6 +209,7 @@ export function estimateTokenSavings(
 export const contextCompressModule: SoulModule = {
   id: 'context-compress',
   name: '渐进式上下文压缩',
+  features: ['context_compress'],
   priority: 30, // runs early so other modules see compressed augments
 
   onPreprocessed(event: any) {

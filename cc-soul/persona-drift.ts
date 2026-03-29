@@ -236,12 +236,108 @@ export function getPersonaDriftWarning(): string | null {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RULE-BASED DRIFT DETECTION (per-reply, no LLM)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Persona-specific drift rules — returns drift score 0-1 */
+interface PersonaRules {
+  id: string
+  check: (text: string, vector: StyleVector) => number
+}
+
+const COMFORTER_EMPATHY = /(?:理解|明白|辛苦|不容易|没关系|别担心|慢慢来|陪你|心疼|加油|抱抱|放心|支持你|感同身受|understand|sorry|hear you|it's ok|hang in there)/i
+const SOCRATIC_QUESTION = /[?？]/g
+const MENTOR_MIN_LENGTH = 50
+
+const PERSONA_RULES: PersonaRules[] = [
+  {
+    id: 'comforter',
+    check: (text) => COMFORTER_EMPATHY.test(text) ? 0 : 0.7,
+  },
+  {
+    id: 'socratic',
+    check: (text) => {
+      const qCount = (text.match(SOCRATIC_QUESTION) || []).length
+      return qCount > 0 ? 0 : 0.8
+    },
+  },
+  {
+    id: 'mentor',
+    check: (text) => text.length < MENTOR_MIN_LENGTH ? 0.6 : 0,
+  },
+]
+
+/** Generic vector-based drift: compare reply vector to persona idealVector */
+function vectorDriftScore(replyVector: StyleVector, idealVector: StyleVector): number {
+  // Euclidean distance in 5D, normalized to [0,1]
+  let sumSq = 0
+  const dims: (keyof StyleVector)[] = ['length', 'questionFreq', 'codeFreq', 'formality', 'depth']
+  for (const d of dims) {
+    const diff = (replyVector[d] || 0) - (idealVector[d] || 0)
+    sumSq += diff * diff
+  }
+  // max possible distance = sqrt(5) ≈ 2.236
+  return Math.sqrt(sumSq) / 2.236
+}
+
+/** Track cumulative drift count */
+let driftCount = 0
+export function getDriftCount(): number { return driftCount }
+
+/** Last drift reinforcement message (consumed once by augment builder) */
+let _pendingReinforcement: string | null = null
+
+/**
+ * Check if a reply drifts from the current persona's expected style.
+ * Returns drift score (0-1). Score > 0.5 triggers a reinforcement augment.
+ * Call this in handleSent after getting the reply text.
+ */
+export function checkPersonaDrift(replyText: string, personaId: string, personaName: string, personaTone: string, idealVector?: StyleVector): number {
+  if (!replyText || replyText.length < 10) return 0
+
+  const replyVector = extractStyle(replyText)
+  let score = 0
+
+  // 1. Persona-specific rule check
+  const rule = PERSONA_RULES.find(r => r.id === personaId)
+  if (rule) {
+    score = Math.max(score, rule.check(replyText, replyVector))
+  }
+
+  // 2. Generic vector distance (if idealVector provided)
+  if (idealVector) {
+    const vScore = vectorDriftScore(replyVector, idealVector)
+    score = Math.max(score, vScore)
+  }
+
+  // 3. If drift detected, prepare reinforcement for next augment injection
+  if (score > 0.5) {
+    driftCount++
+    _pendingReinforcement = `[人格增强] 你当前角色是「${personaName}」，请保持「${personaTone}」风格。drift_score=${score.toFixed(2)}`
+    console.log(`[persona-drift] rule-based drift detected: persona=${personaId} score=${score.toFixed(2)} driftCount=${driftCount}`)
+  }
+
+  return score
+}
+
+/**
+ * Get and consume pending reinforcement message.
+ * Returns the message once, then clears it.
+ */
+export function getPersonaDriftReinforcement(): string | null {
+  const msg = _pendingReinforcement
+  _pendingReinforcement = null
+  return msg
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SOUL MODULE
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const personaDriftModule: SoulModule = {
   id: 'persona-drift',
   name: '人格漂移检测',
+  features: ['persona_drift'],
   priority: 30,
 
   init(): void {

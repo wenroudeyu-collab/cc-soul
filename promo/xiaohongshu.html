@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>cc-soul 小红书素材</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'PingFang SC', sans-serif; background: #e8e8e8; display: flex; flex-wrap: wrap; gap: 30px; padding: 30px; justify-content: center; }
+
+/* 每张卡片 = 一张小红书图 (3:4 比例) */
+.slide { width: 540px; height: 720px; background: white; border-radius: 4px; overflow: hidden; flex-shrink: 0; position: relative; }
+
+/* ════ Slide 1: 封面 ════ */
+.cover { background: linear-gradient(160deg, #0f0c29 0%, #302b63 50%, #24243e 100%); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; text-align: center; }
+.cover .logo { font-size: 64px; font-weight: 800; letter-spacing: 4px; margin-bottom: 16px; background: linear-gradient(135deg, #a8edea, #fed6e3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.cover .tagline { font-size: 22px; line-height: 1.6; opacity: 0.95; margin-bottom: 30px; }
+.cover .tagline b { color: #a8edea; -webkit-text-fill-color: #a8edea; }
+.cover .stats-row { display: flex; gap: 24px; }
+.cover .stat-box { background: rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 20px; text-align: center; }
+.cover .stat-box .n { font-size: 28px; font-weight: 700; color: #a8edea; }
+.cover .stat-box .l { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+.cover .bottom-tag { position: absolute; bottom: 24px; font-size: 13px; opacity: 0.5; }
+
+/* ════ Chat demo slides ════ */
+.demo-slide { padding: 28px 24px; display: flex; flex-direction: column; }
+.demo-slide .slide-num { font-size: 12px; color: #999; margin-bottom: 6px; }
+.demo-slide .slide-title { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+.demo-slide .slide-subtitle { font-size: 13px; color: #888; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
+.demo-slide .chat { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.demo-slide .msg { display: flex; gap: 8px; }
+.demo-slide .msg.user { flex-direction: row-reverse; }
+.demo-slide .msg .av { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.demo-slide .msg.user .av { background: #e3f2fd; }
+.demo-slide .msg.bot .av { background: linear-gradient(135deg, #667eea, #764ba2); color: white; font-size: 12px; }
+.demo-slide .msg .bub { max-width: 380px; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.65; }
+.demo-slide .msg.user .bub { background: #e3f2fd; color: #1a1a2e; border-bottom-right-radius: 4px; }
+.demo-slide .msg.bot .bub { background: #f8f9fa; color: #333; border-bottom-left-radius: 4px; border: 1px solid #eee; }
+.demo-slide .msg .bub em { font-style: normal; color: #667eea; font-weight: 600; }
+.demo-slide .msg .bub .red { color: #e74c3c; font-weight: 600; }
+.demo-slide .msg .bub .gold { color: #f39c12; font-weight: 600; }
+.demo-slide .msg .bub .trace { margin-top: 6px; padding: 8px 10px; background: rgba(102,126,234,0.06); border-radius: 6px; border-left: 3px solid #667eea; font-size: 12px; line-height: 1.7; }
+.demo-slide .trigger { margin-top: auto; background: #fffbeb; border: 1px dashed #f39c12; border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #92610a; }
+.demo-slide .trigger b { color: #333; }
+
+/* ════ Comparison slide ════ */
+.compare-slide { padding: 28px 24px; }
+.compare-slide h2 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
+.compare-slide table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.compare-slide th { background: #f8f9fa; padding: 8px 6px; text-align: center; font-weight: 600; border-bottom: 2px solid #e0e0e0; font-size: 11px; }
+.compare-slide th:first-child { text-align: left; }
+.compare-slide td { padding: 6px; border-bottom: 1px solid #f0f0f0; text-align: center; }
+.compare-slide td:first-child { text-align: left; font-weight: 500; font-size: 11px; }
+.compare-slide .y { color: #27ae60; font-weight: 700; }
+.compare-slide .n { color: #ddd; }
+.compare-slide .p { color: #f39c12; }
+.compare-slide .summary { margin-top: 14px; background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08)); border-radius: 10px; padding: 14px; font-size: 12px; line-height: 1.7; color: #333; }
+
+/* ════ Install slide ════ */
+.install-slide { padding: 28px 24px; display: flex; flex-direction: column; }
+.install-slide h2 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 20px; }
+.install-slide .step { margin-bottom: 18px; }
+.install-slide .step-num { display: inline-block; width: 24px; height: 24px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: 700; margin-right: 8px; }
+.install-slide .step-title { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+.install-slide .step-desc { font-size: 12px; color: #888; margin-top: 4px; margin-left: 32px; }
+.install-slide .cmd { background: #1a1a2e; border-radius: 8px; padding: 12px 16px; margin-top: 8px; margin-left: 32px; color: #a8e6cf; font-family: 'SF Mono', monospace; font-size: 12px; line-height: 1.6; }
+.install-slide .note { margin-top: auto; background: #e8f5e9; border-radius: 10px; padding: 14px; font-size: 12px; color: #2e7d32; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<!-- ═══ Slide 1: 封面 ═══ -->
+<div class="slide cover">
+  <div class="logo">cc-soul</div>
+  <div class="tagline">
+    给你的 AI 装一个<b>灵魂</b><br>
+    它会记住你、质疑你、<br>
+    甚至预测你下一个问题
+  </div>
+  <div class="stats-row">
+    <div class="stat-box"><div class="n">68</div><div class="l">模块</div></div>
+    <div class="stat-box"><div class="n">33K</div><div class="l">行代码</div></div>
+    <div class="stat-box"><div class="n">11</div><div class="l">人格</div></div>
+    <div class="stat-box"><div class="n">12</div><div class="l">独有功能</div></div>
+  </div>
+  <div class="bottom-tag">OpenClaw 插件 · 零配置 · 完全本地</div>
+</div>
+
+<!-- ═══ Slide 2: 6 大特色 ═══ -->
+<div class="slide" style="padding: 28px 24px; background: white;">
+  <div style="font-size:12px;color:#999;margin-bottom:6px;">2 / 8</div>
+  <div style="font-size:20px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">6 大核心能力</div>
+  <div style="font-size:13px;color:#888;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #f0f0f0;">每一个都是竞品没有的</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div style="background:#f8f9ff;border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-size:30px;margin-bottom:6px;">🧠</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:6px;">智能记忆管理</div>
+      <div style="font-size:11px;color:#666;line-height:1.6;">记忆永久保存不丢失<br>检索按认知模型排序<br>常用权重高，冷门权重低</div>
+    </div>
+    <div style="background:#fff8f8;border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-size:30px;margin-bottom:6px;">💡</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:6px;">纠错验证</div>
+      <div style="font-size:11px;color:#666;line-height:1.6;">你说"你错了"<br>它不会盲目道歉<br>先验证再决定接受还是反驳</div>
+    </div>
+    <div style="background:#f8f8ff;border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-size:30px;margin-bottom:6px;">🔮</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:6px;">预言模式</div>
+      <div style="font-size:11px;color:#666;line-height:1.6;">分析你的对话模式<br>预测下一个问题<br>命中时主动告诉你</div>
+    </div>
+    <div style="background:#f8fff8;border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-size:30px;margin-bottom:6px;">🎭</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:6px;">11 人格切换</div>
+      <div style="font-size:11px;color:#666;line-height:1.6;">工程师/导师/魔鬼代言人<br>苏格拉底/分析师…<br>根据场景自动切换</div>
+    </div>
+    <div style="background:#fff8f0;border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-size:30px;margin-bottom:6px;">❤️</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:6px;">情绪模型</div>
+      <div style="font-size:11px;color:#666;line-height:1.6;">PADCN 五维情绪系统<br>昼夜节律模拟<br>连续低情绪主动关心你</div>
+    </div>
+    <div style="background:#f0f8ff;border-radius:12px;padding:18px;text-align:center;">
+      <div style="font-size:30px;margin-bottom:6px;">👁️</div>
+      <div style="font-size:14px;font-weight:600;color:#1a1a2e;margin-bottom:6px;">盲区检测</div>
+      <div style="font-size:11px;color:#666;line-height:1.6;">识别你的思维盲点<br>主动提醒被忽略的维度<br>用得越久越精准</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Slide 3: 矛盾捕获 + 纠错验证 ═══ -->
+<div class="slide demo-slide">
+  <div class="slide-num">3 / 8</div>
+  <div class="slide-title">它会抓住你的矛盾</div>
+  <div class="slide-subtitle">你自己忘了说过什么，它帮你记着</div>
+  <div class="chat">
+    <div class="msg user"><div class="av">👤</div><div class="bub">我觉得加 Redis 缓存是最好的方案</div></div>
+    <div class="msg bot"><div class="av">cc</div><div class="bub"><span class="red">等一下</span> — 两周前你说过<em>"订单状态变更太频繁，缓存一致性成本比直接查库还高"</em>。<br><br>这个顾虑解决了吗？还是你打算接受不一致？</div></div>
+    <div class="msg user"><div class="av">👤</div><div class="bub">……你说得对，我把当时的理由忘了</div></div>
+    <div class="msg bot"><div class="av">cc</div><div class="bub">如果一致性仍然是硬约束，可以看 read-through 模式 + 主动失效。不过需要改写入链路。</div></div>
+  </div>
+  <div class="trigger">💡 自动触发。你的话和记忆矛盾时主动指出，不需要任何操作。</div>
+</div>
+
+<!-- ═══ Slide 3: 认知考古 ═══ -->
+<div class="slide demo-slide">
+  <div class="slide-num">4 / 8</div>
+  <div class="slide-title">每个结论都能追溯到源头</div>
+  <div class="slide-subtitle">问"你凭什么这么说"，它给你完整推理链</div>
+  <div class="chat">
+    <div class="msg user"><div class="av">👤</div><div class="bub">你凭什么觉得瓶颈不在 ORM 层？</div></div>
+    <div class="msg bot"><div class="av">cc</div><div class="bub">推理链溯源：
+      <div class="trace">
+        <b>① 源头</b> [3/15] 你说 N+1 优化后 QPS 800→1200<br>
+        <b>② 关联</b> [3/18] 单次查询耗时已降到 2ms<br>
+        <b>③ 推理</b> 2ms × 1500 QPS = 仅占 3%，边际收益递减<br>
+        <b>④ 结论</b> 瓶颈在连接池、序列化或网络 IO
+      </div>
+      你可以验证第②步 — 如果查询耗时回升了，我的判断就不成立。
+    </div></div>
+  </div>
+  <div class="trigger">💡 问"为什么你这么想"、"凭什么这么说"、"依据是什么"触发。</div>
+</div>
+
+<!-- ═══ Slide 4: 苏格拉底 + 纠错 ═══ -->
+<div class="slide demo-slide">
+  <div class="slide-num">5 / 8</div>
+  <div class="slide-title">不给答案，引导你自己想明白</div>
+  <div class="slide-subtitle">苏格拉底模式 — 你说"你错了"它也不盲从</div>
+  <div class="chat">
+    <div class="msg user"><div class="av">👤</div><div class="bub">引导我理解 GIL 为什么存在</div></div>
+    <div class="msg bot"><div class="av">🏛</div><div class="bub">先想几个问题：<br><br>1. Python 用什么方式管理内存？<br>2. 两个线程同时改引用计数会怎样？<br>3. 最简单的防护方式是什么？<br><br>想到了告诉我，我们继续推。</div></div>
+    <div class="msg user"><div class="av">👤</div><div class="bub">加个全局锁？</div></div>
+    <div class="msg bot"><div class="av">🏛</div><div class="bub">对，那就是 GIL。下一个问题：<br><br>为什么 Java 没有 GIL？Java 的垃圾回收和 Python 有什么<em>根本区别</em>？<br><br>想通这个，你就知道 GIL 不是缺陷，是<em>特定 GC 策略的必然代价</em>。</div></div>
+  </div>
+  <div class="trigger">💡 说"引导我"、"苏格拉底"、"别告诉我答案"触发教学模式。</div>
+</div>
+
+<!-- ═══ Slide 5: 预言 + 盲区 + 情绪 ═══ -->
+<div class="slide demo-slide">
+  <div class="slide-num">6 / 8</div>
+  <div class="slide-title">它比你更了解你自己</div>
+  <div class="slide-subtitle">预言下一个问题 · 发现思维盲区 · 关心你的情绪</div>
+  <div class="chat">
+    <div class="msg user"><div class="av">👤</div><div class="bub">有道理。那我现在应该……</div></div>
+    <div class="msg bot"><div class="av">cc</div><div class="bub"><em>你大概要问"怎么定位瓶颈"对吧？</em><br><br>上次你也是先看了两小时日志没结论，最后上 arthas 五分钟就定位了。建议直接上工具。</div></div>
+    <div style="border-top:1px dashed #e0e0e0;margin:8px 0;"></div>
+    <div class="msg bot"><div class="av">cc</div><div class="bub"><span class="gold">⚠️ 有个观察。</span><br><br>你做了四次优化，切入点全是"提高吞吐量"。但你<em>从来没提过可观测性</em>。<br><br>建议花半天接上 OpenTelemetry。这是你目前最大的效率盲区。</div></div>
+    <div style="border-top:1px dashed #e0e0e0;margin:8px 0;"></div>
+    <div class="msg bot"><div class="av">cc</div><div class="bub">另外——<em>你最近两天情绪都偏低</em>。连续救火确实消耗人。要不要先喘口气？</div></div>
+  </div>
+  <div class="trigger">💡 全部自动。预言基于话题频率，盲区基于纠正统计，情绪基于多天数据。</div>
+</div>
+
+<!-- ═══ Slide 6: 对比表 ═══ -->
+<div class="slide compare-slide">
+  <div style="font-size:12px;color:#999;margin-bottom:6px;">7 / 8</div>
+  <h2>vs 竞品，cc-soul 有什么不同？</h2>
+  <table>
+    <tr><th style="width:40%;">能力</th><th>cc-soul</th><th>Mem0</th><th>Zep</th><th>Letta</th></tr>
+    <tr><td>记忆存储与检索</td><td class="y">✅</td><td class="y">✅</td><td class="y">✅</td><td class="y">✅</td></tr>
+    <tr><td>认知遗忘 (Weibull+ACT-R)</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>五维情绪 + 昼夜节律</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>11 人格自动切换</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>纠错验证（不盲从）</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>认知考古（推理链溯源）</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>预言模式</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>思维盲区检测</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>苏格拉底教学</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>矛盾主动检测</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>举一反三</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>Dream Mode</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>知识图谱</td><td class="y">✅</td><td class="p">⚠️</td><td class="y">✅</td><td class="n">✗</td></tr>
+    <tr><td>AUDN 记忆决策</td><td class="y">✅</td><td class="y">✅</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>零配置安装</td><td class="y">✅</td><td class="p">⚠️</td><td class="n">✗</td><td class="n">✗</td></tr>
+    <tr><td>完全本地运行</td><td class="y">✅</td><td class="p">⚠️</td><td class="n">✗</td><td class="y">✅</td></tr>
+  </table>
+  <div class="summary">
+    <b>一句话总结：</b>Mem0/Zep/Letta 是记忆数据库。cc-soul 是认知架构——它不只记住你说了什么，还理解你怎么想、发现你想不到的、预测你要问什么。
+  </div>
+</div>
+
+<!-- ═══ Slide 7: 安装 ═══ -->
+<div class="slide install-slide">
+  <div style="font-size:12px;color:#999;margin-bottom:6px;">8 / 8</div>
+  <h2>30 秒安装，零配置</h2>
+
+  <div class="step">
+    <span class="step-num">1</span><span class="step-title">安装插件</span>
+    <div class="cmd">openclaw plugins install @cc-soul/openclaw</div>
+  </div>
+
+  <div class="step">
+    <span class="step-num">2</span><span class="step-title">没有第二步</span>
+    <div class="step-desc">装完即用。68 个模块自动加载，168 个功能默认开启。</div>
+  </div>
+
+  <div class="step">
+    <span class="step-num">⚡</span><span class="step-title">可选：开启向量搜索（+30% 召回率）</span>
+    <div class="cmd">mkdir -p ~/.openclaw/plugins/cc-soul/data/models/minilm<br>cd ~/.openclaw/plugins/cc-soul/data/models/minilm<br>curl -L -o model.onnx "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx"<br>curl -L -o tokenizer.json "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/tokenizer.json"</div>
+    <div class="step-desc" style="margin-top:6px;">80MB 模型，纯 CPU 运行。不装也完全不影响使用。</div>
+  </div>
+
+  <div class="note">
+    🔗 <b>GitHub:</b> wenroudeyu-collab/cc-soul<br>
+    📦 <b>npm:</b> @cc-soul/openclaw<br>
+    💬 有问题直接开 issue，维护者在线
+  </div>
+</div>
+
+</body>
+</html>

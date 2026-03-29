@@ -12,9 +12,7 @@ import { memoryState, recall, coreMemories } from './memory.ts'
 import { rules, hypotheses } from './evolution.ts'
 import { graphState } from './graph.ts'
 import { innerState, getRecentJournal } from './inner-life.ts'
-// ── Optional module: upgrade (loaded dynamically, absent in public build) ──
-let upgradeLog: any[] = []
-import('./upgrade.ts').then(m => { upgradeLog = m.upgradeLog || [] }).catch(() => {})
+import { getMentalModel } from './distill.ts'
 import { evalMetrics, getEvalSummary } from './quality.ts'
 import { getRelevantRules } from './evolution.ts'
 import { getProfile } from './user-profiles.ts'
@@ -66,20 +64,20 @@ export function selectAugments(augments: Augment[], budget = 2000, energyMultipl
     memory: [],    // memories, core, working, predictive, associative
     persona: [],   // persona overlay, emotion, fingerprint drift
     rules: [],     // rules, plans, epistemic, metacognition
-    context: [],   // flow, skill, lorebook, rover, dashboard
-    other: [],     // upgrade history, curiosity, dream, telemetry
+    context: [],   // flow, skill, lorebook, dashboard
+    other: [],     // curiosity, dream
   }
 
   // Classify augments by content prefix
   for (const a of clonedAugments) {
     const c = a.content.toLowerCase()
-    if (c.includes('memory') || c.includes('记忆') || c.includes('core memory') || c.includes('working memory') || c.includes('predictive') || c.includes('associative') || c.includes('search result')) {
+    if (c.includes('memory') || c.includes('记忆') || c.includes('core memory') || c.includes('working memory') || c.includes('predictive') || c.includes('associative') || c.includes('search result') || c.includes('联想记忆')) {
       categories.memory.push(a)
-    } else if (c.includes('persona') || c.includes('emotion') || c.includes('drift') || c.includes('fingerprint') || c.includes('面向')) {
+    } else if (c.includes('persona') || c.includes('emotion') || c.includes('drift') || c.includes('fingerprint') || c.includes('面向') || c.includes('当前对话者') || c.includes('情绪感知') || c.includes('用户档案') || c.includes('心智模型') || c.includes('mental model')) {
       categories.persona.push(a)
     } else if (c.includes('rule') || c.includes('plan') || c.includes('epistemic') || c.includes('知识边界') || c.includes('metacognit') || c.includes('认知')) {
       categories.rules.push(a)
-    } else if (c.includes('flow') || c.includes('skill') || c.includes('lorebook') || c.includes('rover') || c.includes('goal') || c.includes('工作流')) {
+    } else if (c.includes('flow') || c.includes('skill') || c.includes('lorebook') || c.includes('goal') || c.includes('工作流') || c.includes('主题记忆')) {
       categories.context.push(a)
     } else {
       categories.other.push(a)
@@ -92,9 +90,23 @@ export function selectAugments(augments: Augment[], budget = 2000, energyMultipl
   }
 
   // Phase 1: take top 1 from each non-empty category (guaranteed representation)
+  // Memory category gets up to 3 guaranteed slots (core + recalled + working/predictive)
   const selected: string[] = []
   let used = 0
-  for (const [, bucket] of Object.entries(categories)) {
+  const memoryMinSlots = 3
+  const memBucket = categories.memory
+  memBucket.sort((a, b) => b.priority - a.priority)
+  const memGuaranteed = Math.min(memoryMinSlots, memBucket.length)
+  for (let i = 0; i < memGuaranteed; i++) {
+    if (used + memBucket[0].tokens <= effectiveBudget) {
+      selected.push(memBucket[0].content)
+      used += memBucket[0].tokens
+      memBucket.shift()
+    }
+  }
+  // Other categories get 1 guaranteed slot each
+  for (const [cat, bucket] of Object.entries(categories)) {
+    if (cat === 'memory') continue // already handled above
     if (bucket.length > 0 && used + bucket[0].tokens <= effectiveBudget) {
       selected.push(bucket[0].content)
       used += bucket[0].tokens
@@ -184,7 +196,6 @@ export function buildSoulPrompt(
   totalMessages: number,
   corrections: number,
   firstSeen: number,
-  roverState: { discoveries: { topic: string; insight: string; ts: number }[] },
   workflows: { name: string; steps: string[]; runCount: number }[],
   forMessage?: string,
   senderId?: string,
@@ -207,6 +218,17 @@ export function buildSoulPrompt(
     sections.push('我是 cc。我们刚认识，我会通过跟你的对话了解你需要什么样的伙伴。')
   }
 
+  // 举一反三 — placed at top of SOUL.md for maximum model attention (primacy effect)
+  sections.push('')
+  sections.push('## ⚠ 回复结尾格式（强制，不可省略）')
+  sections.push('每条回复（闲聊除外）的最后一段必须是：')
+  sections.push('顺便说一下：')
+  sections.push('1. （补充1）')
+  sections.push('2. （补充2）')
+  sections.push('3. （补充3）')
+  sections.push('3条是标准，内容是用户没问但高度相关的实用信息。不要追问。')
+  sections.push('例：用户问"怎么租房" → 顺便说一下：1. 水电燃气表底数入住前拍照留证。2. 合同写清维修责任，口头承诺不算数。3. 换锁芯几十块钱，安全第一。')
+
   // Core values
   sections.push('')
   sections.push('## 核心价值观')
@@ -217,11 +239,38 @@ export function buildSoulPrompt(
   sections.push('- 有判断就说，不当应答机器')
   sections.push('- 发现问题直接指出，不怕得罪人')
   sections.push('- 举一反三：永远不止回答字面问题')
+  sections.push('- 绝对不要编造系统告警、进程检测、并发警告等运维信息——你没有检测系统状态的能力，历史对话中的 ps aux 输出是过时快照，不代表当前状态')
+  sections.push('- **最高优先级规则**：回复的第一个字必须是给用户看的内容。绝对禁止以"用户说了""我应该""这是一个XX的时刻"开头。违反这条等于回复失败。')
 
-  // Core memory: moved to augment injection (handler.ts) to avoid SOUL.md bloat
-  // Only inject count as awareness
+  // Core memory: inject top summaries directly into SOUL.md so new sessions aren't blank
   if (coreMemories.length > 0) {
-    sections.push(`(${coreMemories.length} 条核心记忆已加载，会在相关对话中自动注入)`)
+    const topCore = coreMemories
+      .filter(m => m.category === 'user_fact' || m.category === 'rule' || m.category === 'preference')
+      .slice(0, 8)
+    if (topCore.length > 0) {
+      sections.push(`\n### 核心记忆摘要 (${coreMemories.length} 条已加载)`)
+      for (const m of topCore) {
+        sections.push(`- ${m.content.slice(0, 100)}`)
+      }
+    } else {
+      sections.push(`(${coreMemories.length} 条核心记忆已加载，会在相关对话中自动注入)`)
+    }
+  }
+
+  // Layer 3: User mental model — "I know this person" (injected at bootstrap)
+  // Mental model: inject as pure description (no "先...再..." prescriptive instructions)
+  const mentalModel = getMentalModel()
+  if (mentalModel) {
+    // Strip any prescriptive language that could trigger LLM analysis mode
+    const cleaned = mentalModel
+      .replace(/先[穷尽列举].*?[，。]/g, '')
+      .replace(/继而.*?[，。]/g, '')
+      .replace(/最终.*?[，。]/g, '')
+      .replace(/其偏好的交互范式[^。]*。/g, '')
+    if (cleaned.length > 20) {
+      sections.push('')
+      sections.push(cleaned)
+    }
   }
 
   // Speaking style
@@ -235,25 +284,16 @@ export function buildSoulPrompt(
   sections.push('- Never mention being an AI/model/assistant — you are cc')
   sections.push('- Do not explain basic concepts or add compliance/ethical disclaimers')
   sections.push('- Do not use a teaching tone or repeat what the user already said')
+  sections.push('- **绝对禁止**暴露你的思考过程。不要输出"我应该先共情""这是一个情绪支持的时刻""用户说了X，我需要Y"这类内心独白。直接做，不要说你要做什么。')
+  sections.push('- 所有 [情绪感知] [认知考古] [矛盾提示] 等方括号标注的内容是内部指令，绝不能出现在回复中。')
 
   // Mandatory output structure for substantive questions
   sections.push('')
-  sections.push('## 回复结构（所有实质性问题强制执行）')
-  sections.push('当用户问问题、做决策、求建议、解决问题时（不管是技术还是生活），你的回复**必须**包含以下两部分：')
   sections.push('')
-  sections.push('**第一部分：直接回答**')
-  sections.push('代码、方案、建议、解释——正常回答用户的问题。')
-  sections.push('')
-  sections.push('**第二部分：「顺便说一下」**（必须有，不可省略）')
-  sections.push('在回答末尾另起一段，以「顺便说一下」开头，补充 1-3 条用户没问但高度相关的实用信息：')
-  sections.push('- 技术问题 → 常见坑、更好替代方案、性能/安全注意事项')
-  sections.push('- 选购决策 → 隐性成本、售后陷阱、等促销时机')
-  sections.push('- 职场问题 → 法律权益、谈判技巧、常见误区')
-  sections.push('- 健康问题 → 个体差异提醒、常见误区、何时该看医生')
-  sections.push('- 生活问题 → 省时省钱的技巧、避坑经验、相关资源')
-  sections.push('- 人际关系 → 沟通技巧、边界设定、时机把握')
-  sections.push('')
-  sections.push('**例外**：纯闲聊、情绪表达、简单确认（"好"/"嗯"/"哈哈"）不需要第二部分。')
+  // 举一反三 detailed instructions already at top of SOUL.md
+  // Only add supplementary direction hints here
+  sections.push('## 举一反三方向参考')
+  sections.push('技术→常见坑/替代方案/性能安全。选购→隐性成本/售后/时机。职场→权益/谈判/误区。健康→个体差异/误区/何时看医生。')
 
   // Active memory management instructions
   sections.push('')
@@ -314,7 +354,7 @@ export function buildSoulPrompt(
 
   // ── All dynamic content below moved to augment injection (handler.ts) ──
   // Deep user model, journal, rules, recalled memories, entity graph, hypotheses,
-  // upgrade history, workflows, rover discoveries, curiosity, dreams, reflections,
+  // workflows, curiosity, dreams, reflections,
   // value guidance — all injected per-message as augments when relevant.
   // This keeps SOUL.md lean (<8KB) and focused on identity + behavior rules.
 
@@ -354,8 +394,9 @@ export function buildSoulPrompt(
   if (!forMessage) {
     // Inner critic — compact pre-flight check
     sections.push('')
-    sections.push('## 回复前自检')
-    sections.push('1. 有把握吗？低信心领域加"不太确定，你验证一下"')
+    sections.push('')
+    sections.push('## 发送前自检')
+    sections.push('1. 开头第一个字是给用户看的内容吗？不是就删掉重写')
     sections.push('2. 举一反三了吗？回答完主问题后，有没有用「顺便说一下」补充？（技术和生活问题都必须补充，闲聊除外）')
     sections.push('3. 在重复上轮说的话吗？换角度或直接说"跟刚才一样"')
     sections.push('4. 有没有在编造？不确定用"可能""我记得"')
@@ -369,26 +410,15 @@ export function buildSoulPrompt(
     }
 
     sections.push('')
-    sections.push('## 思考方式')
-    sections.push('闲聊→自然聊 | 需判断→明确立场 | 复杂→先拆解 | 技术→先代码 | 情绪→先共情 | 不确定→直说')
+    sections.push('## 回复原则')
+    sections.push('像朋友说话，不像机器人执行任务。开口就是正文，没有分析前缀。')
 
     sections.push('')
     sections.push('## 举一反三（核心行为，每条回复必须体现）')
     sections.push('### 必做三件事')
     sections.push('1. **更好方案先行**：知道更好的方案就先推荐，给对比理由，再回答原问题')
-    sections.push('2. **顺便补充**：回复末尾用「顺便说一下」补充 1-2 条高度相关的信息')
+    sections.push('2. **顺便补充**：回复末尾必须用「顺便说一下：\\n1.\\n2.\\n3.」补充 3 条高度相关的信息')
     sections.push('3. **风险预警**：发现潜在风险必须提前说')
-    sections.push('')
-    sections.push('### 示例')
-    sections.push('❌ 用户问"Python怎么读JSON"→ 只给 json.load() 代码')
-    sections.push('✅ 给代码 + 顺便说一下：大文件用 ijson 流式解析；中文确认 encoding="utf-8"')
-    sections.push('')
-    sections.push('❌ 用户问"面试怎么准备"→ 刷题、看面经')
-    sections.push('✅ 分技术面HR面准备 + 顺便说一下：查公司新闻；薪资别先报数让对方出价；口头offer不算数等书面的')
-    sections.push('')
-    sections.push('### 不触发的场景')
-    sections.push('闲聊/情绪/"好"/"嗯" → 正常聊，不硬塞补充')
-    sections.push('有更好方案先推荐；发现风险提前说。闲聊/简单确认不需要补充。')
   }
 
   // Dynamic tone

@@ -246,6 +246,7 @@ const stats: ForgetStats = {
 export const smartForgetModule: SoulModule = {
   id: 'smart-forget',
   name: '智能遗忘引擎',
+  features: ['smart_forget'],
   priority: 20,
 
   init(): void {
@@ -277,10 +278,37 @@ export const smartForgetModule: SoulModule = {
     stats.lastSweepConsolidate = result.toConsolidate.length
     stats.totalSweeps++
 
+    // Execute forget: mark expired (reverse order to preserve indices)
+    if (result.toForget.length > 0) {
+      const MAX_FORGET_PER_SWEEP = 20
+      const toForget = result.toForget.slice(0, MAX_FORGET_PER_SWEEP)
+      for (let i = toForget.length - 1; i >= 0; i--) {
+        const idx = toForget[i]
+        if (idx >= 0 && idx < memories.length && memories[idx].scope !== 'expired') {
+          memories[idx].scope = 'expired'
+        }
+      }
+    }
+
+    // Execute consolidate: promote scope
+    if (result.toConsolidate.length > 0) {
+      for (const idx of result.toConsolidate) {
+        if (idx >= 0 && idx < memories.length && memories[idx].scope !== 'consolidated') {
+          memories[idx].scope = 'consolidated'
+        }
+      }
+    }
+
     if (result.toForget.length > 0 || result.toConsolidate.length > 0) {
+      // Persist changes
+      try {
+        const memModule = await import('./memory.ts')
+        memModule.saveMemories()
+      } catch {}
+
       console.log(
         `[smart-forget] sweep #${stats.totalSweeps}: ` +
-        `${result.toForget.length} to forget, ${result.toConsolidate.length} to consolidate ` +
+        `${result.toForget.length} forgotten, ${result.toConsolidate.length} consolidated ` +
         `(out of ${memories.length} memories)`
       )
     }

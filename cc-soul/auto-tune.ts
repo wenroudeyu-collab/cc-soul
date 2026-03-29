@@ -73,19 +73,13 @@ const DEFAULT_PARAMS: Record<string, number> = {
   'flow.stuck_threshold': 0.5,
 
   // prompt-builder.ts
-  'prompt.augment_budget': 2000,
+  'prompt.augment_budget': 3500,
 
-  // voice.ts
-  'voice.proactive_cooldown_hours': 1,
-  'voice.impulse_threshold': 0.5,
 
   // evolution.ts
   'evolution.hypothesis_verify_threshold': 5,
   'evolution.hypothesis_reject_threshold': 3,
   'evolution.max_rules': 50,
-
-  // rover.ts
-  'rover.roam_cooldown_hours': 1,
 
   // inner-life.ts
   'inner.journal_cooldown_min': 30,

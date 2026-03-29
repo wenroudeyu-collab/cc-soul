@@ -42,18 +42,22 @@ export function updatePluginStats(s: { totalMessages: number; corrections: numbe
 
 // ── SOUL.md file writer — inject soul prompt via OpenClaw's bootstrap-extra-files ──
 
-// roverState stub — will be overridden if rover module loads later via handler.ts
-let roverState: { discoveries: any[]; topics: string[] } = { discoveries: [], topics: [] }
+let _soulDynamicLockUntil = 0  // timestamp: don't overwrite SOUL.md until this time
 
-export function setRoverState(rs: { discoveries: any[]; topics: string[] }) {
-  roverState = rs
+export function setSoulDynamicLock(durationMs = 30000) {
+  _soulDynamicLockUntil = Date.now() + durationMs
 }
 
 function writeSoulFile() {
+  // Skip if handler just wrote dynamic augments (avoid overwriting)
+  if (Date.now() < _soulDynamicLockUntil) {
+    console.log(`[cc-soul] SOUL.md write skipped (dynamic lock active)`)
+    return
+  }
   try {
     const soulPrompt = buildSoulPrompt(
       stats.totalMessages, stats.corrections, stats.firstSeen,
-      roverState, taskState.workflows,
+      taskState.workflows,
     )
     const workspaceDir = resolve(homedir(), '.openclaw/workspace')
     const soulPath = resolve(workspaceDir, 'SOUL.md')
@@ -156,7 +160,64 @@ export default {
     setStatsAccessor(() => stats)
 
     // 3. Register context engine (just registration, no data loading)
-    api.registerContextEngine('cc-soul', () => createCcSoulContextEngine())
+    // Register context engine (once)
+    if (!(globalThis as any).__ccSoulContextEngineRegistered) {
+      try {
+        api.registerContextEngine('cc-soul', () => createCcSoulContextEngine())
+        ;(globalThis as any).__ccSoulContextEngineRegistered = true
+        console.log(`[cc-soul] context engine registered`)
+      } catch (e: any) {
+        console.error(`[cc-soul] registerContextEngine FAILED: ${e.message}`)
+      }
+    }
+
+    // Also try registerMemoryPromptSection — new API for injecting into system prompt
+    if (typeof api.registerMemoryPromptSection === 'function') {
+      try {
+        api.registerMemoryPromptSection('cc-soul', async (params: any) => {
+          // This gets called before each agent turn — inject augments here
+          try {
+            const { buildAndSelectAugments } = await import('./handler-augments.ts')
+            const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
+            const { cogProcess } = await import('./cognition.ts')
+            const { updateFlow } = await import('./flow.ts')
+
+            const sessionKey = getLastActiveSessionKey()
+            const session = getSessionState(sessionKey)
+            const userMsg = params?.userMessage || session.lastPrompt || ''
+            if (!userMsg) return { content: '' }
+
+            const cog = cogProcess(userMsg, session.lastResponseContent)
+            const flow = updateFlow(userMsg, session.lastResponseContent, sessionKey)
+            const { selected } = await buildAndSelectAugments({
+              userMsg, session,
+              senderId: session.lastSenderId || '',
+              channelId: session.lastChannelId || '',
+              cog, flow, flowKey: sessionKey,
+              followUpHints: [],
+              workingMemKey: sessionKey,
+            })
+
+            if (selected.length > 0) {
+              const cleaned = selected.map(s => s.replace(/^\[([^\]]+)\]\s*/, ''))
+              // Ensure 举一反三 reminder with few-shot example at end of augments
+              const hasExtraThink = cleaned.some(s => s.includes('顺便说一下') || s.includes('举一反三'))
+              const reminder = hasExtraThink
+                ? '\n\n📌 回复结尾固定格式（照做）：\n顺便说一下：\n1. 第一条补充（一句话）\n2. 第二条补充（不同角度）\n不要追问。'
+                : ''
+              console.log(`[cc-soul][memoryPromptSection] injecting ${cleaned.length} augments`)
+              return { content: cleaned.join('\n') + reminder }
+            }
+          } catch (e: any) {
+            console.error(`[cc-soul][memoryPromptSection] error: ${e.message}`)
+          }
+          return { content: '' }
+        })
+        console.log(`[cc-soul] registerMemoryPromptSection registered`)
+      } catch (e: any) {
+        console.log(`[cc-soul] registerMemoryPromptSection not available: ${e.message}`)
+      }
+    }
 
     // 4. Write SOUL.md (synchronous file write, ~5ms)
     writeSoulFile()
