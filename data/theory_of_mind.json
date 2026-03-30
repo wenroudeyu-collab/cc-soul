@@ -2,16 +2,14 @@
   "model": {
     "beliefs": {},
     "knowledge": {},
-    "goals": [
-      "看看这个心电图正不正常 | 提示: 主人"
-    ],
+    "goals": [],
     "frustrations": []
   },
   "corrections": [],
   "recentTopics": [
     {
-      "topic": "[对话历史（最近1轮）]\n[23:31]",
-      "ts": 1774823360787
+      "topic": "[系统] 命令已处理，结果已发送",
+      "ts": 1774830937506
     }
   ]
 }

@@ -145,6 +145,20 @@ export interface SessionState {
   _pendingCorrectionVerify?: boolean
   _lastAnalyzedPrompt?: string
   _skipNextMemory?: boolean
+  _rawUserMsg?: string  // clean user message before augment injection
+}
+
+// ── Soul Mode: when enabled, all replies come from avatar (灵魂模式) ──
+let soulMode = false
+let soulModeSpeaker = ''  // who is currently talking to the soul
+
+export function getSoulMode(): { active: boolean; speaker: string } {
+  return { active: soulMode, speaker: soulModeSpeaker }
+}
+export function setSoulMode(active: boolean, speaker?: string) {
+  soulMode = active
+  soulModeSpeaker = speaker || ''
+  console.log(`[cc-soul][soul-mode] ${active ? `ON (speaker: ${soulModeSpeaker})` : 'OFF'}`)
 }
 const sessionStates = new Map<string, SessionState>()
 const MAX_SESSIONS = 20

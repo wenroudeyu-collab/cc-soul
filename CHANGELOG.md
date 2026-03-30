@@ -2,6 +2,97 @@
 
 All notable changes to cc-soul will be documented here.
 
+## [2.4.0] - 2026-03-30
+
+### Added — New Cognitive Abilities
+- **Absence detection**: detects topics user used to discuss but stopped mentioning, proactively asks (e.g. "你最近都没提跑步了"). Three-tier welcome: 4h/3d/7d+
+- **Behavior prediction**: detects trigger patterns (deadline pressure, late night, frustration) and warns based on past outcomes (e.g. "上次你熬夜硬扛之后效率低了三天")
+- **Causal chain in reasoning**: 推理链 now traces cause chains (result ← cause ← root cause) + counterfactual ("如果当时不这样...")
+
+### Added — New Commands (19 total since v2.2)
+- `成长轨迹` / `growth` — growth vector (correction rate, rules, quality)
+- `时间旅行 <keyword>` — trace how opinions evolved over time
+- `情绪锚点` / `emotion anchors` — topics correlated with positive/negative mood
+- `记忆链路 <keyword>` / `memory chain` — memory association chain
+- `讲讲我们的故事` / `our story` — relationship narrative
+- `每日复盘` / `daily review` — today's conversations/decisions/actions
+- `保存话题` / `切换话题` / `话题列表` — topic branch management
+- `共享记忆` / `私有记忆` — memory visibility control
+- `恢复记忆 <keyword>` — restore archived memories
+- `别记这个` — skip next memory storage
+- `当聊到...时提醒我...` — context-triggered reminders
+- `导出进化` / `导入进化` — GEP format evolution export/import
+- `安装向量` / `向量状态` — one-click vector search install + status
+
+### Added — New Feature Toggles (21)
+- `wal_protocol` — Write-Ahead Logging before AI reply
+- `dag_archive` — lossless archive replaces hard decay
+- `persona_drift_detection` — per-reply persona drift detection
+- `rhythm_adaptation` — reply length adapts to user pace
+- `trust_annotation` — domain trust level hints
+- `self_correction` — post-reply quality self-check
+- `predictive_memory` — time-slot topic prediction
+- `scenario_shortcut` — correction history quick hints
+- `context_reminder` — keyword-triggered context reminders
+- `auto_time_travel` — auto-search history on "以前/上次"
+- `auto_contradiction_hint` — proactively point out contradictions
+- `auto_mood_care` — emotional care on sustained low mood
+- `auto_topic_save` — auto-save topic on shift
+- `auto_memory_chain` — graph 1-hop expansion
+- `auto_repeat_detect` — cite past conclusions for similar questions
+- `behavior_prediction` — predict user behavior from patterns
+- `absence_detection` — detect disappeared topics
+- Plus: `auto_memory_reference`, `auto_natural_citation`, `auto_daily_review`
+
+### Added — New Automatic Behaviors (~27)
+- Emotion anchors tracking (topic ↔ mood correlation)
+- WAL protocol (persist key info before AI reply)
+- Auto topic save on conversation shift
+- Self-correction notification (quality ≤3 → DM owner)
+- Persona drift rule-based detection per reply
+- Contradiction proactive hint
+- Time travel auto-trigger on "以前/上次"
+- Repeat question detection + cite past conclusion
+- Sustained low mood care (2+ days → care augment)
+- Causal chain injection for correction memories
+- Commitment tracking ("我要/我打算" → 7-day reminder)
+- Silence analysis (topics user never discusses in related domains)
+- Cognitive blind spot warning (domain with ≥2 corrections)
+- Adaptive reply depth (adjust by domain conversation count)
+- Expression fingerprint adaptation (match user avgLength/topWords)
+- Generative inference (infer preferences for new domains from values)
+
+### Removed — Modules (12 deleted)
+- `upgrade.ts`, `upgrade-meta.ts`, `upgrade-experience.ts` — self-upgrade (never used)
+- `competitive-radar.ts`, `rover.ts` — competitive analysis / web roaming (never used)
+- `telemetry.ts`, `federation.ts`, `sync.ts` — telemetry / federation / sync (never used)
+- `debate.ts`, `llm-judge.ts`, `skill-extract.ts`, `voice.ts` — group chat / LLM judge / skill extract / voice (removed)
+
+### Removed — Feature Toggles (15)
+- `dream_mode`, `autonomous_voice`, `structured_reflection`, `strategy_replay`, `meta_learning`, `reflexion`, `self_challenge`, `debate`, `llm_judge`, `skill_extract`, `web_rover`, `tech_radar`, `federation`, `sync`, `telemetry`
+
+### Fixed (12 bugs)
+- WAL double-write: non-command messages extracted twice
+- fetch monkey-patch: debug interceptor left in production
+- `切换话题` path traversal: user input could read files outside data dir
+- `saveHypothesesSafe` blocked legitimate empty saves
+- embedder `_syncEmbedder()` not called on failure path
+- Hypothesis verification threshold too low (1→3) + trigram similarity too loose (0.05→0.3)
+- LLM Reranker used stale cache from previous turn
+- Async vector callback modified returned sync array
+- `_lastVectorResults` global cache no user isolation
+- Sleep consolidation O(n²) — capped at 200 memories
+- Direct mode `恢复记忆` conflicted with privacy mode
+- `blindSpotAnalysis` filter conditions redundant/ineffective
+
+### Fixed — Toggle Wiring (12)
+- 12 feature toggles existed in DEFAULTS but had no `isEnabled()` checks — user could toggle off but feature kept running. All now properly wired.
+
+### Changed
+- Core direction: removed all "AI self-entertainment" modules (dream/reflection/self-challenge/debate), redirected token budget to user-facing features
+- 62 modules → 50 modules (12 deleted), all obfuscated
+- `memory_llm_rerank` toggle removed (dead feature)
+
 ## [1.8.0] - 2026-03-23
 
 ### Added

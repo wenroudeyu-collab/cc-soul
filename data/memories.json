@@ -1,5 +1,604 @@
 [
   {
+    "content": "纠正: [对话历史（最近19轮）]\n[02:13] 用户: 我决定这版本砍掉坐骑系统，不砍做不完，还是核心战斗优先吧\n助手: 这",
+    "scope": "correction",
+    "ts": 1774831038970,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774831038970
+  },
+  {
+    "content": "[对某人的深层感受] 对儿子小果充满骄傲，尤其欣赏他的好奇心，这反映出他内心重视探索与求知精神，可能将这种品质视为对未来的希望。 (关于小果)",
+    "scope": "deep_feeling",
+    "ts": 1774830307554,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[矛盾面] 在职业决策中反复权衡理想与现实的冲突，如为了确保核心功能（战斗系统）而不得不放弃次要功能（坐骑系统），显示出理想主义被现实约束的妥协。",
+    "scope": "wisdom",
+    "ts": 1774830307540,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[人生信条或价值观] 认为产品的核心价值在于满足用户需求，而非单纯完成工作。将用户接受度置于个人付出之上，体现务实和以用户为中心的职业价值观。",
+    "scope": "wisdom",
+    "ts": 1774830307522,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[承诺] 哥们有空吗，新餐厅开业了请你吃饭",
+    "scope": "commitment",
+    "ts": 1774830189443,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[02:05] 用户: 说真的今天状态不对，咖啡喝了两杯还是没进入状态",
+    "scope": "correction",
+    "ts": 1774829696765,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [
+      "状态不佳",
+      "疲劳",
+      "工作效率",
+      "咖啡因依赖",
+      "身体信号"
+    ],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774829696765
+  },
+  {
+    "content": "小果好奇心强，主人为此骄傲",
+    "scope": "fact",
+    "ts": 1774829679952,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774829679952
+  },
+  {
+    "content": "[纠正归因] 理解偏差: 将用户关于状态调整的对话误判为需要继续讨论游戏开发决策，未正确识别话题已切换。",
+    "scope": "correction",
+    "ts": 1774829640973,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774829640974
+  },
+  {
+    "content": "[承诺] [对话历史（最近10轮）]\n[02:05] 用户: 说真的今天状态不对，咖啡喝了两杯还是没进入状态\n助手: 身体在报警了。两杯咖啡还进不了状态，不是懒，是透支。",
+    "scope": "commitment",
+    "ts": 1774829635042,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": 1774831053605,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774831053605
+  },
+  {
+    "content": "纠正: [对话历史（最近10轮）]\n[02:05] 用户: 说真的今天状态不对，咖啡喝了两杯还是没进入状态\n助手: 身体在报警了",
+    "scope": "correction",
+    "ts": 1774829634926,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774829634967,
+    "validFrom": 1774829634926
+  },
+  {
+    "content": "[承诺] [对话历史（最近10轮）]\n[01:43] 用户: 确实，做产品这行最痛苦的不是加班，是做出来用户不想用\n助手: 这是产品人最深的无力感。\n\n**比加班更耗人的",
+    "scope": "commitment",
+    "ts": 1774829528478,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[承诺] [对话历史（最近11轮）]\n[01:38] 用户: [对话历史（最近14轮）]\n[01:34] 用户: 不是吧，小果昨晚发烧了38度5，沈婉宁在医院陪着\n助手:",
+    "scope": "commitment",
+    "ts": 1774829352322,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.74,
+    "lastAccessed": 1774831053605,
+    "tier": "short_term",
+    "recallCount": 2,
+    "lastRecalled": 1774831053605
+  },
+  {
+    "content": "[承诺] [对话历史（最近17轮）]\n[01:34] 用户: 说真的我很想去医院，但今天上午有罗总的OKR对齐会\n助手: 收到。先联系婉宁，了解小果最新情况，再做决定。\n",
+    "scope": "commitment",
+    "ts": 1774829204655,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [
+      "会议安排",
+      "工作优先",
+      "健康顾虑",
+      "时间冲突",
+      "决策权衡",
+      "紧急程度评估"
+    ],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774829204655
+  },
+  {
+    "content": "[纠正归因] 理解偏差: 用户表达的是当前状态与预期不符的感叹，而非对上次回复内容的纠正，模型可能误解了对话的延续逻辑。",
+    "scope": "correction",
+    "ts": 1774829106319,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774829106319
+  },
+  {
+    "content": "[承诺] [对话历史（最近15轮）]\n[01:34] 用户: 说真的我很想去医院，但今天上午有罗总的OKR对齐会\n助手: 收到。先联系婉宁，了解小果最新情况，再做决定。\n",
+    "scope": "commitment",
+    "ts": 1774829104117,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774829634968
+  },
+  {
+    "content": "[承诺] [对话历史（最近15轮）]\n[01:34] 用户: [对话历史（最近11轮）]\n[01:29] 用户: 我同事阿昊是主程，我们合作三年了，技术上我无条件信任他\n",
+    "scope": "commitment",
+    "ts": 1774827768164,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.76,
+    "lastAccessed": 1774831053604,
+    "tier": "short_term",
+    "recallCount": 3,
+    "lastRecalled": 1774831053604,
+    "recallContexts": [
+      "梦境洞察 将用户对技术细节的苛求与竞品雷达对非结构化用户反馈的深度分析结合 承诺"
+    ]
+  },
+  {
+    "content": "[后悔或遗憾] 对未能及时陪伴生病的女儿感到愧疚和难受，尤其当听到女儿在梦话中叫爸爸时，内心充满自责。 (关于小果)",
+    "scope": "deep_feeling",
+    "ts": 1774827679126,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[矛盾面] 内心重视家庭与情感（如女儿生病想陪伴），但现实中常被工作责任（如OKR会议、放不下手头的事）所束缚，导致在家庭与职业间产生撕裂感。",
+    "scope": "wisdom",
+    "ts": 1774827679113,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[人生信条或价值观] 坚持做人要对得起自己的良心，这是从父亲那里继承的价值观，并以此作为行为准则。",
+    "scope": "wisdom",
+    "ts": 1774827679087,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[承诺] [对话历史（最近15轮）]\n[01:34] 用户: 说真的我很想去医院，但今天上午有罗总的OKR对齐会\n助手: 我理解你的纠结。但这件事没有标准答案，只能你自己",
+    "scope": "commitment",
+    "ts": 1774827622889,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.76,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 3,
+    "lastRecalled": 1774829635000
+  },
+  {
+    "content": "罗总是主人老板，只看数据不好相处，但判断靠谱",
+    "scope": "fact",
+    "ts": 1774827505705,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774829204356,
+    "validFrom": 1774827505705
+  },
+  {
+    "content": "[承诺] [对话历史（最近14轮）]\n[01:34] 用户: 不是吧，小果昨晚发烧了38度5，沈婉宁在医院陪着\n助手: 我理解你的纠结。但这件事没有标准答案，只能你自己权",
+    "scope": "commitment",
+    "ts": 1774827460907,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.76,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 3,
+    "lastRecalled": 1774829635000
+  },
+  {
+    "content": "[遗留问题] 明天8点半会议前的具体准备内容未明确，用户未进一步回应或补充细节",
+    "scope": "task",
+    "ts": 1774827369803,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "明天8点半有会议需要准备",
+    "scope": "fact",
+    "ts": 1774827369788,
+    "emotion": "neutral",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774827369788
+  },
+  {
+    "content": "助手建议用户与阿昊或婉宁一起喝酒解压",
+    "scope": "fact",
+    "ts": 1774827369771,
+    "emotion": "neutral",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774827369771
+  },
+  {
+    "content": "用户近期面临工作压力：新VP、产品会、排期、AI方向决策",
+    "scope": "fact",
+    "ts": 1774827369758,
+    "emotion": "neutral",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774827369758
+  },
+  {
+    "content": "用户偏好以军师角色对话，强调谋定后动、先观全局",
+    "scope": "fact",
+    "ts": 1774827369744,
+    "emotion": "neutral",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774827369744
+  },
+  {
+    "content": "[会话总结] [对话历史（最近9轮）]\n[01:16] 用户: [对话历史（最近5轮）]\n[23:31] 用户: : 用户以军师身份请求全局策略建议，助手理解用户面临新VP上任、产品会议、排期压力和AI方向决策等多重工作压力，建议不要独自喝酒解压，并推荐与同事（阿昊或婉宁）同行，同时提及明天8点半会议前的准备事项（内容未完整提供）。",
+    "scope": "consolidated",
+    "ts": 1774827369725,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "主人父亲教导\"做人要对得起自己的良心\"",
+    "scope": "fact",
+    "ts": 1774827336720,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774829204358,
+    "validFrom": 1774827336720
+  },
+  {
+    "content": "[承诺] [对话历史（最近13轮）]\n[01:30] 用户: 烦死了，产品会上又被催排期，需求还没定完呢催什么\n助手: 需求没定完就被催排期，B端SaaS的老毛病了。销售",
+    "scope": "commitment",
+    "ts": 1774827305173,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.8400000000000001,
+    "lastAccessed": 1774831053606,
+    "tier": "short_term",
+    "recallCount": 4,
+    "lastRecalled": 1774831053606,
+    "validFrom": 1774827305173,
+    "recallContexts": [
+      "梦境洞察 将用户对技术细节的苛求与竞品雷达对非结构化用户反馈的深度分析结合 承诺"
+    ]
+  },
+  {
+    "content": "[承诺] [对话历史（最近11轮）]\n[01:30] 用户: 烦死了，产品会上又被催排期，需求还没定完呢催什么\n助手: 需求没定完就被催排期，B端SaaS的老毛病了。销售",
+    "scope": "commitment",
+    "ts": 1774827276267,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.8200000000000001,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 6,
+    "lastRecalled": 1774829634967
+  },
+  {
+    "content": "小果是主人的孩子，昨晚发烧38.5度，沈婉宁在医院陪着",
+    "scope": "fact",
+    "ts": 1774827256188,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774829204359,
+    "validFrom": 1774827256188
+  },
+  {
+    "content": "[承诺] [对话历史（最近11轮）]\n[01:30] 用户: 烦死了，产品会上又被催排期，需求还没定完呢催什么\n助手: （记下了：沈婉宁是主人老婆，小学美术老师，性格温柔",
+    "scope": "commitment",
+    "ts": 1774827252119,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.78,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 4,
+    "lastRecalled": 1774829635000
+  },
+  {
+    "content": "老孟是主人朋友，认识15年，餐饮创业，失败过一次，正在重来",
+    "scope": "fact",
+    "ts": 1774827250696,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774827250696
+  },
+  {
+    "content": "[承诺] [对话历史（最近11轮）]\n[01:29] 用户: 我同事阿昊是主程，我们合作三年了，技术上我无条件信任他\n助手: 三年合作 + 无条件信任，这种关系在职场稀缺",
+    "scope": "commitment",
+    "ts": 1774827229444,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.8,
+    "lastAccessed": 1774831053605,
+    "tier": "short_term",
+    "recallCount": 5,
+    "lastRecalled": 1774831053605,
+    "recallContexts": [
+      "梦境洞察 将用户对技术细节的苛求与竞品雷达对非结构化用户反馈的深度分析结合 承诺"
+    ]
+  },
+  {
+    "content": "[承诺] [对话历史（最近11轮）]\n[01:25] 用户: [对话历史（最近9轮）]\n[01:13] 用户: [对话历史（最近5轮）]\n[23:31] 用户: [当前面",
+    "scope": "commitment",
+    "ts": 1774827178725,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 1,
+    "lastAccessed": 1774831053604,
+    "tier": "short_term",
+    "recallCount": 14,
+    "lastRecalled": 1774831053604,
+    "recallContexts": [
+      "梦境洞察 将用户对技术细节的苛求与竞品雷达对非结构化用户反馈的深度分析结合 承诺"
+    ]
+  },
+  {
+    "content": "[矛盾面] 作为产品总监强调团队协作与信任，但面对管理压力时流露出对流程混乱的烦躁，体现理想化协作与现实中多方拉扯的冲突",
+    "scope": "wisdom",
+    "ts": 1774827041067,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[深层感受] 对同事阿昊存在超越工作关系的依赖与敬佩，可能隐含对自身技术能力不足的不安或对稳定协作关系的珍视 (关于同事阿昊)",
+    "scope": "deep_feeling",
+    "ts": 1774827041056,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[价值观] 对专业能力和可靠性的高度尊重，认为技术实力和信任是合作的基础 (关于同事阿昊)",
+    "scope": "deep_feeling",
+    "ts": 1774827041039,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "沈婉宁是主人老婆，小学美术老师，性格温柔",
+    "scope": "fact",
+    "ts": 1774826999687,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
+    "tags": [],
+    "confidence": 0.74,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 2,
+    "lastRecalled": 1774829634968,
+    "validFrom": 1774826999687
+  },
+  {
+    "content": "[遗留问题] null",
+    "scope": "task",
+    "ts": 1774823366063,
+    "emotion": "neutral",
+    "visibility": "channel",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "用户偏好'军师'风格：谋定后动、先看全局再下手，特征包括先列选项再给建议、分析利弊不偏袒、用反问引导思考，且要求深度详细",
+    "scope": "fact",
+    "ts": 1774823366045,
+    "emotion": "neutral",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 1,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 14,
+    "lastRecalled": 1774830937554,
+    "validFrom": 1774823366045
+  },
+  {
     "content": "[WAL事实] 2026-04-18] 你怎么这么厉害: [你怎么这么厉害_百度百科](https://baike.",
     "scope": "wal",
     "ts": 1774798702397,
@@ -21,14 +620,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.76,
-    "lastAccessed": 1774823360818,
+    "confidence": 0.8700000000000001,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 3,
-    "lastRecalled": 1774823360818,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 7,
+    "lastRecalled": 1774827291758
   },
   {
     "content": "[承诺] 换工作，简历怎么写比较好？",
@@ -38,10 +634,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.81,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0
+    "recallCount": 4,
+    "lastRecalled": 1774827291758
   },
   {
     "content": "[WAL事实] 下周有个面试、想入门摄影、买什么相机比较好、预算五千左右 | 提示: 主人，技术深度",
@@ -52,14 +649,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9400000000000002,
-    "lastAccessed": 1774823360820,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 12,
-    "lastRecalled": 1774823360820,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 22,
+    "lastRecalled": 1774827291738
   },
   {
     "content": "[WAL事实] 下周有个面试、最近总是失眠、有什么改善方法吗 | 提示: 主人，技术深度优先，不需要",
@@ -70,14 +664,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9800000000000002,
-    "lastAccessed": 1774823360818,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 14,
-    "lastRecalled": 1774823360818,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 27,
+    "lastRecalled": 1774827304796
   },
   {
     "content": "[WAL事实] 下周有个面试 | 提示: 主人，技术深度优先，不需要过多解释",
@@ -89,14 +680,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360830,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 23,
-    "lastRecalled": 1774823360830,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动",
-      "技术勘误 技术常识常含表面误解 须深究底层机制 事实 下周有个面试 我的场景是缓"
-    ]
+    "recallCount": 52,
+    "lastRecalled": 1774827304794
   },
   {
     "content": "[承诺] 面试前该怎么？有个面试",
@@ -106,10 +693,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.78,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0
+    "recallCount": 4,
+    "lastRecalled": 1774827291758
   },
   {
     "content": "[WAL事实] 面试前该怎么准备？下周有个面试",
@@ -120,14 +708,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.8800000000000001,
-    "lastAccessed": 1774823360831,
+    "confidence": 0.9800000000000002,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 9,
-    "lastRecalled": 1774823360831,
-    "recallContexts": [
-      "技术勘误 技术常识常含表面误解 须深究底层机制 事实 下周有个面试 我的场景是缓"
-    ]
+    "recallCount": 14,
+    "lastRecalled": 1774827178372
   },
   {
     "content": "[WAL事实] 下周有个面试",
@@ -139,13 +724,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360830,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 20,
-    "lastRecalled": 1774823360830,
-    "recallContexts": [
-      "技术勘误 技术常识常含表面误解 须深究底层机制 事实 下周有个面试 我的场景是缓"
-    ]
+    "recallCount": 28,
+    "lastRecalled": 1774827178371
   },
   {
     "content": "[WAL事实] 下周三有个面试\"",
@@ -173,15 +755,11 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360831,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 23,
-    "lastRecalled": 1774823360831,
-    "validFrom": 1774795585482,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动",
-      "技术勘误 技术常识常含表面误解 须深究底层机制 事实 下周有个面试 我的场景是缓"
-    ]
+    "recallCount": 31,
+    "lastRecalled": 1774827178372,
+    "validFrom": 1774795585482
   },
   {
     "content": "[承诺] 面试前该怎么？三有个面试",
@@ -191,10 +769,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.72,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0
+    "recallCount": 1,
+    "lastRecalled": 1774827205735
   },
   {
     "content": "[WAL事实] 面试前该怎么准备？下周三有个面试",
@@ -236,14 +815,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360831,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 21,
-    "lastRecalled": 1774823360831,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动",
-      "技术勘误 技术常识常含表面误解 须深究底层机制 事实 下周有个面试 我的场景是缓"
-    ]
+    "recallCount": 44,
+    "lastRecalled": 1774829634969
   },
   {
     "content": "[WAL偏好] 我的场景是缓存 API 响应，QPS 大概 500",
@@ -311,11 +886,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.8800000000000001,
+    "confidence": 0.9400000000000002,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 9,
-    "lastRecalled": 1774820950123,
+    "recallCount": 12,
+    "lastRecalled": 1774827043736,
     "validFrom": 1774795162919
   },
   {
@@ -356,14 +931,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9800000000000002,
-    "lastAccessed": 1774823360820,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 14,
-    "lastRecalled": 1774823360820,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 24,
+    "lastRecalled": 1774830189422
   },
   {
     "content": "[WAL偏好] 我喜欢吃苹果\"",
@@ -374,14 +946,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9600000000000002,
-    "lastAccessed": 1774823360818,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 13,
-    "lastRecalled": 1774823360818,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 21,
+    "lastRecalled": 1774829634968
   },
   {
     "content": "[承诺] Docker 和 Podman 有什么区别  怎么做？",
@@ -391,11 +960,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.8200000000000001,
+    "confidence": 0.9000000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 6,
-    "lastRecalled": 1774795079367
+    "recallCount": 10,
+    "lastRecalled": 1774827291758
   },
   {
     "content": "[WAL事实] 今天被客户投诉了好烦",
@@ -508,11 +1077,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.74,
+    "confidence": 0.8500000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774819885467
+    "recallCount": 6,
+    "lastRecalled": 1774827291757
   },
   {
     "content": "[WAL事实] 下周要去日本旅游好期待",
@@ -526,8 +1095,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 19,
-    "lastRecalled": 1774820950122
+    "recallCount": 20,
+    "lastRecalled": 1774826985679
   },
   {
     "content": "[WAL事实] 今天学了骑自行车摔了一跤",
@@ -614,8 +1183,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 17,
-    "lastRecalled": 1774820950122
+    "recallCount": 20,
+    "lastRecalled": 1774827043735
   },
   {
     "content": "[WAL事实] 今天和女朋友吵架了 心情很差",
@@ -642,13 +1211,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360817,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 23,
-    "lastRecalled": 1774823360817,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 37,
+    "lastRecalled": 1774827304796
   },
   {
     "content": "[WAL事实] 今天结婚  好开心 太幸福了今天和女朋友吵架了 心情很差",
@@ -675,14 +1241,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360831,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 38,
-    "lastRecalled": 1774823360831,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动",
-      "技术勘误 技术常识常含表面误解 须深究底层机制 事实 下周有个面试 我的场景是缓"
-    ]
+    "recallCount": 64,
+    "lastRecalled": 1774827304795
   },
   {
     "content": "[WAL事实] 今天升职加薪了 好开心",
@@ -709,13 +1271,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360816,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 28,
-    "lastRecalled": 1774823360816,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 51,
+    "lastRecalled": 1774827304795
   },
   {
     "content": "[WAL事实] 今天和女朋友吵架了，心情很差",
@@ -742,13 +1301,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360817,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 28,
-    "lastRecalled": 1774823360817,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 51,
+    "lastRecalled": 1774827304795
   },
   {
     "content": "[WAL事实] 今天被领导批评了，心情不好",
@@ -775,13 +1331,10 @@
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360817,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 21,
-    "lastRecalled": 1774823360817,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 40,
+    "lastRecalled": 1774827304796
   },
   {
     "content": "[WAL事实] 今天和好哥们去网吧打游戏 真开心",
@@ -876,14 +1429,11 @@
     "visibility": "channel",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360819,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 15,
-    "lastRecalled": 1774823360819,
-    "validFrom": 1774740428063,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 30,
+    "lastRecalled": 1774829634970,
+    "validFrom": 1774740428063
   },
   {
     "content": "[纠正归因] 理解偏差: 模型将[goal completed]误解为对话已结束，未识别用户仍在分享个人状态（咖啡/状态不好）并期待情感回应",
@@ -892,11 +1442,11 @@
     "emotion": "neutral",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.8200000000000001,
+    "confidence": 0.8600000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 6,
-    "lastRecalled": 1774820986233,
+    "recallCount": 8,
+    "lastRecalled": 1774826203441,
     "validFrom": 1774740422968
   },
   {
@@ -953,11 +1503,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9200000000000002,
+    "confidence": 0.9600000000000002,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 11,
-    "lastRecalled": 1774795585531
+    "recallCount": 13,
+    "lastRecalled": 1774829634970
   },
   {
     "content": "[承诺] 焦虑啊，要交付但是代码还没测完，来不及了怎么办",
@@ -1100,14 +1650,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9600000000000002,
-    "lastAccessed": 1774823360819,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 13,
-    "lastRecalled": 1774823360819,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 21,
+    "lastRecalled": 1774829634969
   },
   {
     "content": "[WAL偏好] 我喜欢芒果？你怎么得出这个结论的",
@@ -1133,14 +1680,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.8600000000000001,
-    "lastAccessed": 1774823360819,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 8,
-    "lastRecalled": 1774823360819,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 16,
+    "lastRecalled": 1774829634970
   },
   {
     "content": "decay_test_old_memory_for_unit_test",
@@ -1165,14 +1709,11 @@
     "visibility": "private",
     "channelId": "user:ou_db9ed11831f16364610ed6eefcff963e",
     "tags": [],
-    "confidence": 0.9600000000000002,
-    "lastAccessed": 1774823360818,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 13,
-    "lastRecalled": 1774823360818,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 21,
+    "lastRecalled": 1774829634969
   },
   {
     "content": "[纠正归因] 领域不足: 遗漏CPython对小元组的intern缓存机制这一底层实现细节，属于Python解释器内部优化领域的知识缺口",
@@ -1184,8 +1725,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 18,
-    "lastRecalled": 1774820986230,
+    "recallCount": 20,
+    "lastRecalled": 1774827291739,
     "validFrom": 1774568681442
   },
   {
@@ -1198,8 +1739,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 24,
-    "lastRecalled": 1774820986198
+    "recallCount": 32,
+    "lastRecalled": 1774827291739
   },
   {
     "content": "纠正: 不对，你漏了最重要的一点：tuple 因为不可变所以可以被 intern 缓存，CPython 会缓存长度小于 20 的",
@@ -1292,7 +1833,7 @@
     "userId": "test_user",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.73,
+    "confidence": 0.7,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
@@ -1401,10 +1942,11 @@
       "广告监控",
       "中小企业"
     ],
-    "confidence": 0.7,
+    "confidence": 0.74,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 2,
+    "lastRecalled": 1774826203366,
     "validFrom": 1774532419465
   },
   {
@@ -1632,10 +2174,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.76,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 3,
+    "lastRecalled": 1774827304817,
     "validFrom": 1774514446585
   },
   {
@@ -1746,11 +2289,14 @@
       "跨学科洞察",
       "复杂系统类比"
     ],
-    "confidence": 0.74,
-    "lastAccessed": null,
+    "confidence": 0.9400000000000002,
+    "lastAccessed": 1774831053592,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774794271968
+    "recallCount": 12,
+    "lastRecalled": 1774831053592,
+    "recallContexts": [
+      "[系统] 命令已处理，结果已发送。"
+    ]
   },
   {
     "content": "[梦境洞察] 当Rust的trait对象沉入火锅汤底，地域文化变成了可热插拔的策略组件——文旅融合不过是让游客在九宫格里动态分发自己的集体记忆。",
@@ -1985,7 +2531,7 @@
       "搜索技术",
       "关键词分析"
     ],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
@@ -2019,10 +2565,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.8,
+    "confidence": 0.8200000000000001,
     "lastAccessed": null,
     "tier": "long_term",
-    "recallCount": 0
+    "recallCount": 1,
+    "lastRecalled": 1774826203423
   },
   {
     "content": "发现AI助手\"隐私模式\"（如Claude临时对话）功能设计：对话内容不用于模型训练且结束后自动清除，涉及\"goal completed 隐私模式 当前对话不记忆\"等最新动态搜索；对话式AI系统中，\"goal completed\"和\"可以了\"等自然语言常作为任务完成信号，触发对话状态机切换至结束流程，是对话管理的重要交互模式",
@@ -2031,14 +2578,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.9400000000000002,
-    "lastAccessed": 1774823360820,
+    "confidence": 1,
+    "lastAccessed": null,
     "tier": "long_term",
-    "recallCount": 7,
-    "lastRecalled": 1774823360820,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 31,
+    "lastRecalled": 1774827304873
   },
   {
     "content": "角色互动定位明确为军师/谋士模式，期待基于技术细节的战略级分析，并通过反问引导自主思考而非直接接受现成结论",
@@ -2096,11 +2640,14 @@
       "结构化分析",
       "决策闭环"
     ],
-    "confidence": 0.74,
-    "lastAccessed": null,
+    "confidence": 0.9400000000000002,
+    "lastAccessed": 1774831053593,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774794271969
+    "recallCount": 12,
+    "lastRecalled": 1774831053593,
+    "recallContexts": [
+      "[系统] 命令已处理，结果已发送。"
+    ]
   },
   {
     "content": "主人最喜欢吃的水果是芒果",
@@ -2155,10 +2702,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.8500000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 6,
+    "lastRecalled": 1774827205773,
     "validFrom": 1774476622078
   },
   {
@@ -2181,11 +2729,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.8,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774794271976,
+    "recallCount": 5,
+    "lastRecalled": 1774830937554,
     "validFrom": 1774476622066
   },
   {
@@ -2221,11 +2769,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.76,
+    "confidence": 1,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 3,
-    "lastRecalled": 1774820965672,
+    "recallCount": 14,
+    "lastRecalled": 1774830189423,
     "validFrom": 1774474021627
   },
   {
@@ -2365,11 +2913,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.74,
+    "confidence": 0.76,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774532350005,
+    "recallCount": 3,
+    "lastRecalled": 1774826203375,
     "validFrom": 1774472943356
   },
   {
@@ -2392,10 +2940,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.76,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 3,
+    "lastRecalled": 1774827304817,
     "validFrom": 1774472925597
   },
   {
@@ -2444,11 +2993,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.74,
+    "confidence": 0.8200000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774820965673,
+    "recallCount": 6,
+    "lastRecalled": 1774830189423,
     "validFrom": 1774470553185
   },
   {
@@ -2471,11 +3020,11 @@
     "emotion": "neutral",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.8,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774794271977
+    "recallCount": 5,
+    "lastRecalled": 1774830937555
   },
   {
     "content": "[漫游发现][未验证] 柔和耐心: 在AI对话设计中，“柔和耐心”被作为交互品质的重要指标，2024年有企业推出基于情感计算的客服系统，能实时检测用户情绪并调整回复语气与节奏。（来源：TechCrunch）",
@@ -2525,11 +3074,11 @@
     "emotion": "neutral",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.8,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774794271977
+    "recallCount": 5,
+    "lastRecalled": 1774830937555
   },
   {
     "content": "[漫游发现][未验证] 不需要过多解释: DuckDuckGo搜索引擎宣布了一项名为“隐私保护”的新功能，该功能将自动升级用户的搜索引擎设置，确保即使在使用隐私模式时，用户的搜索查询也不会被追踪。] (来源: DuckDuckGo官方博客)",
@@ -2848,10 +3397,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.74,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 2,
+    "lastRecalled": 1774827304817,
     "validFrom": 1774466821599
   },
   {
@@ -2900,10 +3450,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.74,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 2,
+    "lastRecalled": 1774827304817,
     "validFrom": 1774466447822
   },
   {
@@ -3033,11 +3584,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.8200000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774514349896,
+    "recallCount": 6,
+    "lastRecalled": 1774827304794,
     "validFrom": 1774465780047
   },
   {
@@ -3165,11 +3716,11 @@
     "emotion": "neutral",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.8,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774794271977
+    "recallCount": 5,
+    "lastRecalled": 1774830937555
   },
   {
     "content": "[漫游发现][未验证] 当前消息: \"max_results\": 5",
@@ -3178,11 +3729,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.76,
+    "confidence": 0.8200000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 3,
-    "lastRecalled": 1774820965673,
+    "recallCount": 6,
+    "lastRecalled": 1774830189423,
     "validFrom": 1774463217310
   },
   {
@@ -3192,11 +3743,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.74,
+    "confidence": 0.76,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774743668087,
+    "recallCount": 3,
+    "lastRecalled": 1774826203442,
     "validFrom": 1774463217301
   },
   {
@@ -3206,11 +3757,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.76,
+    "confidence": 0.9700000000000002,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 3,
-    "lastRecalled": 1774820965673,
+    "recallCount": 9,
+    "lastRecalled": 1774830189423,
     "validFrom": 1774463217284
   },
   {
@@ -3220,11 +3771,11 @@
     "emotion": "neutral",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.8,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774794271977
+    "recallCount": 5,
+    "lastRecalled": 1774830937555
   },
   {
     "content": "[漫游发现][已验证] 竞品雷达: 竞品雷达（Competitive Radar）利用自动化工具持续追踪竞争对手的关键信息，包括产品功能、价格策略、市场活动等，为企业提供决策支持。通过分析竞品数据，企业可以发现潜在机会和风险，优化自身产品和服务。] (来源: 百度文库 - https://wenku.baidu.com/view/8b64d6f7e04edc9f65d5e7f3.html)",
@@ -3259,11 +3810,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.76,
+    "confidence": 0.9200000000000002,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 3,
-    "lastRecalled": 1774820965673,
+    "recallCount": 11,
+    "lastRecalled": 1774830189423,
     "validFrom": 1774462847678
   },
   {
@@ -3859,10 +4410,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0,
+    "recallCount": 2,
+    "lastRecalled": 1774827043725,
     "validFrom": 1774458156810
   },
   {
@@ -3886,11 +4438,11 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.74,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774820965673,
+    "recallCount": 2,
+    "lastRecalled": 1774826203376,
     "validFrom": 1774458156770
   },
   {
@@ -3900,11 +4452,14 @@
     "emotion": "neutral",
     "visibility": "channel",
     "tags": [],
-    "confidence": 0.74,
-    "lastAccessed": null,
+    "confidence": 0.9400000000000002,
+    "lastAccessed": 1774831053592,
     "tier": "short_term",
-    "recallCount": 2,
-    "lastRecalled": 1774794271968
+    "recallCount": 12,
+    "lastRecalled": 1774831053592,
+    "recallContexts": [
+      "[系统] 命令已处理，结果已发送。"
+    ]
   },
   {
     "content": "[梦境洞察] 如果蜜月领域的设计能像MemRL那样，让每一次甜蜜互动都自动沉淀为“爱的记忆晶体”，并悄悄优化下一次的浪漫算法，那么幸福本身就会成为一套自进化的系统。",
@@ -4456,7 +5011,7 @@
     "userId": "test_user",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.74,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 2,
@@ -4470,7 +5025,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
@@ -4483,7 +5038,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.76,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
@@ -4509,7 +5064,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
@@ -4785,7 +5340,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0
@@ -4835,7 +5390,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0
@@ -6746,8 +7301,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 39,
-    "lastRecalled": 1774820986232
+    "recallCount": 44,
+    "lastRecalled": 1774827291739
   },
   {
     "content": "U4968R1800: 如何在Python中实现适配器模式？",
@@ -6759,8 +7314,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 25,
-    "lastRecalled": 1774820986232
+    "recallCount": 28,
+    "lastRecalled": 1774827291739
   },
   {
     "content": "U4968R1000: 如何在Python中实现原型模式？",
@@ -6772,8 +7327,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 26,
-    "lastRecalled": 1774820986232
+    "recallCount": 32,
+    "lastRecalled": 1774827291738
   },
   {
     "content": "U4860R600: 如何在Python中实现享元模式？",
@@ -6785,8 +7340,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 35,
-    "lastRecalled": 1774820986233
+    "recallCount": 39,
+    "lastRecalled": 1774827291739
   },
   {
     "content": "U52R0: 客车领域的供应链方案？(U52R0)",
@@ -6807,13 +7362,10 @@
     "visibility": "global",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360817,
+    "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 33,
-    "lastRecalled": 1774823360817,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 49,
+    "lastRecalled": 1774827304817
   },
   {
     "content": "U4932R1000: 如何在Python中实现适配器模式？",
@@ -6825,8 +7377,8 @@
     "confidence": 1,
     "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 23,
-    "lastRecalled": 1774820986232
+    "recallCount": 29,
+    "lastRecalled": 1774827291669
   },
   {
     "content": "U4875R4400: 知识领域的广告变现方案？(U4875R4400)",
@@ -10994,7 +11546,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.76,
+    "confidence": 0.79,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
@@ -11031,13 +11583,10 @@
     "visibility": "global",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774823360818,
+    "lastAccessed": null,
     "tier": "mid_term",
-    "recallCount": 38,
-    "lastRecalled": 1774823360818,
-    "recallContexts": [
-      "[对话历史（最近3轮）]\n[23:31] 用户: [当前面向: 军师] 谋定后动"
-    ]
+    "recallCount": 49,
+    "lastRecalled": 1774829634969
   },
   {
     "content": "ARM64e 的 PAC 密钥分为 IA/IB/DA/DB 四种，用途不同",
@@ -16230,7 +16779,7 @@
     "emotion": "neutral",
     "visibility": "global",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.73,
     "tier": "short_term",
     "recallCount": 0
   },
@@ -62104,8 +62653,8 @@
     "confidence": 1,
     "lastAccessed": 1773356747864,
     "tier": "short_term",
-    "recallCount": 16,
-    "lastRecalled": 1774820986232
+    "recallCount": 23,
+    "lastRecalled": 1774827304873
   },
   {
     "content": "用户需要了解Mac mini M4 Pro的官方配置选项，特别是内存和存储容量",
@@ -62251,49 +62800,51 @@
     "recallCount": 0
   },
   {
-    "content": "用户偏好'军师'风格：谋定后动、先看全局再下手，特征包括先列选项再给建议、分析利弊不偏袒、用反问引导思考，且要求深度详细",
-    "scope": "fact",
-    "ts": 1774823366045,
-    "visibility": "global",
-    "confidence": 0.7,
-    "lastAccessed": 1774823366045,
+    "content": "[承诺] [对话历史（最近19轮）]\n[02:13] 用户: 我决定这版本砍掉坐骑系统，不砍做不完，还是核心战斗优先吧\n助手: 这是对的决策。\n\n**砍掉坐骑系统的理由：",
+    "scope": "commitment",
+    "ts": 1774831039088,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "confidence": 0.74,
+    "lastAccessed": 1774831053592,
     "tier": "short_term",
-    "recallCount": 0,
-    "validFrom": 1774823366045,
-    "validUntil": 0,
+    "recallCount": 2,
     "situationCtx": {
-      "mood": -0.3283592118312263,
-      "energy": 0.7489041833333332
+      "mood": -1,
+      "energy": 0.5449264499999991
     },
     "tags": [
-      "用户偏好分析",
-      "军师风格",
-      "决策辅助",
-      "深度思考",
-      "策略建议",
-      "利弊分析"
-    ]
+      "决策确认",
+      "功能优先级",
+      "项目管理",
+      "开发进度",
+      "游戏系统",
+      "团队沟通"
+    ],
+    "lastRecalled": 1774831053592
   },
   {
-    "content": "[遗留问题] null",
-    "scope": "task",
-    "ts": 1774823366063,
+    "content": "[纠正归因] 模型幻觉: 模型在无上下文的情况下自行生成了关于坐骑系统的具体回复内容，属于典型幻觉。",
+    "scope": "correction",
+    "ts": 1774831041039,
     "visibility": "channel",
     "confidence": 0.7,
-    "lastAccessed": 1774823366063,
+    "lastAccessed": 1774831041039,
     "tier": "short_term",
     "recallCount": 0,
+    "validFrom": 1774831041039,
+    "validUntil": 0,
     "situationCtx": {
-      "mood": -0.3283592118312263,
-      "energy": 0.7489041833333332
+      "mood": -1,
+      "energy": 0.5449264499999991
     },
     "tags": [
-      "系统遗留问题",
-      "数据缺失",
-      "null值处理",
-      "错误排查",
-      "状态未知",
-      "待修复项"
+      "模型幻觉",
+      "错误归因",
+      "上下文缺失",
+      "ai生成错误",
+      "内容纠正",
+      "事实核查"
     ]
   }
 ]

@@ -1,8 +1,8 @@
 {
-  "totalResponses": 96,
-  "avgQuality": 9,
-  "correctionRate": 1,
+  "totalResponses": 0,
+  "avgQuality": 5,
+  "correctionRate": 0,
   "brainHitRate": 0,
   "memoryRecallRate": 0,
-  "lastEval": 1774823364084
+  "lastEval": 1774832713184
 }

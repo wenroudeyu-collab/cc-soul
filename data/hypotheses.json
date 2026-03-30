@@ -1,12 +1,11 @@
 [
   {
-    "id": "2a3f11b255d399c8",
-    "description": "当遇到\"不对，TCP 三次握手是为了防止已失效的连接请求报文段突然又\"时: 信息不准确",
+    "id": "50a188dde7e0356f",
+    "description": "当遇到\"[对话历史（最近19轮）]\n[02:13] 用户: 我决定这\"时: 回答太冗长，用户要简洁",
     "alpha": 2,
     "beta": 1,
     "status": "active",
-    "created": 1774566733837,
-    "reflexionStage": "plan",
+    "created": 1774831038971,
     "verifyCount": 0
   }
 ]

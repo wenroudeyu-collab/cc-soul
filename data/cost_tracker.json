@@ -1,15 +1,15 @@
 {
   "daily": [
     {
-      "date": "2026-03-29",
-      "inputTokens": 3340,
-      "outputTokens": 1317,
+      "date": "2026-03-30",
+      "inputTokens": 20,
+      "outputTokens": 51,
       "augmentTokens": 0,
-      "turns": 2
+      "turns": 1
     }
   ],
-  "sessionTokens": 4657,
-  "sessionTurns": 2,
-  "totalTokens": 4657,
-  "totalTurns": 2
+  "sessionTokens": 71,
+  "sessionTurns": 1,
+  "totalTokens": 71,
+  "totalTurns": 1
 }

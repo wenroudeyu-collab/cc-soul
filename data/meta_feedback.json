@@ -3,90 +3,546 @@
     {
       "augmentType": "unknown",
       "totalInjections": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
+      "qualitySum": 5,
+      "avgQuality": 5,
       "correctionCount": 0,
       "complexitySum": 0,
       "avgComplexity": 0,
       "recentScores": [
-        8.5
+        5
       ]
     },
     {
-      "augmentType": "用户理解",
+      "augmentType": "Working Memory — this session",
       "totalInjections": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
-      "correctionCount": 0,
-      "complexitySum": 0.15,
-      "avgComplexity": 0.15,
-      "recentScores": [
-        8.5
-      ]
-    },
-    {
-      "augmentType": "相关记忆",
-      "totalInjections": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
-      "correctionCount": 0,
-      "complexitySum": 0.55,
-      "avgComplexity": 0.55,
-      "recentScores": [
-        8.5
-      ]
-    },
-    {
-      "augmentType": "Goal detected",
-      "totalInjections": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
+      "qualitySum": 5,
+      "avgQuality": 5,
       "correctionCount": 0,
       "complexitySum": 0,
       "avgComplexity": 0,
       "recentScores": [
-        8.5
+        5
+      ]
+    },
+    {
+      "augmentType": "当前面向: 安抚者",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "认知",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "预言命中",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "举一反三",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0.5,
+      "avgComplexity": 0.5,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "自检模式",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "情绪感知",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "Active Goal",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "行为预测",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "内部矛盾警告",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
+      ]
+    },
+    {
+      "augmentType": "表达适配",
+      "totalInjections": 1,
+      "qualitySum": 5,
+      "avgQuality": 5,
+      "correctionCount": 0,
+      "complexitySum": 0,
+      "avgComplexity": 0,
+      "recentScores": [
+        5
       ]
     }
   ],
   "pairEffects": [
     {
-      "pair": "unknown|用户理解",
+      "pair": "Working Memory — this session|unknown",
       "coCount": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5
+      "qualitySum": 5,
+      "avgQuality": 5
     },
     {
-      "pair": "unknown|相关记忆",
+      "pair": "unknown|当前面向: 安抚者",
       "coCount": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5
+      "qualitySum": 5,
+      "avgQuality": 5
     },
     {
-      "pair": "Goal detected|unknown",
+      "pair": "unknown|认知",
       "coCount": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5
+      "qualitySum": 5,
+      "avgQuality": 5
     },
     {
-      "pair": "用户理解|相关记忆",
+      "pair": "unknown|预言命中",
       "coCount": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5
+      "qualitySum": 5,
+      "avgQuality": 5
     },
     {
-      "pair": "Goal detected|用户理解",
+      "pair": "unknown|举一反三",
       "coCount": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5
+      "qualitySum": 5,
+      "avgQuality": 5
     },
     {
-      "pair": "Goal detected|相关记忆",
+      "pair": "unknown|自检模式",
       "coCount": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "unknown|情绪感知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|unknown",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "unknown|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "unknown|内部矛盾警告",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "unknown|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|当前面向: 安抚者",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|举一反三",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|自检模式",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|情绪感知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|Working Memory — this session",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|内部矛盾警告",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Working Memory — this session|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "当前面向: 安抚者|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "当前面向: 安抚者|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|当前面向: 安抚者",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "当前面向: 安抚者|自检模式",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "当前面向: 安抚者|情绪感知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|当前面向: 安抚者",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "当前面向: 安抚者|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|当前面向: 安抚者",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "当前面向: 安抚者|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "认知|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "自检模式|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "情绪感知|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "行为预测|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "表达适配|认知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "自检模式|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "情绪感知|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "行为预测|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "表达适配|预言命中",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|自检模式",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|情绪感知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|举一反三",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|内部矛盾警告",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "举一反三|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "情绪感知|自检模式",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|自检模式",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "自检模式|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|自检模式",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "自检模式|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|情绪感知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "情绪感知|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|情绪感知",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "情绪感知|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|内部矛盾警告",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "Active Goal|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|行为预测",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "行为预测|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
+    },
+    {
+      "pair": "内部矛盾警告|表达适配",
+      "coCount": 1,
+      "qualitySum": 5,
+      "avgQuality": 5
     }
   ],
-  "globalAvgComplexity": 0.175,
-  "globalSampleCount": 4
+  "globalAvgComplexity": 0.041666666666666664,
+  "globalSampleCount": 12
 }

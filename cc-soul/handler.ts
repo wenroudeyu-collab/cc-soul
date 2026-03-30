@@ -33,6 +33,7 @@ import {
   CJK_TOPIC_REGEX, CJK_WORD_REGEX,
   refreshNarrativeAsync,
   detectTopicShiftAndReset,
+  getSoulMode,
 } from './handler-state.ts'
 import { runHeartbeat } from './handler-heartbeat.ts'
 import { routeCommand } from './handler-commands.ts'
@@ -189,6 +190,27 @@ export function initializeSoul(): void {
  */
 export function handleBootstrap(event: any): void {
   if (!getInitialized()) initializeSoul()
+
+  // Soul Mode: suppress AI agent completely
+  const sm = getSoulMode()
+  if (sm.active) {
+    // Clear ALL bootstrap files so AI agent has no instructions
+    const ctx = event.context || {}
+    if (ctx.bootstrapFiles && Array.isArray(ctx.bootstrapFiles)) {
+      ctx.bootstrapFiles.length = 0  // empty the array in-place
+    }
+    // Also blank out the message body
+    if (ctx.body) ctx.body = ''
+    if (ctx.bodyForAgent) ctx.bodyForAgent = ''
+    if (event.context) {
+      event.context.body = ''
+      event.context.bodyForAgent = ''
+    }
+    killGatewayClaude()
+    console.log(`[cc-soul] bootstrap: soul mode — cleared ALL bootstrap files + body`)
+    return
+  }
+
   const ctx = event.context || {}
   const files = ctx.bootstrapFiles as any[]
   if (files) {
@@ -411,6 +433,77 @@ export async function handlePreprocessed(event: any): Promise<void> {
   // ── Command routing ──
   if (routeCommand(userMsg, ctx, session, senderId, channelId, event)) {
     return
+  }
+
+  // ── Soul Mode: if active, ALL messages go to avatar reply instead of normal LLM ──
+  {
+    const sm = getSoulMode()
+    if (sm.active) {
+      // CRITICAL: prevent OpenClaw AI agent from responding.
+      ctx.bodyForAgent = ''
+      ctx.body = ''
+      if (event.context) {
+        event.context.bodyForAgent = ''
+        event.context.body = ''
+      }
+      killGatewayClaude()
+
+      // Auto-detect who is talking (if not manually specified)
+      import('./avatar.ts').then(async ({ generateAvatarReply, loadAvatarProfile }) => {
+        let speaker = sm.speaker
+
+        if (!speaker) {
+          // No speaker specified — ask LLM to identify who's talking
+          // based on message content + known social graph
+          const profile = loadAvatarProfile(senderId)
+          const contacts = Object.entries(profile.social || {})
+            .map(([name, c]: [string, any]) => `${name}（${c.relation}）`)
+          if (contacts.length > 0) {
+            const { spawnCLI } = await import('./cli.ts')
+            await new Promise<void>((resolve) => {
+              spawnCLI(
+                `已知这个人的社交关系：${contacts.join('、')}\n\n有人发来这条消息："${userMsg.slice(0, 100)}"\n\n根据消息内容、称呼、语气，判断最可能是谁发的。只回答一个名字（从已知关系中选），如果无法判断就回答"未知"。`,
+                (output) => {
+                  if (output) {
+                    const name = output.trim().replace(/["""。.]/g, '')
+                    // Check if the detected name is in our social graph
+                    if (profile.social[name]) {
+                      speaker = name
+                      console.log(`[cc-soul][soul-mode] auto-detected speaker: ${name}`)
+                    } else {
+                      // Try fuzzy match
+                      for (const known of Object.keys(profile.social)) {
+                        if (output.includes(known)) { speaker = known; break }
+                      }
+                      if (speaker) console.log(`[cc-soul][soul-mode] fuzzy-detected speaker: ${speaker}`)
+                      else console.log(`[cc-soul][soul-mode] could not identify speaker from: ${output.slice(0, 30)}`)
+                    }
+                  }
+                  resolve()
+                }, 10000
+              )
+            })
+          }
+        }
+
+        if (!speaker) {
+          import('./notify.ts').then(({ sendRawDM }) => sendRawDM(`不好意思，我不确定你是谁，能告诉我一下吗？`)).catch(() => {})
+          return
+        }
+
+        generateAvatarReply(senderId, speaker, userMsg, (reply: string, refused?: boolean) => {
+          const replyText = refused ? (reply || '[拒绝回复]') : reply
+          // Reply directly — no prefix, no emoji, like a normal human conversation
+          import('./notify.ts').then(({ sendRawDM }) => sendRawDM(replyText)).catch(() => {})
+          import('./avatar.ts').then(({ collectAvatarData }) => {
+            collectAvatarData(userMsg, replyText, senderId)
+          }).catch(() => {})
+        })
+      }).catch((e: any) => {
+        notifyOwnerDM(`[灵魂模式] 回复失败: ${e.message}`).catch(() => {})
+      })
+      return
+    }
   }
 
   // ── WAL Protocol: persist key info from user message BEFORE AI reply ──
@@ -674,11 +767,25 @@ export async function handlePreprocessed(event: any): Promise<void> {
   session.lastSenderId = senderId
   session.lastChannelId = channelId
   session.lastResponseContent = ''
+  // Save the clean user message (before augment injection) for avatar data collection.
+  // ctx.body format from Feishu: "[Feishu {id} {time}] [message_id: {id}]\n{nick}: {msg}"
+  {
+    let raw = ((event.context || {}).body || userMsg) as string
+    // Strip Feishu envelope: [Feishu ...] [message_id: ...]
+    raw = raw.replace(/^\[Feishu[^\]]*\]\s*/i, '')
+    raw = raw.replace(/^\[message_id:\s*\S+\]\s*/i, '')
+    // Strip nickname prefix: "wang: " or "用户名: "
+    raw = raw.replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s*/, '')
+    // Strip any remaining newline prefix
+    raw = raw.replace(/^\n+/, '').trim()
+    session._rawUserMsg = raw || userMsg
+  }
   innerState.lastActivityTime = Date.now()
 
   // Delayed post-processing: afterTurn() doesn't fire reliably,
   // so we do it here with a setTimeout to wait for LLM response
   const _snapPrompt = userMsg
+  const _snapRawMsg = session._rawUserMsg
   const _snapSenderId = senderId
   const _snapChannelId = channelId
   const _isCasual = /^(哈哈|嗯|好的?|ok|早|晚安|谢谢|收到|了解|明白|懂了)$/i.test(userMsg.trim())
@@ -758,6 +865,9 @@ export async function handlePreprocessed(event: any): Promise<void> {
             console.log(`[cc-soul][delayed-post] analysis done: sat=${result.satisfaction} q=${result.quality.score} mem=${result.memories.length}`)
           })
         }
+
+        // Avatar data collection — use RAW user message (not augmented prompt)
+        try { collectAvatarData(_snapRawMsg || _snapPrompt, botResponse, _snapSenderId) } catch (_) {}
       } catch (e: any) {
         console.log(`[cc-soul][delayed-post] error: ${e.message}`)
       }
@@ -971,8 +1081,8 @@ export function handleSent(event: any): void {
           triggerSessionSummary()
         }
 
-        // ── Avatar data collection: extract expression/decisions/social from every message ──
-        try { collectAvatarData(snapPrompt, snapResponse, snapSenderId) } catch (_) {}
+        // ── Avatar data collection: use RAW user message (not augmented prompt) ──
+        try { collectAvatarData(session._rawUserMsg || snapPrompt, snapResponse, snapSenderId) } catch (_) {}
 
         innerState.lastActivityTime = Date.now()
       }

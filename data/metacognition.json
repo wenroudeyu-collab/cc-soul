@@ -52,9 +52,9 @@
       "a": "相关记忆",
       "b": "认知",
       "source": "learned",
-      "coOccurrences": 6,
+      "coOccurrences": 7,
       "correctionCount": 6,
-      "correctionRate": 1
+      "correctionRate": 0.8571428571428571
     },
     {
       "a": "相关记忆",
@@ -66,9 +66,233 @@
     },
     {
       "a": "隐私模式:",
+      "b": "认知",
+      "source": "learned",
+      "coOccurrences": 7,
+      "correctionCount": 1,
+      "correctionRate": 0.14285714285714285
+    },
+    {
+      "a": "举一反三",
+      "b": "隐私模式:",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 1,
+      "correctionRate": 0.3333333333333333
+    },
+    {
+      "a": "举一反三",
+      "b": "当前面向: 安抚者",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 1,
+      "correctionRate": 0.3333333333333333
+    },
+    {
+      "a": "举一反三",
+      "b": "认知",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 1,
+      "correctionRate": 0.3333333333333333
+    },
+    {
+      "a": "举一反三",
+      "b": "自检模式",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 1,
+      "correctionRate": 0.3333333333333333
+    },
+    {
+      "a": "举一反三",
+      "b": "情绪感知",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 1,
+      "correctionRate": 0.3333333333333333
+    },
+    {
+      "a": "举一反三",
+      "b": "对话历史（最近10轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "举一反三",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "隐私模式:",
+      "b": "当前面向: 安抚者",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "隐私模式:",
+      "b": "自检模式",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "隐私模式:",
+      "b": "情绪感知",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "隐私模式:",
+      "b": "对话历史（最近10轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "隐私模式:",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "当前面向: 安抚者",
+      "b": "认知",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "当前面向: 安抚者",
+      "b": "自检模式",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "当前面向: 安抚者",
+      "b": "情绪感知",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "当前面向: 安抚者",
+      "b": "对话历史（最近10轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "当前面向: 安抚者",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "认知",
+      "b": "自检模式",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "认知",
+      "b": "情绪感知",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "认知",
+      "b": "对话历史（最近10轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "认知",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "自检模式",
+      "b": "情绪感知",
+      "source": "learned",
+      "coOccurrences": 4,
+      "correctionCount": 1,
+      "correctionRate": 0.25
+    },
+    {
+      "a": "自检模式",
+      "b": "对话历史（最近10轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "自检模式",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "情绪感知",
+      "b": "对话历史（最近10轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "情绪感知",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "对话历史（最近10轮）",
+      "b": "这个问题比较",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 1,
+      "correctionRate": 1
+    },
+    {
+      "a": "隐私模式:",
       "b": "用户理解",
       "source": "learned",
-      "coOccurrences": 1,
+      "coOccurrences": 5,
       "correctionCount": 0,
       "correctionRate": 0
     },
@@ -76,7 +300,7 @@
       "a": "隐私模式:",
       "b": "相关记忆",
       "source": "learned",
-      "coOccurrences": 1,
+      "coOccurrences": 2,
       "correctionCount": 0,
       "correctionRate": 0
     },
@@ -84,7 +308,7 @@
       "a": "隐私模式:",
       "b": "[Goal",
       "source": "learned",
-      "coOccurrences": 1,
+      "coOccurrences": 2,
       "correctionCount": 0,
       "correctionRate": 0
     },
@@ -100,7 +324,7 @@
       "a": "用户理解",
       "b": "[Goal",
       "source": "learned",
-      "coOccurrences": 1,
+      "coOccurrences": 3,
       "correctionCount": 0,
       "correctionRate": 0
     },
@@ -111,35 +335,568 @@
       "coOccurrences": 1,
       "correctionCount": 0,
       "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "当前面向: 军师",
+      "source": "learned",
+      "coOccurrences": 2,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "对话历史（最近1轮）",
+      "source": "learned",
+      "coOccurrences": 1,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "重复问题",
+      "source": "learned",
+      "coOccurrences": 2,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "对话流",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "矛盾提示",
+      "source": "learned",
+      "coOccurrences": 2,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "用户目标",
+      "source": "learned",
+      "coOccurrences": 3,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "隐私模式:",
+      "b": "人格增强",
+      "source": "learned",
+      "coOccurrences": 5,
+      "correctionCount": 0,
+      "correctionRate": 0
+    },
+    {
+      "a": "用户理解",
+      "b": "当前面向: 军师",
+      "source": "learned",
+      "coOccurrences": 2,
+      "correctionCount": 0,
+      "correctionRate": 0
     }
   ],
   "interactions": [
     {
       "pairKey": "相关记忆::认知",
-      "coOccurrences": 8,
-      "qualitySum": 46,
-      "avgQuality": 5.75,
+      "coOccurrences": 9,
+      "qualitySum": 53.7,
+      "avgQuality": 5.966666666666667,
       "correctionCount": 2
     },
     {
+      "pairKey": "自检模式::隐私模式:",
+      "coOccurrences": 8,
+      "qualitySum": 57.7,
+      "avgQuality": 7.2125,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "举一反三::隐私模式:",
+      "coOccurrences": 7,
+      "qualitySum": 48.599999999999994,
+      "avgQuality": 6.942857142857142,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "认知::隐私模式:",
+      "coOccurrences": 7,
+      "qualitySum": 49.8,
+      "avgQuality": 7.114285714285714,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "当前面向: 安抚者::隐私模式:",
+      "coOccurrences": 7,
+      "qualitySum": 51.1,
+      "avgQuality": 7.3,
+      "correctionCount": 1
+    },
+    {
       "pairKey": "用户理解::隐私模式:",
-      "coOccurrences": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
+      "coOccurrences": 5,
+      "qualitySum": 41.8,
+      "avgQuality": 8.36,
       "correctionCount": 0
     },
     {
-      "pairKey": "相关记忆::隐私模式:",
-      "coOccurrences": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
+      "pairKey": "人格增强::隐私模式:",
+      "coOccurrences": 5,
+      "qualitySum": 38.4,
+      "avgQuality": 7.68,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 安抚者::认知",
+      "coOccurrences": 5,
+      "qualitySum": 33.9,
+      "avgQuality": 6.779999999999999,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "情绪感知::隐私模式:",
+      "coOccurrences": 5,
+      "qualitySum": 35.2,
+      "avgQuality": 7.040000000000001,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "当前面向: 安抚者::情绪感知",
+      "coOccurrences": 5,
+      "qualitySum": 35.2,
+      "avgQuality": 7.040000000000001,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "当前面向: 安抚者::自检模式",
+      "coOccurrences": 5,
+      "qualitySum": 35.2,
+      "avgQuality": 7.040000000000001,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "情绪感知::自检模式",
+      "coOccurrences": 5,
+      "qualitySum": 35.2,
+      "avgQuality": 7.040000000000001,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "用户理解::用户目标",
+      "coOccurrences": 4,
+      "qualitySum": 32.3,
+      "avgQuality": 8.075,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::用户理解",
+      "coOccurrences": 4,
+      "qualitySum": 31.799999999999997,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "这个问题比较::隐私模式:",
+      "coOccurrences": 4,
+      "qualitySum": 33.7,
+      "avgQuality": 8.425,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "举一反三::当前面向: 安抚者",
+      "coOccurrences": 4,
+      "qualitySum": 26.2,
+      "avgQuality": 6.55,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "举一反三::认知",
+      "coOccurrences": 4,
+      "qualitySum": 26.2,
+      "avgQuality": 6.55,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "Active Goal::当前面向: 安抚者",
+      "coOccurrences": 4,
+      "qualitySum": 25.4,
+      "avgQuality": 6.35,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "Active Goal::认知",
+      "coOccurrences": 4,
+      "qualitySum": 25.4,
+      "avgQuality": 6.35,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "Active Goal::隐私模式:",
+      "coOccurrences": 4,
+      "qualitySum": 25.4,
+      "avgQuality": 6.35,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::用户理解",
+      "coOccurrences": 3,
+      "qualitySum": 25.9,
+      "avgQuality": 8.633333333333333,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户目标::隐私模式:",
+      "coOccurrences": 3,
+      "qualitySum": 24.099999999999998,
+      "avgQuality": 8.033333333333333,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::用户目标",
+      "coOccurrences": 3,
+      "qualitySum": 24.099999999999998,
+      "avgQuality": 8.033333333333333,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::隐私模式:",
+      "coOccurrences": 3,
+      "qualitySum": 26.5,
+      "avgQuality": 8.833333333333334,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户曾有的错误认知::隐私模式:",
+      "coOccurrences": 3,
+      "qualitySum": 23.3,
+      "avgQuality": 7.766666666666667,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户曾有的错误认知::自检模式",
+      "coOccurrences": 3,
+      "qualitySum": 23.3,
+      "avgQuality": 7.766666666666667,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "举一反三::这个问题比较",
+      "coOccurrences": 3,
+      "qualitySum": 24.4,
+      "avgQuality": 8.133333333333333,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "对话流::隐私模式:",
+      "coOccurrences": 3,
+      "qualitySum": 23.599999999999998,
+      "avgQuality": 7.866666666666666,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话流::认知",
+      "coOccurrences": 3,
+      "qualitySum": 23.599999999999998,
+      "avgQuality": 7.866666666666666,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "Active Goal::举一反三",
+      "coOccurrences": 3,
+      "qualitySum": 17.7,
+      "avgQuality": 5.8999999999999995,
       "correctionCount": 0
     },
     {
       "pairKey": "[Goal::隐私模式:",
-      "coOccurrences": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
+      "coOccurrences": 2,
+      "qualitySum": 17.7,
+      "avgQuality": 8.85,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 军师::隐私模式:",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "重复问题::隐私模式:",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "矛盾提示::隐私模式:",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 军师::用户理解",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户理解::认知",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户理解::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话流::用户理解",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户理解::矛盾提示",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 军师::认知",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 军师::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话流::当前面向: 军师",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 军师::矛盾提示",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 军师::用户目标",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::当前面向: 军师",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "认知::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "矛盾提示::认知",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户目标::认知",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::认知",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话流::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "矛盾提示::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户目标::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::重复问题",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话流::矛盾提示",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话流::用户目标",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::对话流",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户目标::矛盾提示",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::矛盾提示",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::用户理解",
+      "coOccurrences": 2,
+      "qualitySum": 16.4,
+      "avgQuality": 8.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::用户目标",
+      "coOccurrences": 2,
+      "qualitySum": 16.4,
+      "avgQuality": 8.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 安抚者::用户理解",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::当前面向: 安抚者",
+      "coOccurrences": 2,
+      "qualitySum": 17.2,
+      "avgQuality": 8.6,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::对话历史（最近9轮）",
+      "coOccurrences": 2,
+      "qualitySum": 17.5,
+      "avgQuality": 8.75,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::当前面向: 安抚者",
+      "coOccurrences": 2,
+      "qualitySum": 15.899999999999999,
+      "avgQuality": 7.949999999999999,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 安抚者::用户当前信念",
+      "coOccurrences": 2,
+      "qualitySum": 15.4,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::自检模式",
+      "coOccurrences": 2,
+      "qualitySum": 18.3,
+      "avgQuality": 9.15,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::用户曾有的错误认知",
+      "coOccurrences": 2,
+      "qualitySum": 18.3,
+      "avgQuality": 9.15,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "最近几条情绪::隐私模式:",
+      "coOccurrences": 2,
+      "qualitySum": 14.3,
+      "avgQuality": 7.15,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 安抚者::这个问题比较",
+      "coOccurrences": 2,
+      "qualitySum": 16.2,
+      "avgQuality": 8.1,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "认知::这个问题比较",
+      "coOccurrences": 2,
+      "qualitySum": 16.2,
+      "avgQuality": 8.1,
+      "correctionCount": 1
+    },
+    {
+      "pairKey": "相关记忆::隐私模式:",
+      "coOccurrences": 2,
+      "qualitySum": 16.2,
+      "avgQuality": 8.1,
       "correctionCount": 0
     },
     {
@@ -150,17 +907,199 @@
       "correctionCount": 0
     },
     {
-      "pairKey": "[Goal::用户理解",
+      "pairKey": "[Goal::相关记忆",
       "coOccurrences": 1,
       "qualitySum": 8.5,
       "avgQuality": 8.5,
       "correctionCount": 0
     },
     {
-      "pairKey": "[Goal::相关记忆",
+      "pairKey": "对话历史（最近1轮）::隐私模式:",
       "coOccurrences": 1,
-      "qualitySum": 8.5,
-      "avgQuality": 8.5,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::用户理解",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::当前面向: 军师",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::认知",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::重复问题",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::对话流",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::矛盾提示",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近1轮）::用户目标",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::对话历史（最近1轮）",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "举一反三::用户理解",
+      "coOccurrences": 1,
+      "qualitySum": 9.2,
+      "avgQuality": 9.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::举一反三",
+      "coOccurrences": 1,
+      "qualitySum": 9.2,
+      "avgQuality": 9.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::对话历史（最近9轮）",
+      "coOccurrences": 1,
+      "qualitySum": 8.2,
+      "avgQuality": 8.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "[Goal::用户目标",
+      "coOccurrences": 1,
+      "qualitySum": 8.2,
+      "avgQuality": 8.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 安抚者::用户目标",
+      "coOccurrences": 1,
+      "qualitySum": 8.2,
+      "avgQuality": 8.2,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户当前信念::用户理解",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "人格增强::用户当前信念",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户当前信念::认知",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "举一反三::用户当前信念",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户当前信念::隐私模式:",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "Active Goal::这个问题比较",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "Active Goal::用户当前信念",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "用户当前信念::这个问题比较",
+      "coOccurrences": 1,
+      "qualitySum": 7.7,
+      "avgQuality": 7.7,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::情绪感知",
+      "coOccurrences": 1,
+      "qualitySum": 9,
+      "avgQuality": 9,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "当前面向: 安抚者::用户曾有的错误认知",
+      "coOccurrences": 1,
+      "qualitySum": 9,
+      "avgQuality": 9,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "情绪感知::用户曾有的错误认知",
+      "coOccurrences": 1,
+      "qualitySum": 9,
+      "avgQuality": 9,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::最近几条情绪",
+      "coOccurrences": 1,
+      "qualitySum": 9.3,
+      "avgQuality": 9.3,
+      "correctionCount": 0
+    },
+    {
+      "pairKey": "对话历史（最近9轮）::这个问题比较",
+      "coOccurrences": 1,
+      "qualitySum": 9.3,
+      "avgQuality": 9.3,
       "correctionCount": 0
     }
   ]

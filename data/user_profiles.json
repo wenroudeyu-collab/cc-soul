@@ -1,43 +1,38 @@
 {
-  "ou_db9ed11831f16364610ed6eefcff963e": {
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+  "test_user": {
+    "userId": "test_user",
     "displayName": "",
-    "tier": "owner",
-    "messageCount": 15,
+    "tier": "new",
+    "messageCount": 1,
     "corrections": 0,
-    "lastSeen": 1774823360785,
-    "firstSeen": 1774820387059,
+    "lastSeen": 1774832663224,
+    "firstSeen": 1774832663224,
     "topics": [
-      "对话历史",
-      "当前面向",
-      "谋定后动"
+      "最近工作压力好大",
+      "老板天天催"
     ],
-    "style": "technical",
+    "style": "casual",
     "trust": 0.5,
-    "familiarity": 0.3,
+    "familiarity": 0.02,
     "relationshipTrend": "stable",
     "lastConflict": 0,
     "sharedEpisodes": 0,
     "languageDna": {
       "topWords": {
-        "对话历史": 15,
-        "最近": 15,
-        "用户": 15,
-        "当前面向": 15,
-        "军师": 15,
-        "谋定后动": 15,
-        "先看全局": 15,
-        "再下手": 15,
-        "特征": 15,
-        "先列选项": 15
+        "最近工作": 1,
+        "压力好大": 1,
+        "老板天天": 1
       },
-      "avgLength": 1463.8,
-      "samples": 15
+      "avgLength": 14,
+      "samples": 1
     },
     "language": "zh",
     "rhythm": {
       "activeHours": [
-        5,
+        0,
+        0,
+        0,
+        1,
         0,
         0,
         0,
@@ -57,27 +52,15 @@
         0,
         0,
         0,
-        0,
-        0,
-        0,
-        10
+        0
       ],
       "weekdayTopics": [
-        "对话历史",
-        "当前面向"
+        "最近工作压力好大",
+        "老板天天催"
       ],
-      "weekendTopics": [
-        "对话历史",
-        "当前面向"
-      ],
-      "avgResponseDelay": 202.07677992369042,
-      "lastMessageTs": 1774823360785
-    },
-    "personaHistory": [
-      {
-        "persona": "strategist",
-        "count": 15
-      }
-    ]
+      "weekendTopics": [],
+      "avgResponseDelay": 0,
+      "lastMessageTs": 1774832663225
+    }
   }
 }

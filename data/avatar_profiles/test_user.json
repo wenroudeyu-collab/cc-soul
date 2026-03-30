@@ -1,0 +1,41 @@
+{
+  "id": "test_user",
+  "name": "",
+  "identity": {
+    "who": ""
+  },
+  "expression": {
+    "style": "",
+    "口头禅": [],
+    "习惯": "",
+    "avg_msg_length": 14,
+    "samples": [
+      "最近工作压力好大，老板天天催"
+    ],
+    "tone_variants": {}
+  },
+  "decisions": {
+    "pattern": "",
+    "traces": []
+  },
+  "social": {},
+  "emotional_patterns": {
+    "baseline": "",
+    "triggers": {},
+    "reaction_style": {}
+  },
+  "preferences": {},
+  "boundaries": {
+    "can_reply": [],
+    "ask_first": [],
+    "never": []
+  },
+  "vocabulary": {
+    "emotions": {},
+    "decisions": [],
+    "relations": [],
+    "avoidance": [],
+    "decoder": {}
+  },
+  "updated_at": 1774832663225
+}

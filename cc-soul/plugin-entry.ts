@@ -261,11 +261,25 @@ export default {
         })
       }
 
-      // inbound_claim: intercept cc-soul commands before they reach AI
+      // inbound_claim: intercept cc-soul commands AND soul mode before they reach AI
       if (typeof api.on === 'function') {
+        // Import getSoulMode eagerly so it's available synchronously in inbound_claim
+        let _getSoulMode: (() => { active: boolean; speaker: string }) | null = null
+        import('./handler-state.ts').then(m => { _getSoulMode = m.getSoulMode }).catch(() => {})
+
         api.on('inbound_claim', async (event: any, _ctx: any) => {
           const content = (event?.content || event?.body || '').trim()
           if (!content) return
+
+          // Soul Mode: if active, intercept ALL messages before AI gets them
+          // (actual reply generation happens in handlePreprocessed via handler.ts)
+          if (_getSoulMode) {
+            const sm = _getSoulMode()
+            if (sm.active) {
+              return { handled: true }
+            }
+          }
+
           const { isCommand, handleCommandInbound } = await import('./handler-commands.ts')
           if (isCommand(content)) {
             const cfg = api.config || {}
@@ -316,6 +330,14 @@ export default {
         })
       }).catch((e: any) => { console.error(`[cc-soul] A2A route registration failed: ${e.message}`) })
     }
+
+    // 7b. Soul API — standalone HTTP server, independent of OpenClaw gateway
+    // Runs on a separate port so any platform can call it without gateway auth
+    import('./soul-api.ts').then(({ startSoulApi }) => {
+      startSoulApi()
+    }).catch((e: any) => {
+      console.log(`[cc-soul] Soul API not started: ${e.message}`)
+    })
 
     // 8. Slash commands + MCP tools (deferred via dynamic import)
     import('./plugin-commands.ts').then(({ registerPluginCommands }) => {

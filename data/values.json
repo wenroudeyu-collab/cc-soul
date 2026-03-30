@@ -5,32 +5,32 @@
       "leftLabel": "直接给方案",
       "rightLabel": "先解释原理",
       "score": 0,
-      "evidence": 2,
-      "lastUpdated": 1774823360791
+      "evidence": 0,
+      "lastUpdated": 0
     },
     {
       "name": "formal_vs_casual",
       "leftLabel": "正式严谨",
       "rightLabel": "随意轻松",
-      "score": -0.2,
-      "evidence": 2,
-      "lastUpdated": 1774823360791
+      "score": 0,
+      "evidence": 0,
+      "lastUpdated": 0
     },
     {
       "name": "depth_vs_breadth",
       "leftLabel": "深入钻研",
       "rightLabel": "广泛涉猎",
-      "score": -0.2,
-      "evidence": 2,
-      "lastUpdated": 1774823360791
+      "score": 0,
+      "evidence": 0,
+      "lastUpdated": 0
     },
     {
       "name": "proactive_vs_reactive",
       "leftLabel": "主动建议",
       "rightLabel": "只回答问题",
-      "score": -0.2,
-      "evidence": 2,
-      "lastUpdated": 1774823360791
+      "score": 0,
+      "evidence": 0,
+      "lastUpdated": 0
     }
   ]
 }

@@ -124,6 +124,31 @@ export async function notifyOwnerDM(message: string) {
   }
 }
 
+/**
+ * Send a raw message to owner DM — no emoji prefix, no formatting.
+ * Used by soul mode to send replies that look like normal human messages.
+ */
+export async function sendRawDM(message: string) {
+  const openId = soulConfig.owner_open_id
+  if (!HAS_FEISHU || !openId) return
+  try {
+    const token = await getFeishuToken()
+    if (!token) return
+    await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        receive_id: openId,
+        msg_type: 'text',
+        content: JSON.stringify({ text: message }),
+      }),
+    })
+  } catch {}
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // REPLY VIA OPENCLAW SDK — replaces legacy replyToChat / replyToSender
 // ═══════════════════════════════════════════════════════════════════════════════

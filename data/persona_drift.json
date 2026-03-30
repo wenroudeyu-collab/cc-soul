@@ -1,21 +1,21 @@
 {
   "windows": {
-    "strategist": [
+    "comforter": [
       {
-        "ts": 1774823360787,
-        "personaId": "strategist",
+        "ts": 1774830937505,
+        "personaId": "comforter",
         "vector": {
-          "length": 1606,
-          "questionFreq": 0,
-          "codeFreq": 0.7129514321295143,
+          "length": 45,
+          "questionFreq": 0.5,
+          "codeFreq": 0,
           "formality": 0.5,
-          "depth": 0.3333333333333333
+          "depth": 0
         }
       }
     ]
   },
   "lastEntropy": {
-    "strategist": 0
+    "comforter": 0
   },
   "lastWarningTs": 0
 }

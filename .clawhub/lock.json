@@ -3,7 +3,15 @@
   "skills": {
     "openclaw-tavern": {
       "version": "0.1.0",
-      "installedAt": 1774599444190
+      "installedAt": 1774824082488
+    },
+    "wtt-plugin": {
+      "version": "0.1.7",
+      "installedAt": 1774824086751
+    },
+    "ningyao-voice-launcher": {
+      "version": "0.1.0",
+      "installedAt": 1774824089289
     }
   }
 }

@@ -206,6 +206,17 @@ function resolveProviderFallback(): AIConfig | null {
 }
 
 export function getFallbackApiConfig(): AIConfig | null { return _fallbackApiConfig }
+export function setFallbackApiConfig(config: AIConfig) {
+  _fallbackApiConfig = config
+  // If setting from soul-api /config, also update main config so direct calls work
+  if (config.api_base && config.api_key && config.api_model) {
+    aiConfig.backend = 'openai-compatible'
+    aiConfig.api_base = config.api_base
+    aiConfig.api_key = config.api_key
+    aiConfig.api_model = config.api_model
+    console.log(`[cc-soul][ai] main config updated: ${config.api_model} @ ${config.api_base}`)
+  }
+}
 
 let aiConfig: AIConfig = detectAIConfig()
 

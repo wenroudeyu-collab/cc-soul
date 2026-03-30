@@ -13,10 +13,11 @@ import type { SoulConfig } from './types.ts'
 // PATH CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Auto-detect data dir: prefer plugins/ path, fallback to hooks/ for backward compat
+// Data directory: env override for standalone mode, otherwise auto-detect OpenClaw paths
+const _envData = process.env.SOUL_DATA_DIR
 const _pluginsData = resolve(homedir(), '.openclaw/plugins/cc-soul/data')
 const _hooksData = resolve(homedir(), '.openclaw/hooks/cc-soul/data')
-export const DATA_DIR = existsSync(_pluginsData) ? _pluginsData : _hooksData
+export const DATA_DIR = _envData || (existsSync(_pluginsData) ? _pluginsData : _hooksData)
 export const BRAIN_PATH = resolve(DATA_DIR, 'brain.json')
 export const MEMORIES_PATH = resolve(DATA_DIR, 'memories.json')
 export const RULES_PATH = resolve(DATA_DIR, 'rules.json')

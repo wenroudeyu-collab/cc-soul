@@ -15,6 +15,7 @@ import {
   stats, formatMetrics, shortcuts,
   getPrivacyMode, setPrivacyMode, saveStats,
   getCompressionRate,
+  getSoulMode, setSoulMode,
 } from './handler-state.ts'
 import { loadJson, debouncedSave, DATA_DIR, REMINDERS_PATH, soulConfig } from './persistence.ts'
 import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
@@ -398,7 +399,74 @@ export function routeCommand(
     return true
   }
 
-  // Avatar (AI 分身) — removed from commands, testing via town.ts simulator only
+  // ── Soul Mode (灵魂模式) — all subsequent messages become soul replies ──
+  {
+    // getSoulMode and setSoulMode imported from handler-state.ts at top
+    // Toggle on: /灵魂模式 (auto-detect speaker) or /灵魂模式 老孟 (manual specify)
+    const soulOnMatch = userMsg.match(/^[\/]?灵魂模式\s*(.*)$/i)
+    if (soulOnMatch) {
+      const speaker = soulOnMatch[1]?.trim() || ''  // empty = auto-detect
+      setSoulMode(true, speaker)
+      const msg = speaker
+        ? `灵魂模式已开启（身份：${speaker}）。发 /退出灵魂 可关闭。`
+        : `灵魂模式已开启，会自动识别对方身份。发 /退出灵魂 可关闭，发 /我是 <名字> 可指定身份。`
+      cmdReply(ctx, event, session, msg, userMsg)
+      return true
+    }
+    // Toggle off
+    if (/^[\/]?(退出灵魂|关闭灵魂|灵魂模式关|soul.mode.off)$/i.test(userMsg.trim())) {
+      setSoulMode(false)
+      cmdReply(ctx, event, session, `灵魂模式已关闭，恢复正常对话。`, userMsg)
+      return true
+    }
+    // Change speaker: /我是 沈婉宁
+    const switchMatch = userMsg.match(/^[\/]?我是\s+(.+)$/i)
+    if (switchMatch && getSoulMode().active) {
+      const newSpeaker = switchMatch[1].trim()
+      setSoulMode(true, newSpeaker)
+      cmdReply(ctx, event, session, `好的，现在你是「${newSpeaker}」。`, userMsg)
+      return true
+    }
+  }
+
+  // Avatar (AI 分身) — soul injection reply
+  const avatarMatch = userMsg.match(/^\/cc_avatar\s+(.+?)[:：]\s*(.+)$/i)
+    || userMsg.match(/^\/分身\s+(.+?)[:：]\s*(.+)$/i)
+  if (avatarMatch) {
+    const senderName = avatarMatch[1].trim()
+    const senderMsg = avatarMatch[2].trim()
+    import('./avatar.ts').then(({ generateAvatarReply }) => {
+      generateAvatarReply(senderId, senderName, senderMsg, (reply: string, refused?: boolean) => {
+        if (refused) {
+          cmdReply(ctx, event, session, reply || `[分身拒绝回复此消息]`, userMsg)
+        } else {
+          cmdReply(ctx, event, session, `「${senderName}」→ ${reply}`, userMsg)
+        }
+      })
+    }).catch((e: any) => {
+      cmdReply(ctx, event, session, `分身失败: ${e.message}`, userMsg)
+    })
+    return true
+  }
+  // 分身状态
+  if (/^(\/分身状态|\/avatar.status)$/i.test(userMsg.trim())) {
+    import('./avatar.ts').then(({ getAvatarStats }) => {
+      const stats = getAvatarStats(senderId)
+      const lines = [
+        `🧬 分身状态`,
+        `  样本: ${stats.samples} 条`,
+        `  口头禅: ${stats.catchphrases} 个`,
+        `  决策: ${stats.decisions} 条`,
+        `  联系人: ${stats.contacts} 人`,
+        `  情绪模式: ${stats.emotions} 种`,
+        `  风格: ${stats.style}`,
+      ]
+      cmdReply(ctx, event, session, lines.join('\n'), userMsg)
+    }).catch((e: any) => {
+      cmdReply(ctx, event, session, `分身状态获取失败: ${e.message}`, userMsg)
+    })
+    return true
+  }
 
   // ── Memory view / export commands ──
   if (/^(我的记忆|my memories)$/i.test(userMsg.trim())) {

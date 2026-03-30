@@ -22,8 +22,22 @@ import { existsSync, readFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
 import { DATA_DIR, debouncedSave } from './persistence.ts'
 import { spawnCLI } from './cli.ts'
-import { body } from './body.ts'
+import { body, emotionVector } from './body.ts'
 import type { Memory } from './types.ts'
+
+// Lazy-loaded modules (to avoid circular imports at module level)
+// These are loaded once on first use and cached.
+let _personModel: any = null
+let _memory: any = null
+
+async function getPersonModelModule() {
+  if (!_personModel) _personModel = await import('./person-model.ts')
+  return _personModel
+}
+async function getMemoryModule() {
+  if (!_memory) _memory = await import('./memory.ts')
+  return _memory
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -62,6 +76,16 @@ interface AvatarProfile {
     can_reply: string[]
     ask_first: string[]
     never: string[]
+  }
+  // Dynamic vocabulary — learned by LLM, not hardcoded.
+  // Used as fast-path detection for subsequent messages.
+  // Empty at start, populated after first LLM analysis cycle.
+  vocabulary: {
+    emotions: Record<string, string[]>   // e.g. {"frustrated": ["绷不住","烦死了"], "happy": ["牛","爽"]}
+    decisions: string[]                  // e.g. ["我选","还是...吧","我决定"]
+    relations: string[]                  // e.g. ["媳妇","哥们","领导","老大"]
+    avoidance: string[]                  // topics this person avoids
+    decoder: Record<string, string>      // short msg → real meaning
   }
   updated_at: number
 }
@@ -117,9 +141,16 @@ export function loadAvatarProfile(userId: string): AvatarProfile {
     },
     preferences: {},
     boundaries: {
-      can_reply: ['日常闲聊', '约饭', '简单技术问题'],
-      ask_first: ['工作决策', '代表用户表态'],
-      never: ['敏感话题', '涉及金钱'],
+      can_reply: [],
+      ask_first: [],
+      never: [],
+    },
+    vocabulary: {
+      emotions: {},
+      decisions: [],
+      relations: [],
+      avoidance: [],
+      decoder: {},
     },
     updated_at: Date.now(),
   }
@@ -163,13 +194,39 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
   }
 
   // ── 2. 口头禅 detection (frequent short phrases) ──
-  const shortPhrases = userMsg.match(/[\u4e00-\u9fff]{1,4}(?=[，。！？\s]|$)/g) || []
+  // Strategy: extract ALL possible 2-3 char CJK substrings that could be catchphrases,
+  // then let frequency filtering do the work (only ≥3 occurrences across samples = catchphrase).
+  // This avoids complex regex for positional detection.
+  const shortPhrases = new Set<string>()
+  // Extract all 2-char and 3-char CJK substrings from the message
+  const cjkChars = userMsg.match(/[\u4e00-\u9fff]+/g) || []
+  for (const seg of cjkChars) {
+    for (let len = 2; len <= 3; len++) {
+      for (let i = 0; i <= seg.length - len; i++) {
+        shortPhrases.add(seg.slice(i, i + len))
+      }
+    }
+  }
+
+  // Filter catchphrases: frequency ≥ 3, deduplicate substrings, skip 1-char phrases
+  // Known names to exclude from catchphrase detection
+  const knownNames = new Set(Object.keys(profile.social))
+
   for (const phrase of shortPhrases) {
-    if (phrase.length >= 2 && phrase.length <= 4) {
+    if (phrase.length >= 2 && phrase.length <= 3) {
       if (!profile.expression.口头禅.includes(phrase)) {
-        // Check if this phrase appears in multiple samples
+        // Skip if it's a known person's name
+        if (knownNames.has(phrase)) continue
         const count = profile.expression.samples.filter(s => s.includes(phrase)).length
         if (count >= 3) {
+          // Skip if it's a substring of an existing longer catchphrase
+          const isSubOfExisting = profile.expression.口头禅.some(existing => existing.length > phrase.length && existing.includes(phrase))
+          if (isSubOfExisting) continue
+          // Skip if it's a common grammar particle (>60% of samples = too universal)
+          const ratio = count / Math.max(profile.expression.samples.length, 1)
+          if (ratio > 0.6 && profile.expression.samples.length >= 10) continue
+          // Remove existing shorter substrings that this phrase supersedes
+          profile.expression.口头禅 = profile.expression.口头禅.filter(existing => !(existing.length < phrase.length && phrase.includes(existing)))
           profile.expression.口头禅.push(phrase)
           if (profile.expression.口头禅.length > 10) profile.expression.口头禅.shift()
           console.log(`[cc-soul][avatar] new 口头禅 detected: "${phrase}"`)
@@ -178,9 +235,14 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
     }
   }
 
-  // ── 3. Decision trace extraction ──
-  const decisionPatterns = /我选|我决定|我觉得.*比.*好|还是.*吧|选了|不选|不用.*用/
-  if (decisionPatterns.test(userMsg) && profile.decisions.traces.length < 20) {
+  // ── 3. Decision trace extraction (fully dynamic) ──
+  // Fast path: use learned vocabulary (if available)
+  // Cold start: every message >15 chars goes to LLM for decision detection (expensive but necessary)
+  // After vocabulary is learned: only matched messages go to LLM
+  const decisionWords = profile.vocabulary?.decisions || []
+  const hasDecisionFast = decisionWords.length > 0 && decisionWords.some(w => userMsg.includes(w))
+  const inColdStart = decisionWords.length === 0 && userMsg.length > 15
+  if ((hasDecisionFast || inColdStart) && profile.decisions.traces.length < 20) {
     spawnCLI(
       `从这句话中提取决策信息。如果有决策，输出 JSON: {"scenario":"场景","chose":"选了什么","reason":"为什么","rejected":"排除了什么"}。没有决策就回答 "null"。\n\n"${userMsg.slice(0, 200)}"`,
       (output) => {
@@ -198,35 +260,32 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
     )
   }
 
-  // ── 4. Social relation extraction (rule-based fast path + LLM fallback) ──
-
-  // Fast path: regex for common patterns
-  const personMentionPatterns = /我(同事|朋友|老板|老婆|老公|女朋友|男朋友|室友|学长|学姐|导师|师兄|师姐|发小|儿子|女儿|妈|爸|父亲|母亲)(.{1,4})|(.{1,4})是我(同事|朋友|老板|老婆|老公|发小|儿子|女儿)/
-  const personMatch = userMsg.match(personMentionPatterns)
-  if (personMatch) {
-    const relation = personMatch[1] || personMatch[4] || ''
-    const name = (personMatch[2] || personMatch[3] || '').trim()
-    if (name && name.length >= 1 && name.length <= 4 && !profile.social[name]) {
-      profile.social[name] = {
-        relation,
-        context: userMsg.slice(0, 60),
-        samples: [userMsg.slice(0, 100)],
+  // ── 4. Social relation extraction (fully LLM-driven) ──
+  // No hardcoded relation words. LLM decides what's a person mention and what the relation is.
+  // Uses learned vocabulary.relations as a hint, but doesn't require it.
+  {
+    // Check if message mentions a known contact → add to their samples
+    let mentionedKnown = false
+    for (const [name, contact] of Object.entries(profile.social)) {
+      const sc = contact as SocialContact
+      if (userMsg.includes(name)) {
+        mentionedKnown = true
+        if (!sc.samples) sc.samples = []
+        const sample = userMsg.slice(0, 100)
+        if (!sc.samples.includes(sample)) {
+          sc.samples.push(sample)
+          if (sc.samples.length > 15) sc.samples.shift()
+        }
       }
-      saveProfile(userId)
-      console.log(`[cc-soul][avatar] social relation (rule): ${name} (${relation})`)
     }
-  }
 
-  // LLM fallback: detect names + relationships that regex can't catch
-  // Triggered when message mentions a person name pattern but no regex match
-  const namePattern = /[\u4e00-\u9fff]{2,3}(?:说|问|回|发|给|叫|让|找|约|跟|和|对)/
-  if (!personMatch && namePattern.test(userMsg) && Object.keys(profile.social).length < 20) {
-    // Check if the mentioned name is already known
-    const knownNames = Object.keys(profile.social)
-    const possibleName = userMsg.match(/(?:跟|和|对|给|找|约)([\u4e00-\u9fff]{2,4})/)
-    if (possibleName && possibleName[1] && !knownNames.includes(possibleName[1])) {
+    // If message seems to mention a person (CJK name-like pattern) and it's not a known contact
+    // → ask LLM to extract the relationship
+    const nameCandidate = userMsg.match(/[\u4e00-\u9fff]{2,4}(?:说|问|回|发|给|叫|让|找|约|跟|和|对|是我)/)
+      || userMsg.match(/我[\u4e00-\u9fff]{2,6}[\u4e00-\u9fff]{2,3}/)  // "我同事阿昊" pattern
+    if (nameCandidate && !mentionedKnown && Object.keys(profile.social).length < 30) {
       spawnCLI(
-        `从这句话中提取人物关系。如果提到了某个人，输出 JSON: {"name":"名字","relation":"关系(如朋友/同事/老板/家人/妻子/丈夫/孩子等)","context":"简要背景"}。没有就回答 "null"。\n\n"${userMsg.slice(0, 200)}"`,
+        `从这句话中提取人物关系。如果提到了某个人，输出 JSON: {"name":"名字","relation":"关系","context":"简要背景"}。没有人物关系就回答 "null"。\n\n"${userMsg.slice(0, 200)}"`,
         (output) => {
           if (!output || output.includes('null')) return
           try {
@@ -246,36 +305,19 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
     }
   }
 
-  // ── 4b. Per-relationship sample collection ──
-  // For every known contact, if the message mentions their name, store it
-  for (const [name, contact] of Object.entries(profile.social)) {
-    const sc = contact as SocialContact
-    if (userMsg.includes(name)) {
-      if (!sc.samples) sc.samples = []
-      const sample = userMsg.slice(0, 100)
-      if (!sc.samples.includes(sample)) {
-        sc.samples.push(sample)
-        if (sc.samples.length > 15) sc.samples.shift()
-      }
-    }
-  }
+  // (Per-relationship sample collection is now inside section 4 above)
 
-  // ── 5. Emotional pattern tracking ──
-  const emotionSignals: Record<string, RegExp> = {
-    '开心': /哈哈|太好了|牛|厉害|爽|开心|高兴/,
-    '烦躁': /烦|累|不想|算了|懒得|麻烦/,
-    '低落': /难过|崩溃|被骂|心情差|不开心|压力/,
-    '暴怒': /傻逼|垃圾|怒|气死|离谱/,
-  }
-  for (const [emotion, regex] of Object.entries(emotionSignals)) {
-    if (regex.test(userMsg)) {
+  // ── 5. Emotional pattern tracking (dynamic vocabulary) ──
+  // Use learned vocabulary if available, otherwise skip (LLM will catch it in periodic analysis)
+  const learnedEmotions = profile.vocabulary?.emotions || {}
+  for (const [emotion, words] of Object.entries(learnedEmotions)) {
+    if ((words as string[]).some(w => userMsg.includes(w))) {
       if (!profile.emotional_patterns.triggers[emotion]) {
         profile.emotional_patterns.triggers[emotion] = []
       }
       const trigger = userMsg.slice(0, 40)
       if (!profile.emotional_patterns.triggers[emotion].includes(trigger)) {
         profile.emotional_patterns.triggers[emotion].push(trigger)
-        // Keep last 5 per emotion
         if (profile.emotional_patterns.triggers[emotion].length > 5) {
           profile.emotional_patterns.triggers[emotion].shift()
         }
@@ -305,7 +347,73 @@ ${sampleList}`,
     )
   }
 
-  // ── 7. Deep soul extraction — LLM-driven, no hardcoded patterns ──
+  // ── 7. Dynamic vocabulary learning ──
+  // LLM analyzes messages and builds a custom vocabulary for THIS person.
+  // Trigger: every 10 samples (offset by 3), OR on first 10 samples if vocab is empty (cold start).
+  const vocabEmpty = !profile.vocabulary?.emotions || Object.keys(profile.vocabulary.emotions).length === 0
+  const shouldLearnVocab = profile.expression.samples.length > 0 && (
+    profile.expression.samples.length % 10 === 3 ||
+    (vocabEmpty && profile.expression.samples.length >= 8)  // cold start: learn after 8 samples
+  )
+  if (shouldLearnVocab) {
+    const vocabBatch = profile.expression.samples.slice(-10).map((s, i) => `${i + 1}. ${s}`).join('\n')
+    spawnCLI(
+      `分析这个用户的语言习惯，提取他/她个人的词汇表。输出 JSON：
+{
+  "emotions": {"开心":["这人用哪些词表达开心"],"烦躁":["..."],"低落":["..."],"愤怒":["..."]},
+  "decisions": ["这人做决策时用的词/句式，如'我选''还是...吧'"],
+  "relations": ["这人称呼别人用的词，如'媳妇''哥们''老大'"],
+  "decoder": {"这人常用的短消息":"真实含义"},
+  "avoidance": ["这人似乎回避的话题"]
+}
+
+只提取在消息中有证据的，没有就留空数组/对象。
+
+消息：
+${vocabBatch}`,
+      (output) => {
+        if (!output) return
+        try {
+          const vocab = JSON.parse(output.match(/\{[\s\S]*\}/)?.[0] || 'null')
+          if (!vocab) return
+          if (!profile.vocabulary) profile.vocabulary = { emotions: {}, decisions: [], relations: [], avoidance: [], decoder: {} }
+          // Merge (don't replace — accumulate)
+          if (vocab.emotions) {
+            for (const [e, words] of Object.entries(vocab.emotions)) {
+              if (!profile.vocabulary.emotions[e]) profile.vocabulary.emotions[e] = []
+              for (const w of (words as string[])) {
+                if (!profile.vocabulary.emotions[e].includes(w)) profile.vocabulary.emotions[e].push(w)
+              }
+              if (profile.vocabulary.emotions[e].length > 10) profile.vocabulary.emotions[e] = profile.vocabulary.emotions[e].slice(-10)
+            }
+          }
+          if (vocab.decisions) {
+            for (const d of vocab.decisions) {
+              if (!profile.vocabulary.decisions.includes(d)) profile.vocabulary.decisions.push(d)
+            }
+            if (profile.vocabulary.decisions.length > 15) profile.vocabulary.decisions = profile.vocabulary.decisions.slice(-15)
+          }
+          if (vocab.relations) {
+            for (const r of vocab.relations) {
+              if (!profile.vocabulary.relations.includes(r)) profile.vocabulary.relations.push(r)
+            }
+          }
+          if (vocab.decoder) {
+            Object.assign(profile.vocabulary.decoder, vocab.decoder)
+          }
+          if (vocab.avoidance) {
+            for (const a of vocab.avoidance) {
+              if (!profile.vocabulary.avoidance.includes(a)) profile.vocabulary.avoidance.push(a)
+            }
+          }
+          saveProfile(userId)
+          console.log(`[cc-soul][avatar] vocabulary learned: ${JSON.stringify(vocab).slice(0, 100)}`)
+        } catch {}
+      }, 20000
+    )
+  }
+
+  // ── 8. Deep soul extraction — LLM-driven, no hardcoded patterns ──
   // Every 10 messages, let LLM analyze the batch for deep patterns.
   // The LLM decides what's important — wisdom, regret, love, fear, anything.
   // No predefined categories. Every person is different.
@@ -334,12 +442,12 @@ ${sampleList}`,
 
 消息：
 ${recentBatch}`,
-      (output) => {
+      async (output) => {
         if (!output || output.includes('null')) return
         try {
           const items = JSON.parse(output.match(/\[[\s\S]*\]/)?.[0] || 'null')
           if (!Array.isArray(items)) return
-          const { addMemory } = require('./memory.ts')
+          const { addMemory } = await getMemoryModule()
           for (const item of items.slice(0, 3)) {
             if (!item.content) continue
             const scope = item.about ? 'deep_feeling' : 'wisdom'
@@ -364,13 +472,13 @@ ${recentBatch}`,
  * Gather all cognitive data about the user from every module.
  * This is the "soul" that gets injected into the LLM.
  */
-function gatherSoulContext(userId: string, sender: string, message: string): string {
+async function gatherSoulContext(userId: string, sender: string, message: string): Promise<string> {
   const profile = loadAvatarProfile(userId)
   const sections: string[] = []
 
   // ── 1. WHO I AM (person-model: identity + values + beliefs) ──
   try {
-    const { getPersonModel } = require('./person-model.ts')
+    const { getPersonModel } = await getPersonModelModule()
     const pm = getPersonModel()
     if (pm.distillCount > 0) {
       const parts: string[] = []
@@ -384,7 +492,7 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
 
   // ── 2. MY CONTRADICTIONS (真人都有矛盾) ──
   try {
-    const { getPersonModel } = require('./person-model.ts')
+    const { getPersonModel } = await getPersonModelModule()
     const pm = getPersonModel()
     if (pm.contradictions.length > 0) {
       sections.push(`[我的矛盾面]\n${pm.contradictions.map((c: string) => `- ${c}`).join('\n')}`)
@@ -393,7 +501,7 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
 
   // ── 3. MY HISTORY WITH THIS PERSON (memories recall by sender name) ──
   try {
-    const { recall } = require('./memory.ts')
+    const { recall } = await getMemoryModule()
     const memories: Memory[] = recall(sender + ' ' + message, 8, userId)
     const relevant = memories.filter(m =>
       m.content.includes(sender) || m.scope === 'episode' || m.scope === 'preference'
@@ -433,15 +541,14 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
       : e > 0.2 ? '有点累，不想说太多' : '极度疲惫，只想简短回复'
 
     // 5-dimensional emotion vector (if available)
-    const { emotionVector } = require('./body.ts')
-    const ev = emotionVector
+    const ev2 = emotionVector
     const dimensions: string[] = []
-    if (ev) {
-      if (ev.pleasure < -0.3) dimensions.push('不愉快')
-      if (ev.arousal > 0.5) dimensions.push('情绪激动')
-      if (ev.dominance < -0.3) dimensions.push('感到无力')
-      if (ev.certainty < -0.3) dimensions.push('不确定/焦虑')
-      if (ev.novelty > 0.3) dimensions.push('觉得新鲜/意外')
+    if (ev2) {
+      if (ev2.pleasure < -0.3) dimensions.push('不愉快')
+      if (ev2.arousal > 0.5) dimensions.push('情绪激动')
+      if (ev2.dominance < -0.3) dimensions.push('感到无力')
+      if (ev2.certainty < -0.3) dimensions.push('不确定/焦虑')
+      if (ev2.novelty > 0.3) dimensions.push('觉得新鲜/意外')
     }
 
     emotionParts.push(`此刻的我：${moodLabel}，${energyLabel}${dimensions.length > 0 ? '，' + dimensions.join('、') : ''}`)
@@ -452,19 +559,26 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
     sections.push(`[我此刻的情绪状态]\n${emotionParts.join('\n')}`)
   }
 
-  // ── 6. MY COMMUNICATION DECODER (短消息的真实含义) ──
-  try {
-    const { getPersonModel } = require('./person-model.ts')
-    const pm = getPersonModel()
-    const decoder = Object.entries(pm.communicationDecoder || {}).slice(0, 5)
-    if (decoder.length > 0) {
-      sections.push(`[我的沟通密码]\n${decoder.map(([k, v]) => `我说"${k}"其实意思是"${v}"`).join('\n')}`)
+  // ── 6. MY COMMUNICATION DECODER (from learned vocabulary + person-model) ──
+  {
+    const allDecoder: Record<string, string> = {}
+    // From learned vocabulary (dynamic)
+    if (profile.vocabulary?.decoder) Object.assign(allDecoder, profile.vocabulary.decoder)
+    // From person-model (rule-based fallback)
+    try {
+      const { getPersonModel } = await getPersonModelModule()
+      const pm = getPersonModel()
+      if (pm.communicationDecoder) Object.assign(allDecoder, pm.communicationDecoder)
+    } catch {}
+    const entries = Object.entries(allDecoder).slice(0, 8)
+    if (entries.length > 0) {
+      sections.push(`[我的沟通密码]\n${entries.map(([k, v]) => `我说"${k}"其实意思是"${v}"`).join('\n')}`)
     }
-  } catch {}
+  }
 
   // ── 7. MY CURRENT SITUATION (recent events, unresolved things) ──
   try {
-    const { recall } = require('./memory.ts')
+    const { recall } = await getMemoryModule()
     const recentMems: Memory[] = recall(message, 5, userId)
     const recent = recentMems
       .filter(m => Date.now() - (m.createdAt || 0) < 7 * 24 * 3600_000)
@@ -481,7 +595,7 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
 
   // ── 8. MY KNOWLEDGE BOUNDARIES (what I know and don't know) ──
   try {
-    const { getPersonModel } = require('./person-model.ts')
+    const { getPersonModel } = await getPersonModelModule()
     const pm = getPersonModel()
     if (pm.domainExpertise && Object.keys(pm.domainExpertise).length > 0) {
       const expertAreas = Object.entries(pm.domainExpertise)
@@ -499,7 +613,7 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
   // ── 9. MY DEEPEST SELF (wisdom, regrets, unsaid words, deep feelings) ──
   // These are the memories that make a person irreplaceable.
   try {
-    const { getMemoriesByScope } = require('./memory.ts')
+    const { getMemoriesByScope } = await getMemoryModule()
     const deepScopes = ['wisdom', 'regret', 'unsaid', 'deep_feeling', 'value_transmit']
     const deepMemories: string[] = []
     for (const scope of deepScopes) {
@@ -517,7 +631,7 @@ function gatherSoulContext(userId: string, sender: string, message: string): str
 
   // ── 10. DEEP FEELINGS ABOUT THIS SPECIFIC PERSON ──
   try {
-    const { recall } = require('./memory.ts')
+    const { recall } = await getMemoryModule()
     const feelingMems: Memory[] = recall(sender, 5, userId)
     const deepAboutSender = feelingMems.filter(m =>
       (m.scope === 'deep_feeling' || m.scope === 'unsaid' || m.scope === 'value_transmit')
@@ -541,39 +655,32 @@ export function generateAvatarReply(
   message: string,
   callback: (reply: string, refused?: boolean) => void,
 ) {
+  // Wrap in async IIFE since gatherSoulContext is now async
+  ;(async () => {
   const profile = loadAvatarProfile(userId)
 
-  // ── Boundary check ──
-  const isNever = profile.boundaries.never.some(b =>
-    message.includes(b) || (b === '涉及金钱' && /借|钱|转账|付款/.test(message))
-  )
-  if (isNever) {
-    callback('', true) // refused
-    return
+  // ── Boundary check (dynamic — learned from data, no hardcoded patterns) ──
+  if (profile.boundaries.never.length > 0) {
+    const isNever = profile.boundaries.never.some(b => message.includes(b))
+    if (isNever) {
+      callback('', true) // refused
+      return
+    }
+  }
+  if (profile.boundaries.ask_first.length > 0) {
+    const isAskFirst = profile.boundaries.ask_first.some(b => message.includes(b))
+    if (isAskFirst) {
+      callback(`[需要本人确认] ${sender}说: "${message}"`, true)
+      return
+    }
   }
 
-  const isAskFirst = profile.boundaries.ask_first.some(b =>
-    message.includes(b) || (b === '工作决策' && /决定|批准|同意|确认/.test(message))
-  )
-  if (isAskFirst) {
-    callback(`[需要本人确认] ${sender}说: "${message}"`, true)
-    return
-  }
-
-  // ── Trigger emotional response BEFORE generating reply ──
-  // This is the "nerve" — the message hits the emotional system first,
-  // changing mood/energy/arousal in real-time, THEN the reply is generated
-  // with the ALTERED emotional state. Not "look up what I should feel" —
-  // actually feel it, then respond.
+  // ── Emotional "nerve" — amplify based on relationship depth ──
+  // NOTE: processEmotionalContagion is already called by handlePreprocessed for normal messages.
+  // We do NOT call it again here to avoid double-processing.
+  // Instead, we only amplify the EXISTING emotional state based on relationship depth.
+  // For soul-mode (Step 4) where messages bypass handlePreprocessed, we DO process.
   try {
-    const { processEmotionalContagion } = require('./body.ts')
-    const { cogProcess } = require('./cognition.ts')
-
-    // Run cognition to detect emotional weight of the incoming message
-    const cog = cogProcess(message, userId)
-
-    // Let the emotional system process it — this changes body.mood, body.energy etc. in real-time
-    processEmotionalContagion(message, userId)
 
     // Amplify emotional shift based on relationship depth
     // No hardcoded trigger words — the emotional contagion system already detected
@@ -590,7 +697,7 @@ export function generateAvatarReply(
   } catch {}
 
   // ── Gather soul context from all modules (now with ALTERED emotional state) ──
-  const soulContext = gatherSoulContext(userId, sender, message)
+  const soulContext = await gatherSoulContext(userId, sender, message)
 
   // ── Relationship context (data-driven, no hardcoded tone) ──
   const contact = profile.social[sender] as SocialContact | undefined
@@ -647,6 +754,10 @@ export function generateAvatarReply(
     console.log(`[cc-soul][avatar] soul-reply: ${sender}: "${message}" → "${reply.slice(0, 80)}"`)
     callback(reply)
   }, 25000)
+  })().catch((e) => {
+    console.error(`[cc-soul][avatar] generateAvatarReply error: ${e.message}`)
+    callback('生成失败')
+  })
 }
 
 // Note: Active probing (Step 1) uses inner-life.ts follow-up system — no duplication.
