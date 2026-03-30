@@ -243,25 +243,19 @@ export function adaptiveCooldown(baseMs: number, userId?: string): number {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function loadConfig(): SoulConfig {
-  const config: SoulConfig = {
-    feishu_app_id: process.env.CC_SOUL_FEISHU_APP_ID || '',
-    feishu_app_secret: process.env.CC_SOUL_FEISHU_APP_SECRET || '',
-    report_chat_id: process.env.CC_SOUL_REPORT_CHAT_ID || '',
-    owner_open_id: process.env.CC_SOUL_OWNER_OPEN_ID || '',
-  }
-  // Fall back to config.json for any empty values
-  if (!config.feishu_app_id || !config.feishu_app_secret || !config.report_chat_id || !config.owner_open_id) {
-    try {
-      if (existsSync(CONFIG_PATH)) {
-        const file = JSON.parse(readFileSync(CONFIG_PATH, 'utf-8'))
-        for (const [k, v] of Object.entries(file)) {
-          if (!config[k as keyof SoulConfig]) config[k as keyof SoulConfig] = v as string
-        }
-      }
-    } catch {
-      // config.json missing or malformed — proceed with env-only values
+  const config: SoulConfig = {}
+  // Load from config.json if exists
+  try {
+    if (existsSync(CONFIG_PATH)) {
+      const file = JSON.parse(readFileSync(CONFIG_PATH, 'utf-8'))
+      if (file.notify_webhook) config.notify_webhook = file.notify_webhook
+      if (file.sync) config.sync = file.sync
     }
+  } catch {
+    // config.json missing or malformed — proceed with defaults
   }
+  // Env var override
+  if (process.env.CC_SOUL_NOTIFY_WEBHOOK) config.notify_webhook = process.env.CC_SOUL_NOTIFY_WEBHOOK
   return config
 }
 

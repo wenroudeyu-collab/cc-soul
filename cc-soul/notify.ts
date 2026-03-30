@@ -1,176 +1,74 @@
 /**
  * cc-soul — Notification layer
  *
- * If Feishu credentials are configured: sends to Feishu (group + owner DM).
- * If not configured: falls back to console.log (works for all users).
+ * Pure logging + optional webhook. No platform binding.
+ * cc-soul is a plain HTTP API — callers handle their own messaging.
  */
 
 import { soulConfig } from './persistence.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEISHU AUTH (only if configured)
+// WEBHOOK (optional) — POST events to external URL if configured
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const FEISHU_APP_ID = soulConfig.feishu_app_id
-const FEISHU_APP_SECRET = soulConfig.feishu_app_secret
-const REPORT_CHAT_ID = soulConfig.report_chat_id
-const HAS_FEISHU = Boolean(FEISHU_APP_ID && FEISHU_APP_SECRET && REPORT_CHAT_ID)
-
-let feishuToken = ''
-let feishuTokenExpiry = 0
-let tokenPromise: Promise<string> | null = null
-
-async function getFeishuToken(): Promise<string> {
-  if (!HAS_FEISHU) return ''
-  if (feishuToken && Date.now() < feishuTokenExpiry) return feishuToken
-  if (tokenPromise) return tokenPromise
-
-  tokenPromise = (async () => {
-    try {
-      const resp = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app_id: FEISHU_APP_ID, app_secret: FEISHU_APP_SECRET }),
-      })
-      const data = (await resp.json()) as any
-      if (data.tenant_access_token) {
-        feishuToken = data.tenant_access_token
-        feishuTokenExpiry = Date.now() + 7000000
-        return feishuToken
-      }
-    } catch (e: any) {
-      console.error(`[cc-soul][feishu-token] ${e.message}`)
-    } finally {
-      tokenPromise = null
-    }
-    return ''
-  })()
-
-  return tokenPromise
+async function postWebhook(type: string, message: string) {
+  const url = soulConfig.notify_webhook
+  if (!url) return
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, message, ts: Date.now() }),
+    })
+  } catch (e: any) {
+    console.error(`[cc-soul][webhook] ${e.message}`)
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GROUP NOTIFICATION — Feishu if configured, otherwise console.log
+// GROUP NOTIFICATION — log + optional webhook
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function notifySoulActivity(message: string) {
   // Block system detection alerts (not user content)
   if (message.includes('检测到') && message.includes('进程') && (message.includes('并发运行') || message.includes('实例'))) {
-    console.log(`[cc-soul][notify] BLOCKED system alert: ${message.slice(0, 80)}`)
     return
   }
-  // Always log locally
   console.log(`[cc-soul][notify] ${message}`)
-
-  // Send to Feishu only if configured
-  if (!HAS_FEISHU) return
-
-  try {
-    const token = await getFeishuToken()
-    if (!token) return
-
-    await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        receive_id: REPORT_CHAT_ID,
-        msg_type: 'text',
-        content: JSON.stringify({ text: `\u{1F9E0} ${message}` }),
-      }),
-    })
-  } catch (e: any) {
-    // Silent fail — notification should never break core functionality
-  }
+  postWebhook('activity', message)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// OWNER DM — Feishu DM if configured, otherwise console.log
+// OWNER NOTIFICATION — log + optional webhook
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function notifyOwnerDM(message: string) {
   // Block system detection alerts (not user content)
   if (message.includes('检测到') && message.includes('进程') && (message.includes('并发运行') || message.includes('实例'))) {
-    console.log(`[cc-soul][owner] BLOCKED system alert: ${message.slice(0, 80)}`)
     return
   }
-  // Always log locally
   console.log(`[cc-soul][owner] ${message}`)
-
-  // Send Feishu DM only if configured
-  const openId = soulConfig.owner_open_id
-  if (!HAS_FEISHU || !openId) return
-
-  try {
-    const token = await getFeishuToken()
-    if (!token) return
-
-    await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        receive_id: openId,
-        msg_type: 'text',
-        content: JSON.stringify({ text: `\u{1F9E0} ${message}` }),
-      }),
-    })
-  } catch (e: any) {
-    // Silent fail
-  }
+  postWebhook('owner', message)
 }
 
 /**
- * Send a raw message to owner DM — no emoji prefix, no formatting.
- * Used by soul mode to send replies that look like normal human messages.
+ * Send a raw message — log only, no formatting.
  */
 export async function sendRawDM(message: string) {
-  const openId = soulConfig.owner_open_id
-  if (!HAS_FEISHU || !openId) return
-  try {
-    const token = await getFeishuToken()
-    if (!token) return
-    await fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        receive_id: openId,
-        msg_type: 'text',
-        content: JSON.stringify({ text: message }),
-      }),
-    })
-  } catch {}
+  console.log(`[cc-soul][raw] ${message}`)
+  postWebhook('raw', message)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REPLY VIA OPENCLAW SDK — replaces legacy replyToChat / replyToSender
+// REPLY — log only. In API mode, results are returned in HTTP response.
+// In plugin mode, OpenClaw host handles messaging via its own SDK.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Reply to a user/group via OpenClaw plugin SDK.
- *
- * @param to   OpenClaw address, e.g. `user:ou_xxx` or `group:oc_xxx`
- * @param text Plain text to send
- * @param cfg  OpenClaw config object (from api.config in plugin hooks)
+ * Reply to a user/group. As a pure HTTP API, this only logs.
+ * Callers should use the API response to deliver messages.
  */
-export async function replySender(to: string, text: string, cfg?: any) {
-  if (!cfg) {
-    // No SDK config available — fallback to owner DM (legacy path / CLI mode)
-    return notifyOwnerDM(text)
-  }
-  try {
-    const { sendMessageFeishu } = await import('openclaw/plugin-sdk/feishu')
-    await sendMessageFeishu({ cfg, to, text })
-  } catch (e: any) {
-    console.error(`[cc-soul][reply] sendMessageFeishu failed: ${e.message}`)
-    // fallback to legacy owner DM so the message is not lost
-    notifyOwnerDM(text).catch(() => {})
-  }
+export async function replySender(to: string, text: string, _cfg?: any) {
+  console.log(`[cc-soul][reply] → ${to}: ${text.slice(0, 120)}`)
+  postWebhook('reply', text)
 }

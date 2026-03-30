@@ -6,7 +6,7 @@
  * Does NOT call LLM — returns enriched context for customer's AI.
  */
 
-import { soulConfig } from './persistence.ts'
+import './persistence.ts' // ensure data dir init
 
 export { handleProcess, handleFeedback }
 

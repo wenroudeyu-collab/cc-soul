@@ -5,13 +5,11 @@
  * Requires LLM configuration.
  */
 
-import { soulConfig } from './persistence.ts'
-
 export { handleSoul }
 
 async function handleSoul(body: any): Promise<any> {
   const message = body.message || ''
-  const userId = body.user_id || body.userId || soulConfig.owner_open_id || 'default'
+  const userId = body.user_id || body.userId || 'default'
   const speakerHint = body.speaker || ''
 
   if (!message) return { error: 'message is required' }

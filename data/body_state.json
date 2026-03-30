@@ -1,19 +1,19 @@
 {
-  "energy": 0.9694980461015154,
-  "mood": -0.09178865423552068,
-  "load": 0.043538333333333346,
+  "energy": 0.9872409969256309,
+  "mood": -0.08053064670080494,
+  "load": 0,
   "alertness": 0.5,
   "anomaly": 0,
   "emotionVector": {
     "pleasure": 0,
     "arousal": 0,
-    "dominance": 0.276710448,
-    "certainty": 0.46118407999999994,
+    "dominance": 0.27117623904,
+    "certainty": 0.4519603983999999,
     "novelty": 0
   },
   "emotionLayers": {
     "reflex": 0,
     "emotion": 0,
-    "mood": -0.09178865423552068
+    "mood": -0.08053064670080494
   }
 }

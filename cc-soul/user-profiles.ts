@@ -2,12 +2,12 @@
  * user-profiles.ts — Per-user profile tracking
  *
  * Tracks stats, tier, and preferences per sender.
- * Owner detection via config.json owner_open_id.
+ * Owner detection via message count threshold.
  * Style detection via simple keyword heuristic.
  */
 
 import type { SoulModule } from './brain.ts'
-import { loadJson, debouncedSave, DATA_DIR, soulConfig } from './persistence.ts'
+import { loadJson, debouncedSave, DATA_DIR } from './persistence.ts'
 import { resolve } from 'path'
 import type { UserProfile, UserRhythm } from './types.ts'
 
@@ -209,7 +209,7 @@ export function updateProfileOnCorrection(userId: string) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function detectTier(userId: string, messageCount: number): 'owner' | 'known' | 'new' {
-  if (soulConfig.owner_open_id && userId === soulConfig.owner_open_id) return 'owner'
+  if (messageCount >= 50) return 'owner'
   if (messageCount >= 10) return 'known'
   return 'new'
 }

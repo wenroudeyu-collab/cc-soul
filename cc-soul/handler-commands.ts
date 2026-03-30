@@ -17,7 +17,7 @@ import {
   getCompressionRate,
   getSoulMode, setSoulMode,
 } from './handler-state.ts'
-import { loadJson, debouncedSave, DATA_DIR, REMINDERS_PATH, soulConfig } from './persistence.ts'
+import { loadJson, debouncedSave, DATA_DIR, REMINDERS_PATH } from './persistence.ts'
 import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
 import { dbGetHabits, dbCheckin, dbGetGoals, dbAddGoal, dbUpdateGoalProgress, dbGetReminders, dbAddReminder, dbDeleteReminder, dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
 import { handleFeatureCommand, isEnabled } from './features.ts'
@@ -1157,13 +1157,13 @@ export function routeCommand(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Direct command handler — called from context-engine assemble() as fallback
-// when preprocessed hook doesn't fire. Sends replies directly via Feishu API.
+// Direct command handler — called from context-engine assemble() as fallback.
+// Sends replies via replySender (log + optional webhook).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function routeCommandDirect(userMsg: string, params: any): Promise<boolean> {
   if (!userMsg) return false
-  const _to = params?.to || (soulConfig?.owner_open_id ? `user:${soulConfig.owner_open_id}` : '')
+  const _to = params?.to || ''
   const _cfg = params?.cfg || _replyCfg
   const reply = (text: string) => replySender(_to, text, _cfg).catch(() => {})
 

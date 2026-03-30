@@ -6,7 +6,7 @@
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http'
-import { soulConfig } from './persistence.ts'
+import './persistence.ts' // ensure data dir + config init
 
 const SOUL_API_PORT = parseInt(process.env.SOUL_PORT || '18800', 10)
 
@@ -71,7 +71,7 @@ async function handleAction(action: string, body: any): Promise<any> {
       return (await import('./soul-reply.ts')).handleSoul(body)
 
     case 'profile': {
-      const userId = body.user_id || soulConfig.owner_open_id || 'default'
+      const userId = body.user_id || 'default'
       const { getAvatarStats, loadAvatarProfile } = await import('./avatar.ts')
       const profile = loadAvatarProfile(userId); const stats = getAvatarStats(userId)
       let pm: any = {}; try { pm = (await import('./person-model.ts')).getPersonModel() } catch {}

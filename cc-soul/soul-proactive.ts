@@ -6,7 +6,7 @@
  * whether to mention them during conversation.
  */
 
-import { soulConfig } from './persistence.ts'
+import './persistence.ts' // ensure data dir init
 
 export { generateProactiveItems }
 export type { ProactiveItem }
@@ -27,7 +27,7 @@ async function generateProactiveItems(): Promise<ProactiveItem[]> {
   if (now - lastCheck < COOLDOWN) return []
   lastCheck = now
 
-  const userId = soulConfig.owner_open_id || 'default'
+  const userId = 'default'
   const items: ProactiveItem[] = []
 
   // ── 1. Mood care ──
