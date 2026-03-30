@@ -17,6 +17,7 @@ import {
   batchTagUntaggedMemories, auditMemoryHealth,
   sqliteMaintenance,
   pruneExpiredMemories, reviveDecayedMemories,
+  compressOldMemories,
 } from './memory.ts'
 import { cleanupPlans } from './inner-life.ts'
 import { computePageRank, decayActivations } from './graph.ts'
@@ -28,8 +29,26 @@ import { healthCheck, recordModuleError, recordModuleActivity } from './health.t
 import { notifySoulActivity } from './notify.ts'
 import { brain } from './brain.ts'
 import { distillPersonModel } from './person-model.ts'
+import { tickBatchQueue } from './cli.ts'
 // person synthesis now handled inside person-model.ts distillPersonModel() (every 5th distill)
 import { heartbeatScanAbsence } from './absence-detection.ts'
+import { scanBlindSpotQuestions } from './epistemic.ts'
+import { updateDeepUnderstand } from './deep-understand.ts'
+
+// ── CLI concurrency semaphore: limit parallel CLI-spawning heartbeat tasks ──
+let _cliSemaphore = 0
+const MAX_CLI_CONCURRENT = 3
+
+function safeCLI(name: string, fn: () => void, safeFn: (name: string, fn: () => void) => void) {
+  if (_cliSemaphore >= MAX_CLI_CONCURRENT) {
+    console.log(`[cc-soul][heartbeat] skipping ${name} — CLI concurrency limit (${MAX_CLI_CONCURRENT})`)
+    return
+  }
+  _cliSemaphore++
+  safeFn(name, () => {
+    try { fn() } finally { _cliSemaphore-- }
+  })
+}
 
 /** Exported for plugin-entry.ts heartbeat interval */
 export function runHeartbeat() {
@@ -55,30 +74,52 @@ export function runHeartbeat() {
       safe('bodyTick', () => bodyTick())
 
       // ── 记忆维护（核心，不调 LLM）──
-      if (isEnabled('memory_consolidation')) safe('consolidate', () => consolidateMemories())
-      if (isEnabled('memory_contradiction_scan')) safe('contradiction', () => scanForContradictions())
+      if (isEnabled('memory_consolidation')) safeCLI('consolidate', () => consolidateMemories(), safe)
+      if (isEnabled('memory_contradiction_scan')) safeCLI('contradiction', () => scanForContradictions(), safe)
       if (isEnabled('memory_core')) safe('coreMemory', () => autoPromoteToCoreMemory())
       if (isEnabled('memory_working')) safe('workingCleanup', () => cleanupWorkingMemory())
       safe('memoryDecay', () => processMemoryDecay())
-      if (isEnabled('memory_tags')) safe('batchTag', () => batchTagUntaggedMemories())
+      if (isEnabled('memory_tags')) safe('batchTag', () => batchTagUntaggedMemories()) // local extraction, no LLM
       safe('pruneExpired', () => pruneExpiredMemories())
       safe('reviveDecayed', () => reviveDecayedMemories())
       safe('memoryAudit', () => auditMemoryHealth())
+      safe('compressOld', () => compressOldMemories())
       safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) })
 
       // ── 蒸馏 + 图谱（核心，有条件调 LLM）──
-      safe('distill', () => runDistillPipeline())
+      safeCLI('distill', () => runDistillPipeline(), safe)
       safe('pageRank', () => computePageRank())
       safe('activationDecay', () => decayActivations())
-      safe('personModel', () => distillPersonModel())
+      safeCLI('personModel', () => distillPersonModel(), safe)
       // person synthesis runs inside distillPersonModel() every 5th distill — no separate call needed
+
+      // ── 盲点提问扫描（基于 epistemic 域 + person-model 缺口）──
+      safe('blindSpotQuestions', () => scanBlindSpotQuestions())
+
+      // ── 行为模式学习 ──
+      safe('behaviorLearn', async () => {
+        const { learnFromObservations } = await import('./behavior-engine.ts')
+        learnFromObservations()
+      })
+
+      // ── 前瞻记忆清理 ──
+      safe('pmCleanup', async () => {
+        const { cleanupProspectiveMemories } = await import('./prospective-memory.ts')
+        cleanupProspectiveMemories()
+      })
 
       // ── 轻量维护 ──
       safe('brainHeartbeat', () => brain.fire('onHeartbeat'))
       if (isEnabled('self_upgrade')) safe('autoTune', () => checkAutoTune(stats))
       if (isEnabled('plan_tracking')) safe('planCleanup', () => cleanupPlans())
-      safe('qualityResample', () => resampleHardExamples())
+      safeCLI('qualityResample', () => resampleHardExamples(), safe)
       safe('health', () => healthCheck())
+
+      // ── LLM 批处理队列（2-5 AM 窗口处理）──
+      safe('batchQueue', () => tickBatchQueue())
+
+      // ── 深层理解引擎（7维分析）──
+      safe('deepUnderstand', () => updateDeepUnderstand())
 
       // ── 离开检测（扫描用户活跃度）──
       if (isEnabled('absence_detection')) safe('absenceDetection', () => heartbeatScanAbsence())

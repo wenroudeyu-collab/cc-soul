@@ -1,0 +1,22 @@
+[
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Python",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774864519543,
+    "validUntil": 0,
+    "memoryRef": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "阿里",
+    "confidence": 0.9,
+    "source": "system",
+    "ts": 1774864519543,
+    "validUntil": 0,
+    "memoryRef": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作"
+  }
+]

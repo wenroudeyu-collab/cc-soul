@@ -12,7 +12,7 @@ import { existsSync, readFileSync } from 'fs'
 import { homedir } from 'os'
 import { createRequire } from 'module'
 import { DATA_DIR, MEMORIES_PATH, REMINDERS_PATH, GRAPH_PATH } from './persistence.ts'
-import type { Memory, Entity, Relation } from './types.ts'
+import type { Memory, Entity, Relation, StructuredFact } from './types.ts'
 import { embed, isEmbedderReady, getEmbedDim } from './embedder.ts'
 
 // Database path priority:
@@ -159,6 +159,29 @@ export function initSQLite(): boolean {
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_ts ON memories(ts)') } catch { /* ok */ }
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_vis ON memories(visibility)') } catch { /* ok */ }
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_user ON memories(userId)') } catch { /* ok */ }
+  // Composite indexes for 100K+ memory performance
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_scope_ts ON memories(scope, ts)') } catch { /* ok */ }
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_user_scope ON memories(userId, scope)') } catch { /* ok */ }
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_user_ts ON memories(userId, ts)') } catch { /* ok */ }
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_mem_tier ON memories(tier)') } catch { /* ok */ }
+
+  // Structured facts table (Mem0-style triples, replaces structured_facts.json)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS structured_facts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject TEXT NOT NULL,
+      predicate TEXT NOT NULL,
+      object TEXT NOT NULL,
+      confidence REAL DEFAULT 0.7,
+      source TEXT DEFAULT 'ai_observed',
+      ts INTEGER NOT NULL,
+      validUntil INTEGER DEFAULT 0,
+      memoryRef TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_fact_subj ON structured_facts(subject);
+    CREATE INDEX IF NOT EXISTS idx_fact_subj_pred ON structured_facts(subject, predicate);
+    CREATE INDEX IF NOT EXISTS idx_fact_valid ON structured_facts(validUntil);
+  `)
 
   // Chat history table
   db.exec(`
@@ -228,6 +251,7 @@ export function initSQLite(): boolean {
   migrateGoalsFromJSON()
   migrateRemindersFromJSON()
   migrateGraphFromJSON()
+  migrateFactsFromJSON()
 
   const count = (db.prepare('SELECT COUNT(*) as c FROM memories').get() as any)?.c || 0
   console.log(`[cc-soul][sqlite] database ready: ${count} memories, vec: ${hasVec}, db: ${DB_PATH}`)
@@ -482,7 +506,7 @@ export function tagRecall(msg: string, topN = 3, userId?: string, channelId?: st
   const queryWords = (msg.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
   if (queryWords.length === 0) return []
 
-  let visWhere = "AND scope != 'expired'"
+  let visWhere = "AND scope NOT IN ('expired','archived')"
   const params: any[] = []
   if (channelId) {
     visWhere += ` AND (visibility = 'global' OR (visibility = 'channel' AND channelId = ?))`
@@ -577,7 +601,7 @@ async function vectorRecall(msg: string, topN: number, userId?: string, channelI
     const distMap = new Map(vecRows.map((r: any) => [r.memory_id, r.distance]))
 
     const placeholders = ids.map(() => '?').join(',')
-    let visWhere = `AND scope != 'expired'`
+    let visWhere = `AND scope NOT IN ('expired','archived')`
     const params: any[] = [...ids]
     if (channelId) {
       visWhere += ` AND (visibility = 'global' OR (visibility = 'channel' AND channelId = ?))`
@@ -696,6 +720,142 @@ export async function backfillEmbeddings(batchSize = 200) {
     }
   } catch (e: any) {
     console.error(`[cc-soul][sqlite] backfill failed: ${e.message}`)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TIME-BASED RECALL — uses (scope, ts) composite index for O(log n) queries
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Time-range recall via SQLite. Uses idx_mem_scope_ts composite index.
+ * Returns memories between `from` and `to` (ms timestamps), excluding expired/decayed.
+ */
+export function sqliteRecallByTime(opts: {
+  from: number; to: number; scope?: string; userId?: string; topN?: number
+}): Memory[] {
+  const _db = ensureDb()
+  if (!_db) return []
+  const topN = opts.topN ?? 20
+  const conditions: string[] = ["scope NOT IN ('expired','decayed')", 'ts >= ?', 'ts <= ?']
+  const params: any[] = [opts.from, opts.to]
+  if (opts.scope) { conditions.push('scope = ?'); params.push(opts.scope) }
+  if (opts.userId) { conditions.push('userId = ?'); params.push(opts.userId) }
+  params.push(topN)
+  const rows = _db.prepare(
+    `SELECT * FROM memories WHERE ${conditions.join(' AND ')} ORDER BY ts DESC LIMIT ?`
+  ).all(...params) as any[]
+  return rows.map(rowToMemory)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRUCTURED FACTS CRUD — replaces JSON filter with indexed SQL queries
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Add a structured fact to SQLite. Returns the row id.
+ */
+export function sqliteAddFact(fact: StructuredFact): number {
+  const _db = ensureDb()
+  if (!_db) return -1
+  const result = _db.prepare(`
+    INSERT INTO structured_facts (subject, predicate, object, confidence, source, ts, validUntil, memoryRef)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    fact.subject, fact.predicate, fact.object,
+    fact.confidence, fact.source, fact.ts,
+    fact.validUntil ?? 0, fact.memoryRef || null,
+  )
+  return Number(result.lastInsertRowid)
+}
+
+/**
+ * Query facts by subject/predicate/object. Uses idx_fact_subj_pred index.
+ * Only returns valid (non-expired) facts.
+ */
+export function sqliteQueryFacts(opts: { subject?: string; predicate?: string; object?: string }): StructuredFact[] {
+  const _db = ensureDb()
+  if (!_db) return []
+  const conditions: string[] = ['validUntil = 0']
+  const params: any[] = []
+  if (opts.subject) { conditions.push('subject = ?'); params.push(opts.subject) }
+  if (opts.predicate) { conditions.push('predicate = ?'); params.push(opts.predicate) }
+  if (opts.object) { conditions.push('object LIKE ?'); params.push(`%${opts.object}%`) }
+  const rows = _db.prepare(
+    `SELECT * FROM structured_facts WHERE ${conditions.join(' AND ')} ORDER BY ts DESC`
+  ).all(...params) as any[]
+  return rows.map(r => ({
+    subject: r.subject, predicate: r.predicate, object: r.object,
+    confidence: r.confidence, source: r.source, ts: r.ts,
+    validUntil: r.validUntil, memoryRef: r.memoryRef || undefined,
+  }))
+}
+
+/**
+ * Invalidate conflicting facts (same subject+predicate, different object).
+ */
+export function sqliteInvalidateFacts(subject: string, predicate: string, exceptObject: string): number {
+  const _db = ensureDb()
+  if (!_db) return 0
+  const result = _db.prepare(
+    `UPDATE structured_facts SET validUntil = ? WHERE subject = ? AND predicate = ? AND object != ? AND validUntil = 0`
+  ).run(Date.now(), subject, predicate, exceptObject)
+  return result.changes
+}
+
+/**
+ * Get all valid facts count.
+ */
+export function sqliteFactCount(): number {
+  const _db = ensureDb()
+  if (!_db) return 0
+  return (_db.prepare('SELECT COUNT(*) as c FROM structured_facts WHERE validUntil = 0').get() as any)?.c || 0
+}
+
+/**
+ * Get all valid facts for a subject (for summary generation).
+ */
+export function sqliteGetFactsBySubject(subject: string): StructuredFact[] {
+  const _db = ensureDb()
+  if (!_db) return []
+  const rows = _db.prepare(
+    'SELECT * FROM structured_facts WHERE subject = ? AND validUntil = 0 ORDER BY ts DESC'
+  ).all(subject) as any[]
+  return rows.map(r => ({
+    subject: r.subject, predicate: r.predicate, object: r.object,
+    confidence: r.confidence, source: r.source, ts: r.ts,
+    validUntil: r.validUntil, memoryRef: r.memoryRef || undefined,
+  }))
+}
+
+/**
+ * Migrate structured_facts.json → SQLite (run once at init).
+ */
+export function migrateFactsFromJSON() {
+  const _db = ensureDb()
+  if (!_db) return
+  // Skip if already has data
+  const count = (_db.prepare('SELECT COUNT(*) as c FROM structured_facts').get() as any)?.c || 0
+  if (count > 0) return
+  const factsPath = resolve(DATA_DIR, 'structured_facts.json')
+  if (!existsSync(factsPath)) return
+  try {
+    const facts: StructuredFact[] = JSON.parse(readFileSync(factsPath, 'utf-8'))
+    if (!Array.isArray(facts) || facts.length === 0) return
+    const insert = _db.prepare(`
+      INSERT INTO structured_facts (subject, predicate, object, confidence, source, ts, validUntil, memoryRef)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    _db.exec('BEGIN')
+    try {
+      for (const f of facts) {
+        insert.run(f.subject, f.predicate, f.object, f.confidence, f.source, f.ts, f.validUntil ?? 0, f.memoryRef || null)
+      }
+      _db.exec('COMMIT')
+      console.log(`[cc-soul][sqlite] migrated ${facts.length} structured facts to SQLite`)
+    } catch (e) { _db.exec('ROLLBACK'); throw e }
+  } catch (e: any) {
+    console.error(`[cc-soul][sqlite] facts migration failed: ${e.message}`)
   }
 }
 

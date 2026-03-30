@@ -563,11 +563,11 @@ let _afterTurnCalled = false
  * Try to register cc-soul as a Context Engine via plugin-sdk.
  * Returns true if registered, false if falling back to hook mode.
  */
-export function tryRegisterContextEngine(): boolean {
+export async function tryRegisterContextEngine(): Promise<boolean> {
   if (_registered) return true
 
   try {
-    const { registerContextEngine } = require('openclaw/plugin-sdk')
+    const { registerContextEngine } = await import('openclaw/plugin-sdk')
     const result = registerContextEngine('cc-soul', () => createCcSoulContextEngine())
     if (result.ok) {
       _registered = true

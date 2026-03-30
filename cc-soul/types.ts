@@ -91,6 +91,27 @@ export interface Memory {
     mood?: number        // body.mood at creation (-1 to 1)
     energy?: number      // body.energy at creation (0-1)
   }
+  // ── Source tracking (防幻觉：区分用户亲口说的 vs AI 自己推断的) ──
+  source?: 'user_said' | 'ai_inferred' | 'ai_observed' | 'system'
+  // ── Emotional intensity at creation (高情绪记忆衰减更慢) ──
+  emotionIntensity?: number  // 0-1, used by smart-forget to slow decay
+  because?: string           // causal reason: WHY this decision/preference was made
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRUCTURED FACTS — key-value triples extracted from natural language memories
+// Mem0-style fact store for precise queries ("用户喜欢什么语言？" → Python)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface StructuredFact {
+  subject: string       // "user" | entity name
+  predicate: string     // "likes" | "works_at" | "uses" | "dislikes" | "has" | "prefers" | "lives_in"
+  object: string        // the value
+  confidence: number    // 0-1
+  source: 'user_said' | 'ai_inferred' | 'ai_observed'
+  ts: number            // when extracted
+  validUntil: number    // 0 = still valid, >0 = expired at this time
+  memoryRef?: string    // link to original Memory content (first 60 chars)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

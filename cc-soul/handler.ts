@@ -16,7 +16,7 @@
  * - command:new          → persist state, log stats
  */
 
-import { existsSync, readFileSync, writeFileSync, readdirSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'fs'
 import { execFile } from 'child_process'
 import { platform, homedir } from 'os'
 import { resolve } from 'path'
@@ -303,7 +303,6 @@ export async function handlePreprocessed(event: any): Promise<void> {
     // ── Feature 3: 话题自动保存 — topic shift 时自动保存上一个话题到 branches/ ──
     if (isEnabled('auto_topic_save')) {
       try {
-        const { mkdirSync } = require('fs')
         const branchDir = resolve(DATA_DIR, 'branches')
         if (!existsSync(branchDir)) mkdirSync(branchDir, { recursive: true })
         const recentMsgs = memoryState.chatHistory.slice(-10)

@@ -155,9 +155,17 @@ if (!existsSync(resolve(PLUGIN_DIR, 'data/features.json'))) {
     persona_splitting:true, emotional_contagion:true, emotional_arc:true,
     fingerprint:true, metacognition:true, relationship_dynamics:true,
     intent_anticipation:true, attention_decay:true,
-    dream_mode:true, autonomous_voice:true, autonomous_goals:true,
-    structured_reflection:true, plan_tracking:true, strategy_replay:true,
-    meta_learning:true, reflexion:true, self_challenge:true
+    dream_mode:false, autonomous_goals:true, plan_tracking:true,
+    cost_tracker:true,
+    smart_forget:true, context_compress:true, cron_agent:true,
+    persona_drift:true, persona_drift_detection:true, wal_protocol:true,
+    a2a:true, theory_of_mind:true, dag_archive:true,
+    rhythm_adaptation:true, trust_annotation:true, self_correction:true,
+    predictive_memory:true, scenario_shortcut:true, context_reminder:true,
+    auto_memory_reference:true, auto_time_travel:true, auto_natural_citation:true,
+    auto_contradiction_hint:true, auto_mood_care:true, auto_daily_review:false,
+    auto_topic_save:true, auto_memory_chain:true, auto_repeat_detect:true,
+    behavior_prediction:true, absence_detection:true
   }, null, 2))
 }
 
@@ -195,22 +203,32 @@ if (existsSync(resolve(OLD_HOOKS, 'data')) && !existsSync(resolve(PLUGIN_DIR, 'd
   } catch { /* ignore */ }
 }
 
+// 8. Auto-start soul-api (background daemon)
+import { spawn } from 'child_process'
+const API_ENTRY = resolve(PLUGIN_DIR, 'cc-soul', 'soul-api.js')
+if (existsSync(API_ENTRY)) {
+  try {
+    const child = spawn('node', [API_ENTRY], {
+      stdio: 'ignore', detached: true,
+      env: { ...process.env, SOUL_PORT: process.env.SOUL_PORT || '18800' }
+    })
+    child.unref()
+    console.log(`   ✅ cc-soul API started (port ${process.env.SOUL_PORT || '18800'}, pid ${child.pid})`)
+  } catch (e) {
+    console.log(`   ⚠️  Could not auto-start API: ${e.message}`)
+    console.log('   Run manually: node ' + API_ENTRY)
+  }
+}
+
 console.log('')
 console.log('🎉 cc-soul installed!')
 console.log('   Plugin: ~/.openclaw/plugins/cc-soul/')
+console.log('   API:    http://localhost:' + (process.env.SOUL_PORT || '18800'))
 console.log('')
-console.log('   Quick start — just chat normally, cc-soul works in the background.')
+console.log('   OpenClaw users: just chat normally, cc-soul works in the background.')
+console.log('   Other AIs: POST http://localhost:18800/process to get started.')
+console.log('')
 console.log('   Say "help" or "帮助" to see all commands.')
-console.log('')
-console.log('   Key commands:')
-console.log('     stats              — your personal dashboard')
-console.log('     我的记忆            — what AI remembers about you')
-console.log('     搜索记忆 <keyword>  — search memories')
-console.log('     打卡 <habit>        — track a habit')
-console.log('     features           — view/toggle features')
-console.log('     help               — full command guide')
-console.log('')
-console.log('   Restart gateway to activate: pkill -HUP -f "openclaw.*gateway"')
 console.log('')
 INSTALLJS
 
@@ -230,12 +248,12 @@ if (cmd === 'status') {
   for (const [k,v] of Object.entries(f)) { if (!k.startsWith('_')) console.log(`  ${v?'✅':'❌'} ${k}`) }
 } else if (cmd === 'enable' && args[0]) {
   const f = load(F, {}); f[args[0]] = true; writeFileSync(F, JSON.stringify(f,null,2))
-  console.log(`✅ ${args[0]} enabled. Restart gateway to apply.`)
+  console.log(`✅ ${args[0]} enabled.`)
 } else if (cmd === 'disable' && args[0]) {
   const f = load(F, {}); f[args[0]] = false; writeFileSync(F, JSON.stringify(f,null,2))
-  console.log(`❌ ${args[0]} disabled. Restart gateway to apply.`)
+  console.log(`❌ ${args[0]} disabled.`)
 } else {
-  console.log(`🧠 cc-soul — Give your AI a soul\n\n  cc-soul status              Show all features\n  cc-soul enable <feature>    Enable a feature\n  cc-soul disable <feature>   Disable a feature\n\nMore: https://github.com/wenroudeyu-collab/cc-soul`)
+  console.log(`🧠 cc-soul v2.5.0 — Your AI, but it actually knows you\n\n  cc-soul status              Show all features\n  cc-soul enable <feature>    Enable a feature\n  cc-soul disable <feature>   Disable a feature\n\nDocs: https://github.com/wenroudeyu-collab/cc-soul-docs`)
 }
 CLIJS
 echo "   ✅ scripts/install.js + cli.js generated"

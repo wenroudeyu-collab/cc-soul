@@ -109,12 +109,16 @@ function weibullSurvival(ageDays: number, lambda: number, k: number): number {
  * Get Weibull lambda for a given scope, adjusted by recall count.
  * More recalls → longer effective half-life (up to 3x).
  */
-function effectiveLambda(scope: string, recallCount: number): number {
+function effectiveLambda(scope: string, recallCount: number, emotionIntensity?: number): number {
   const baseLambda = WEIBULL_LAMBDA[scope] ?? WEIBULL_LAMBDA_DEFAULT
   if (!isFinite(baseLambda)) return Infinity
   // Each recall extends lambda by ~15%, capped at 3x
-  const multiplier = Math.min(1 + recallCount * 0.15, 3.0)
-  return baseLambda * multiplier
+  const recallMultiplier = Math.min(1 + recallCount * 0.15, 3.0)
+  // High-emotion memories decay slower (flashbulb memory effect)
+  // emotionIntensity 0.8+ → 2x lambda, 0.5+ → 1.5x, default → 1x
+  const ei = emotionIntensity ?? 0
+  const emotionMultiplier = ei >= 0.8 ? 2.0 : ei >= 0.5 ? 1.5 : 1.0
+  return baseLambda * recallMultiplier * emotionMultiplier
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -168,7 +172,7 @@ export function computeForgetScore(mem: MemoryInput): number {
   const ageDays = (now - mem.ts) / MS_PER_DAY
 
   // Weibull survival
-  const lambda = effectiveLambda(mem.scope, mem.recallCount)
+  const lambda = effectiveLambda(mem.scope, mem.recallCount, mem.emotionIntensity)
   const survival = weibullSurvival(ageDays, lambda, WEIBULL_K)
 
   // ACT-R activation
@@ -209,7 +213,7 @@ export function smartForgetSweep(memories: any[]): SweepResult {
     }
 
     const ageDays = (now - mem.ts) / MS_PER_DAY
-    const lambda = effectiveLambda(mem.scope, mem.recallCount)
+    const lambda = effectiveLambda(mem.scope, mem.recallCount, mem.emotionIntensity)
     const survival = weibullSurvival(ageDays, lambda, WEIBULL_K)
     const activation = actRActivation(mem, now)
 

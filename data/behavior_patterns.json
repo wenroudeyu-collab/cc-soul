@@ -1,0 +1,289 @@
+{
+  "patterns": [
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "tech"
+      },
+      "action": {
+        "style": "concise",
+        "hint": "深夜问技术问题，可能在排障，给命令和代码，少解释"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774872673235,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "timeSlot": "early_morning"
+      },
+      "action": {
+        "style": "concise",
+        "hint": "早上刚起来，简洁回答，别长篇大论"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "afterEvent": "correction"
+      },
+      "action": {
+        "style": "careful",
+        "hint": "刚被纠正过，这次更谨慎，多检查事实"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "afterEvent": "rapid_fire"
+      },
+      "action": {
+        "style": "concise",
+        "hint": "用户连续快速提问，给短平快的答案"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "mood": "negative"
+      },
+      "action": {
+        "style": "empathetic",
+        "hint": "用户情绪不好，先共情再给方案"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "mood": "negative",
+        "topicDomain": "work"
+      },
+      "action": {
+        "style": "empathetic",
+        "hint": "工作压力大，别说教，给实际可操作的建议"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "topicDomain": "tech",
+        "afterEvent": "topic_switch"
+      },
+      "action": {
+        "style": "code_first",
+        "hint": "刚切到技术话题，先上代码再解释"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774872673235,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "dayType": "weekend"
+      },
+      "action": {
+        "style": "casual",
+        "hint": "周末了，轻松一点，不用太正式"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "dayType": "weekend",
+        "topicDomain": "life"
+      },
+      "action": {
+        "style": "casual",
+        "hint": "周末聊生活话题，像朋友一样说话"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    }
+  ],
+  "observations": [
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774868960889
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "javascript",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774869060247
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "finance",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774869180127
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "study",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774869253898
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872587605
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872673235
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872723170
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872802772
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872943003
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872973389
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774873003690
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "health",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774873171341
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774873207550
+    }
+  ],
+  "lastLearningRun": 1774872580697
+}

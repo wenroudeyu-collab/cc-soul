@@ -1,0 +1,31 @@
+{
+  "temporal": {
+    "peakHours": [
+      10,
+      11,
+      12
+    ],
+    "stressDay": null,
+    "lateNightFrequency": 0
+  },
+  "sayDo": {
+    "gaps": []
+  },
+  "growth": {
+    "direction": "plateauing",
+    "details": "模式稳定"
+  },
+  "unspoken": {
+    "needs": []
+  },
+  "cognitive": {
+    "load": "normal",
+    "indicator": ""
+  },
+  "stress": {
+    "stressLevel": 0,
+    "signals": []
+  },
+  "dynamicProfile": "活跃10/11/12时；我的灵魂深处，驱动我的是对“高效掌控”的执着。我渴望像优化代码一样，为生活的一切找到最佳路径，这源于一种深层的不安：害怕",
+  "updatedAt": 1774872580696
+}

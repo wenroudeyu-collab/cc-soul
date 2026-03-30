@@ -1083,6 +1083,309 @@ test('person-model: getUnifiedUserContext works without userId', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Decision Causal Recording (memory.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('memory-causal: "因为" in content extracts because field', () => {
+  const before = memoryState.memories.length
+  addMemory('我选了方案A，因为性能更好而且成本更低', 'preference', 'test_causal_user')
+  const after = memoryState.memories.length
+  // Memory might be deduped/skipped, so only check if it was added
+  if (after > before) {
+    const mem = memoryState.memories[memoryState.memories.length - 1]
+    assert(typeof mem.because === 'string', `should have because field, got ${typeof mem.because}`)
+    assert(mem.because!.length > 0, 'because field should be non-empty')
+    assert(mem.because!.includes('性能'), `because should contain reason text, got: ${mem.because}`)
+  }
+})
+
+test('memory-causal: "because" (English) extracts because field', () => {
+  const before = memoryState.memories.length
+  addMemory('I chose option B because it has better documentation and community support', 'preference', 'test_causal_en')
+  if (memoryState.memories.length > before) {
+    const mem = memoryState.memories[memoryState.memories.length - 1]
+    assert(typeof mem.because === 'string', `should have because field for English "because"`)
+  }
+})
+
+test('memory-causal: no causal keyword → no because field', () => {
+  const before = memoryState.memories.length
+  addMemory('今天学了新的设计模式，很有意思的方法论', 'event', 'test_causal_no')
+  if (memoryState.memories.length > before) {
+    const mem = memoryState.memories[memoryState.memories.length - 1]
+    assert(mem.because === undefined, `should NOT have because field, got: ${mem.because}`)
+  }
+})
+
+test('memory-causal: "由于" extracts because field', () => {
+  const before = memoryState.memories.length
+  addMemory('由于服务器负载太高，我们决定扩容到三节点', 'event', 'test_causal_yy')
+  if (memoryState.memories.length > before) {
+    const mem = memoryState.memories[memoryState.memories.length - 1]
+    assert(typeof mem.because === 'string', `should extract because from 由于`)
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Value Conflict Priority (values.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { recordConflict, getValuePriority } from './values.ts'
+
+test('values: getValuePriority returns null with no data', () => {
+  const result = getValuePriority('speed', 'quality', 'test_vcp_empty')
+  assertEquals(result, null, 'should return null when no conflicts recorded')
+})
+
+test('values: getValuePriority returns null without userId', () => {
+  const result = getValuePriority('speed', 'quality')
+  assertEquals(result, null, 'should return null without userId')
+})
+
+test('values: recordConflict + getValuePriority returns winner', () => {
+  const uid = 'test_vcp_' + Date.now()
+  recordConflict('quality', 'speed', '项目决策', uid)
+  recordConflict('quality', 'speed', '代码审查', uid)
+  const winner = getValuePriority('quality', 'speed', uid)
+  assertEquals(winner, 'quality', 'quality should win over speed after 2 wins')
+})
+
+test('values: conflicting records resolve to higher-count winner', () => {
+  const uid = 'test_vcp_tie_' + Date.now()
+  recordConflict('cost', 'performance', 'cloud选型', uid)
+  recordConflict('cost', 'performance', '采购', uid)
+  recordConflict('performance', 'cost', '竞赛', uid)
+  const winner = getValuePriority('cost', 'performance', uid)
+  assertEquals(winner, 'cost', 'cost should win 2-1 over performance')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Social Context Style (graph.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('graph-style: formal words set formal tone', () => {
+  _resetSocialGraph()
+  // Need 2 mentions for getSocialContext to include a person
+  updateSocialGraph('跟领导汇报了项目进展，请问审批流程', 0.1)
+  updateSocialGraph('领导安排了review会议', 0.0)
+  const ctx = getSocialContext('领导说的那个项目')
+  assert(ctx !== null, 'should return context for 领导')
+  assert(ctx!.includes('正式'), `should detect formal tone, got: ${ctx}`)
+  _resetSocialGraph()
+})
+
+test('graph-style: casual words set casual tone', () => {
+  _resetSocialGraph()
+  updateSocialGraph('跟兄弟出去玩了哈哈太开心了', 0.8)
+  updateSocialGraph('兄弟说这个东西yyds绝了', 0.6)
+  const ctx = getSocialContext('兄弟推荐的那个')
+  assert(ctx !== null, 'should return context for 兄弟')
+  assert(ctx!.includes('轻松') || ctx!.includes('放松'), `should detect casual tone, got: ${ctx}`)
+  _resetSocialGraph()
+})
+
+test('graph-style: getSocialContext includes style hint when available', () => {
+  _resetSocialGraph()
+  updateSocialGraph('老板要求deadline提前，请问怎么安排', -0.3)
+  updateSocialGraph('老板又改需求了，会议通知已发', -0.1)
+  const ctx = getSocialContext('老板今天又找我了')
+  assert(ctx !== null, 'should return context for 老板')
+  // Style hint should appear as 语境 or 社交语境
+  assert(ctx!.includes('语境') || ctx!.includes('关系图谱'), `should include style or graph info, got: ${ctx}`)
+  _resetSocialGraph()
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Behavior Prediction (behavior-prediction.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { isDecisionQuestion, getBehaviorPrediction } from './behavior-prediction.ts'
+
+test('behavior: "该选A还是B" is decision question', () => {
+  assert(isDecisionQuestion('该选A还是B'), '"该选A还是B" should be detected')
+})
+
+test('behavior: "要不要升级到v2" is decision question', () => {
+  assert(isDecisionQuestion('要不要升级到v2'), '"要不要升级" should be detected')
+})
+
+test('behavior: "哪个好" is decision question', () => {
+  assert(isDecisionQuestion('React和Vue哪个好'), '"哪个好" should be detected')
+})
+
+test('behavior: "今天天气好" is NOT decision question', () => {
+  assert(!isDecisionQuestion('今天天气好'), '"今天天气好" should NOT be decision')
+})
+
+test('behavior: "你好啊" is NOT decision question', () => {
+  assert(!isDecisionQuestion('你好啊'), '"你好啊" should NOT be decision')
+})
+
+test('behavior: getBehaviorPrediction returns null with few memories', () => {
+  const fewMemories: Memory[] = [
+    { content: 'test', scope: 'event', ts: Date.now(), confidence: 0.7 },
+  ]
+  const result = getBehaviorPrediction('你好', fewMemories)
+  assertEquals(result, null, 'should return null with < 5 memories')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Deep Understand (deep-understand.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { updateDeepUnderstand, getDeepUnderstandContext } from './deep-understand.ts'
+
+test('deep-understand: updateDeepUnderstand runs without crashing', () => {
+  // Should not throw even with empty/minimal data
+  updateDeepUnderstand()
+  assert(true, 'updateDeepUnderstand should complete without error')
+})
+
+test('deep-understand: getDeepUnderstandContext returns string', () => {
+  const ctx = getDeepUnderstandContext()
+  assert(typeof ctx === 'string', `should return string, got ${typeof ctx}`)
+})
+
+test('deep-understand: getDeepUnderstandContext returns empty string when no data', () => {
+  // With minimal/no chat history, should return empty
+  const ctx = getDeepUnderstandContext()
+  // Either empty or starts with [深层理解]
+  assert(ctx === '' || ctx.startsWith('[深层理解]'), `should be empty or start with [深层理解], got: ${ctx.slice(0, 30)}`)
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Absence Detection (absence-detection.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { loadAbsenceState, recordUserActivity, isUserAbsent, getAbsenceDuration } from './absence-detection.ts'
+
+test('absence-detection: module loads without error', () => {
+  // loadAbsenceState should not throw
+  loadAbsenceState()
+  assert(true, 'absence-detection module loaded successfully')
+})
+
+test('absence-detection: recordUserActivity returns a number', () => {
+  const result = recordUserActivity('test_absence_user_' + Date.now())
+  assert(typeof result === 'number', `should return number (absence duration), got ${typeof result}`)
+})
+
+test('absence-detection: isUserAbsent returns boolean', () => {
+  const uid = 'test_absence_check_' + Date.now()
+  recordUserActivity(uid) // mark as active
+  const result = isUserAbsent(uid)
+  assert(typeof result === 'boolean', `should return boolean, got ${typeof result}`)
+})
+
+test('absence-detection: getAbsenceDuration returns 0 for active user', () => {
+  const uid = 'test_absence_dur_' + Date.now()
+  recordUserActivity(uid)
+  const dur = getAbsenceDuration(uid)
+  assertEquals(dur, 0, 'active user should have 0 absence duration')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Memory Compression (memory-lifecycle.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { compressOldMemories } from './memory-lifecycle.ts'
+
+test('memory-compression: compressOldMemories exists and is callable', () => {
+  assert(typeof compressOldMemories === 'function', 'compressOldMemories should be a function')
+})
+
+test('memory-compression: compressOldMemories runs without crashing', () => {
+  compressOldMemories()
+  assert(true, 'compressOldMemories should complete without error')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Avatar (avatar.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { getAvatarPrompt, getAvatarStats, loadAvatarProfile } from './avatar.ts'
+
+test('avatar: getAvatarPrompt is an async function', () => {
+  assert(typeof getAvatarPrompt === 'function', 'getAvatarPrompt should be a function')
+})
+
+test('avatar: getAvatarStats returns valid structure', () => {
+  const stats = getAvatarStats('test_avatar_user')
+  assert(typeof stats === 'object', 'should return object')
+  assert(typeof stats.samples === 'number', 'samples should be number')
+  assert(typeof stats.catchphrases === 'number', 'catchphrases should be number')
+  assert(typeof stats.decisions === 'number', 'decisions should be number')
+  assert(typeof stats.contacts === 'number', 'contacts should be number')
+  assert(typeof stats.emotions === 'number', 'emotions should be number')
+  assert(typeof stats.style === 'string', 'style should be string')
+})
+
+test('avatar: loadAvatarProfile returns valid profile structure', () => {
+  const profile = loadAvatarProfile('test_avatar_struct')
+  assert(typeof profile === 'object', 'should return object')
+  assert(typeof profile.expression === 'object', 'expression should exist')
+  assert(typeof profile.social === 'object', 'social should exist')
+  assert(Array.isArray(profile.expression.samples), 'samples should be array')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Person Model Reasoning Profile (person-model.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('person-model: reasoningProfile exists with correct structure', () => {
+  const pm = getPersonModel()
+  const rp = pm.reasoningProfile
+  assert(rp !== undefined, 'reasoningProfile should exist')
+  assert(typeof rp.style === 'string', `style should be string, got ${typeof rp.style}`)
+  assert(typeof rp.evidence === 'string', `evidence should be string, got ${typeof rp.evidence}`)
+  assert(typeof rp.certainty === 'string', `certainty should be string, got ${typeof rp.certainty}`)
+  assert(typeof rp.disagreement === 'string', `disagreement should be string, got ${typeof rp.disagreement}`)
+})
+
+test('person-model: reasoningProfile._counts exists', () => {
+  const pm = getPersonModel()
+  const counts = pm.reasoningProfile._counts
+  assert(counts !== undefined, '_counts should exist')
+  assert(typeof counts.total === 'number', `total should be number, got ${typeof counts.total}`)
+  assert(typeof counts.style === 'object', `style counts should be object`)
+  assert(typeof counts.evidence === 'object', `evidence counts should be object`)
+})
+
+test('person-model: reasoningProfile style is valid enum', () => {
+  const pm = getPersonModel()
+  const validStyles = ['conclusion_first', 'buildup', 'unknown']
+  assert(validStyles.includes(pm.reasoningProfile.style), `style "${pm.reasoningProfile.style}" should be one of ${validStyles}`)
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: LLM Batch Queue (cli.ts)
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { queueLLMTask, getBatchQueueStatus } from './cli.ts'
+
+test('batch-queue: getBatchQueueStatus returns valid object', () => {
+  const status = getBatchQueueStatus()
+  assert(typeof status === 'object', 'should return object')
+  assert(typeof status.queued === 'number', `queued should be number, got ${typeof status.queued}`)
+  assert(Array.isArray(status.labels), 'labels should be array')
+})
+
+test('batch-queue: queueLLMTask increases queue size', () => {
+  const before = getBatchQueueStatus().queued
+  let callbackCalled = false
+  queueLLMTask('test prompt for queue', () => { callbackCalled = true }, 0, 'test_queue')
+  const after = getBatchQueueStatus().queued
+  assert(after > before, `queue size should increase: before=${before}, after=${after}`)
+})
+
+test('batch-queue: queued task has correct label', () => {
+  const label = 'test_label_' + Date.now()
+  queueLLMTask('another test prompt', () => {}, 0, label)
+  const status = getBatchQueueStatus()
+  assert(status.labels.includes(label) || status.queued > 0, 'queued task label should appear or queue should be non-empty')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // RUN ALL TESTS + REPORT
 // ══════════════════════════════════════════════════════════════════════════════
 

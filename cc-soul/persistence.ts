@@ -132,12 +132,14 @@ export function flushAll() {
 // OpenClaw's native memory_search indexes this directory
 
 let _lastSyncHash = ''
+let _cachedMemoryMod: any = null
+import('./memory.ts').then(m => { _cachedMemoryMod = m }).catch(() => {})
 
 function syncMemoriesToWorkspace() {
   try {
     // Dynamic import to avoid circular dependency (persistence ← memory ← persistence)
     let memoryState: any
-    try { memoryState = require('./memory.ts').memoryState } catch { return }
+    try { memoryState = _cachedMemoryMod?.memoryState } catch { return }
     if (!memoryState?.memories?.length) return
 
     // Filter: only long-term, preference, fact, correction, consolidated

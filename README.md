@@ -15,22 +15,20 @@ openclaw plugins install @cc-soul/openclaw
 
 ```bash
 npm install -g @cc-soul/openclaw
-cc-soul start
-# API running at localhost:18800
+# Done. API auto-starts at localhost:18800
 ```
 
-LLM configuration is **automatic** — cc-soul reads your OpenClaw config if available. Most features (memory, recall, persona, emotion) work without any LLM. Only `/soul` endpoint and background tasks (tagging, reflection) need LLM access.
+LLM configuration is **automatic** — cc-soul reads your OpenClaw config if available. Most features (memory, recall, persona, emotion) work without any LLM. Only `/soul` endpoint and background tasks need LLM access.
 
-If not using OpenClaw, set environment variables or POST `/config`:
+If not using OpenClaw, configure LLM via environment variables or API:
 
 ```bash
-# Option 1: environment variables
+# Option 1: environment variables (before install)
 export LLM_API_BASE=https://api.openai.com/v1
 export LLM_API_KEY=sk-xxx
 export LLM_MODEL=gpt-4o
-cc-soul start
 
-# Option 2: runtime config
+# Option 2: runtime config (after install)
 curl -X POST localhost:18800/config \
   -d '{"api_base":"https://api.openai.com/v1","api_key":"sk-xxx","model":"gpt-4o"}'
 ```
@@ -54,6 +52,9 @@ curl -X POST localhost:18800/config \
 | `POST` | `/a2a` | Agent-to-Agent protocol request. |
 | `GET` | `/mcp/tools` | List MCP tools (4 tools). |
 | `POST` | `/mcp/call` | Execute an MCP tool call. |
+| `GET` | `/avatar` | Soul injection prompt — makes any LLM respond as you. Accepts `?sender=` and `?message=` params. |
+| `GET` | `/soul-spec` | Returns soul spec files (soul.json, STYLE, IDENTITY, HEARTBEAT) dynamically. |
+| `POST` | `/api` | Unified entry point — routes to any action via `{"action": "process\|feedback\|soul\|..."}`. |
 
 ### POST /process
 
@@ -106,6 +107,47 @@ curl -X POST http://localhost:18800/command \
 curl -X POST http://localhost:18800/features \
   -H "Content-Type: application/json" \
   -d '{"feature": "debate", "enabled": true}'
+```
+
+### POST /soul
+
+Soul mode — cc-soul calls LLM and replies as the user's avatar. Requires LLM configured via `/config` or env vars.
+
+```bash
+curl -X POST http://localhost:18800/soul \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What do you think about Rust?", "user_id": "alice"}'
+# → {"reply": "I'd stick with Python unless profiling proves CPU-bound...", "persona": "engineer"}
+```
+
+### GET /profile
+
+```bash
+curl http://localhost:18800/profile
+# → {"avatar": {...}, "social": [...], "identity": "...", "thinkingStyle": "...", "mood": 0.6, "energy": 0.8}
+```
+
+### GET /health
+
+```bash
+curl http://localhost:18800/health
+# → {"status": "ok", "version": "2.5.0", "memories": 5231, "uptime": 3600}
+```
+
+### GET /avatar
+
+Returns a system prompt that makes any LLM respond as the user. Feed this to your AI's system message.
+
+```bash
+curl "http://localhost:18800/avatar?sender=colleague&message=How%20should%20we%20deploy%20this"
+# → {"prompt": "You are cc. You think like a pragmatic backend engineer who prioritizes stability...", "userId": "default"}
+```
+
+### GET /soul-spec
+
+```bash
+curl http://localhost:18800/soul-spec
+# → {"soul_json": {...}, "style": "# cc 说话风格...", "identity": "# cc 的身份...", "heartbeat": "# cc 心跳..."}
 ```
 
 ---
@@ -264,7 +306,7 @@ You:  "周报"                   → Weekly review with trends and insights.
 
 ## Things It Does Automatically
 
-Every message is analyzed for memory extraction, entity recognition, emotional signals, and topic tracking. 11 personas blend automatically based on content. Corrections trigger fact-checking and rule learning. Old memories decay intelligently via Weibull survival modeling. Contradictions between memories are detected and flagged. Your knowledge graph grows with entity relationships. Long conversations are compressed to save tokens. Theory of mind tracks your beliefs, knowledge gaps, and frustrations. Persona drift is monitored with Shannon entropy and auto-corrected. Quality scoring learns what response style works best for you.
+Every message is analyzed for memory extraction, entity recognition, emotional signals, and topic tracking. 11 personas blend automatically based on content. Corrections trigger fact-checking and rule learning. Old memories decay intelligently via Weibull survival modeling, and aged memories are auto-compressed into distilled summaries so nothing important is lost. Contradictions between memories are detected and flagged. Your knowledge graph grows with entity relationships. Long conversations are compressed to save tokens. Theory of mind silently observes you across 7 dimensions — beliefs, knowledge gaps, frustrations, preferences, expertise, communication style, and decision patterns. Persona drift is monitored with Shannon entropy and auto-corrected. Quality scoring learns what response style works best for you. Absence detection notices topics you stopped mentioning and nudges the AI to ask. Behavior prediction warns when you're about to repeat a past mistake. Decision causal recording stores *why* you made choices, not just what you chose. Value conflict learning tracks your tradeoff preferences over time. Social context adaptation adjusts tone based on who you're talking about. Proactive questioning fills in knowledge gaps the AI notices. Non-urgent LLM tasks are batched and queued for off-hours to save tokens.
 
 ---
 
@@ -292,6 +334,11 @@ Every message is analyzed for memory extraction, entity recognition, emotional s
 | `dashboard` / `仪表盘` | Open web dashboard |
 | `cost` / `成本` | Token usage statistics |
 | `audit log` / `审计日志` | View audit trail |
+| `导出全部` / `export all` | Full backup: memories + persona + values + rules to one JSON |
+| `导入全部 <路径>` / `import all <path>` | Restore from full backup |
+| `别记这个` / `don't remember` | Skip storing next message to memory |
+| `人格列表` / `personas` | List all 11 personas |
+| `价值观` / `values` | Show value priorities |
 
 ---
 
@@ -299,7 +346,7 @@ Every message is analyzed for memory extraction, entity recognition, emotional s
 
 **Memory:** `我的记忆` · `搜索记忆 <词>` · `删除记忆 <词>` · `pin 记忆 <词>` · `unpin 记忆 <词>` · `记忆时间线 <词>` · `记忆健康` · `记忆审计` · `恢复记忆 <词>` · `记忆链路 <词>` · `共享记忆 <词>` · `私有记忆 <词>`
 
-**Import/Export:** `导出lorebook` · `导出进化` · `导入进化 <路径>` · `摄入文档 <路径>`
+**Import/Export:** `导出全部` · `导入全部 <路径>` · `导出lorebook` · `导出进化` · `导入进化 <路径>` · `摄入文档 <路径>`
 
 **Daily Life:** `打卡 <习惯>` · `习惯状态` · `新目标 <描述>` · `目标进度 <目标> <更新>` · `我的目标` · `提醒 HH:MM <消息>` · `我的提醒` · `删除提醒 <序号>`
 
@@ -308,6 +355,8 @@ Every message is analyzed for memory extraction, entity recognition, emotional s
 **Insights:** `时间旅行 <词>` · `推理链` · `情绪锚点` · `记忆链路 <词>`
 
 **Experience:** `讲讲我们的故事` · `每日复盘` · `保存话题` · `切换话题 <名称>` · `话题列表`
+
+**Persona & Values:** `人格列表` · `价值观` · `别记这个`
 
 **Advanced:** `功能状态` · `开启 <功能>` · `关闭 <功能>` · `审计日志` · `开始实验 <描述>` · `安装向量` · `向量状态`
 
@@ -351,6 +400,8 @@ All data stored locally in `~/.openclaw/plugins/cc-soul/data/`. Nothing ever lea
 [SECURITY.md](https://github.com/wenroudeyu-collab/cc-soul/blob/main/SECURITY.md)
 
 ---
+
+**50+ commands · 40 feature toggles · 15 API endpoints · 11 personas · 7-dimension user model**
 
 [npm](https://www.npmjs.com/package/@cc-soul/openclaw) · [GitHub](https://github.com/wenroudeyu-collab/cc-soul) · Issues: [github.com/wenroudeyu-collab/cc-soul/issues](https://github.com/wenroudeyu-collab/cc-soul/issues) · wenroudeyu@gmail.com
 

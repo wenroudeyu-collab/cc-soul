@@ -495,17 +495,15 @@ export function getRelationshipContext(userId: string): string {
  * Builds a strengths profile over time: what cc does well, per-user.
  */
 export function trackGratitude(userMsg: string, lastResponse: string, senderId: string) {
-  // Lazy import to avoid circular dep at module level
-  const { addMemory } = require('./memory.ts')
-
   const gratitudeWords = ['谢谢', '感谢', '太好了', '牛', '厉害', '完美', 'thanks', 'perfect', '棒', '赞']
   if (!gratitudeWords.some(w => userMsg.toLowerCase().includes(w))) return
 
-  // The thing they're grateful for is in lastResponse — use first line as topic
   const topic = lastResponse.split('\n')[0]?.slice(0, 60) || '(未知)'
 
-  addMemory(`[用户感谢] ${topic}`, 'gratitude', senderId, 'private')
-  console.log(`[cc-soul][gratitude] tracked: ${topic.slice(0, 40)} from ${senderId || 'unknown'}`)
+  import('./memory.ts').then(({ addMemory }) => {
+    addMemory(`[用户感谢] ${topic}`, 'gratitude', senderId, 'private')
+    console.log(`[cc-soul][gratitude] tracked: ${topic.slice(0, 40)} from ${senderId || 'unknown'}`)
+  }).catch(() => {})
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

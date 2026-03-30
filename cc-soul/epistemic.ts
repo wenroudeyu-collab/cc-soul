@@ -364,6 +364,70 @@ export function formatGrowthVectors(): string {
   return lines.join('\n')
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// BLIND SPOT QUESTIONS — proactively ask about gaps in user knowledge
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PENDING_Q_PATH = resolve(DATA_DIR, 'pending_questions.json')
+
+interface PendingQuestion {
+  domain: string
+  question: string
+  createdAt: number
+  askedAt?: number
+}
+
+const DOMAIN_QUESTIONS: Record<string, string[]> = {
+  python: ['Python 版本用 3.x 哪个？', '写测试用 pytest 还是 unittest？', '包管理用 pip/poetry/uv？', 'IDE 用什么？PyCharm/VS Code？'],
+  devops: ['CI/CD 用什么？GitHub Actions/Jenkins？', '容器化了吗？Docker/Podman？', '云服务商用哪家？'],
+  database: ['主力数据库用什么？', '用 ORM 还是裸 SQL？', '备份策略是什么样的？'],
+  javascript: ['前端框架用 React/Vue/其他？', '构建工具用 Vite/Webpack？', '状态管理用什么方案？'],
+  swift: ['SwiftUI 还是 UIKit 为主？', 'Xcode 版本？', '包管理用 SPM 还是 CocoaPods？'],
+  git: ['Git 工作流用什么？GitFlow/Trunk-based？', 'Code review 流程是怎样的？'],
+}
+
+let pendingQuestions: PendingQuestion[] = loadJson<PendingQuestion[]>(PENDING_Q_PATH, [])
+
+/** Heartbeat: scan domains for blind spots, generate up to 3 pending questions */
+export function scanBlindSpotQuestions() {
+  // Only import at call time to avoid circular deps
+  const pm = (globalThis as any).__ccSoulPersonModel
+  const knownText = pm ? JSON.stringify(pm).toLowerCase() : ''
+
+  const active = [...domains.values()]
+    .filter(d => d.totalResponses >= 5)
+    .sort((a, b) => b.totalResponses - a.totalResponses)
+
+  // Prune asked questions older than 7 days
+  const SEVEN_DAYS = 7 * 86400000
+  pendingQuestions = pendingQuestions.filter(q => !q.askedAt || Date.now() - q.askedAt < SEVEN_DAYS)
+
+  for (const d of active) {
+    if (pendingQuestions.filter(q => !q.askedAt).length >= 3) break
+    const templates = DOMAIN_QUESTIONS[d.domain]
+    if (!templates) continue
+    for (const tpl of templates) {
+      // Skip if already pending or recently asked
+      if (pendingQuestions.some(q => q.question === tpl)) continue
+      // Skip if person-model already contains relevant keywords
+      const keywords = tpl.match(/[\u4e00-\u9fa5a-zA-Z]{2,}/g) || []
+      if (keywords.some(k => knownText.includes(k.toLowerCase()))) continue
+      pendingQuestions.push({ domain: d.domain, question: tpl, createdAt: Date.now() })
+      break // one question per domain per scan
+    }
+  }
+  debouncedSave(PENDING_Q_PATH, pendingQuestions)
+}
+
+/** Augment injection: pop one unasked question, mark as asked */
+export function popBlindSpotQuestion(): string | null {
+  const q = pendingQuestions.find(q => !q.askedAt)
+  if (!q) return null
+  q.askedAt = Date.now()
+  debouncedSave(PENDING_Q_PATH, pendingQuestions)
+  return `[主动提问] 用户经常聊 ${q.domain} 但从没提过相关偏好，可以自然地问一下：${q.question}`
+}
+
 // ── SoulModule ──
 export const epistemicModule: SoulModule = {
   id: 'epistemic',

@@ -13,6 +13,12 @@ import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { resolve } from 'path'
 import { getParam } from './auto-tune.ts'
 
+// Lazy module caches (avoid circular deps in ESM)
+let _cachedBodyMod: any = null
+let _cachedSignalsMod: any = null
+import('./body.ts').then(m => { _cachedBodyMod = m }).catch(() => {})
+import('./signals.ts').then(m => { _cachedSignalsMod = m }).catch(() => {})
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // STYLE VECTOR
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -275,10 +281,9 @@ function detectExtendedTrigger(msg: string): string | null {
 export function selectPersona(attentionType: string, userFrustration?: number, userId?: string, intent?: string, msg?: string): Persona {
   // Import body state for body-driven affinity
   let bodyState = { energy: 0.5, mood: 0.0, alertness: 0.5, load: 0.0 }
-  try { const { body } = require('./body.ts'); bodyState = body } catch {}
-  // Detect emotion directly from message (don't rely on cached value — avoids ESM/CJS module instance mismatch)
+  if (_cachedBodyMod) { try { bodyState = _cachedBodyMod.body } catch {} }
   let detectedEmotion: { label: string; confidence: number } = { label: 'neutral', confidence: 0 }
-  try { const { detectEmotionLabel } = require('./signals.ts'); if (msg) detectedEmotion = detectEmotionLabel(msg) } catch {}
+  if (_cachedSignalsMod && msg) { try { detectedEmotion = _cachedSignalsMod.detectEmotionLabel(msg) } catch {} }
 
   // ── Layer 1: Emotion-driven affinity (persona emerges from detected emotion) ──
   const affinities = new Map<string, number>()

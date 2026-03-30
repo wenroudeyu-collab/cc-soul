@@ -445,6 +445,8 @@ export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
 
 const SOCIAL_PATH = resolve(DATA_DIR, 'social_graph.json')
 
+interface SocialStyle { tone: string; typical_mood: string }
+
 interface SocialNode {
   name: string
   mentions: number
@@ -452,6 +454,7 @@ interface SocialNode {
   emotionSum: number  // positive = good vibes, negative = stress
   emotions: { positive: number; negative: number; neutral: number }  // categorized emotion counts
   recentTopics: string[]
+  style?: SocialStyle
 }
 
 let socialGraph: SocialNode[] = loadJson<SocialNode[]>(SOCIAL_PATH, [])
@@ -480,6 +483,19 @@ export function updateSocialGraph(msg: string, mood: number) {
     if (mood > 0.2) node.emotions.positive++
     else if (mood < -0.2) node.emotions.negative++
     else node.emotions.neutral++
+    // Detect communication style: formal vs casual
+    const formalRe = /请问|您|汇报|报告|会议|安排|deadline|项目|审批|review|领导|老板|boss|客户/i
+    const casualRe = /哈哈|lol|hhh|😂|🤣|卧槽|牛逼|nb|6{2,}|awsl|yyds|绝了|离谱|xswl|兄弟|哥们|姐妹|朋友/i
+    const isFormal = formalRe.test(msg)
+    const isCasual = casualRe.test(msg)
+    const detectedTone = isFormal && !isCasual ? 'formal' : isCasual && !isFormal ? 'casual' : 'mixed'
+    const moodLabel = mood > 0.2 ? '放松' : mood < -0.2 ? '焦虑' : '平稳'
+    if (!node.style) node.style = { tone: detectedTone, typical_mood: moodLabel }
+    else {
+      // Blend: only update if consistent signal (avoid flip-flopping)
+      if (detectedTone !== 'mixed') node.style.tone = detectedTone
+      node.style.typical_mood = moodLabel
+    }
     // Extract topic keyword
     const topic = msg.replace(new RegExp(name, 'g'), '').match(/[\u4e00-\u9fff]{2,4}/)?.[0]
     if (topic && !node.recentTopics.includes(topic)) {
@@ -503,10 +519,25 @@ export function getSocialContext(msg: string): string | null {
       : emotions.negative > emotions.positive * 2 ? '明显焦虑/压力'
       : emotions.positive > emotions.negative * 2 ? '积极/开心'
       : '混合情绪'
-    hints.push(`${name}：提到${node.mentions}次，情绪倾向${emotionLabel}`)
+    const styleHint = node.style
+      ? `，语境${node.style.tone === 'formal' ? '正式' : node.style.tone === 'casual' ? '轻松' : '混合'}/${node.style.typical_mood}`
+      : ''
+    hints.push(`${name}：提到${node.mentions}次，情绪倾向${emotionLabel}${styleHint}`)
   }
   if (hints.length === 0) return null
-  return `[关系图谱] ${hints.join('；')}。回复时可以用这个背景信息，比如知道他一提老板就焦虑`
+  // Build style-aware guidance
+  const styleGuides: string[] = []
+  for (const name of people) {
+    const node = socialGraph.find(n => n.name === name)
+    if (!node?.style || node.mentions < 2) continue
+    const { tone, typical_mood } = node.style
+    if (tone === 'formal' || typical_mood === '焦虑')
+      styleGuides.push(`[社交语境] 用户提到${name}时通常比较${typical_mood}，回复要更稳重`)
+    else if (tone === 'casual')
+      styleGuides.push(`[社交语境] 用户提到${name}时比较放松，回复可以轻松一些`)
+  }
+  const base = `[关系图谱] ${hints.join('；')}`
+  return styleGuides.length > 0 ? `${base}\n${styleGuides.join('\n')}` : `${base}。回复时参考情绪背景`
 }
 
 /** Reset graph state (for testing) */

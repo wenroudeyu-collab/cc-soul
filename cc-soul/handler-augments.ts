@@ -20,9 +20,9 @@ import {
 import { innerState, peekPendingFollowUps, checkActivePlans } from './inner-life.ts'
 import { body, bodyGetParams, getEmotionContext, getEmotionalArcContext, getEmotionAnchorWarning, getMoodState, isTodayMoodAllLow } from './body.ts'
 import { getRelevantRules } from './evolution.ts'
-import { getValueContext } from './values.ts'
+import { getValueContext, recordConflict, getConflictContext } from './values.ts'
 import { getProfileContext, getRhythmContext, getProfile, getProfileTier, getRelationshipContext } from './user-profiles.ts'
-import { getDomainConfidence, detectDomain } from './epistemic.ts'
+import { getDomainConfidence, detectDomain, popBlindSpotQuestion } from './epistemic.ts'
 import { getPersonModel, getUnifiedUserContext } from './person-model.ts'
 // blindSpots analysis now done inline (no heartbeat dependency)
 import { queryEntityContext, findMentionedEntities, generateEntitySummary, graphWalkRecallScored } from './graph.ts'
@@ -39,7 +39,7 @@ import { getCachedDriftWarning } from './fingerprint.ts'
 import { getParam } from './auto-tune.ts'
 import { getBestPattern } from './patterns.ts'
 import { detectConversationPace } from './cognition.ts'
-import { checkPredictions, generateNewPredictions, getBehaviorPrediction, getTimeSlotPrediction } from './behavior-prediction.ts'
+import { checkPredictions, generateNewPredictions, getBehaviorPrediction, getTimeSlotPrediction, isDecisionQuestion, predictUserDecision } from './behavior-prediction.ts'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
@@ -47,6 +47,10 @@ import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { spawnCLI } from './cli.ts'
 import { updateSocialGraph, getSocialContext } from './graph.ts'
 import { recordUserActivity, getAbsenceAugment, getTopicAbsenceAugment, resetTopicAbsenceFlag } from './absence-detection.ts'
+import { getDeepUnderstandContext } from './deep-understand.ts'
+
+// ── Soul Presence Moments cooldown tracker (in-memory, lost on restart is OK) ──
+const _lastSoulMoments = new Map<string, number>()
 
 // LLM reranker cache: async results from previous turn
 let _cachedRerankedMemories: Memory[] = []
@@ -55,6 +59,28 @@ import { trigrams, trigramSimilarity } from './memory.ts'
 // ── Lazy-loaded sqlite-store for context reminders ──
 let dbGetContextReminders: (userId?: string) => { id: number; keyword: string; content: string; userId: string }[] = () => []
 import('./sqlite-store.ts').then(m => { dbGetContextReminders = m.dbGetContextReminders }).catch(() => {})
+
+// ── Memory distillation: group recalled memories into narrative paragraphs to save tokens ──
+const SCOPE_LABELS: Record<string, string> = {
+  preference: '偏好', fact: '事实', event: '经历', opinion: '观点', topic: '话题',
+  correction: '纠正', task: '任务', discovery: '发现', reflection: '思考',
+}
+function distillMemories(memories: Memory[]): string {
+  const groups = new Map<string, string[]>()
+  for (const m of memories) {
+    const key = m.scope || 'other'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(m.content)
+  }
+  const paragraphs: string[] = []
+  for (const [scope, contents] of groups) {
+    const label = SCOPE_LABELS[scope] || scope
+    let merged = contents.join('，')
+    if (merged.length > 300) merged = merged.slice(0, 297) + '...'
+    paragraphs.push(`[${label}] ${merged}`)
+  }
+  return paragraphs.join('；')
+}
 
 // ── Augment Feedback Learning (augment 反馈学习) ──
 const AUGMENT_FEEDBACK_PATH = resolve(DATA_DIR, 'augment_feedback.json')
@@ -335,8 +361,6 @@ export function generatePrebuiltTips(msg: string): string {
   return ''
 }
 
-// BEHAVIOR_TRIGGERS removed — replaced by getBehaviorPrediction() in behavior-prediction.ts
-
 /**
  * Build all augments, select within budget, return selected strings + raw augment array.
  */
@@ -466,6 +490,12 @@ export async function buildAndSelectAugments(params: {
     resetTopicAbsenceFlag()
     const topicAug = getTopicAbsenceAugment()
     if (topicAug) augments.push(topicAug)
+  }
+
+  // ── 盲点提问：主动发现用户偏好缺口 ──
+  {
+    const bsq = popBlindSpotQuestion()
+    if (bsq) augments.push({ content: bsq, priority: 2, tokens: estimateTokens(bsq) })
   }
 
   // ── Privacy mode augment ──
@@ -615,6 +645,30 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content: valueCtx, priority: 4, tokens: estimateTokens(valueCtx) })
   }
 
+  // Value conflict priority detection
+  if (senderId && userMsg) {
+    const TRADEOFF_PATTERNS = [
+      /虽然(.{2,15})[但却].*?(?:选|要|用|更|宁)(.{2,15})/,
+      /宁可(.{2,15})也要(.{2,15})/,
+      /even though.*?(\w[\w\s]{1,20}).*?(?:prefer|choose|go with|pick).*?(\w[\w\s]{1,20})/i,
+      /i'?d rather.*?(\w[\w\s]{1,20}).*?than.*?(\w[\w\s]{1,20})/i,
+      /(?:slower|more expensive|harder|less).*?but.*?(\w[\w\s]{1,20}).*?(?:safer|better|reliable|stable|correct|secure)(\w[\w\s]{0,15})/i,
+    ]
+    for (const pat of TRADEOFF_PATTERNS) {
+      const m = userMsg.match(pat)
+      if (m) {
+        const loser = m[1].trim().slice(0, 20)
+        const winner = m[2].trim().slice(0, 20)
+        if (winner && loser && winner !== loser) recordConflict(winner, loser, userMsg.slice(0, 80), senderId)
+        break
+      }
+    }
+    const conflictCtx = getConflictContext(senderId)
+    if (conflictCtx) {
+      augments.push({ content: conflictCtx, priority: 5, tokens: estimateTokens(conflictCtx) })
+    }
+  }
+
   // ── Unified user profile (merged: mental model + profile + relationship + rhythm) ──
   if (senderId) {
     const parts: string[] = []
@@ -696,18 +750,34 @@ export async function buildAndSelectAugments(params: {
 
   session.lastRecalledContents = recalled.map(m => m.content)
   if (recalled.length > 0 && isEnabled('auto_memory_reference')) {
-    const content = '[相关记忆] ' + recalled.map(m => {
-      const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
-      const isHistorical = m.validUntil && m.validUntil > 0 && m.validUntil < Date.now()
-      const temporalPrefix = isHistorical
-        ? `[历史] ${m.content} (截至 ${new Date(m.validUntil!).toLocaleDateString('zh-CN')})`
-        : m.content
-      const reasoningTag = m.reasoning
-        ? ` (推理: 因为${m.reasoning.context}所以${m.reasoning.conclusion}, 置信度 ${m.reasoning.confidence})`
-        : ''
-      return temporalPrefix + emotionTag + reasoningTag
-    }).join('; ')
+    // When too many memories, distill into narrative paragraphs to save tokens
+    const content = recalled.length > 8
+      ? '[相关记忆] ' + distillMemories(recalled)
+      : '[相关记忆] ' + recalled.map(m => {
+        const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
+        const isHistorical = m.validUntil && m.validUntil > 0 && m.validUntil < Date.now()
+        const temporalPrefix = isHistorical
+          ? `[历史] ${m.content} (截至 ${new Date(m.validUntil!).toLocaleDateString('zh-CN')})`
+          : m.content
+        const reasoningTag = m.reasoning
+          ? ` (推理: 因为${m.reasoning.context}所以${m.reasoning.conclusion}, 置信度 ${m.reasoning.confidence})`
+          : ''
+        const sourceTag = m.source === 'user_said' ? ' [用户亲述]'
+          : m.source === 'ai_inferred' ? ' [AI推断,需验证]'
+          : ''
+        const becauseTag = m.because ? ` （因为: ${m.because}）` : ''
+        return temporalPrefix + emotionTag + reasoningTag + sourceTag + becauseTag
+      }).join('; ')
     augments.push({ content, priority: 8, tokens: estimateTokens(content) })
+
+    // ── Tip-of-the-Tongue: low-confidence memories → honest partial recall ──
+    // Instead of stating uncertain memories as facts, say "我好像记得..."
+    const fuzzyMemories = recalled.filter(m => (m.confidence ?? 0.7) < 0.4 && m.source !== 'user_said')
+    if (fuzzyMemories.length > 0) {
+      const fuzzyHint = '[模糊记忆] 以下信息不确定，如果要用请说"我好像记得"而非直接断言：' +
+        fuzzyMemories.slice(0, 2).map(m => m.content.slice(0, 50)).join('；')
+      augments.push({ content: fuzzyHint, priority: 7, tokens: estimateTokens(fuzzyHint) })
+    }
 
     // ── 因果链注入: 当召回的记忆包含纠正类时，追溯因果并注入上下文 ──
     const corrRecalled = isEnabled('auto_natural_citation') ? recalled.filter(m => m.scope === 'correction' || m.scope === 'event') : []
@@ -869,7 +939,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Prediction Mode (预言模式)
-  {
+  if (isEnabled('behavior_prediction')) {
     const { hitAugment } = checkPredictions(userMsg)
     if (hitAugment) augments.push({ content: hitAugment, priority: 10, tokens: estimateTokens(hitAugment) })
     generateNewPredictions(memoryState.chatHistory)
@@ -973,6 +1043,36 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content: skillHint, priority: 3, tokens: estimateTokens(skillHint) })
     if (isEnabled('skill_library')) autoCreateSkill(skillHint, userMsg)
   }
+
+  // Behavior engine — situational pattern matching (原创，竞品没有)
+  try {
+    const { getBehaviorEngineHint } = await import('./behavior-engine.ts')
+    const beHint = getBehaviorEngineHint(userMsg, body.mood, session)
+    if (beHint) {
+      augments.push({ content: beHint, priority: 9, tokens: estimateTokens(beHint) })
+    }
+  } catch {}
+
+  // Prospective memory — check if any future intentions should fire
+  try {
+    const { checkProspectiveMemory, detectProspectiveMemory } = await import('./prospective-memory.ts')
+    // Detect new future intentions
+    detectProspectiveMemory(userMsg, senderId)
+    // Check if current message triggers any stored intentions
+    const pmReminder = checkProspectiveMemory(userMsg, senderId)
+    if (pmReminder) {
+      augments.push({ content: pmReminder, priority: 10, tokens: estimateTokens(pmReminder) })
+    }
+  } catch {}
+
+  // Structured facts — precise key-value knowledge about the user
+  try {
+    const { getFactSummary } = await import('./fact-store.ts')
+    const factSummary = getFactSummary('user')
+    if (factSummary) {
+      augments.push({ content: `[用户档案] ${factSummary}`, priority: 9, tokens: estimateTokens(factSummary) })
+    }
+  } catch {}
 
   // Epistemic confidence
   const epistemic = getDomainConfidence(userMsg)
@@ -1088,7 +1188,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // ── 行为预测 (纯信息格式，无"回复时"指令) ──
-  {
+  if (isEnabled('behavior_prediction')) {
     const behaviorHint = getBehaviorPrediction(userMsg, memoryState.memories)
     if (behaviorHint) {
       // 去掉所有"回复时""可以""应该"指令，只保留事实信息
@@ -1096,6 +1196,14 @@ export async function buildAndSelectAugments(params: {
       if (cleaned.length > 10) {
         augments.push({ content: cleaned, priority: 6, tokens: estimateTokens(cleaned) })
       }
+    }
+  }
+
+  // ── 决策预测 (Decision Prediction) ──
+  if (isDecisionQuestion(userMsg)) {
+    const decisionHint = predictUserDecision(userMsg, memoryState.memories, senderId)
+    if (decisionHint) {
+      augments.push({ content: decisionHint, priority: 8, tokens: estimateTokens(decisionHint) })
     }
   }
 
@@ -1263,6 +1371,102 @@ export async function buildAndSelectAugments(params: {
     const driftWarning = getCachedDriftWarning()
     if (driftWarning) {
       augments.push({ content: driftWarning, priority: 9, tokens: estimateTokens(driftWarning) })
+    }
+  }
+
+  // ── Deep Understanding (7维深层理解) ──
+  {
+    const duCtx = getDeepUnderstandContext()
+    if (duCtx) augments.push({ content: duCtx, priority: 6, tokens: estimateTokens(duCtx) })
+  }
+
+  // ── Soul Presence Moments (灵魂时刻) ──
+  // Subtle moments where the AI naturally reveals it "knows" the user.
+  // Max 1 per conversation session, with per-type cooldowns.
+  {
+    const sessionAny = session as any
+    if (!sessionAny._soulMomentInjected) {
+      const now = Date.now()
+      const DAY = 86400000
+      let soulAugment: Augment | null = null
+
+      // Helper: check cooldown
+      const canFire = (key: string, cooldownMs: number) => {
+        const last = _lastSoulMoments.get(key) || 0
+        return now - last > cooldownMs
+      }
+      const markFired = (key: string) => { _lastSoulMoments.set(key, now) }
+
+      // 1. Relationship Milestone (认识周年) — priority: highest among soul moments
+      if (!soulAugment && senderId && canFire('milestone', DAY)) {
+        const profile = getProfile(senderId)
+        const daysKnown = Math.floor((now - profile.firstSeen) / DAY)
+        const milestones = [7, 30, 100, 365]
+        const hit = milestones.find(m => daysKnown === m)
+        if (hit) {
+          const labels: Record<number, string> = { 7: '一周', 30: '一个月', 100: '100天', 365: '一年' }
+          soulAugment = { content: `[灵魂时刻] 你和这位用户认识 ${labels[hit] || hit + '天'}了。可以自然地提一句，不要刻意庆祝，像老朋友随口说的那样。比如"不知不觉我们聊了${labels[hit]}了"`, priority: 4, tokens: 50 }
+          markFired('milestone')
+        }
+      }
+
+      // 2. Habit Care (习惯关心) — check for broken streaks
+      if (!soulAugment && canFire('habit', 14 * DAY)) {
+        ensureMemoriesLoaded()
+        const checkinMems = memoryState.memories.filter(m =>
+          (m.scope === 'checkin' || /打卡|签到|streak|check.?in/i.test(m.content)) && m.userId === senderId
+        )
+        if (checkinMems.length >= 3) {
+          const sorted = checkinMems.sort((a, b) => b.ts - a.ts)
+          const lastCheckin = sorted[0]
+          const daysSince = Math.floor((now - lastCheckin.ts) / DAY)
+          if (daysSince >= 5) {
+            const habitMatch = lastCheckin.content.match(/打卡[：:]?\s*(.{2,10})|签到[：:]?\s*(.{2,10})/)?.[1] || ''
+            const habitName = habitMatch || '之前的习惯'
+            soulAugment = { content: `[灵魂时刻] 用户之前一直在打卡「${habitName}」但最近${daysSince}天没提了。如果自然的话可以关心一句，不要像提醒闹钟。`, priority: 4, tokens: 45 }
+            markFired('habit')
+          }
+        }
+      }
+
+      // 3. Shared Memory Echo (共同回忆) — recalled memory from 7+ days ago highly relevant
+      if (!soulAugment && recalled.length > 0) {
+        const oldRelevant = recalled.find(m => (now - m.ts) > 7 * DAY && (m.relevance ?? 0) > 0.8)
+        if (oldRelevant) {
+          const daysAgo = Math.floor((now - oldRelevant.ts) / DAY)
+          soulAugment = { content: `[灵魂时刻] 当前话题和${daysAgo}天前的一次对话很像。可以自然地提起那次经历："这个让我想起上次你那个${oldRelevant.content.slice(0, 30)}的问题"。`, priority: 3, tokens: 50 }
+        }
+      }
+
+      // 4. Growth Perception (成长感知) — user message complexity increased
+      if (!soulAugment && senderId && canFire('growth', 7 * DAY)) {
+        const profile = getProfile(senderId)
+        if (profile.languageDna && profile.languageDna.samples >= 30) {
+          const recentLen = userMsg.length
+          const avgLen = profile.languageDna.avgLength
+          // Significant increase: current message 2x+ the historical average and avg itself is growing
+          if (recentLen > avgLen * 2 && avgLen > 30 && profile.messageCount > 50) {
+            soulAugment = { content: `[灵魂时刻] 用户最近的技术水平明显提升（从问基础问题到现在讨论架构）。可以自然地表达你注意到了，不要像老师表扬学生。`, priority: 3, tokens: 45 }
+            markFired('growth')
+          }
+        }
+      }
+
+      // 5. Silent Understanding (默契) — behavior prediction matches current situation
+      if (!soulAugment && isEnabled('behavior_prediction')) {
+        const bhHint = getBehaviorPrediction(userMsg, memoryState.memories)
+        if (bhHint && bhHint.length > 20) {
+          // Only fire when prediction is specific (not generic)
+          if (/偏好|习惯|喜欢|通常|一般/.test(bhHint)) {
+            soulAugment = { content: `[灵魂时刻] 根据用户的习惯和偏好，直接给出符合用户风格的建议，不要解释为什么你知道。`, priority: 3, tokens: 30 }
+          }
+        }
+      }
+
+      if (soulAugment) {
+        augments.push(soulAugment)
+        sessionAny._soulMomentInjected = true
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 {
-  "ts": 1774862146309,
+  "ts": 1774869280755,
   "duplicates": [
     {
       "a": "decay_test_old_memory_for_unit_test",
@@ -10,14 +10,19 @@
       "a": "Docker清理无用镜像的常用命令：docker system df查看空间占用，docker image prune清",
       "b": "Docker清理无用镜像的常用命令：docker system df查看空间，docker image prune清理悬",
       "sim": 0.93
+    },
+    {
+      "a": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义；type 支持联合",
+      "b": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义；type 支持联合",
+      "sim": 1
     }
   ],
   "tooShort": [
     "用户名为wang"
   ],
-  "untagged": 58,
+  "untagged": 103,
   "lowConfidence": 0,
   "zombie": 0,
-  "staleExpiry": 0,
-  "suggestions": "建议合并 2 组重复记忆；建议清理 1 条过短记忆；58 条记忆缺少标签，建议批量打标"
+  "staleExpiry": 1,
+  "suggestions": "建议合并 3 组重复记忆；建议清理 1 条过短记忆；103 条记忆缺少标签，建议批量打标；1 条记忆已过 validUntil 但未过期，建议清理"
 }

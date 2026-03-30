@@ -1,0 +1,48 @@
+[
+  {
+    "name": "哥",
+    "mentions": 1,
+    "lastMentioned": 1774862682347,
+    "emotionSum": null,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "叫我大"
+    ]
+  },
+  {
+    "name": "大哥",
+    "mentions": 1,
+    "lastMentioned": 1774862682347,
+    "emotionSum": null,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "叫我"
+    ]
+  },
+  {
+    "name": "老板",
+    "mentions": 1,
+    "lastMentioned": 1774868273413,
+    "emotionSum": 0.1884448014390016,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "项目又延"
+    ],
+    "style": {
+      "tone": "formal",
+      "typical_mood": "平稳"
+    }
+  }
+]

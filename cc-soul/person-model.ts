@@ -10,7 +10,28 @@ import { memoryState, ensureMemoriesLoaded } from './memory.ts'
 import { detectDomain } from './epistemic.ts'
 import { buildMentalModelAugment, buildTopicAugment } from './distill.ts'
 
+// Lazy modules (avoid circular deps + ESM require)
+let _bodyMod: any = null
+let _memMod: any = null
+let _cliMod: any = null
+function lazyBody() { if (!_bodyMod) { import('./body.ts').then(m => { _bodyMod = m }).catch(() => {}) }; return _bodyMod }
+function lazyMem() { if (!_memMod) { import('./memory.ts').then(m => { _memMod = m }).catch(() => {}) }; return _memMod }
+function lazyCli() { if (!_cliMod) { import('./cli.ts').then(m => { _cliMod = m }).catch(() => {}) }; return _cliMod }
+setTimeout(() => {
+  import('./body.ts').then(m => { _bodyMod = m }).catch(() => {})
+  import('./memory.ts').then(m => { _memMod = m }).catch(() => {})
+  import('./cli.ts').then(m => { _cliMod = m }).catch(() => {})
+}, 500)
+
 const PERSON_MODEL_PATH = resolve(DATA_DIR, 'person_model.json')
+
+export interface ReasoningProfile {
+  style: 'conclusion_first' | 'buildup' | 'unknown'
+  evidence: 'data' | 'analogy' | 'mixed' | 'unknown'
+  certainty: 'assertive' | 'hedging' | 'mixed' | 'unknown'
+  disagreement: 'dig_in' | 'compromise' | 'question' | 'unknown'
+  _counts: { style: Record<string, number>; evidence: Record<string, number>; certainty: Record<string, number>; disagreement: Record<string, number>; total: number }
+}
 
 export interface PersonModel {
   identity: string           // who they are
@@ -20,6 +41,7 @@ export interface PersonModel {
   contradictions: string[]   // things they're contradictory about (max 5)
   communicationDecoder: Record<string, string>  // "算了" → "换个角度", "随便" → "你来决定"
   domainExpertise: Record<string, 'beginner' | 'intermediate' | 'expert'>
+  reasoningProfile: ReasoningProfile
   updatedAt: number
   distillCount: number       // how many times distilled
 }
@@ -32,11 +54,13 @@ let personModel: PersonModel = loadJson<PersonModel>(PERSON_MODEL_PATH, {
   contradictions: [],
   communicationDecoder: {},
   domainExpertise: {},
+  reasoningProfile: { style: 'unknown', evidence: 'unknown', certainty: 'unknown', disagreement: 'unknown', _counts: { style: {}, evidence: {}, certainty: {}, disagreement: {}, total: 0 } },
   updatedAt: 0,
   distillCount: 0,
 })
 
 export function getPersonModel(): PersonModel { return personModel }
+;(globalThis as any).__ccSoulPersonModel = personModel
 
 /**
  * Distill person model from accumulated data.
@@ -128,7 +152,7 @@ export function distillPersonModel() {
 
   // ── Emotional pattern extraction: via unified getMoodState() ──
   {
-    const { getMoodState } = require('./body.ts')
+    const bm = lazyBody(); const getMoodState = bm?.getMoodState
     const moodState = getMoodState()
     if (moodState.moodRatio) {
       if (moodState.moodRatio.positive > moodState.moodRatio.negative * 2) {
@@ -162,6 +186,39 @@ export function distillPersonModel() {
     }
   } catch {}
 
+  // ── Reasoning profile: detect argument style, evidence, certainty, disagreement ──
+  {
+    if (!personModel.reasoningProfile?._counts) {
+      personModel.reasoningProfile = { style: 'unknown', evidence: 'unknown', certainty: 'unknown', disagreement: 'unknown', _counts: { style: {}, evidence: {}, certainty: {}, disagreement: {}, total: 0 } }
+    }
+    const rp = personModel.reasoningProfile
+    const rc = rp._counts
+    const msgs = history.slice(-50).map(h => h.user).filter(m => m.length > 15)
+    for (const m of msgs) {
+      // Argument style
+      if (/^.{3,20}(因为|因此|because|since)/i.test(m)) rc.style.conclusion_first = (rc.style.conclusion_first || 0) + 1
+      else if (/首先|其次|最后|第一|第二|first|then|finally|secondly/i.test(m)) rc.style.buildup = (rc.style.buildup || 0) + 1
+      // Evidence preference
+      if (/\d+%|\d+\.\d|数据|指标|metrics|stat/i.test(m)) rc.evidence.data = (rc.evidence.data || 0) + 1
+      if (/就像|好比|类似|like\s|similar\sto|好像.*一样|打个比方/i.test(m)) rc.evidence.analogy = (rc.evidence.analogy || 0) + 1
+      // Certainty
+      if (/可能|也许|不确定|maybe|perhaps|might|大概|应该是/i.test(m)) rc.certainty.hedging = (rc.certainty.hedging || 0) + 1
+      if (/肯定|一定|绝对|必须|definitely|must|always|毫无疑问|确定/i.test(m)) rc.certainty.assertive = (rc.certainty.assertive || 0) + 1
+      // Disagreement response
+      if (/不对|你错了|我不同意|我坚持|no way|disagree|wrong/i.test(m)) rc.disagreement.dig_in = (rc.disagreement.dig_in || 0) + 1
+      if (/也有道理|你说的对|折中|那就|行吧|fair point|compromise/i.test(m)) rc.disagreement.compromise = (rc.disagreement.compromise || 0) + 1
+      if (/为什么|怎么说|你觉得呢|why|how come|what makes you/i.test(m)) rc.disagreement.question = (rc.disagreement.question || 0) + 1
+      rc.total++
+    }
+    const pick = (counts: Record<string, number>) => { const e = Object.entries(counts); if (e.length === 0) return 'unknown'; e.sort((a, b) => b[1] - a[1]); return e[0][1] >= 10 ? (e.length > 1 && e[1][1] > e[0][1] * 0.6 ? 'mixed' : e[0][0]) : 'unknown' }
+    if (rc.total >= 10) {
+      rp.style = (pick(rc.style) === 'mixed' ? 'unknown' : pick(rc.style)) as any
+      rp.evidence = pick(rc.evidence) as any
+      rp.certainty = pick(rc.certainty) as any
+      rp.disagreement = pick(rc.disagreement) as any
+    }
+  }
+
   personModel.updatedAt = Date.now()
   personModel.distillCount++
   debouncedSave(PERSON_MODEL_PATH, personModel)
@@ -171,7 +228,7 @@ export function distillPersonModel() {
   // This is the REAL understanding layer: WHY, not just WHAT.
   // The regex above catches surface patterns; the LLM below synthesizes meaning.
   if (personModel.distillCount % 5 === 0 && history.length >= 20) {
-    const { spawnCLI } = require('./cli.ts')
+    const cm = lazyCli(); const spawnCLI = cm?.spawnCLI
 
     // Gather all available data for synthesis
     const dataPoints: string[] = []
@@ -187,7 +244,7 @@ export function distillPersonModel() {
 
     // Deep memories
     try {
-      const { getMemoriesByScope } = require('./memory.ts')
+      const mm = lazyMem(); const getMemoriesByScope = mm?.getMemoriesByScope
       for (const scope of ['wisdom', 'deep_feeling', 'preference']) {
         const mems = getMemoriesByScope(scope)
         if (mems && mems.length > 0) {
@@ -247,6 +304,17 @@ export function getPersonModelContext(): string | null {
   const decoderEntries = Object.entries(personModel.communicationDecoder).slice(0, 3)
   if (decoderEntries.length > 0) {
     parts.push(`沟通密码: ${decoderEntries.map(([k, v]) => `"${k}"=${v}`).join('、')}`)
+  }
+
+  // Reasoning profile
+  const rp = personModel.reasoningProfile
+  if (rp && rp._counts?.total >= 10) {
+    const labels: string[] = []
+    if (rp.style !== 'unknown') labels.push(rp.style === 'conclusion_first' ? '结论先行' : '递进推理')
+    if (rp.evidence !== 'unknown') labels.push(rp.evidence === 'data' ? '偏好数据论证' : rp.evidence === 'analogy' ? '偏好类比' : '数据+类比混合')
+    if (rp.certainty !== 'unknown') labels.push(rp.certainty === 'assertive' ? '表达确定' : rp.certainty === 'hedging' ? '表达谨慎' : '确定/谨慎混合')
+    if (rp.disagreement !== 'unknown') labels.push(rp.disagreement === 'dig_in' ? '分歧时坚持己见' : rp.disagreement === 'compromise' ? '分歧时倾向妥协' : '分歧时追问原因')
+    if (labels.length > 0) parts.push(`推理风格: ${labels.join('、')}`)
   }
 
   if (parts.length <= 1) return null

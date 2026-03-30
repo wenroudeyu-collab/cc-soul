@@ -723,7 +723,7 @@ function auditModuleLogic(moduleName: string, callback: (bugs: string[]) => void
     const truncated = code.split('\n').slice(0, 300).join('\n')
 
     // Lazy import spawnCLI to avoid circular dependency
-    const { spawnCLI } = require('./cli.ts')
+    let _spCLI: any; import('./cli.ts').then(m => _spCLI = m.spawnCLI).catch(() => {}); const spawnCLI = (...a: any[]) => _spCLI?.(...a)
 
     spawnCLI(
       `审查以下 TypeScript 代码的逻辑 bug（不是代码风格，是真正的逻辑错误）。\n` +

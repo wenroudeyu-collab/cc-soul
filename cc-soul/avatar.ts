@@ -491,6 +491,15 @@ async function gatherSoulContext(userId: string, sender: string, message: string
       if (pm.thinkingStyle) parts.push(`思维方式：${pm.thinkingStyle}`)
       if (pm.values.length > 0) parts.push(`价值观：${pm.values.join('、')}`)
       if (pm.beliefs.length > 0) parts.push(`信念：${pm.beliefs.join('、')}`)
+      const rp = pm.reasoningProfile
+      if (rp && rp._counts?.total >= 10) {
+        const t: string[] = []
+        if (rp.style !== 'unknown') t.push(rp.style === 'conclusion_first' ? '我习惯先说结论再解释' : '我习惯层层递进地论证')
+        if (rp.evidence !== 'unknown') t.push(rp.evidence === 'data' ? '我喜欢用数据说话' : rp.evidence === 'analogy' ? '我喜欢打比方' : '我数据和类比都用')
+        if (rp.certainty !== 'unknown') t.push(rp.certainty === 'assertive' ? '我说话很笃定' : rp.certainty === 'hedging' ? '我表达偏保守谨慎' : '我有时笃定有时谨慎')
+        if (rp.disagreement !== 'unknown') t.push(rp.disagreement === 'dig_in' ? '不同意时我会坚持' : rp.disagreement === 'compromise' ? '不同意时我倾向妥协' : '不同意时我会追问为什么')
+        if (t.length > 0) parts.push(`论证风格：${t.join('；')}`)
+      }
       if (parts.length > 0) sections.push(`[我是谁]\n${parts.join('\n')}`)
     }
   } catch {}
@@ -660,7 +669,7 @@ export function generateAvatarReply(
   message: string,
   callback: (reply: string, refused?: boolean) => void,
 ) {
-  // Wrap in async IIFE since gatherSoulContext is now async
+  // Wrap in async IIFE since getAvatarPrompt is async
   ;(async () => {
   const profile = loadAvatarProfile(userId)
 
@@ -684,74 +693,19 @@ export function generateAvatarReply(
   // NOTE: processEmotionalContagion is already called by handlePreprocessed for normal messages.
   // We do NOT call it again here to avoid double-processing.
   // Instead, we only amplify the EXISTING emotional state based on relationship depth.
-  // For soul-mode (Step 4) where messages bypass handlePreprocessed, we DO process.
   try {
-
-    // Amplify emotional shift based on relationship depth
-    // No hardcoded trigger words — the emotional contagion system already detected
-    // the emotional weight. We just amplify based on how deep the relationship is.
     const contactForEmotion = profile.social[sender] as SocialContact | undefined
     if (contactForEmotion && contactForEmotion.samples && contactForEmotion.samples.length >= 3) {
       const depth = Math.min(contactForEmotion.samples.length / 15, 1) // 0-1
-      // Deeper relationships = emotions hit harder (both positive and negative)
-      // The direction is already set by processEmotionalContagion — we just scale it
-      if (body.mood < 0) body.mood *= (1 + 0.3 * depth)  // negative hits harder
-      if (body.mood > 0) body.mood *= (1 + 0.2 * depth)  // positive warms more
+      if (body.mood < 0) body.mood *= (1 + 0.3 * depth)
+      if (body.mood > 0) body.mood *= (1 + 0.2 * depth)
       body.mood = Math.max(-1, Math.min(1, body.mood))
     }
   } catch {}
 
-  // ── Gather soul context from all modules (now with ALTERED emotional state) ──
-  const soulContext = await gatherSoulContext(userId, sender, message)
-
-  // ── Relationship context (data-driven, no hardcoded tone) ──
-  const contact = profile.social[sender] as SocialContact | undefined
-  const relationshipBlock = contact
-    ? [
-      `${sender}是我的${contact.relation}（${contact.context}）`,
-      contact.samples && contact.samples.length > 0
-        ? `我提到${sender}时的原话（注意语气差异）：\n${contact.samples.slice(-5).map(s => `  "${s}"`).join('\n')}`
-        : '',
-    ].filter(Boolean).join('\n')
-    : `${sender}是我认识的人`
-
-  // ── Expression DNA ──
-  const expressionBlock = [
-    profile.expression.style ? `说话风格：${profile.expression.style}` : '',
-    profile.expression.口头禅.length > 0 ? `口头禅：${profile.expression.口头禅.join('、')}` : '',
-    `平均消息长度：${profile.expression.avg_msg_length || 15}字`,
-    profile.expression.samples.length > 0
-      ? `最近的消息示例：\n${profile.expression.samples.slice(-8).map(s => `  "${s}"`).join('\n')}`
-      : '',
-  ].filter(Boolean).join('\n')
-
-  // ── Build the soul injection prompt ──
-  const prompt = [
-    `# 你现在就是「${profile.name || '我'}」`,
-    `不是模仿，不是扮演，是成为。用我的大脑思考，用我的价值观判断，用我的方式回应。`,
-    '',
-    soulContext,
-    '',
-    `[我和${sender}的关系]`,
-    relationshipBlock,
-    '',
-    `[我的表达方式]`,
-    expressionBlock,
-    '',
-    `---`,
-    `${sender}发来: "${message}"`,
-    '',
-    `以我本人的身份回复。核心原则：`,
-    `1. 用我的口头禅、我的语气、我的思维方式`,
-    `2. 回复长度控制在${profile.expression.avg_msg_length || 15}字左右（像真人发消息一样短）`,
-    `3. 如果涉及决策，参考我的决策模式`,
-    `4. 如果对方有情绪，用我对这个人的方式回应（不是通用安慰）`,
-    `5. 如果话题我不懂，就说不懂，真人不会什么都知道`,
-    `6. 如果我当前情绪低落/疲惫，回复可以更短、更敷衍、甚至只回"嗯"——真人在状态差的时候就是这样`,
-    `7. 如果有幽默的空间，用我的幽默方式（参考我的消息示例里的笑点和吐槽方式）——不要用通用的幽默`,
-    `8. 如果这个话题我不想聊（参考我的历史消息中是否回避过类似话题），可以转移话题或者简短带过`,
-    `9. 只输出回复内容，不要任何解释、前缀或引号`,
-  ].filter(Boolean).join('\n')
+  // ── Build soul prompt (reuses getAvatarPrompt) then append the actual message ──
+  const basePrompt = await getAvatarPrompt(userId, sender, message)
+  const prompt = basePrompt + `\n\n${sender}发来: "${message}"\n\n以我本人的身份回复。`
 
   spawnCLI(prompt, (output) => {
     if (!output) { callback('生成失败'); return }
@@ -767,6 +721,85 @@ export function generateAvatarReply(
 
 // Note: Active probing (Step 1) uses inner-life.ts follow-up system — no duplication.
 // Note: Deep synthesis (Step 2) now lives in person-model.ts distillPersonModel() — no duplication.
+
+/**
+ * Build the soul injection prompt WITHOUT calling LLM.
+ * Returns the system prompt that tells any LLM "respond as this user would".
+ *
+ * Use cases:
+ *   - API caller feeds this to their own LLM
+ *   - MCP / A2A integration where the host controls the LLM
+ *   - Debugging / inspecting what the avatar "knows"
+ *
+ * @param userId  - owner of the avatar profile
+ * @param sender  - who is sending the message (optional, defaults to "对方")
+ * @param message - the incoming message to respond to (optional, defaults to generic)
+ */
+export async function getAvatarPrompt(
+  userId: string,
+  sender?: string,
+  message?: string,
+): Promise<string> {
+  const effectiveSender = sender || '对方'
+  const effectiveMessage = message || ''
+  const profile = loadAvatarProfile(userId)
+
+  // Gather soul context from all modules
+  const soulContext = await gatherSoulContext(userId, effectiveSender, effectiveMessage)
+
+  // Relationship context
+  const contact = profile.social[effectiveSender] as SocialContact | undefined
+  const relationshipBlock = contact
+    ? [
+      `${effectiveSender}是我的${contact.relation}（${contact.context}）`,
+      contact.samples && contact.samples.length > 0
+        ? `我提到${effectiveSender}时的原话（注意语气差异）：\n${contact.samples.slice(-5).map(s => `  "${s}"`).join('\n')}`
+        : '',
+    ].filter(Boolean).join('\n')
+    : effectiveSender !== '对方' ? `${effectiveSender}是我认识的人` : ''
+
+  // Expression DNA
+  const expressionBlock = [
+    profile.expression.style ? `说话风格：${profile.expression.style}` : '',
+    profile.expression.口头禅.length > 0 ? `口头禅：${profile.expression.口头禅.join('、')}` : '',
+    `平均消息长度：${profile.expression.avg_msg_length || 15}字`,
+    profile.expression.samples.length > 0
+      ? `最近的消息示例：\n${profile.expression.samples.slice(-8).map(s => `  "${s}"`).join('\n')}`
+      : '',
+  ].filter(Boolean).join('\n')
+
+  // Build the soul injection system prompt
+  const parts = [
+    `# 你现在就是「${profile.name || '我'}」`,
+    `不是模仿，不是扮演，是成为。用我的大脑思考，用我的价值观判断，用我的方式回应。`,
+    '',
+    soulContext,
+  ]
+
+  if (relationshipBlock) {
+    parts.push('', `[我和${effectiveSender}的关系]`, relationshipBlock)
+  }
+
+  parts.push(
+    '',
+    `[我的表达方式]`,
+    expressionBlock,
+    '',
+    `---`,
+    `核心原则：`,
+    `1. 用我的口头禅、我的语气、我的思维方式`,
+    `2. 回复长度控制在${profile.expression.avg_msg_length || 15}字左右（像真人发消息一样短）`,
+    `3. 如果涉及决策，参考我的决策模式`,
+    `4. 如果对方有情绪，用我对这个人的方式回应（不是通用安慰）`,
+    `5. 如果话题我不懂，就说不懂，真人不会什么都知道`,
+    `6. 如果我当前情绪低落/疲惫，回复可以更短、更敷衍、甚至只回"嗯"——真人在状态差的时候就是这样`,
+    `7. 如果有幽默的空间，用我的幽默方式——不要用通用的幽默`,
+    `8. 如果这个话题我不想聊，可以转移话题或者简短带过`,
+    `9. 只输出回复内容，不要任何解释、前缀或引号`,
+  )
+
+  return parts.filter(Boolean).join('\n')
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PUBLIC API

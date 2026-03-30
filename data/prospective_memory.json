@@ -1,0 +1,22 @@
+[
+  {
+    "id": "pm_1774864837477_0",
+    "trigger": "面试|interview|紧张|准备|offer",
+    "remind": "用户之前提到有面试计划：下周三有个面试，有点紧张",
+    "createdAt": 1774864837477,
+    "expiresAt": 1776074437477,
+    "source": "auto",
+    "userId": "test",
+    "firedAt": 1774864837478
+  },
+  {
+    "id": "pm_1774864916321_0",
+    "trigger": "出差|出行|机场|酒店|行李|航班",
+    "remind": "用户之前提到有出行计划：我下周要去北京出差，需要准备什么？",
+    "createdAt": 1774864916321,
+    "expiresAt": 1776074516321,
+    "source": "auto",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "firedAt": 1774864916322
+  }
+]

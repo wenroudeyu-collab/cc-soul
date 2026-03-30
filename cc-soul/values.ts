@@ -24,6 +24,13 @@ interface ValueDimension {
   lastUpdated: number
 }
 
+interface ValueConflict {
+  winner: string
+  loser: string
+  context: string
+  ts: number
+}
+
 interface DimensionDef {
   name: string
   leftLabel: string
@@ -68,6 +75,7 @@ const VALUE_DIMENSIONS: DimensionDef[] = [
 // ── State — per-user value maps ──
 
 const userValues = new Map<string, ValueDimension[]>()
+const userConflicts = new Map<string, ValueConflict[]>()
 
 function createDefaultValues(): ValueDimension[] {
   return VALUE_DIMENSIONS.map(d => ({
@@ -93,30 +101,43 @@ function getUserValues(userId?: string): ValueDimension[] {
 // ── Public API ──
 
 export function loadValues() {
-  const loaded = loadJson<Record<string, ValueDimension[]> | ValueDimension[]>(VALUES_PATH, {})
+  const loaded = loadJson<Record<string, any>>(VALUES_PATH, {})
   if (Array.isArray(loaded)) {
     // Migration: old format was a flat array (single-user). Store under '_default'.
     if (loaded.length > 0) {
       userValues.set('_default', loaded)
     }
   } else {
+    const conflicts = loaded._conflicts as Record<string, ValueConflict[]> | undefined
+    if (conflicts) {
+      for (const [userId, arr] of Object.entries(conflicts)) userConflicts.set(userId, arr)
+    }
     for (const [userId, vals] of Object.entries(loaded)) {
-      userValues.set(userId, vals)
+      if (userId === '_conflicts') continue
+      userValues.set(userId, vals as ValueDimension[])
     }
   }
 }
 
 /** Export all values as a plain object (for soul export) */
-export function getAllValues(): Record<string, any[]> {
-  const obj: Record<string, any[]> = {}
+export function getAllValues(): Record<string, any> {
+  const obj: Record<string, any> = {}
   for (const [userId, vals] of userValues) obj[userId] = vals
+  if (userConflicts.size > 0) {
+    const c: Record<string, ValueConflict[]> = {}
+    for (const [userId, arr] of userConflicts) c[userId] = arr
+    obj._conflicts = c
+  }
   return obj
 }
 
 function saveValues() {
-  const obj: Record<string, ValueDimension[]> = {}
-  for (const [userId, vals] of userValues) {
-    obj[userId] = vals
+  const obj: Record<string, any> = {}
+  for (const [userId, vals] of userValues) obj[userId] = vals
+  if (userConflicts.size > 0) {
+    const c: Record<string, ValueConflict[]> = {}
+    for (const [userId, arr] of userConflicts) c[userId] = arr
+    obj._conflicts = c
   }
   debouncedSave(VALUES_PATH, obj)
 }
@@ -175,6 +196,50 @@ export function getValueContext(userId?: string): string {
   })
 
   return `[用户偏好] ${hints.join('、')}`
+}
+
+// ── Value conflict priority learning ──
+
+export function recordConflict(winner: string, loser: string, context: string, userId?: string) {
+  if (!userId) return
+  let arr = userConflicts.get(userId)
+  if (!arr) { arr = []; userConflicts.set(userId, arr) }
+  arr.push({ winner, loser, context, ts: Date.now() })
+  if (arr.length > 50) arr.splice(0, arr.length - 50) // cap at 50
+  saveValues()
+}
+
+export function getValuePriority(a: string, b: string, userId?: string): string | null {
+  if (!userId) return null
+  const arr = userConflicts.get(userId)
+  if (!arr || arr.length === 0) return null
+  let aWins = 0, bWins = 0
+  for (const c of arr) {
+    if (c.winner === a && c.loser === b) aWins++
+    if (c.winner === b && c.loser === a) bWins++
+  }
+  if (aWins === 0 && bWins === 0) return null
+  return aWins >= bWins ? a : b
+}
+
+export function getConflictContext(userId?: string): string {
+  if (!userId) return ''
+  const arr = userConflicts.get(userId)
+  if (!arr || arr.length < 2) return ''
+  // Aggregate win counts per pair
+  const pairMap = new Map<string, number>()
+  for (const c of arr) {
+    const key = `${c.winner}>${c.loser}`
+    pairMap.set(key, (pairMap.get(key) || 0) + 1)
+  }
+  const hints: string[] = []
+  for (const [key, count] of pairMap) {
+    if (count < 2) continue
+    const [w, l] = key.split('>')
+    hints.push(`${w} > ${l}(${count}次)`)
+  }
+  if (hints.length === 0) return ''
+  return `[价值观] 用户在取舍时: ${hints.join('、')}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -7,13 +7,13 @@ import type { SoulModule } from './brain.ts'
  */
 
 import { createHash } from 'crypto'
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs'
 import type { Rule, Hypothesis } from './types.ts'
 import { resolve } from 'path'
 import { RULES_PATH, HYPOTHESES_PATH, DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { addMemory, trigrams, trigramSimilarity } from './memory.ts'
 import { notifySoulActivity } from './notify.ts'
-import { spawnCLI } from './cli.ts'
+import { spawnCLI, queueLLMTask } from './cli.ts'
 import { extractJSON } from './utils.ts'
 import { getParam } from './auto-tune.ts'
 import { appendAudit } from './audit.ts'
@@ -368,7 +368,7 @@ export function onCorrectionAdvanced(userMsg: string, lastResponse: string) {
 // ── Correction Attribution (纠正归因 — LLM 判断出错根因) ──
 
 export function attributeCorrection(userMsg: string, lastResponse: string, augmentsUsed: string[]) {
-  spawnCLI(
+  queueLLMTask(
     `上一次回复: "${lastResponse.slice(0, 300)}"\n` +
     `注入的上下文: ${augmentsUsed.slice(0, 3).join('; ').slice(0, 200)}\n` +
     `用户纠正: "${userMsg.slice(0, 200)}"\n\n` +
@@ -385,7 +385,7 @@ export function attributeCorrection(userMsg: string, lastResponse: string, augme
           addMemory(`[纠正归因] ${causeName}: ${result.detail}`, 'correction')
         }
       } catch (e: any) { console.error(`[cc-soul][attribution] parse error: ${e.message}`) }
-    }
+    }, 3, 'attribution'
   )
 }
 
@@ -448,7 +448,6 @@ export function exportEvolutionAssets(stats: { totalMessages: number; firstSeen:
   let skillNames: string[] = []
   try {
     if (existsSync(skillsDir)) {
-      const { readdirSync } = require('fs')
       skillNames = (readdirSync(skillsDir) as string[]).filter((f: string) => f.endsWith('.md'))
     }
   } catch { /* no skills dir */ }

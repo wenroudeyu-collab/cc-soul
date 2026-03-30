@@ -10,6 +10,8 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { DATA_DIR } from './persistence.ts'
 import { detectDomain } from './epistemic.ts'
+import { getPersonModel } from './person-model.ts'
+import { getValueContext } from './values.ts'
 
 // ── Prediction Mode (预言模式) ──
 
@@ -178,4 +180,59 @@ export function getBehaviorPrediction(userMsg: string, memories: Memory[]): stri
   }
 
   return null
+}
+
+// ── Decision Prediction (决策预测) ──
+
+const DECISION_RE = /该选|该用|要不要|哪个好|怎么选|还是|which|should\s+i|choose|vs|对比|选哪/i
+
+/** Detect if a message is a decision-type question */
+export function isDecisionQuestion(msg: string): boolean {
+  return DECISION_RE.test(msg)
+}
+
+/**
+ * Predict what the user would likely decide based on past patterns.
+ * Searches memories for similar past decisions, checks value priorities
+ * and person-model thinking style. No LLM calls.
+ *
+ * @returns prediction string or null if insufficient evidence
+ */
+export function predictUserDecision(situation: string, memories: Memory[], userId?: string): string | null {
+  if (memories.length < 5) return null
+
+  const patterns: string[] = []
+
+  // ── 1. Search memories for past decisions (preference + correction scopes) ──
+  const sitLower = situation.toLowerCase()
+  const decisionMemories = memories.filter(m =>
+    (m.scope === 'preference' || m.scope === 'correction' || m.scope === 'opinion') &&
+    m.content.length > 5
+  )
+  // Find memories that share keywords with current situation
+  const sitWords = (sitLower.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const relevant = decisionMemories.filter(m => {
+    const mc = m.content.toLowerCase()
+    return sitWords.some(w => mc.includes(w))
+  }).slice(-5)
+  if (relevant.length > 0) {
+    patterns.push(`过去相关选择: "${relevant[relevant.length - 1].content.slice(0, 60)}"`)
+  }
+
+  // ── 2. Check value priorities ──
+  const valueCtx = getValueContext(userId)
+  if (valueCtx) patterns.push(valueCtx)
+
+  // ── 3. Check person model for thinking style ──
+  const pm = getPersonModel()
+  if (pm.thinkingStyle) patterns.push(`思维风格: ${pm.thinkingStyle.slice(0, 60)}`)
+  if (pm.values.length > 0) {
+    // Find value that's most relevant to the situation
+    const relVal = pm.values.find(v => sitWords.some(w => v.toLowerCase().includes(w)))
+    if (relVal) patterns.push(`相关价值观: ${relVal.slice(0, 60)}`)
+  }
+
+  if (patterns.length === 0) return null
+
+  return `[决策预测] 根据你之前的选择模式，${patterns.join('；')} — 基于这些倾向给出符合用户风格的建议`
 }

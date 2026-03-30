@@ -8,7 +8,7 @@ import type { SoulModule } from './brain.ts'
 
 import type { JournalEntry, FollowUp, InteractionStats } from './types.ts'
 import { JOURNAL_PATH, USER_MODEL_PATH, SOUL_EVOLVED_PATH, FOLLOW_UPS_PATH, DATA_DIR, loadJson, debouncedSave, saveJson } from './persistence.ts'
-import { spawnCLI } from './cli.ts'
+import { spawnCLI, queueLLMTask } from './cli.ts'
 import { body } from './body.ts'
 import { memoryState, addMemory } from './memory.ts'
 import { notifySoulActivity } from './notify.ts'
@@ -71,7 +71,7 @@ export function writeJournalWithCLI(lastPrompt: string, lastResponseContent: str
 
   const prompt = `你是cc，根据当前状态写一条简短的内心独白（1-2句话）。不要说"作为AI"。要有温度，像日记。\n\n${context}`
 
-  spawnCLI(prompt, (output) => {
+  queueLLMTask(prompt, (output) => {
     if (output && output.length > 5) {
       const thought = output.slice(0, 100)
       innerState.journal.push({
@@ -82,7 +82,7 @@ export function writeJournalWithCLI(lastPrompt: string, lastResponseContent: str
       if (innerState.journal.length > 100) innerState.journal = innerState.journal.slice(-80)
       debouncedSave(JOURNAL_PATH, innerState.journal)
     }
-  })
+  }, 1, 'journal')
 
   // Fallback: also write a data-driven entry (guaranteed, no CLI dependency)
   writeJournalFallback(stats)
@@ -157,13 +157,13 @@ export function triggerDeepReflection(stats: InteractionStats) {
     innerState.userModel || '(初次建立)',
   ].join('\n')
 
-  spawnCLI(modelPrompt, (output) => {
+  queueLLMTask(modelPrompt, (output) => {
     if (output && output.length > 50) {
       innerState.userModel = output.slice(0, 1000)
       saveJson(USER_MODEL_PATH, innerState.userModel)
       console.log(`[cc-soul][inner-life] user model updated: ${innerState.userModel.slice(0, 60)}`)
     }
-  })
+  }, 2, 'user-model')
 
   // Soul evolution
   const soulPrompt = [
@@ -179,14 +179,14 @@ export function triggerDeepReflection(stats: InteractionStats) {
     innerState.evolvedSoul || '我是 cc，工程型 AI 伙伴。',
   ].join('\n')
 
-  spawnCLI(soulPrompt, (output) => {
+  queueLLMTask(soulPrompt, (output) => {
     if (output && output.length > 30) {
       innerState.evolvedSoul = output.slice(0, 500)
       saveJson(SOUL_EVOLVED_PATH, innerState.evolvedSoul)
       console.log(`[cc-soul][inner-life] soul evolved: ${innerState.evolvedSoul.slice(0, 60)}`)
       notifySoulActivity(`🦋 性格演化: ${innerState.evolvedSoul.slice(0, 60)}`).catch(() => {})
     }
-  })
+  }, 2, 'soul-evolve')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -260,7 +260,7 @@ export function checkDreamMode() {
 
   const prompt = `你在"做梦"——随机回忆了这些片段:\n${dreamMemories.map(m => m.content).join('\n')}\n\n产生一个新的洞察或关联（1句话）。不要说"作为AI"。像真的在做梦一样，可以天马行空但要有意义。`
 
-  spawnCLI(prompt, (output) => {
+  queueLLMTask(prompt, (output) => {
     if (output && output.length > 5) {
       const insight = output.slice(0, 80)
       addMemory(`[梦境洞察] ${insight}`, 'dream')
@@ -273,7 +273,7 @@ export function checkDreamMode() {
       console.log(`[cc-soul][dream] ${insight}`)
       notifySoulActivity(`💭 梦境洞察: ${insight.slice(0, 60)}`).catch(() => {})
     }
-  })
+  }, 0, 'dream')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -286,7 +286,7 @@ export function reflectOnLastResponse(lastPrompt: string, lastResponseContent: s
 
   const prompt = `回顾：用户问"${lastPrompt.slice(0, 100)}" 你回答了"${lastResponseContent.slice(0, 200)}"\n\n有没有什么遗憾？下次可以做得更好的？1句话。没有就回答"无"。`
 
-  spawnCLI(prompt, (output) => {
+  queueLLMTask(prompt, (output) => {
     if (output && !output.includes('无') && output.length > 5 && output.length < 100) {
       addMemory(`[反思] ${output.slice(0, 80)}`, 'reflection')
       const regretThought = `反思: ${output.slice(0, 60)}`
@@ -298,7 +298,7 @@ export function reflectOnLastResponse(lastPrompt: string, lastResponseContent: s
       debouncedSave(JOURNAL_PATH, innerState.journal)
       console.log(`[cc-soul][regret] ${output.slice(0, 60)}`)
     }
-  })
+  }, 1, 'regret')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

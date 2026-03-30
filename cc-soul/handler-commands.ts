@@ -5,7 +5,7 @@
  * 导出 routeCommand()：返回 true 表示命令已处理（handler.ts 应 return）。
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs'
 import { exec } from 'child_process'
 import { homedir } from 'os'
 import { resolve } from 'path'
@@ -56,6 +56,76 @@ export function wasHandledByDirect(msg: string): boolean {
 }
 function markHandledByDirect(msg: string) {
   _lastDirectCmd = { content: msg.trim(), ts: Date.now() }
+}
+
+// ── Full backup / restore helpers ──
+function _sanitize(obj: any): any {
+  const s = JSON.stringify(obj)
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[REDACTED]')
+    .replace(/\b(?:sk-|api[_-]?key|token|secret|password)[=:]\s*\S+/gi, '[REDACTED]')
+  return JSON.parse(s)
+}
+function _readJson(p: string): any { try { return existsSync(p) ? JSON.parse(readFileSync(p, 'utf-8')) : null } catch { return null } }
+function _fullBackup(): { path: string; counts: Record<string, number> } {
+  const d = DATA_DIR + '/export'; if (!existsSync(d)) mkdirSync(d, { recursive: true })
+  const files: Record<string, string> = {
+    memories: 'memories.json', rules: 'rules.json', hypotheses: 'hypotheses.json',
+    personModel: 'user_model.json', values: 'values.json', features: 'features.json',
+    coreMemories: 'core_memories.json', userProfiles: 'user_profiles.json',
+    theoryOfMind: 'theory_of_mind.json', body: 'body_state.json',
+    emotionAnchors: 'emotion_anchors.json', graph: 'graph.json',
+    lorebook: 'lorebook.json', patterns: 'success_patterns.json',
+    journal: 'journal.json', workflows: 'workflows.json', plans: 'plans.json',
+  }
+  const bundle: Record<string, any> = { _meta: { version: 1, exportedAt: new Date().toISOString(), source: 'cc-soul' } }
+  const counts: Record<string, number> = {}
+  for (const [key, file] of Object.entries(files)) {
+    const raw = _readJson(resolve(DATA_DIR, file))
+    if (raw != null) { bundle[key] = raw; counts[key] = Array.isArray(raw) ? raw.length : Object.keys(raw).length }
+  }
+  // avatar profiles (per-user directory)
+  const apDir = resolve(DATA_DIR, 'avatar_profiles')
+  if (existsSync(apDir)) {
+    const ap: Record<string, any> = {}
+    for (const f of readdirSync(apDir).filter(f => f.endsWith('.json'))) {
+      const d2 = _readJson(resolve(apDir, f)); if (d2) ap[f.replace('.json', '')] = d2
+    }
+    if (Object.keys(ap).length) { bundle.avatarProfiles = ap; counts.avatarProfiles = Object.keys(ap).length }
+  }
+  const sanitized = _sanitize(bundle)
+  const ts = new Date().toISOString().slice(0, 10)
+  const outPath = `${d}/full_backup_${ts}.json`
+  writeFileSync(outPath, JSON.stringify(sanitized, null, 2), 'utf-8')
+  return { path: outPath, counts }
+}
+function _fullRestore(filePath: string): Record<string, number> {
+  const raw = JSON.parse(readFileSync(filePath, 'utf-8'))
+  if (!raw._meta?.source) throw new Error('不是有效的 cc-soul 全量备份文件')
+  const fileMap: Record<string, string> = {
+    memories: 'memories.json', rules: 'rules.json', hypotheses: 'hypotheses.json',
+    personModel: 'user_model.json', values: 'values.json', features: 'features.json',
+    coreMemories: 'core_memories.json', userProfiles: 'user_profiles.json',
+    theoryOfMind: 'theory_of_mind.json', body: 'body_state.json',
+    emotionAnchors: 'emotion_anchors.json', graph: 'graph.json',
+    lorebook: 'lorebook.json', patterns: 'success_patterns.json',
+    journal: 'journal.json', workflows: 'workflows.json', plans: 'plans.json',
+  }
+  const counts: Record<string, number> = {}
+  for (const [key, file] of Object.entries(fileMap)) {
+    if (raw[key] != null) {
+      writeFileSync(resolve(DATA_DIR, file), JSON.stringify(raw[key], null, 2), 'utf-8')
+      counts[key] = Array.isArray(raw[key]) ? raw[key].length : Object.keys(raw[key]).length
+    }
+  }
+  if (raw.avatarProfiles) {
+    const apDir = resolve(DATA_DIR, 'avatar_profiles')
+    if (!existsSync(apDir)) mkdirSync(apDir, { recursive: true })
+    for (const [uid, data] of Object.entries(raw.avatarProfiles)) {
+      writeFileSync(resolve(apDir, `${uid}.json`), JSON.stringify(data, null, 2), 'utf-8')
+    }
+    counts.avatarProfiles = Object.keys(raw.avatarProfiles).length
+  }
+  return counts
 }
 
 // ── Command reply helper ──
@@ -125,6 +195,8 @@ export function routeCommand(
 • 恢复记忆 <关键词>               — 恢复归档记忆
 
 ━━ 导入导出 ━━
+• 导出全部 / export all / full backup — 全量备份（已去敏）
+• 导入全部 <路径> / import all <path> — 从全量备份恢复
 • 导出lorebook                    — 导出知识库（去敏）
 • 导出进化 / export evolution      — 导出 GEP 格式进化资产
 • 导入进化 <路径>                  — 导入 GEP 格式进化资产
@@ -558,6 +630,29 @@ export function routeCommand(
     return true
   }
 
+  // ── Full backup: 导出全部 / export all / full backup ──
+  if (/^(导出全部|export all|full backup)$/i.test(userMsg.trim())) {
+    try {
+      const { path, counts } = _fullBackup()
+      const lines = Object.entries(counts).map(([k, v]) => `  ${k}: ${v}`)
+      cmdReply(ctx, event, session, `全量备份已导出（已去敏）\n${lines.join('\n')}\n路径: ${path}`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, `全量备份失败: ${e.message}`, userMsg) }
+    return true
+  }
+  // ── Full restore: 导入全部 <path> / import all <path> ──
+  const importAllMatch = userMsg.match(/^(导入全部|import all)\s+(.+)$/i)
+  if (importAllMatch) {
+    const fp = importAllMatch[2].trim().replace(/^~/, homedir())
+    try {
+      if (!existsSync(fp)) { cmdReply(ctx, event, session, `文件不存在: ${fp}`, userMsg); return true }
+      if (!fp.startsWith(homedir()) && !fp.startsWith('/tmp')) { cmdReply(ctx, event, session, '安全限制：只能导入家目录或 /tmp 下的文件。', userMsg); return true }
+      const counts = _fullRestore(fp)
+      const lines = Object.entries(counts).map(([k, v]) => `  ${k}: ${v}`)
+      cmdReply(ctx, event, session, `全量恢复完成（需重启生效）\n${lines.join('\n')}`, userMsg)
+    } catch (e: any) { cmdReply(ctx, event, session, `全量恢复失败: ${e.message}`, userMsg) }
+    return true
+  }
+
   // ── Feature 12: 关系叙事 ──
   if (/^(讲讲我们的故事|our story|关系叙事)$/i.test(userMsg.trim())) {
     try {
@@ -645,7 +740,6 @@ export function routeCommand(
     try {
       const branchDir = resolve(DATA_DIR, 'branches')
       if (!existsSync(branchDir)) { cmdReply(ctx, event, session, '暂无保存的话题。', userMsg); return true }
-      const { readdirSync } = require('fs')
       const files = (readdirSync(branchDir) as string[]).filter((f: string) => f.endsWith('.json'))
       if (files.length === 0) { cmdReply(ctx, event, session, '暂无保存的话题。', userMsg); return true }
       const lines: string[] = [`话题列表（${files.length} 个）：`]
@@ -1097,6 +1191,8 @@ soul state — AI 能量/心情
 我的提醒 — 查看提醒
 功能状态 — 功能开关
 记忆健康 — 记忆统计
+导出全部 / export all — 全量备份
+导入全部 <路径> / import all — 全量恢复
 导出进化 — 导出 GEP 格式进化资产
 导入进化 <路径> — 导入 GEP 格式
 
@@ -1247,14 +1343,36 @@ soul state — AI 能量/心情
   // 导入进化 (GEP)
   const importEvoMatchDirect = userMsg.match(/^(导入进化|import evolution)\s+(.+)$/i)
   if (importEvoMatchDirect) {
-    const filePath = importEvoMatchDirect[2].trim().replace(/^~/, require('os').homedir())
+    const filePath = importEvoMatchDirect[2].trim().replace(/^~/, homedir())
     try {
-      const { existsSync: _exists } = require('fs')
-      if (!_exists(filePath)) { reply(`文件不存在: ${filePath}`); return true }
+      if (!existsSync(filePath)) { reply(`文件不存在: ${filePath}`); return true }
       const { importEvolutionAssets } = await import('./evolution.ts')
       const { rulesAdded, hypothesesAdded } = importEvolutionAssets(filePath)
       reply(`进化资产已导入 (GEP)\n  新增规则: ${rulesAdded}\n  新增假设: ${hypothesesAdded}`)
     } catch (e: any) { reply(`导入进化失败: ${e.message}`) }
+    return true
+  }
+
+  // 导出全部 / export all / full backup (direct)
+  if (/^(导出全部|export all|full backup)$/i.test(userMsg.trim())) {
+    try {
+      const { path, counts } = _fullBackup()
+      const lines = Object.entries(counts).map(([k, v]) => `  ${k}: ${v}`)
+      reply(`全量备份已导出（已去敏）\n${lines.join('\n')}\n路径: ${path}`)
+    } catch (e: any) { reply(`全量备份失败: ${e.message}`) }
+    return true
+  }
+  // 导入全部 <path> / import all <path> (direct)
+  const importAllMatchD = userMsg.match(/^(导入全部|import all)\s+(.+)$/i)
+  if (importAllMatchD) {
+    const fp = importAllMatchD[2].trim().replace(/^~/, homedir())
+    try {
+      if (!existsSync(fp)) { reply(`文件不存在: ${fp}`); return true }
+      if (!fp.startsWith(homedir()) && !fp.startsWith('/tmp')) { reply('安全限制：只能导入家目录或 /tmp 下的文件。'); return true }
+      const counts = _fullRestore(fp)
+      const lines = Object.entries(counts).map(([k, v]) => `  ${k}: ${v}`)
+      reply(`全量恢复完成（需重启生效）\n${lines.join('\n')}`)
+    } catch (e: any) { reply(`全量恢复失败: ${e.message}`) }
     return true
   }
 
@@ -1316,7 +1434,6 @@ soul state — AI 能量/心情
     try {
       const branchDir = resolve(DATA_DIR, 'branches')
       if (!existsSync(branchDir)) { reply('暂无保存的话题。'); return true }
-      const { readdirSync } = require('fs')
       const files = (readdirSync(branchDir) as string[]).filter((f: string) => f.endsWith('.json'))
       if (files.length === 0) { reply('暂无保存的话题。'); return true }
       const lines: string[] = [`话题列表（${files.length} 个）：`]
@@ -1376,6 +1493,7 @@ const CMD_PATTERNS = [
   /^(人格列表|personas?)$/i,
   /^(导出|export)/i,
   /^(导入|import)/i,
+  /^full backup$/i,
   /^(实验|experiment)/i,
   /^(tune|调整)/i,
   /^(ingest|导入文件)/i,

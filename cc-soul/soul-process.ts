@@ -46,9 +46,7 @@ async function handleProcess(body: any): Promise<any> {
     try { bodyMod.loadBodyState() } catch {}
     bodyMod.bodyTick()
     bodyMod.bodyOnMessage(message.length > 50 ? 0.6 : 0.3)
-    bodyMod.processEmotionalContagion(message, userId)
-    moodScore = bodyMod.body.mood; energyScore = bodyMod.body.energy
-    emotion = moodScore > 0.3 ? 'positive' : moodScore < -0.3 ? 'negative' : 'neutral'
+    // Emotional contagion deferred until after cognition (needs attentionType)
   } catch {}
 
   // ── 2. Cognition ──
@@ -62,6 +60,16 @@ async function handleProcess(body: any): Promise<any> {
         ;(await import('./body.ts')).bodyOnCorrection()
       } catch {}
     }
+  } catch {}
+
+  // ── 2b. Emotional contagion (now with correct cognition params) ──
+  try {
+    const bodyMod = await import('./body.ts')
+    const attention = cogResult?.attention || 'general'
+    const frustration = 0  // will be updated after flow
+    bodyMod.processEmotionalContagion(message, attention, frustration, userId)
+    moodScore = bodyMod.body.mood; energyScore = bodyMod.body.energy
+    emotion = moodScore > 0.3 ? 'positive' : moodScore < -0.3 ? 'negative' : 'neutral'
   } catch {}
 
   // ── 3. Flow ──
@@ -220,6 +228,18 @@ async function handleFeedback(body: any): Promise<any> {
   } catch (e: any) {
     console.log(`[cc-soul][api] feedback error: ${e.message}`)
   }
+
+  // Record observation for behavior engine learning
+  try {
+    const { recordObservation } = await import('./behavior-engine.ts')
+    const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
+    const { body: bodyState } = await import('./body.ts')
+    const sess = getSessionState(getLastActiveSessionKey())
+    const reaction = satisfaction === 'positive' ? 'satisfied' as const
+      : satisfaction === 'negative' ? 'corrected' as const
+      : 'neutral' as const
+    recordObservation(userMessage, bodyState.mood, sess, reaction, 'balanced')
+  } catch {}
 
   return { learned: true }
 }

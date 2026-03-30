@@ -2,6 +2,37 @@
 
 All notable changes to cc-soul will be documented here.
 
+## [2.5.0] - 2026-03-30
+
+### Added
+- Absence detection — detects topics user stopped mentioning, proactively asks
+- Behavior prediction — warns based on past patterns when trigger situations detected
+- Deep understanding engine — 7 dimensions: temporal patterns, say-do gap, growth trajectory, unspoken needs, cognitive load, stress fingerprint, dynamic profile
+- Causal chain in reasoning — 推理链 now traces cause → root cause + counterfactual
+- Decision causal recording — memories store WHY (because field), not just what
+- Value conflict priority — learns which values user prioritizes in tradeoffs
+- Social context switching — tracks communication style per social relationship
+- "What would you do" prediction — predicts user decisions from past patterns
+- Avatar soul injection — GET /avatar returns prompt to make LLM respond as user
+- Expression fingerprint — tracks argument style, evidence preference, certainty level
+- Memory tiered compression — 90-day+ memories auto-distilled, originals archived
+- Memory narrative distillation — 20 recalled memories compressed to 1 paragraph, ~50% token savings
+- Portable full backup — `导出全部` / `import all` exports entire soul to one JSON file
+- Proactive blind spot questioning — detects knowledge gaps, asks to fill them
+- LLM batch queue — non-urgent LLM tasks queued for 2-5 AM processing
+- GET /avatar endpoint — soul injection prompt for external AI integration
+- GET /soul-spec endpoint — returns soul spec files dynamically
+
+### Fixed
+- behavior_prediction toggle now properly wired
+- install.js default features synced with current features.ts
+- Version consistency across all files
+
+### Changed
+- 12 dead modules fully deleted (upgrade/rover/telemetry/federation/sync etc.)
+- 33 new regression tests (total: 126)
+- Token budget increased from 2000 to 3500
+
 ## [2.4.0] - 2026-03-30
 
 ### Added — New Cognitive Abilities

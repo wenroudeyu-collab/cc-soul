@@ -1,11 +1,8 @@
 /**
  * soul-api.ts — cc-soul Engine API Server
  *
- * Thin HTTP server that routes requests to the engine modules.
- * All business logic lives in separate files:
- *   soul-process.ts   — /process + /feedback
- *   soul-reply.ts     — /soul
- *   soul-proactive.ts — auto-insight generation
+ * One entry point: POST /api {action, ...params}
+ * Individual endpoints (/process, /soul, etc.) also supported for convenience.
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http'
@@ -18,10 +15,8 @@ const SOUL_API_PORT = parseInt(process.env.SOUL_PORT || '18800', 10)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface LLMConfig { api_base: string; api_key: string; model: string }
-let llmConfig: LLMConfig | null = null
 
 export function configureLLM(config: LLMConfig) {
-  llmConfig = config
   import('./cli.ts').then(({ setFallbackApiConfig }) => {
     setFallbackApiConfig({
       backend: 'openai-compatible' as any, cli_command: '', cli_args: [],
@@ -43,25 +38,79 @@ export async function initSoulEngine() {
   try { (await import('./features.ts')).loadFeatures() } catch {}
   try { (await import('./user-profiles.ts')).loadProfiles() } catch {}
 
-  // LLM: env vars > OpenClaw config > POST /config
   const envBase = process.env.LLM_API_BASE
   const envKey = process.env.LLM_API_KEY
-  const envModel = process.env.LLM_MODEL
   if (envBase && envKey) {
-    configureLLM({ api_base: envBase, api_key: envKey, model: envModel || 'gpt-4o' })
+    configureLLM({ api_base: envBase, api_key: envKey, model: process.env.LLM_MODEL || 'gpt-4o' })
   } else {
     try { (await import('./cli.ts')).loadAIConfig(); console.log('[cc-soul] LLM auto-detected') } catch {}
   }
 
-  // Heartbeat (30 min)
   if (!heartbeatTimer) {
     heartbeatTimer = setInterval(async () => {
-      try { (await import('./handler-heartbeat.ts')).runHeartbeat() } catch (e: any) { console.log(`[cc-soul][heartbeat] ${e.message}`) }
-    }, 30 * 60 * 1000)
-    setTimeout(async () => {
       try { (await import('./handler-heartbeat.ts')).runHeartbeat() } catch {}
-    }, 5 * 60 * 1000)
+    }, 30 * 60 * 1000)
+    setTimeout(async () => { try { (await import('./handler-heartbeat.ts')).runHeartbeat() } catch {} }, 5 * 60 * 1000)
     console.log(`[cc-soul] heartbeat scheduled`)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UNIFIED ACTION HANDLER — all logic in one place, no duplication
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function handleAction(action: string, body: any): Promise<any> {
+  switch (action) {
+    case 'process':
+      return (await import('./soul-process.ts')).handleProcess(body)
+
+    case 'feedback':
+      return (await import('./soul-process.ts')).handleFeedback(body)
+
+    case 'soul':
+      return (await import('./soul-reply.ts')).handleSoul(body)
+
+    case 'profile': {
+      const userId = body.user_id || soulConfig.owner_open_id || 'default'
+      const { getAvatarStats, loadAvatarProfile } = await import('./avatar.ts')
+      const profile = loadAvatarProfile(userId); const stats = getAvatarStats(userId)
+      let pm: any = {}; try { pm = (await import('./person-model.ts')).getPersonModel() } catch {}
+      const { body: bs } = await import('./body.ts')
+      return {
+        avatar: stats,
+        social: Object.entries(profile.social || {}).map(([n, c]: [string, any]) => ({ name: n, relation: c.relation, samples: (c.samples || []).length })),
+        identity: pm.identity || '', thinkingStyle: pm.thinkingStyle || '', values: pm.values || [],
+        vocabulary: profile.vocabulary || {}, mood: bs.mood, energy: bs.energy,
+      }
+    }
+
+    case 'features':
+      if (body.feature) {
+        const { setFeature, isEnabled } = await import('./features.ts')
+        setFeature(body.feature, !!body.enabled)
+        return { feature: body.feature, enabled: isEnabled(body.feature) }
+      }
+      return (await import('./features.ts')).getAllFeatures()
+
+    case 'config':
+      if (!body.api_base || !body.api_key || !body.model) return { error: 'need api_base, api_key, model' }
+      configureLLM(body)
+      return { ok: true, model: body.model }
+
+    case 'command': {
+      const { routeCommand } = await import('./handler-commands.ts')
+      const { getSessionState } = await import('./handler-state.ts')
+      const session = getSessionState(body.user_id || 'default')
+      let reply = ''; const ctx = { bodyForAgent: '', reply: (t: string) => { reply = t } }
+      const handled = routeCommand(body.message || '', ctx, session, body.user_id || '', '', { context: { senderId: body.user_id || '' } })
+      return { handled, reply: reply || (handled ? '(done)' : '(not a command)') }
+    }
+
+    case 'health':
+      return { status: 'ok', port: SOUL_API_PORT, version: '2.5.0' }
+
+    default:
+      return { error: `unknown action: "${action}"`, actions: ['process', 'feedback', 'soul', 'profile', 'features', 'config', 'command', 'health'] }
   }
 }
 
@@ -75,6 +124,13 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on('data', (chunk) => chunks.push(chunk))
     req.on('end', () => resolve(Buffer.concat(chunks).toString()))
   })
+}
+
+// Map URL paths to action names
+const URL_TO_ACTION: Record<string, string> = {
+  '/process': 'process', '/feedback': 'feedback', '/soul': 'soul',
+  '/profile': 'profile', '/features': 'features', '/config': 'config',
+  '/command': 'command', '/health': 'health',
 }
 
 let serverStarted = false
@@ -93,119 +149,79 @@ export function startSoulApi() {
     res.setHeader('Content-Type', 'application/json')
 
     try {
-      if (url === '/health') {
-        res.writeHead(200); res.end(JSON.stringify({ status: 'ok', port: SOUL_API_PORT, version: '1.0.0' })); return
-      }
-
       const body = req.method === 'POST' ? JSON.parse(await readBody(req)) : {}
 
-      // ── Core endpoints ──
-      if (url === '/process' && req.method === 'POST') {
-        const { handleProcess } = await import('./soul-process.ts')
-        const result = await handleProcess(body)
-        res.writeHead(result.error ? 400 : 200); res.end(JSON.stringify(result)); return
+      // ── Route: /api {action} OR /path directly ──
+      let action = ''
+      if (url === '/api' && body.action) {
+        action = body.action
+      } else if (URL_TO_ACTION[url]) {
+        action = URL_TO_ACTION[url]
+      } else if (url === '/health' && req.method === 'GET') {
+        action = 'health'
+      } else if (url === '/features' && req.method === 'GET') {
+        action = 'features'
+      } else if (url === '/profile' && req.method === 'GET') {
+        action = 'profile'
       }
 
-      if (url === '/feedback' && req.method === 'POST') {
-        const { handleFeedback } = await import('./soul-process.ts')
-        const result = await handleFeedback(body)
-        res.writeHead(result.error ? 400 : 200); res.end(JSON.stringify(result)); return
+      if (action) {
+        const result = await handleAction(action, body)
+        res.writeHead(result?.error ? 400 : 200)
+        res.end(JSON.stringify(result))
+        return
       }
 
-      if (url === '/soul' && req.method === 'POST') {
-        const { handleSoul } = await import('./soul-reply.ts')
-        const result = await handleSoul(body)
-        res.writeHead(result.error ? 400 : 200); res.end(JSON.stringify(result)); return
-      }
+      // ── Special endpoints (non-standard patterns) ──
 
-      // ── Config ──
-      if (url === '/config' && req.method === 'POST') {
-        if (!body.api_base || !body.api_key || !body.model) {
-          res.writeHead(400); res.end(JSON.stringify({ error: 'need api_base, api_key, model' })); return
-        }
-        configureLLM(body)
-        res.writeHead(200); res.end(JSON.stringify({ ok: true, model: body.model })); return
-      }
-
-      // ── Profile ──
-      if (url === '/profile') {
-        const userId = soulConfig.owner_open_id || 'default'
-        const { getAvatarStats, loadAvatarProfile } = await import('./avatar.ts')
-        const profile = loadAvatarProfile(userId)
-        const stats = getAvatarStats(userId)
-        let pm: any = {}; try { pm = (await import('./person-model.ts')).getPersonModel() } catch {}
-        const { body: bodyState } = await import('./body.ts')
-        res.writeHead(200); res.end(JSON.stringify({
-          avatar: stats,
-          social: Object.entries(profile.social || {}).map(([name, c]: [string, any]) => ({ name, relation: c.relation, samples: (c.samples || []).length })),
-          identity: pm.identity || '', thinkingStyle: pm.thinkingStyle || '', values: pm.values || [],
-          vocabulary: profile.vocabulary || {}, mood: bodyState.mood, energy: bodyState.energy,
-        })); return
-      }
-
-      // ── Features ──
-      if (url === '/features' && req.method === 'GET') {
-        res.writeHead(200); res.end(JSON.stringify((await import('./features.ts')).getAllFeatures())); return
-      }
-      if (url === '/features' && req.method === 'POST') {
-        const { setFeature, isEnabled } = await import('./features.ts')
-        setFeature(body.feature, !!body.enabled)
-        res.writeHead(200); res.end(JSON.stringify({ feature: body.feature, enabled: isEnabled(body.feature) })); return
-      }
-
-      // ── Command ──
-      if (url === '/command' && req.method === 'POST') {
-        const { routeCommand } = await import('./handler-commands.ts')
-        const { getSessionState } = await import('./handler-state.ts')
-        const session = getSessionState(body.user_id || 'default')
-        let replyText = ''
-        const mockCtx = { bodyForAgent: '', reply: (t: string) => { replyText = t } }
-        const handled = routeCommand(body.message || '', mockCtx, session, body.user_id || '', '', { context: { senderId: body.user_id || '' } })
-        res.writeHead(200); res.end(JSON.stringify({ handled, reply: replyText || (handled ? '(done)' : '(not a command)') })); return
-      }
-
-      // ── A2A ──
-      if (url === '/.well-known/agent.json' && req.method === 'GET') {
+      // A2A
+      if (url === '/.well-known/agent.json') {
         try {
           const { getAgentCard } = await import('./a2a.ts')
           res.writeHead(200); res.end(JSON.stringify(getAgentCard())); return
-        } catch { res.writeHead(404); res.end(JSON.stringify({ error: 'a2a not available' })); return }
+        } catch { res.writeHead(404); res.end(JSON.stringify({ error: 'not available' })); return }
       }
       if (url === '/a2a' && req.method === 'POST') {
         try {
           const { handleA2ARequest } = await import('./a2a.ts')
-          const result = await handleA2ARequest(body)
-          res.writeHead(200); res.end(JSON.stringify(result)); return
+          res.writeHead(200); res.end(JSON.stringify(await handleA2ARequest(body))); return
         } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); return }
       }
 
-      // ── MCP ──
-      if (url === '/mcp/tools' && req.method === 'GET') {
+      // MCP
+      if (url === '/mcp/tools') {
         try {
           const { getMCPTools } = await import('./mcp-provider.ts')
           res.writeHead(200); res.end(JSON.stringify(getMCPTools().map(t => ({ name: t.name, description: t.description })))); return
-        } catch { res.writeHead(404); res.end(JSON.stringify({ error: 'mcp not available' })); return }
+        } catch { res.writeHead(404); res.end(JSON.stringify({ error: 'not available' })); return }
       }
       if (url === '/mcp/call' && req.method === 'POST') {
         try {
           const { getMCPTools } = await import('./mcp-provider.ts')
           const tool = getMCPTools().find(t => t.name === (body.tool || body.name))
-          if (!tool) { res.writeHead(400); res.end(JSON.stringify({ error: `unknown tool` })); return }
+          if (!tool) { res.writeHead(400); res.end(JSON.stringify({ error: 'unknown tool' })); return }
           res.writeHead(200); res.end(JSON.stringify({ tool: tool.name, result: tool.handler(body.args || {}) })); return
         } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); return }
       }
 
-      // ── 404 ──
+      // Soul spec
+      if (url === '/soul-spec') {
+        const { existsSync, readFileSync } = await import('fs')
+        const { resolve } = await import('path')
+        const { DATA_DIR } = await import('./persistence.ts')
+        const read = (p: string) => { try { return existsSync(p) ? readFileSync(p, 'utf-8') : null } catch { return null } }
+        const rootDir = resolve(DATA_DIR, '..')
+        res.writeHead(200); res.end(JSON.stringify({
+          soul_json: JSON.parse(read(resolve(rootDir, 'soul.json')) || '{}'),
+          style: read(resolve(rootDir, 'STYLE.md')),
+          identity: read(resolve(rootDir, 'IDENTITY.md')),
+        })); return
+      }
+
+      // 404
       res.writeHead(404); res.end(JSON.stringify({
         error: 'not found',
-        endpoints: {
-          'POST /process': '处理消息 → 返回增强上下文', 'POST /feedback': 'AI回复反馈 → 学习',
-          'POST /soul': '灵魂模式回复', 'POST /config': '配置LLM',
-          'GET  /profile': '人格档案', 'GET  /features': '功能开关', 'POST /features': '切换功能',
-          'POST /command': '执行命令', 'GET  /health': '健康检查',
-          'GET  /.well-known/agent.json': 'A2A', 'POST /a2a': 'A2A',
-          'GET  /mcp/tools': 'MCP工具', 'POST /mcp/call': 'MCP调用',
-        },
+        usage: 'POST /api {"action": "process|feedback|soul|profile|features|config|command|health", ...params}',
       }))
     } catch (e: any) {
       res.writeHead(500); res.end(JSON.stringify({ error: e.message }))
@@ -213,7 +229,8 @@ export function startSoulApi() {
   })
 
   server.listen(SOUL_API_PORT, '0.0.0.0', () => {
-    console.log(`\n  cc-soul Engine API — http://0.0.0.0:${SOUL_API_PORT}\n`)
+    console.log(`\n  cc-soul Engine API — http://0.0.0.0:${SOUL_API_PORT}`)
+    console.log(`  POST /api {"action": "process|feedback|soul|profile|features|config|command|health"}\n`)
   })
   server.on('error', (e: any) => {
     if (e.code === 'EADDRINUSE') console.log(`[cc-soul] port ${SOUL_API_PORT} in use`)

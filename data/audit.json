@@ -346,5 +346,527 @@
     "action": "memory_version",
     "detail": "[fact] \"定位慢查询的方法：查看慢查询日志配置、实时查看正在执行的慢查询\" → \"定位慢查询的方法：查看慢查询日志配置、实时查看正在执行的慢查询\"",
     "hash": "3a152a030469ed3660b25ec1b21622a03ad7d076dd5d3a1ec9d56c82f9817a4d"
+  },
+  {
+    "ts": 1774862580269,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我最近压力很大，项目快延期了 → AI: 项目延期压力确实很难受。能说说具体情况吗？比如延期风险有多大、主要卡在哪里、团队还是个人问题。\n\n了解细节才能给实际建议",
+    "hash": "7a19c5cd2af4c4adac0bd58f8d9d2d90d9a65f3444e9afb88ce2ac6e749531b5"
+  },
+  {
+    "ts": 1774862588779,
+    "action": "memory_add",
+    "detail": "[event] wang 当前面临项目延期压力",
+    "hash": "bbea58e7f452f4062079c32b64d8ed5a4395db159a7b64b0c7c57fe7f9aa4a47"
+  },
+  {
+    "ts": 1774862727371,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 叫我大哥 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你大哥）\n- 时区：Europe/Paris (GMT+1)",
+    "hash": "f5643ba34f410671f30a19df4f271cb6cab7148513f143481541a9dfb4329f65"
+  },
+  {
+    "ts": 1774862738916,
+    "action": "memory_add",
+    "detail": "[preference] 用户希望被称呼为大哥",
+    "hash": "2d28fbebafe6b278cf0c10df3b0fe85c1337955058255cd5bfaed932ce7d5f1d"
+  },
+  {
+    "ts": 1774862738919,
+    "action": "memory_version",
+    "detail": "[fact] \"用户时区是Europe/Paris (GMT+1)\" → \"用户时区为Europe/Paris (GMT+1)\"",
+    "hash": "57f1fda097d36c146ea91567086555a3a89286adcc0098527414df647485a7bf"
+  },
+  {
+    "ts": 1774862738922,
+    "action": "memory_add",
+    "detail": "[event] 用户当前状态为项目延期压力大",
+    "hash": "3ea153ad72b68631e901b771884311d7101e20afc989d58b18acf880e8775d07"
+  },
+  {
+    "ts": 1774862738924,
+    "action": "memory_add",
+    "detail": "[preference] 用户沟通风格偏好直接、简洁",
+    "hash": "f698ac7d29c760d593967f294889357482759cbf5e8ba48406f06f8e47580eac"
+  },
+  {
+    "ts": 1774862741237,
+    "action": "memory_version",
+    "detail": "[preference] \"用户的沟通风格偏好是直接、简洁\" → \"用户的沟通风格偏好是直接、简洁\"",
+    "hash": "d1cc373e136c91d821a6e624cd972df90d5d7ac1e2a6fcbc39438f653ddf44b3"
+  },
+  {
+    "ts": 1774862747413,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: 叫我大哥 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫\" → \"[对话] 用户: 我是谁 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你\"",
+    "hash": "a104e389286756d9cec73d10a2458724f969f31d12d86bc8c2a69afe3386352a"
+  },
+  {
+    "ts": 1774862761004,
+    "action": "memory_add",
+    "detail": "[preference] 用户偏好被称呼为大哥",
+    "hash": "3bf6184e4850e8df804cdacde8e3ff84bcaf2cde9189e8ec3dacecb1d8fd20b7"
+  },
+  {
+    "ts": 1774862761008,
+    "action": "memory_version",
+    "detail": "[fact] \"用户时区为Europe/Paris (GMT+1)\" → \"用户时区为 Europe/Paris (GMT+1)\"",
+    "hash": "582980e4de0ff9a686b9101395624a977c2f0cf262f099cb96bed53edc8fb4bf"
+  },
+  {
+    "ts": 1774863870329,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 怎么用 Go 写一个 HTTP 服务器？ → AI: **Go HTTP 服务器最简示例：**\n\n```go\npackage main\n\nimport (\n\t\"fmt\"\n\t\"",
+    "hash": "8eb206bed5dc82f5c13ad1652bfdda968a512e4925f87001abc59db223e68933"
+  },
+  {
+    "ts": 1774863882315,
+    "action": "memory_add",
+    "detail": "[fact] Go语言中可以使用net/http包创建HTTP服务器，最简示例包含定义路由处理函数和调用ListenAndServe方法",
+    "hash": "33ec80393958440d17d7f318207eba6f66e49c6aea6add37b06f9dc5e9041ff1"
+  },
+  {
+    "ts": 1774863882316,
+    "action": "memory_add",
+    "detail": "[fact] 生产级Go HTTP服务器需要考虑路由管理、中间件和优雅关闭等特性",
+    "hash": "98d922272eefd8e221e68e3d9c46d32083a5806f7e75bbd8813afa281a50230a"
+  },
+  {
+    "ts": 1774864460523,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢用Python，讨厌Java，我在阿里工作",
+    "hash": "a1ee1ffbbbd0922385d8b82e6a2d69ac529384daf5b380561adc1f48f9a3203f"
+  },
+  {
+    "ts": 1774864519544,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢Python，讨厌Java，我在阿里工作",
+    "hash": "5406706fb7b1ab1db79c55875b816c9284c5b46e4c448a444ed353581a824495"
+  },
+  {
+    "ts": 1774864837469,
+    "action": "memory_add",
+    "detail": "[commitment] [承诺] 三有个面试，有点紧张",
+    "hash": "6ab649e9620bb25481997ab2c5174f9ceed49d014525464e998a6dae16632e41"
+  },
+  {
+    "ts": 1774864838516,
+    "action": "memory_add",
+    "detail": "[commitment] [承诺] 面试怎么比较好？",
+    "hash": "038f8994553187966e938c5fde0e702546a613ed71f5d4893807130c57d58a23"
+  },
+  {
+    "ts": 1774864916319,
+    "action": "memory_add",
+    "detail": "[commitment] [承诺] 我要去北京出差，需要什么？",
+    "hash": "089454a207262b31de0ef1e8dba8e67b6526f01a88d3a31922ea5ea05aadccbb"
+  },
+  {
+    "ts": 1774864961461,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我下周要去北京出差，需要准备什么？ → AI: **北京出差准备清单：**\n\n**证件/必备**\n- 身份证（高铁、酒店、景点都需要）\n- 工作相关证件/名片\n\n**天",
+    "hash": "20f887b9557fa9100e4801b21567c57e754c35947d815adbe5ab592616448ef0"
+  },
+  {
+    "ts": 1774864981486,
+    "action": "memory_add",
+    "detail": "[event] 用户下周要去北京出差",
+    "hash": "693ee205a3cb36fbc21db90b172e4b379c8e417abb0791fe6707dbb6a7447cad"
+  },
+  {
+    "ts": 1774864981492,
+    "action": "memory_add",
+    "detail": "[fact] 北京4月初温差大，需带外套",
+    "hash": "e7b54752b10dc0b9c6ef319d22048c26968d1f966792829b1e140ed4925b12fa"
+  },
+  {
+    "ts": 1774864981498,
+    "action": "memory_add",
+    "detail": "[opinion] 北京地面交通不可预测，酒店选地铁沿线更重要",
+    "hash": "da2ee264ddaa69ee7865a3b23db49ade2ef7fd98392baff5498c5b12d21ae09e"
+  },
+  {
+    "ts": 1774864981502,
+    "action": "memory_add",
+    "detail": "[opinion] 吃烤鸭推荐四季民福，性价比高于全聚德，可用'美味不用等'取号",
+    "hash": "69c0c56165ba01921675f1e37149f4674477dc507db1c3a1ae71e66f16c18df6"
+  },
+  {
+    "ts": 1774865040372,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我最近睡眠很差，总是凌晨三点醒 → AI: 凌晨三点醒是典型的问题，先排除几个常见原因：\n\n**先自查：**\n- 晚上喝酒或咖啡因？（酒精让你入睡快，但会在后半夜打",
+    "hash": "80b3f614697d69c442ea4a58ba0a6043757c372307c82aa6d173fb2928ae88cf"
+  },
+  {
+    "ts": 1774865049476,
+    "action": "memory_add",
+    "detail": "[event] 用户有睡眠问题，经常凌晨三点醒",
+    "hash": "92ce60a0720d213f9da65e6a0a6563ea9c8af4a0f250438f4bea72112ab9f9c1"
+  },
+  {
+    "ts": 1774865118001,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Kafka 和 RabbitMQ 选哪个？场景是订单系统 → AI: **订单系统选 Kafka。**\n\n**核心原因：**\n\n| 维度 | Kafka | RabbitMQ |\n|",
+    "hash": "2fe6ff3cdec0479d3b0e7d06261a7594a3175fe9700749bb71bfdd119ddd01eb"
+  },
+  {
+    "ts": 1774865138379,
+    "action": "memory_add",
+    "detail": "[fact] Kafka 吞吐量百万级/秒，RabbitMQ 吞吐量万级/秒",
+    "hash": "23a4bd048d18cafb7ae0ef27ba074f28817eb261aa66cb3ba6bbd1becef70e4b"
+  },
+  {
+    "ts": 1774865138383,
+    "action": "memory_add",
+    "detail": "[fact] Kafka 磁盘持久化，可重放；RabbitMQ 默认内存，持久化性能下降",
+    "hash": "d78c72b6a303c1244175b68657902efddb1cb1ee0e9d0bf2ad286d6a32a9dd53"
+  },
+  {
+    "ts": 1774865138386,
+    "action": "memory_add",
+    "detail": "[fact] Kafka 分区内严格有序；RabbitMQ 单队列有序，难扩展",
+    "hash": "74be723d582b140ab0e4cde65302d9ecd98815e7d2ffc4b5a3819b3b33b6b6ce"
+  },
+  {
+    "ts": 1774865138389,
+    "action": "memory_add",
+    "detail": "[fact] Kafka 削峰能力极强，堆积无压力；RabbitMQ 堆积影响性能",
+    "hash": "3ac03b07beb54c344a591bb5d78a52ccc55a5d36945f79ab319c4ce3eb70223e"
+  },
+  {
+    "ts": 1774865138392,
+    "action": "memory_add",
+    "detail": "[fact] 订单系统需要顺序性、可靠性、削峰能力和可回溯性",
+    "hash": "71cbb9fb53cc293a7063194a2b3078ce92b04f3c311e39cbd80b5b683b7f1c0c"
+  },
+  {
+    "ts": 1774865195719,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 孩子不愿意写作业怎么办？ → AI: **先判断原因，再对症下药：**\n\n| 表现 | 可能原因 | 应对 |\n|------|----------|----",
+    "hash": "2a8075b1fce4422d6a316c3cb1c9edf6b03a5265cb3bd9ad196610654fb9e649"
+  },
+  {
+    "ts": 1774866600831,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Docker 怎么写多阶段构建？ → AI: **多阶段构建核心：一个 Dockerfile 里用多个 `FROM`，最终镜像只保留最后一个阶段。**\n\n**Go 应",
+    "hash": "fff482f3aedec40122760f97b40835a2b2e29b4090ee53462663bebe9562c79b"
+  },
+  {
+    "ts": 1774866616607,
+    "action": "memory_add",
+    "detail": "[fact] Docker多阶段构建的核心是在一个Dockerfile中使用多个FROM指令，最终镜像只保留最后一个阶段的内容",
+    "hash": "24ba6ac2c1f342b2ca6385cfb6219803aac7126a201d8b76fefcca8070c20e4f"
+  },
+  {
+    "ts": 1774866616613,
+    "action": "memory_add",
+    "detail": "[fact] Go应用多阶段构建示例：第一阶段使用golang镜像编译，第二阶段使用alpine镜像运行，可大幅减小镜像体积",
+    "hash": "3e79b0b780e590de176e73793de9dcc7924a4c69caf2daa1c6a45ed76a66a812"
+  },
+  {
+    "ts": 1774866616615,
+    "action": "memory_add",
+    "detail": "[fact] 前端项目多阶段构建示例：第一阶段使用node镜像构建，第二阶段使用nginx镜像运行",
+    "hash": "dbbed0d856030b8b2bd3becad81a8f84673c0bf97818e0018311a18185a30308"
+  },
+  {
+    "ts": 1774867947630,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Go 的 channel 和 mutex 什么时候该用哪个？ → AI: **一句话：共享数据用 mutex，传递数据用 channel。**\n\n---\n\n**Channel 适合：",
+    "hash": "59c357677433e72a599f5c26ee3418461a65d78177854dd21601abecda5aabc3"
+  },
+  {
+    "ts": 1774867960949,
+    "action": "memory_add",
+    "detail": "[fact] Go语言中共享数据用mutex，传递数据用channel",
+    "hash": "7464ad41ba14cac244d875a1cd7e47d47526cf86df3f9a32f16390859bd534ca"
+  },
+  {
+    "ts": 1774867960950,
+    "action": "memory_add",
+    "detail": "[fact] Channel适合生产者-消费者模型、协调goroutine、数据流处理、避免共享状态",
+    "hash": "335dbff509785b63321a8a10ee290b6c7ee96d40789ae0f9dd992b837044f65b"
+  },
+  {
+    "ts": 1774867960951,
+    "action": "memory_add",
+    "detail": "[fact] Mutex适合保护共享变量如计数器、缓存、配置",
+    "hash": "488de570173ed45000053c2fca181253193a9fefcd2853ef6985d2e17a501f9f"
+  },
+  {
+    "ts": 1774868960887,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Python怎么读JSON？ → AI: 用json.load()",
+    "hash": "5985bb975b23e4ec46188f020019271f9110b796b8da830d484ae4a07137dc60"
+  },
+  {
+    "ts": 1774868970233,
+    "action": "memory_add",
+    "detail": "[fact] Python中读取JSON文件可以使用json.load()函数",
+    "hash": "6116eb750ea220c9bafbb6866fe224099e41b99887afd74afc0fc0393ea2de18"
+  },
+  {
+    "ts": 1774869060246,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: TypeScript 的 interface 和 type 有什么区别？ → AI: **大部分场景没区别，但有几个关键差异：**\n\n---\n\n**1. 扩展方式不同**\n\n```t",
+    "hash": "1dc19d2d5cac387a996cd9667d2f74a021d373bc2732fce8eeae81fa4b50baef"
+  },
+  {
+    "ts": 1774869070387,
+    "action": "memory_add",
+    "detail": "[fact] TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义",
+    "hash": "5dd157e74b14029e507ae28c2ea44d5c55441c18702edf7b9dc4faf102ccd1ce"
+  },
+  {
+    "ts": 1774869070393,
+    "action": "memory_add",
+    "detail": "[fact] TypeScript 中 type 支持联合类型和映射类型，interface 不支持这些特性",
+    "hash": "871506992d0516c6cdb0aafb33187ca1b99456eeb8de16404e88fac1d33ae027"
+  },
+  {
+    "ts": 1774869073185,
+    "action": "memory_version",
+    "detail": "[fact] \"TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义\" → \"TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义\"",
+    "hash": "e0db03cd9b55602873cb95864540082126b136711a0f977cd645f26877a86150"
+  },
+  {
+    "ts": 1774869180124,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 想学投资理财，新手应该从哪里开始？ → AI: **新手路径：先防守，再进攻。**\n\n---\n\n**第一步：建立安全垫（1-3个月）**\n\n| 动作 | 为什么 |\n|",
+    "hash": "02c9cce3ccfa630726a7feb40c9ac8301792fc318812dbd3d7924eacd011a457"
+  },
+  {
+    "ts": 1774869194071,
+    "action": "memory_add",
+    "detail": "[opinion] 投资第一原则：不用的钱才能投",
+    "hash": "e947ace75ff39b3eec939cf1c9fe08ea51971ffd944485d0e50413939d7e1d7d"
+  },
+  {
+    "ts": 1774869194078,
+    "action": "memory_add",
+    "detail": "[opinion] 新手投资路径：先建立安全垫（存生活费、还高息负债、买保险），再理解自己（资金期限、风险承受力、查看频率），最后从低风险工具开始",
+    "hash": "c28f138f4759fd8512cc65bad38187b534c5f973b7f05a0e760489d023725490"
+  },
+  {
+    "ts": 1774869194083,
+    "action": "memory_add",
+    "detail": "[opinion] 新手应避开的投资坑：个股（研究不透）、期货/期权/外汇（杠杆）、任何‘保本高收益’",
+    "hash": "7d3114b39c25f0b73399232b495c032a226496aa3fc77619c0e9985d60b20cf8"
+  },
+  {
+    "ts": 1774869194088,
+    "action": "memory_add",
+    "detail": "[fact] 低风险投资工具示例：货币基金/国债逆回购（灵活，约2%）、指数基金定投（长期年化6-10%）、债券基金（波动小，4-6%）",
+    "hash": "d9d408e3f5276813136f10bc5ca8a7b3a5ded637f06d27b8b39b36a9aeed6019"
+  },
+  {
+    "ts": 1774869253894,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 孩子总玩手机不学习怎么办？ → AI: 这个问题比\"不写作业\"更复杂，因为手机设计出来就是让人上瘾的。\n\n**先分清楚：是管不住，还是不想学？**\n\n| 表现 ",
+    "hash": "496f2307d0d10d7a44d1f8dc7c2fba3aeaa81259ed8668dbbab6f2613b8d91ed"
+  },
+  {
+    "ts": 1774869270484,
+    "action": "memory_add",
+    "detail": "[opinion] 孩子玩手机成瘾问题需区分是管不住还是不想学，不同表现对应不同应对策略",
+    "hash": "574ad509f8542ef0857d0896ea0e59ebc9557cda541264436017429dbe07fe3b"
+  },
+  {
+    "ts": 1774869270488,
+    "action": "memory_add",
+    "detail": "[opinion] 应对手机成瘾的立即可做措施：物理隔离、契约代替命令、替代活动先跟上",
+    "hash": "d99d93dc4e7f1640e4bac96fb5f5e3384cd6118a1fda2614bf0b45b8e587b3d5"
+  },
+  {
+    "ts": 1774869270489,
+    "action": "memory_add",
+    "detail": "[opinion] 避免完全禁止手机，否则容易反弹",
+    "hash": "332eef60fdf195a2b13e174560341d8bfcbf331d1b63ee64976495eaa15b4f28"
+  },
+  {
+    "ts": 1774869270491,
+    "action": "memory_add",
+    "detail": "[fact] 可安装网站屏蔽插件如Cold Turkey",
+    "hash": "8c1007696020bf398209d09a57eebb24749dec0c21d8e9bb0ada0d736cd16b09"
+  },
+  {
+    "ts": 1774872587603,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 最近在忙什么呢 → AI: 我在，等大哥消息。\n\n大哥最近忙项目延期的事，还要准备下周北京出差，睡眠也不太好。有什么我能帮上的？",
+    "hash": "b40a618580da35c778a79346386766ee88168a325b2199e70a5ad47752b7a615"
+  },
+  {
+    "ts": 1774872598710,
+    "action": "memory_add",
+    "detail": "[event] 大哥最近在忙项目延期的事",
+    "hash": "b48a1b97c42d972a64fbbad2b129a5a1cb845d15c0b6b4d9ade8f6c9fd437a27"
+  },
+  {
+    "ts": 1774872598713,
+    "action": "memory_add",
+    "detail": "[event] 大哥下周要北京出差",
+    "hash": "230d6e4064d1105687ba85f9e7cf9de2b34b191a51d1fd690be427d9d1f638db"
+  },
+  {
+    "ts": 1774872598714,
+    "action": "memory_add",
+    "detail": "[fact] 大哥睡眠不太好",
+    "hash": "9b4e6f087b7c1caa8946761eb972cd7331e0797aed07bfa466402e544dfb10c9"
+  },
+  {
+    "ts": 1774872673232,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 烦死了 这个bug改了一天都没搞定 → AI: 什么bug？说说现象和报错，说不定换个视角能看出问题。\n\n卡一天通常不是难度问题，是思路钻牛角尖了。",
+    "hash": "642833ec298724301b600913d79f6084f5db559684ecd0a0ec959608b5b1f781"
+  },
+  {
+    "ts": 1774872723167,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Python怎么读JSON文件 → AI: **Python 读 JSON 的几种方式：**\n\n```python\nimport json\n\n# 基本用法\nwith",
+    "hash": "4766150c6eab7532403907f7629fe3b08606e0965524e7d7834a36aef904e20e"
+  },
+  {
+    "ts": 1774872740132,
+    "action": "memory_add",
+    "detail": "[fact] Python读取JSON文件的基本方法是使用json.load()函数，需要指定文件编码为utf-8",
+    "hash": "ed8d8d76bf7f7a50ea5eab37404d0d44d8cee4da294f0283c8617cc371dedd97"
+  },
+  {
+    "ts": 1774872740134,
+    "action": "memory_add",
+    "detail": "[fact] json.loads()用于从字符串解析JSON数据",
+    "hash": "bd73d145e0ce3446998416ef4d24e4f514eab93dc9e59bf97bc034f618621327"
+  },
+  {
+    "ts": 1774872740137,
+    "action": "memory_add",
+    "detail": "[fact] 处理中文JSON时需要使用ensure_ascii=False参数",
+    "hash": "94f87c5ebe3e3ba1411e5c95a584a49b9d784a8ee340fb3a079e78dbf7eb31d5"
+  },
+  {
+    "ts": 1774872740139,
+    "action": "memory_add",
+    "detail": "[fact] JSONDecodeError通常由非标准JSON格式引起，如包含注释或尾部逗号",
+    "hash": "87f5ff0bff6ec8f6e29dc6ba3b732f3c29103282660b4213cf2cc1befa3d7f37"
+  },
+  {
+    "ts": 1774872740141,
+    "action": "memory_add",
+    "detail": "[fact] UnicodeDecodeError通常由编码问题引起，需要指定正确的编码格式",
+    "hash": "a00f49eac50c94e7cead730eeef5b8e9e2c71fb0ffe1ab10db4bc3e4df433e69"
+  },
+  {
+    "ts": 1774872742484,
+    "action": "memory_version",
+    "detail": "[fact] \"Python中读取JSON文件可以使用json.load()函数\" → \"Python读取JSON文件的基本方法是使用json.load()函数，通常需要指定文件编码为utf\"",
+    "hash": "08c8b0a6cc03451173b148953e7c6d25dbf946ff0231a94fb5db467f11480839"
+  },
+  {
+    "ts": 1774872802769,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Docker容器重启后数据丢了怎么办 → AI: **数据丢失原因：容器层是临时的，重启后重置。**\n\n**解决方案：用 Volume 持久化**\n\n```dockerf",
+    "hash": "25f201b9f4447bff7273af77cb9778287c5fe4ed65b05bb7d849ca855347a8b3"
+  },
+  {
+    "ts": 1774872816343,
+    "action": "memory_add",
+    "detail": "[fact] Docker容器重启后数据丢失是因为容器层是临时的，重启后会重置",
+    "hash": "5228120baf07ff8b7619ec16f8baec33d794f6033a18183a869e8674ae6c0233"
+  },
+  {
+    "ts": 1774872816349,
+    "action": "memory_add",
+    "detail": "[fact] 解决Docker容器数据丢失的方案是使用Volume进行持久化存储",
+    "hash": "50a59b0b509f804744daec984c2b185e1abf6b1f003f169c8a2283ed10c59f3c"
+  },
+  {
+    "ts": 1774872816353,
+    "action": "memory_add",
+    "detail": "[fact] Docker Volume有两种主要类型：绑定挂载（指定主机路径）和命名卷（Docker管理）",
+    "hash": "d94abc4bc56f0b18c6c426e03e61c66b39fc8efaa0824106a87afc15a136690a"
+  },
+  {
+    "ts": 1774872816356,
+    "action": "memory_add",
+    "detail": "[opinion] 绑定挂载适合开发环境和配置文件，命名卷适合生产环境",
+    "hash": "5c20767c7c93b0187c7af5cc9a86da111407f0e95bb686e0f69b36bf972ac3e5"
+  },
+  {
+    "ts": 1774872943001,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 最近睡不好 有什么建议吗 → AI: 大哥之前说过凌晨三点醒的问题，现在还是这样吗？\n\n先确认几点：\n- 晚上几点睡？躺下多久能睡着？\n- 醒了之后能再睡着吗",
+    "hash": "8e094a77ebfb18eed02f8a3c92e94c669e3050be95fe36f163818e68e3cad114"
+  },
+  {
+    "ts": 1774872973386,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我在考虑要不要跳槽 → AI: **先想清楚几个问题：**\n\n| 问题 | 为什么重要 |\n|------|-----------|\n| 想跳是因为现在",
+    "hash": "003791275e5974019b9d42658e0fcac9d3d6ab453054121b42059d034e28dcea"
+  },
+  {
+    "ts": 1774872982535,
+    "action": "memory_add",
+    "detail": "[event] 用户正在考虑跳槽，处于职业决策阶段",
+    "hash": "8c6aa877631f9db343c503e10c432c9ba126557bb022e1b60edc2868507bc18c"
+  },
+  {
+    "ts": 1774873003688,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 帮我理解什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**\n\n---\n\n**单体 vs 微服务**\n\n| | 单体 | 微服",
+    "hash": "5b068bd1c68db8aa1f27d2405977645921ef1f4b3e022942862403b9780e44c6"
+  },
+  {
+    "ts": 1774873022462,
+    "action": "memory_add",
+    "detail": "[fact] 微服务是将一个大系统拆分成多个独立部署的小服务",
+    "hash": "55a36e213f466c6464f34b17fc73b70817b9462e27af41d345189f56c35ff9c2"
+  },
+  {
+    "ts": 1774873022465,
+    "action": "memory_add",
+    "detail": "[fact] 单体架构与微服务架构在代码库、部署、技术栈、团队协作、故障影响方面的对比",
+    "hash": "c5b4e62519e2fe7e8612adddb788899a1dfec9094e2ca0d370f6daaa48a59075"
+  },
+  {
+    "ts": 1774873022467,
+    "action": "memory_add",
+    "detail": "[fact] 采用微服务的原因包括团队规模大、模块独立扩容需求、技术债务重",
+    "hash": "4080d5c5b13a1836b7654d5c38b26a6860e2ba06dcdad298adc649103b0985f9"
+  },
+  {
+    "ts": 1774873022469,
+    "action": "memory_add",
+    "detail": "[fact] 微服务的代价包括分布式复杂度、运维成本、调试困难、数据一致性问题",
+    "hash": "89fba5220481665616ca950836cf11bae5dd3124367b12be6c9bf1f6d204f2c6"
+  },
+  {
+    "ts": 1774873022471,
+    "action": "memory_add",
+    "detail": "[opinion] 微服务适合50人以上团队等场景，不适合小型简单项目",
+    "hash": "d240b9b096235bee653efe63bd6e049ad37b0068e08a73498b482e5e85c3701b"
+  },
+  {
+    "ts": 1774873171339,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我想减肥但总是坚持不了 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
+    "hash": "a5c28fcab8566ef81e71040db4a0206bd8af2a538fdfd5801e6af35d4262d65a"
+  },
+  {
+    "ts": 1774873207547,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: 我想减肥但总是坚持不了 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Do\" → \"[对话] 用户: 我之前说过我服务器配置是什么 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过\"",
+    "hash": "05a1d07a9f0198488acf7d7f480299ae4fed7b7354ca86ff6545da8360948188"
+  },
+  {
+    "ts": 1774873219170,
+    "action": "memory_add",
+    "detail": "[fact] 用户可能拥有服务器配置需求，但未具体说明过",
+    "hash": "eefbfae240f7b85cdb2fb518b044c4d4529d0a553b89512ac951131b25bc7504"
+  },
+  {
+    "ts": 1774873219179,
+    "action": "memory_add",
+    "detail": "[fact] 用户曾讨论过Docker、MySQL、Kafka技术",
+    "hash": "7243dbb5929d859f7c762949fc66c4137f9f7af8c498c5220b54c22fd1b2ac2d"
   }
 ]

@@ -10,8 +10,33 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { homedir } from 'os'
+import { createHash } from 'crypto'
 
 const SOUL_API = process.env.SOUL_API || 'http://localhost:18800'
+
+// ── Feedback dedup: track sent feedback by content hash ──
+const _sentFeedbackHashes = new Set<string>()
+const FEEDBACK_DEDUP_MAX = 200  // prevent unbounded growth
+
+function _feedbackHash(userMsg: string, aiReply: string): string {
+  return createHash('md5').update(userMsg.slice(0, 100) + '||' + aiReply.slice(0, 200)).digest('hex')
+}
+
+function _markFeedbackSent(userMsg: string, aiReply: string): boolean {
+  const h = _feedbackHash(userMsg, aiReply)
+  if (_sentFeedbackHashes.has(h)) return false  // already sent
+  if (_sentFeedbackHashes.size >= FEEDBACK_DEDUP_MAX) {
+    // evict oldest entries (Set iterates in insertion order)
+    const it = _sentFeedbackHashes.values()
+    for (let i = 0; i < 50; i++) it.next()
+    // cheaper: just clear half
+    const keep = [..._sentFeedbackHashes].slice(-100)
+    _sentFeedbackHashes.clear()
+    keep.forEach(k => _sentFeedbackHashes.add(k))
+  }
+  _sentFeedbackHashes.add(h)
+  return true  // first time, ok to send
+}
 
 // ── Plugin API reference ──
 let _api: any | undefined
@@ -138,7 +163,11 @@ export default {
         if (!lastMsg) return
 
         if (content && content.length >= 5) {
-          // Content available directly — send feedback immediately
+          // Content available directly — send feedback immediately (with dedup)
+          if (!_markFeedbackSent(lastMsg, content)) {
+            console.log(`[cc-soul][api] feedback skipped (direct, dedup)`)
+            return
+          }
           try {
             await fetch(`${SOUL_API}/feedback`, {
               method: 'POST',
@@ -158,6 +187,10 @@ export default {
           const lastMsg = (globalThis as any).__ccSoulLastMsg || ''
           const lastSenderId = (globalThis as any).__ccSoulLastSenderId || ''
           if (!lastMsg) return
+          if (!_markFeedbackSent(lastMsg, content)) {
+            console.log(`[cc-soul][api] feedback skipped (plugin event, dedup)`)
+            return
+          }
           try {
             await fetch(`${SOUL_API}/feedback`, {
               method: 'POST',
@@ -201,6 +234,12 @@ export default {
               } catch {}
             }
             if (!botReply || botReply.length < 10) return
+
+            // Dedup: skip if same content already sent via direct or plugin event path
+            if (!_markFeedbackSent(lastMsg, botReply)) {
+              console.log(`[cc-soul][api] feedback skipped (JSONL fallback, dedup)`)
+              return
+            }
 
             await fetch(`${SOUL_API}/feedback`, {
               method: 'POST',

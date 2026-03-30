@@ -626,6 +626,63 @@ async function callAnthropicHaiku(prompt: string, callback: (output: string) => 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// LLM BATCH QUEUE — defer non-urgent tasks to low-activity hours (2-5 AM)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface BatchTask {
+  prompt: string
+  callback: (result: string) => void
+  priority: number
+  label: string
+  queuedAt: number
+}
+
+const batchQueue: BatchTask[] = []
+const BATCH_MAX = 20
+const BATCH_PER_TICK = 5
+
+function isBatchWindow(): boolean {
+  const h = new Date().getHours()
+  return h >= 2 && h < 5
+}
+
+export function queueLLMTask(prompt: string, callback: (result: string) => void, priority = 0, label = 'batch') {
+  batchQueue.push({ prompt, callback, priority, label, queuedAt: Date.now() })
+  batchQueue.sort((a, b) => b.priority - a.priority)
+  console.log(`[cc-soul][batch] queued: ${label} (pri=${priority}, total=${batchQueue.length})`)
+  // Overflow: process highest-priority immediately regardless of time
+  if (batchQueue.length > BATCH_MAX) {
+    console.log(`[cc-soul][batch] overflow (>${BATCH_MAX}), draining top ${BATCH_PER_TICK}`)
+    drainBatchQueue(BATCH_PER_TICK)
+  }
+}
+
+export function drainBatchQueue(limit = BATCH_PER_TICK) {
+  let processed = 0
+  while (batchQueue.length > 0 && processed < limit) {
+    const task = batchQueue.shift()!
+    console.log(`[cc-soul][batch] processing: ${task.label} (remaining=${batchQueue.length})`)
+    spawnCLI(task.prompt, task.callback, 120000, `batch:${task.label}`)
+    processed++
+  }
+}
+
+/** Called from heartbeat — processes batch queue during 2-5 AM */
+export function tickBatchQueue() {
+  if (batchQueue.length === 0) return
+  if (!isBatchWindow()) {
+    console.log(`[cc-soul][batch] ${batchQueue.length} tasks queued, waiting for 2-5 AM window`)
+    return
+  }
+  console.log(`[cc-soul][batch] AM window active, draining up to ${BATCH_PER_TICK}`)
+  drainBatchQueue()
+}
+
+export function getBatchQueueStatus(): { queued: number; labels: string[] } {
+  return { queued: batchQueue.length, labels: batchQueue.slice(0, 5).map(t => t.label) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MERGED POST-RESPONSE ANALYSIS
 // ═══════════════════════════════════════════════════════════════════════════════
 
