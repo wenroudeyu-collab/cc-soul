@@ -11,6 +11,7 @@
 import type { Memory, Rule, Hypothesis, Augment } from './types.ts'
 import { loadDistillState, getMentalModel, getRelevantTopics, buildTopicAugment, buildMentalModelAugment, getDistillStats } from './distill.ts'
 import { detectMentionedPeople, updateSocialGraph, getSocialContext, _resetSocialGraph } from './graph.ts'
+import { assessResponseQuality } from './memory-lifecycle.ts'
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MINI TEST RUNNER — no framework needed
@@ -1445,6 +1446,49 @@ test('batch-queue: queued task has correct label', () => {
   queueLLMTask('another test prompt', () => {}, 0, label)
   const status = getBatchQueueStatus()
   assert(status.labels.includes(label) || status.queued > 0, 'queued task label should appear or queue should be non-empty')
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BEHAVIOR SIGNAL FUSION (assessResponseQuality) TESTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('assessResponseQuality: long engaged reply is positive', () => {
+  const r = assessResponseQuality('这个方案我觉得很好，不过有个小问题想确认一下', 3000, 'tech', 'tech')
+  assertEquals(r.signal, 'positive', `long + fast + follow-up should be positive, got ${r.signal} (${r.quality})`)
+  assert(r.quality > 0.6, `quality should be > 0.6, got ${r.quality}`)
+})
+
+test('assessResponseQuality: very short reply after long silence is negative', () => {
+  const r = assessResponseQuality('嗯', 150000, 'tech', 'design')
+  assertEquals(r.signal, 'negative', `short + silence + topic switch should be negative, got ${r.signal} (${r.quality})`)
+  assert(r.quality < 0.35, `quality should be < 0.35, got ${r.quality}`)
+})
+
+test('assessResponseQuality: follow-up question is positive', () => {
+  const r = assessResponseQuality('为什么要这样做？', 4000, 'tech', 'tech')
+  const r2 = assessResponseQuality('ok', 4000, 'tech', 'tech')
+  assert(r.quality > r2.quality, `follow-up question (${r.quality}) should score higher than "ok" (${r2.quality})`)
+})
+
+test('assessResponseQuality: topic switch reduces quality', () => {
+  const same = assessResponseQuality('继续说', 5000, 'tech', 'tech')
+  const switched = assessResponseQuality('继续说', 5000, 'tech', 'design')
+  assert(same.quality > switched.quality, `same topic (${same.quality}) should score higher than switched (${switched.quality})`)
+})
+
+test('assessResponseQuality: closing phrase is neutral/mildly negative', () => {
+  const r = assessResponseQuality('好的', 5000, 'tech', 'tech')
+  assertEquals(r.signal, 'neutral', `closing phrase should be neutral, got ${r.signal}`)
+  assert(r.reason.includes('结束语'), `reason should mention closing: ${r.reason}`)
+})
+
+test('assessResponseQuality: score clamped to [0,1]', () => {
+  // Extreme positive
+  const pos = assessResponseQuality('这个太棒了，我想详细了解一下为什么要用这种架构？能不能具体解释一下原理？', 1000, 'same', 'same')
+  assert(pos.quality >= 0 && pos.quality <= 1, `quality should be [0,1], got ${pos.quality}`)
+  // Extreme negative
+  const neg = assessResponseQuality('嗯', 300000, 'a', 'b')
+  assert(neg.quality >= 0 && neg.quality <= 1, `quality should be [0,1], got ${neg.quality}`)
 })
 
 // ══════════════════════════════════════════════════════════════════════════════

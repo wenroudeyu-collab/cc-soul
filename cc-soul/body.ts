@@ -8,7 +8,7 @@ import type { BodyState, BodyParams } from './types.ts'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { getParam } from './auto-tune.ts'
 import { resolve } from 'path'
-import { EMOTION_POSITIVE, EMOTION_NEGATIVE, detectEmotionLabel, emotionLabelToPADCN } from './signals.ts'
+import { EMOTION_POSITIVE, EMOTION_NEGATIVE, detectEmotionLabel, emotionLabelToPADCN, computeEmotionSpectrum } from './signals.ts'
 
 const BODY_STATE_PATH = resolve(DATA_DIR, 'body_state.json')
 
@@ -45,28 +45,31 @@ export const body: BodyState = {
 
 let lastTickTime = Date.now()
 
-// ── #7 昼夜节律（非线性 cos 曲线）──
-// cos 曲线模拟人类昼夜精力变化：peak=10:00, trough=03:00
-// energyMod 范围 [-0.50, +0.15]，深夜指数衰减
+// ── #7 双振荡器昼夜节律 ──
+// 24h 周期（昼夜）+ 12h 周期（上午/下午）叠加
+// 能捕获"下午2-3点犯困"的现象（单cos做不到）
 function circadianModifier(): { energyMod: number; moodMod: number } {
-  const hour = new Date().getHours()
-  const minute = new Date().getMinutes()
-  const t = hour + minute / 60
+  const hour = new Date().getHours() + new Date().getMinutes() / 60
 
-  // cos curve: peak at 10:00, trough at 22:00
-  const phase = ((t - 10) / 24) * 2 * Math.PI
-  const cosVal = Math.cos(phase) // [-1, +1]
+  // 24h 主节律：10:00 为能量高峰
+  const phase24 = ((hour - 10) / 24) * 2 * Math.PI
+  const wave24 = Math.cos(phase24)
 
-  // Base map: cosVal=+1(10:00)→+0.15, cosVal=-1(22:00)→-0.35
-  let energyMod = cosVal * 0.25 - 0.10
+  // 12h 副节律：10:00 和 22:00 为双峰，14:00 和 02:00 为双谷
+  const phase12 = ((hour - 10) / 12) * 2 * Math.PI
+  const wave12 = Math.cos(phase12)
 
-  // Deep night (0-5) exponential decay: extra penalty peaks at ~2:30
-  if (t >= 0 && t < 5) {
-    const nightDepth = 1 - Math.abs(t - 2.5) / 2.5
-    energyMod -= nightDepth * 0.15
+  // 叠加：主节律权重 0.7，副节律权重 0.3
+  const combined = wave24 * 0.7 + wave12 * 0.3
+
+  // 深夜额外衰减（0-5点）
+  let nightPenalty = 0
+  if (hour >= 0 && hour < 5) {
+    const nightDepth = 1 - Math.abs(hour - 2.5) / 2.5
+    nightPenalty = nightDepth * 0.15
   }
 
-  // Mood follows energy but dampened
+  const energyMod = combined * 0.2 - 0.05 - nightPenalty
   const moodMod = energyMod * 0.4
 
   return { energyMod, moodMod }
@@ -77,12 +80,18 @@ export function bodyTick() {
   const minutes = Math.min(10, (now - lastTickTime) / 60000)
   lastTickTime = now
 
-  // #7 昼夜节律影响恢复速率
+  // #7 昼夜节律
   const circadian = circadianModifier()
-  const energyRecovery = getParam('body.energy_recovery_per_min') + circadian.energyMod * 0.01
-  // Energy recovery: faster when idle
-  const safeEnergyRecovery = Math.max(0, Math.min(0.1, energyRecovery))
-  body.energy = Math.min(1.0, body.energy + safeEnergyRecovery * minutes)
+
+  // Logistic 恢复：接近满时恢复变慢，接近空时也恢复慢（太累了恢复不动）
+  // dE/dt = r * E * (1 - E) → 在 E=0.5 时恢复最快
+  const recoveryRate = getParam('body.energy_recovery_per_min')
+  const logisticRecovery = recoveryRate * body.energy * (1 - body.energy) * 4  // *4 使峰值恢复速率 = recoveryRate
+  body.energy = Math.min(1, Math.max(0, body.energy + logisticRecovery * minutes))
+
+  // 昼夜节律：正值叠加恢复，负值降低恢复速率（idle tick 不应该扣 energy）
+  const circadianDelta = circadian.energyMod * 0.01 * minutes
+  if (circadianDelta > 0) body.energy = Math.min(1, body.energy + circadianDelta)
   // Alertness natural decay toward 0.5
   const alertDecay = getParam('body.alertness_decay_per_min') || 0.005
   const alertRecovery = getParam('body.alertness_recovery_per_min') || 0.003
@@ -214,6 +223,29 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
     Object.assign(emotionVector, ev)
   }
 
+  // ── 情绪场统一：EmotionSpectrum → PADCN 映射 ──
+  // 让细粒度的 8 维情绪光谱驱动 5 维 PADCN 向量
+  try {
+    const spectrum = computeEmotionSpectrum(msg)
+    const ev = getEmotionVector(senderId)
+    if (ev) {
+      const alpha = 0.15  // 光谱影响力（不要太大，避免覆盖 PADCN 的其他信号源）
+      ev.pleasure += alpha * (spectrum.joy + spectrum.pride + spectrum.relief - spectrum.anger - spectrum.sadness - spectrum.frustration)
+      ev.arousal += alpha * (spectrum.anger + spectrum.anxiety + spectrum.frustration + spectrum.curiosity)
+      ev.dominance += alpha * (spectrum.pride - spectrum.frustration - spectrum.anxiety)
+      ev.certainty += alpha * (spectrum.pride + spectrum.relief - spectrum.anxiety)
+      ev.novelty += alpha * spectrum.curiosity
+      // 钳位到 [-1, 1]
+      ev.pleasure = Math.max(-1, Math.min(1, ev.pleasure))
+      ev.arousal = Math.max(-1, Math.min(1, ev.arousal))
+      ev.dominance = Math.max(-1, Math.min(1, ev.dominance))
+      ev.certainty = Math.max(-1, Math.min(1, ev.certainty))
+      ev.novelty = Math.max(-1, Math.min(1, ev.novelty))
+      // Sync to global
+      Object.assign(emotionVector, ev)
+    }
+  } catch {}
+
   // ── Valence 计算（兼容旧系统）──
   let valence = 0
   const m = msg.toLowerCase()
@@ -262,9 +294,14 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
     if (oldestKey) userEmotions.delete(oldestKey)
   }
 
-  // === Emotional contagion: nonlinear + cumulative + asymmetric ===
+  // === Ornstein-Uhlenbeck mood process — mean-reverting + stochastic + external forcing ===
+  // dX = θ(μ - X)dt + σ√dt·dW + f(valence)·dt
+  // θ = resilience (mean-reversion speed)
+  // μ = 0 (neutral mood baseline)
+  // σ = volatility (emotional sensitivity)
+  // f(valence) = nonlinear external forcing from user emotion
 
-  // 1. Track consecutive same-direction emotions for momentum
+  // 1. Track consecutive same-direction emotions for momentum (used in forcing term)
   const currentDir = valence > 0.05 ? 1 : valence < -0.05 ? -1 : 0
   if (currentDir !== 0 && currentDir === userEmotion.lastDir) {
     userEmotion.consecutiveSameDir++
@@ -273,24 +310,32 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
   }
   userEmotion.lastDir = currentDir
 
-  // 2. Cumulative momentum: consecutive same-direction emotions amplify effect
-  const momentum = Math.min(userEmotion.consecutiveSameDir * 0.15, 0.6)
+  // 2. OU parameters
+  const theta = Math.max(0.01, Math.min(1, getParam('body.resilience')))  // mean-reversion speed
+  const mu = 0                                                              // neutral equilibrium
+  const sigma = 0.1                                                         // base volatility
+  const dt = 1.0                                                            // discrete time step per message
 
-  // 3. Resilience decays under sustained emotional pressure
-  const baseResilience = Math.max(0, Math.min(1, getParam('body.resilience')))
-  const effectiveResilience = baseResilience * (1 - momentum)
-
-  // 4. Nonlinear activation: sign(v) * |v|^0.7 — small emotions compressed, strong emotions amplified
+  // 3. Nonlinear forcing: sign(v) * |v|^0.7 — compress small signals, amplify strong ones
   const absV = Math.abs(valence)
   const nonlinearValence = Math.sign(valence) * Math.pow(absV, 0.7)
 
-  // 5. Direction asymmetry: negative emotions are 1.3x stickier
+  // 4. Direction asymmetry: negative emotions are 1.3x stickier (negativity bias)
   const asymmetryFactor = nonlinearValence < 0 ? 1.3 : 1.0
 
-  const contagionStrength = (1 - effectiveResilience) * getParam('body.contagion_max_shift')
-  const moodDelta = nonlinearValence * contagionStrength * asymmetryFactor * (1 + momentum)
+  // 5. Cumulative momentum: consecutive same-direction emotions reduce mean-reversion
+  const momentum = Math.min(userEmotion.consecutiveSameDir * 0.15, 0.6)
+  const effectiveTheta = theta * (1 - momentum)  // sustained pressure → slower recovery
 
-  body.mood = Math.max(-1, Math.min(1, body.mood + moodDelta))
+  // 6. OU update components
+  const meanReversion = effectiveTheta * (mu - body.mood) * dt
+  const externalForce = nonlinearValence * getParam('body.contagion_max_shift') * asymmetryFactor * (1 + momentum) * dt
+  // Wiener process noise: Gaussian approximation via Box-Muller (uniform fallback)
+  const u1 = Math.random(), u2 = Math.random()
+  const gaussNoise = Math.sqrt(-2 * Math.log(Math.max(u1, 1e-10))) * Math.cos(2 * Math.PI * u2)
+  const noise = sigma * Math.sqrt(dt) * gaussNoise
+
+  body.mood = Math.max(-1, Math.min(1, body.mood + meanReversion + externalForce + noise))
 
   // If cc's mood drops too low, activate "cooldown" — extra alertness
   if (body.mood < -0.5) {

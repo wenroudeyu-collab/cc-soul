@@ -62,8 +62,85 @@ export function checkPredictions(userMsg: string): { hitAugment: string | null }
   return { hitAugment }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// BAYESIAN DOMAIN BELIEF (Beta-Bernoulli model)
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
- * 基于聊天历史的 domain 频率生成新预测
+ * 贝叶斯行为预测：用 Beta-Bernoulli 模型估计每个 domain 在当前 context 下被提及的概率
+ * 比频率计数更好：
+ * - 少量样本时有合理的先验（不会因为 1 次就 100% 预测）
+ * - 输出是概率，不是 yes/no
+ * - 自动处理新 domain（先验 = uniform）
+ */
+interface DomainBelief {
+  alpha: number  // 成功次数 + 先验
+  beta: number   // 失败次数 + 先验
+  lastSeen: number
+}
+
+const _domainBeliefs = new Map<string, DomainBelief>()
+
+export function updateDomainBelief(domain: string, appeared: boolean) {
+  if (!_domainBeliefs.has(domain)) {
+    _domainBeliefs.set(domain, { alpha: 1, beta: 1, lastSeen: Date.now() })  // 均匀先验
+  }
+  const b = _domainBeliefs.get(domain)!
+
+  // 时间衰减：距上次更新超过 7 天，alpha 和 beta 各乘 0.95（让旧数据逐渐失效）
+  const ageDays = (Date.now() - b.lastSeen) / 86400000
+  if (ageDays > 7) {
+    const decay = Math.pow(0.95, ageDays / 7)
+    b.alpha = Math.max(1, b.alpha * decay)
+    b.beta = Math.max(1, b.beta * decay)
+  }
+
+  if (appeared) b.alpha++
+  else b.beta++
+  b.lastSeen = Date.now()
+}
+
+export function predictDomainProbability(domain: string): number {
+  const b = _domainBeliefs.get(domain)
+  if (!b) return 0.1  // 未知 domain，低先验
+  return b.alpha / (b.alpha + b.beta)  // Beta 均值
+}
+
+export function getTopPredictions(topN: number = 3): { domain: string; probability: number }[] {
+  const predictions: { domain: string; probability: number }[] = []
+  for (const [domain, belief] of _domainBeliefs) {
+    // 只预测最近 14 天内活跃的 domain
+    if (Date.now() - belief.lastSeen > 14 * 86400000) continue
+    predictions.push({ domain, probability: predictDomainProbability(domain) })
+  }
+  return predictions.sort((a, b) => b.probability - a.probability).slice(0, topN)
+}
+
+/**
+ * 在每条消息后更新所有活跃 domain 的贝叶斯信念
+ * detectedDomain: 本条消息检测到的 domain（可能为 null）
+ */
+export function updateAllDomainBeliefs(detectedDomain: string | null) {
+  // 更新检测到的 domain
+  if (detectedDomain && detectedDomain !== 'general' && detectedDomain !== '通用' && detectedDomain !== '闲聊') {
+    updateDomainBelief(detectedDomain, true)
+  }
+  // 对其他活跃 domain 更新为 "未出现"
+  for (const [domain] of _domainBeliefs) {
+    if (domain !== detectedDomain) {
+      // 只对最近 14 天内活跃的 domain 更新 beta
+      const b = _domainBeliefs.get(domain)!
+      if (Date.now() - b.lastSeen < 14 * 86400000) {
+        updateDomainBelief(domain, false)
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 基于聊天历史的 domain 频率生成新预测（已升级为贝叶斯估计）
  */
 export function generateNewPredictions(chatHistory: { user: string }[]) {
   const recent = chatHistory.slice(-20)
@@ -74,10 +151,17 @@ export function generateNewPredictions(chatHistory: { user: string }[]) {
   const activePending = ps.filter(p => p.status === 'pending' && now < p.expiresAt)
   const pendingDomains = new Set(activePending.map(p => p.domain))
   let added = false
+  // 更新贝叶斯信念（用频率数据喂入）
   for (const [domain, count] of Object.entries(freq)) {
-    if (count < 3 || pendingDomains.has(domain)) continue
+    for (let i = 0; i < count; i++) updateDomainBelief(domain, true)
+  }
+
+  for (const [domain, count] of Object.entries(freq)) {
+    // 贝叶斯替代硬编码阈值：概率 > 0.3 才生成预测（替代 count < 3）
+    const prob = predictDomainProbability(domain)
+    if (prob <= 0.3 || pendingDomains.has(domain)) continue
     if (activePending.length >= 5) break
-    ps.push({ prediction: `用户近期频繁讨论${domain}，预计下次会问更深入的${domain}问题`, basis: `最近20条消息中出现${count}次${domain}相关话题`, domain, createdAt: now, expiresAt: now + PREDICTION_TTL, status: 'pending', hitAt: null, confidence: Math.min(0.5 + count * 0.1, 0.9) })
+    ps.push({ prediction: `用户近期频繁讨论${domain}，预计下次会问更深入的${domain}问题`, basis: `最近20条消息中出现${count}次${domain}相关话题（贝叶斯概率: ${Math.round(prob * 100)}%）`, domain, createdAt: now, expiresAt: now + PREDICTION_TTL, status: 'pending', hitAt: null, confidence: Math.min(prob + 0.1, 0.9) })
     activePending.push(ps[ps.length - 1])
     added = true
   }
@@ -114,7 +198,9 @@ export function getTimeSlotPrediction(chatHistory: { user: string; ts: number }[
   if (!currentTopics || Object.keys(currentTopics).length === 0) return null
   const sorted = Object.entries(currentTopics).sort((a, b) => b[1] - a[1])
   const topTopic = sorted[0][0]
-  if (topTopic !== '通用' && topTopic !== '闲聊' && sorted[0][1] >= 3) {
+  // 贝叶斯辅助判断：结合频率和 domain 概率（替代硬编码 >= 3）
+  const topicProb = predictDomainProbability(topTopic)
+  if (topTopic !== '通用' && topTopic !== '闲聊' && (sorted[0][1] >= 3 || topicProb > 0.3)) {
     return `[预测] 根据你的习惯，这个时段你通常问 ${topTopic} 相关的问题`
   }
   return null
@@ -174,12 +260,108 @@ export function getBehaviorPrediction(userMsg: string, memories: Memory[]): stri
       const mDomain = detectDomain(m.content)
       return mDomain === domain
     })
-    if (domainMemories.length >= 3) {
-      return `[行为预测] 用户在「${domain}」领域已积累${domainMemories.length}条近期记忆，可能正在深入学习/探索。回复时可以提升深度、给出进阶建议。`
+    // 贝叶斯辅助：结合记忆数量和 domain 概率判断
+    const domProb = predictDomainProbability(domain)
+    if (domainMemories.length >= 3 || (domainMemories.length >= 2 && domProb > 0.4)) {
+      return `[行为预测] 用户在「${domain}」领域已积累${domainMemories.length}条近期记忆（贝叶斯概率: ${Math.round(domProb * 100)}%），可能正在深入学习/探索。回复时可以提升深度、给出进阶建议。`
     }
   }
 
   return null
+}
+
+// ── Variable-Order Markov Chain (PPM) for Topic Sequence Prediction ──
+
+interface MarkovState {
+  transitions: Record<string, Record<string, number>>  // "A→B" → { "C": 3, "D": 1 }
+  maxOrder: number  // current max order to try
+  totalUpdates: number
+}
+
+const MARKOV_PATH = resolve(DATA_DIR, 'markov_state.json')
+let markovState: MarkovState = { transitions: {}, maxOrder: 3, totalUpdates: 0 }
+
+function loadMarkovState() {
+  try {
+    if (existsSync(MARKOV_PATH)) {
+      markovState = JSON.parse(readFileSync(MARKOV_PATH, 'utf-8'))
+    }
+  } catch { /* keep default */ }
+}
+
+function saveMarkovState() {
+  writeFileSync(MARKOV_PATH, JSON.stringify(markovState, null, 2))
+}
+
+// Lazy-load on first use
+let _markovLoaded = false
+function ensureMarkovLoaded() {
+  if (!_markovLoaded) { loadMarkovState(); _markovLoaded = true }
+}
+
+/** Record a topic transition: updates all orders (1 to maxOrder) */
+export function updateMarkov(topicSequence: string[]) {
+  ensureMarkovLoaded()
+  if (topicSequence.length < 2) return
+  const last = topicSequence[topicSequence.length - 1]
+
+  // Update all relevant orders
+  for (let order = 1; order <= Math.min(markovState.maxOrder, topicSequence.length - 1); order++) {
+    const key = topicSequence.slice(-(order + 1), -1).join('\u2192')  // → separator
+    if (!markovState.transitions[key]) markovState.transitions[key] = {}
+    markovState.transitions[key][last] = (markovState.transitions[key][last] || 0) + 1
+  }
+
+  markovState.totalUpdates++
+
+  // Prune: cap total transition keys at 500
+  const keys = Object.keys(markovState.transitions)
+  if (keys.length > 500) {
+    // Remove lowest-count entries
+    const entries = keys.map(k => ({
+      key: k,
+      total: Object.values(markovState.transitions[k]).reduce((s, c) => s + c, 0)
+    })).sort((a, b) => a.total - b.total)
+    for (let i = 0; i < 100 && i < entries.length; i++) {
+      delete markovState.transitions[entries[i].key]
+    }
+  }
+
+  saveMarkovState()
+}
+
+/**
+ * PPM (Prediction by Partial Matching): try highest order first, fall back.
+ * Returns predicted next topic + confidence, or null.
+ */
+export function predictNextTopic(recentTopics: string[]): { topic: string; confidence: number } | null {
+  ensureMarkovLoaded()
+  if (recentTopics.length === 0 || markovState.totalUpdates < 5) return null
+
+  for (let order = Math.min(markovState.maxOrder, recentTopics.length); order >= 1; order--) {
+    const key = recentTopics.slice(-order).join('\u2192')
+    const nexts = markovState.transitions[key]
+    if (nexts) {
+      const total = Object.values(nexts).reduce((s, c) => s + c, 0)
+      if (total >= 2) {  // lowered from 3: Bayesian beliefs handle uncertainty
+        const sorted = Object.entries(nexts).sort((a, b) => b[1] - a[1])
+        const best = sorted[0]
+        // 结合贝叶斯概率调整置信度
+        const bayesProb = predictDomainProbability(best[0])
+        const rawConfidence = best[1] / total
+        const adjustedConfidence = rawConfidence * 0.7 + bayesProb * 0.3  // 混合 Markov + Bayes
+        return { topic: best[0], confidence: adjustedConfidence }
+      }
+    }
+  }
+  return null
+}
+
+/** Format Markov prediction as augment string */
+export function getMarkovPredictionAugment(recentTopics: string[]): string | null {
+  const pred = predictNextTopic(recentTopics)
+  if (!pred || pred.confidence < 0.4) return null
+  return `[序列预测] 根据话题序列模式(${recentTopics.slice(-2).join('→')}→?)，预测下一个话题: ${pred.topic}（置信度: ${Math.round(pred.confidence * 100)}%）`
 }
 
 // ── Decision Prediction (决策预测) ──

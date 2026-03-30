@@ -21,6 +21,7 @@ import { execFile } from 'child_process'
 import { platform, homedir } from 'os'
 import { resolve } from 'path'
 
+import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import type { Augment } from './types.ts'
 import {
   metrics, stats, loadStats, saveStats,
@@ -208,6 +209,21 @@ export function handleBootstrap(event: any): void {
 // ── Dedup guard: prevent duplicate processing when hook is registered multiple times ──
 let _lastPreprocessedId = ''
 let _lastPreprocessedTs = 0
+
+// ── 近期回复去重：如果用户发了和之前一样的消息，提示 LLM 不要重复回答 ──
+// 使用文件持久化（插件进程可能重启，内存Map会丢失）
+const _RECENT_REPLIES_PATH = resolve(DATA_DIR, 'recent_replies.json')
+let _recentRepliesObj: Record<string, { reply: string; ts: number }> = loadJson(_RECENT_REPLIES_PATH, {})
+// 启动时清理过期条目
+for (const [k, v] of Object.entries(_recentRepliesObj)) {
+  if (Date.now() - v.ts > 3600000) delete _recentRepliesObj[k]
+}
+const _recentReplies = {
+  get(key: string) { return _recentRepliesObj[key] },
+  set(key: string, val: { reply: string; ts: number }) { _recentRepliesObj[key] = val; debouncedSave(_RECENT_REPLIES_PATH, _recentRepliesObj) },
+  delete(key: string) { delete _recentRepliesObj[key] },
+  [Symbol.iterator]: function* () { for (const [k, v] of Object.entries(_recentRepliesObj)) yield [k, v] as [string, { reply: string; ts: number }] },
+}
 
 export async function handlePreprocessed(event: any): Promise<void> {
   if (!getInitialized()) initializeSoul()
@@ -622,12 +638,23 @@ export async function handlePreprocessed(event: any): Promise<void> {
     } catch (_) {}
   }
 
+  // ── 重复消息检测：1小时内发过一样的消息则注入提醒 ──
+  const _userMsgKey = userMsg.slice(0, 100).toLowerCase().trim()
+  const _prevReply = _recentReplies.get(_userMsgKey)
+  let _dupHint: string | null = null
+  if (_prevReply && Date.now() - _prevReply.ts < 3600000) {
+    _dupHint = `[重要] 用户刚才发了和之前一样的消息。上次的回复摘要："${_prevReply.reply.slice(0, 100)}"。不要重复上次的回答，可以说"这个刚说过"或换个角度回答。`
+  }
+
   // ── Augment building & selection ──
   const { selected, associated } = await buildAndSelectAugments({
     userMsg, session, senderId, channelId,
     cog, flow, flowKey,
     followUpHints, workingMemKey,
   })
+
+  // 注入重复消息提醒（高优先级，放在最前面）
+  if (_dupHint) selected.unshift(`[重复消息检测] ${_dupHint}`)
 
   // Merge extra augments from new modules & compress
   if (_extraAugments.length > 0) selected.push(..._extraAugments)
@@ -715,6 +742,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
   session.lastSenderId = senderId
   session.lastChannelId = channelId
   session.lastResponseContent = ''
+  session._dedupKey = userMsg.slice(0, 100).toLowerCase().trim()  // for reply dedup in handleSent
   // Save the clean user message (before augment injection) for avatar data collection.
   // ctx.body format from Feishu: "[Feishu {id} {time}] [message_id: {id}]\n{nick}: {msg}"
   {
@@ -839,6 +867,18 @@ export function handleSent(event: any): void {
   console.log(`[cc-soul][handleSent] content=${content.length} chars, keys=${Object.keys(event).join(',')}`)
   if (content) {
     session.lastResponseContent = content
+
+    // 记录回复到去重缓存
+    {
+      const _sentMsgKey = session._dedupKey || (session.lastPrompt || '').slice(0, 100).toLowerCase().trim()
+      if (_sentMsgKey) {
+        _recentReplies.set(_sentMsgKey, { reply: content.slice(0, 200), ts: Date.now() })
+        // 清理超过1小时的记录
+        for (const [k, v] of Object.entries(_recentRepliesObj)) {
+          if (Date.now() - v.ts > 3600000) _recentReplies.delete(k)
+        }
+      }
+    }
 
     // Cost tracking (optional module)
     if (isEnabled('cost_tracker')) {

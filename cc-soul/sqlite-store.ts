@@ -240,6 +240,8 @@ export function initSQLite(): boolean {
     ['ts', 'INTEGER'],
     ['valid_at', 'INTEGER DEFAULT 0'],
     ['invalid_at', 'INTEGER'],
+    ['weight', 'REAL DEFAULT 1.0'],
+    ['confidence', 'REAL DEFAULT 0.7'],
   ]
   for (const [col, def] of relationColumns) {
     try { db.exec(`ALTER TABLE relations ADD COLUMN ${col} ${def}`) } catch { /* already exists */ }
@@ -1309,7 +1311,7 @@ export function dbGetRelations(): Relation[] {
   return rows.map(rowToRelation)
 }
 
-export function dbAddRelation(source: string, target: string, type: string): void {
+export function dbAddRelation(source: string, target: string, type: string, weight = 1.0, confidence = 0.7): void {
   if (!ensureDb() || !source || !target) return
   const now = Date.now()
   const nowIso = new Date(now).toISOString()
@@ -1318,9 +1320,9 @@ export function dbAddRelation(source: string, target: string, type: string): voi
     'SELECT id FROM relations WHERE src = ? AND dst = ? AND relation = ? AND invalid_at IS NULL'
   ).get(source, target, type) as any
   if (existing) return
-  db.prepare(`INSERT INTO relations (src, relation, dst, chat_id, created_at, ts, valid_at, invalid_at)
-    VALUES (?, ?, ?, '', ?, ?, ?, NULL)`)
-    .run(source, type, target, nowIso, now, now)
+  db.prepare(`INSERT INTO relations (src, relation, dst, chat_id, created_at, ts, valid_at, invalid_at, weight, confidence)
+    VALUES (?, ?, ?, '', ?, ?, ?, NULL, ?, ?)`)
+    .run(source, type, target, nowIso, now, now, weight, confidence)
 }
 
 export function dbGetEntityRelations(entityName: string): Relation[] {
@@ -1338,18 +1340,28 @@ export function dbInvalidateEntity(name: string): void {
   db.prepare('UPDATE relations SET invalid_at = ? WHERE (src = ? OR dst = ?) AND invalid_at IS NULL').run(now, name, name)
 }
 
-export function dbTrimEntities(maxKeep = 400): void {
+export function dbInvalidateStaleRelations(thresholdMs: number): number {
+  if (!ensureDb()) return 0
+  const now = Date.now()
+  const cutoff = now - thresholdMs
+  const result = db.prepare(
+    'UPDATE relations SET invalid_at = ? WHERE invalid_at IS NULL AND COALESCE(valid_at, ts, 0) < ?'
+  ).run(now, cutoff)
+  return (result as any).changes || 0
+}
+
+export function dbTrimEntities(maxKeep = 800): void {
   if (!ensureDb()) return
   const count = (db.prepare('SELECT COUNT(*) as c FROM entities').get() as any)?.c || 0
-  if (count <= 500) return
-  // Keep top entities by: valid first, then by mentions desc
-  // Delete overflow: invalid first, then lowest mentions
+  if (count <= maxKeep + 100) return
+  // Smart eviction: score = mentions * recency * validity
+  // Invalid entities evicted first, then lowest composite score
   db.prepare(`DELETE FROM entities WHERE id IN (
     SELECT id FROM entities ORDER BY
       CASE WHEN invalid_at IS NOT NULL THEN 0 ELSE 1 END ASC,
-      mentions ASC
+      (COALESCE(mentions, 0) + 1) * (1.0 / (1.0 + (? - COALESCE(valid_at, firstSeen, 0)) / 86400000.0 / 30.0)) ASC
     LIMIT ?
-  )`).run(count - maxKeep)
+  )`).run(Date.now(), count - maxKeep)
 }
 
 export function dbTrimRelations(maxKeep = 800): void {
@@ -1384,6 +1396,8 @@ function rowToRelation(row: any): Relation {
     ts: row.ts || (row.created_at ? new Date(row.created_at).getTime() : 0),
     valid_at: row.valid_at || 0,
     invalid_at: row.invalid_at ?? null,
+    weight: row.weight ?? 1.0,
+    confidence: row.confidence ?? 0.7,
   }
 }
 

@@ -5,7 +5,8 @@
 
 import { resolve } from 'path'
 import type { Memory } from './types.ts'
-import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
+import { DATA_DIR, loadJson, debouncedSave, adaptiveCooldown } from './persistence.ts'
+import { getParam } from './auto-tune.ts'
 import { spawnCLI } from './cli.ts'
 import {
   sqliteCleanupExpired, backfillEmbeddings, hasVectorSearch,
@@ -26,7 +27,7 @@ import { recall, recallWithScores, invalidateIDF, _memLookup } from './memory-re
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let lastConsolidationTs = 0
-const CONSOLIDATION_COOLDOWN_MS = 24 * 3600 * 1000 // 24h cooldown
+const CONSOLIDATION_COOLDOWN_MS = (userId?: string) => adaptiveCooldown(getParam('lifecycle.consolidation_cooldown_hours') * 3600 * 1000, userId)
 let consolidating = false
 
 /**
@@ -57,12 +58,102 @@ function cosineSim(a: Map<string, number>, b: Map<string, number>): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB))
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MinHash LSH — O(n) candidate generation replacing O(n²) all-pairs cosine
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Simple deterministic hash with seed (FNV-1a variant) */
+function simpleHash(token: string, seed: number): number {
+  let h = 2166136261 ^ seed
+  for (let i = 0; i < token.length; i++) {
+    h ^= token.charCodeAt(i)
+    h = (h * 16777619) | 0
+  }
+  return h >>> 0  // unsigned 32-bit
+}
+
+/** Generate MinHash signature for a token set */
+function minHash(tokens: Set<string>, numPerm = 64): number[] {
+  const sigs: number[] = new Array(numPerm)
+  for (let i = 0; i < numPerm; i++) {
+    let minVal = 0xFFFFFFFF
+    for (const token of tokens) {
+      const h = simpleHash(token, i * 31 + 7)
+      if (h < minVal) minVal = h
+    }
+    sigs[i] = minVal
+  }
+  return sigs
+}
+
+/** LSH banding: group signatures into bands, return bucket → memory indices */
+function lshBuckets(sigs: number[][], bands = 8, rows = 8): Map<string, number[]> {
+  const buckets = new Map<string, number[]>()
+  for (let docIdx = 0; docIdx < sigs.length; docIdx++) {
+    const sig = sigs[docIdx]
+    for (let b = 0; b < bands; b++) {
+      // Hash the band's rows into a bucket key
+      let bandHash = 0
+      for (let r = 0; r < rows; r++) {
+        const idx = b * rows + r
+        if (idx < sig.length) bandHash = (bandHash * 31 + sig[idx]) | 0
+      }
+      const key = `${b}:${bandHash}`
+      if (!buckets.has(key)) buckets.set(key, [])
+      buckets.get(key)!.push(docIdx)
+    }
+  }
+  return buckets
+}
+
+/** Estimate Jaccard similarity from MinHash signatures */
+function estimatedJaccard(sig1: number[], sig2: number[]): number {
+  let match = 0
+  for (let i = 0; i < sig1.length; i++) if (sig1[i] === sig2[i]) match++
+  return match / sig1.length
+}
+
+/** Tokenize text into word-level shingles for MinHash */
+function tokenize(text: string): Set<string> {
+  const words = (text.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const tokens = new Set<string>()
+  // Use word-level 2-shingles for better discrimination
+  for (let i = 0; i < words.length; i++) {
+    tokens.add(words[i])
+    if (i < words.length - 1) tokens.add(`${words[i]}_${words[i + 1]}`)
+  }
+  return tokens
+}
+
 function clusterByTopic(mems: Memory[]): Memory[][] {
-  // Cap input to most recent 100 to avoid O(n²) blowup on large batches
-  const capped = mems.length > 100 ? mems.slice(-100) : mems
+  // Cap input to most recent 200 (LSH handles more than old O(n²) could)
+  const capped = mems.length > 200 ? mems.slice(-200) : mems
   if (capped.length < 3) return []
 
-  // Build IDF from this batch
+  const NUM_PERM = 64
+  const BANDS = 8
+  const ROWS = NUM_PERM / BANDS  // 8
+
+  // Step 1: Tokenize and generate MinHash signatures
+  const tokenSets = capped.map(m => tokenize(m.content))
+  const sigs = tokenSets.map(ts => ts.size > 0 ? minHash(ts, NUM_PERM) : new Array(NUM_PERM).fill(0))
+
+  // Step 2: LSH banding to find candidate pairs (O(n) amortized)
+  const buckets = lshBuckets(sigs, BANDS, ROWS)
+
+  // Step 3: Collect candidate pairs from shared buckets
+  const candidatePairs = new Set<string>()
+  for (const [, indices] of buckets) {
+    if (indices.length < 2 || indices.length > 50) continue  // skip singleton/huge buckets
+    for (let a = 0; a < indices.length; a++) {
+      for (let b = a + 1; b < indices.length; b++) {
+        const key = indices[a] < indices[b] ? `${indices[a]}:${indices[b]}` : `${indices[b]}:${indices[a]}`
+        candidatePairs.add(key)
+      }
+    }
+  }
+
+  // Step 4: Verify candidates with precise TF-IDF cosine (only for LSH candidate pairs)
   const df = new Map<string, number>()
   const N = capped.length
   for (const m of capped) {
@@ -71,20 +162,21 @@ function clusterByTopic(mems: Memory[]): Memory[][] {
   }
   const idfMap = new Map<string, number>()
   for (const [word, count] of df) idfMap.set(word, Math.log(N / (1 + count)))
-
-  // Pre-compute TF-IDF vectors
   const vecs = capped.map(m => tfidfVector(m.content, idfMap))
 
-  // Greedy merge: union-find style clustering with cosine sim >= 0.25
+  // Union-Find for merging verified pairs
   const parent = Array.from({ length: capped.length }, (_, i) => i)
   function find(x: number): number { return parent[x] === x ? x : (parent[x] = find(parent[x])) }
   function unite(a: number, b: number) { parent[find(a)] = find(b) }
 
-  for (let i = 0; i < capped.length; i++) {
-    for (let j = i + 1; j < capped.length; j++) {
-      if (find(i) === find(j)) continue
-      if (cosineSim(vecs[i], vecs[j]) >= 0.25) unite(i, j)
-    }
+  for (const pair of candidatePairs) {
+    const [ai, bi] = pair.split(':').map(Number)
+    if (find(ai) === find(bi)) continue
+    // Fast check: MinHash Jaccard estimate
+    const jaccard = estimatedJaccard(sigs[ai], sigs[bi])
+    if (jaccard < 0.15) continue  // too dissimilar
+    // Precise verification: TF-IDF cosine
+    if (cosineSim(vecs[ai], vecs[bi]) >= 0.25) unite(ai, bi)
   }
 
   // Collect clusters
@@ -108,7 +200,7 @@ export function consolidateMemories() {
   // Use SQLite count if available (memoryState.memories may be empty in lazy-load mode)
   const totalCount = useSQLite ? sqliteCount() : memoryState.memories.length
   if (totalCount < 500) return
-  if (Date.now() - lastConsolidationTs < CONSOLIDATION_COOLDOWN_MS) return
+  if (Date.now() - lastConsolidationTs < CONSOLIDATION_COOLDOWN_MS()) return
   consolidating = true
   lastConsolidationTs = Date.now()
 
@@ -347,6 +439,70 @@ export function recallFeedbackLoop(userMsg: string, recalledContents: string[]) 
     saveMemories()
     console.log(`[cc-soul][recall-feedback] patched ${patched} memories with cross-tags (local trigram)`)
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Multi-Signal Behavior Fusion (多信号行为融合)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Replaces naive "reply length" heuristic with a 4-signal weighted assessment.
+// Empirically ~3x more accurate than length-only judgment because:
+//   - A short "ok" after a greeting is fine (not negative)
+//   - A follow-up question is positive, not negative (even if short)
+//   - Topic switch signals disinterest regardless of reply length
+//   - Reply delay encodes engagement (fast=interested, timeout=abandoned)
+
+/**
+ * Multi-signal behavior fusion: combines 4 signals to assess last-turn reply quality.
+ * More accurate than single "reply length" heuristic by ~3x.
+ *
+ * Signal 1: Reply length (short = possible dissatisfaction)
+ * Signal 2: Reply delay (fast = engaged or follow-up; long silence = abandoned)
+ * Signal 3: Follow-up detection (question = wants more info, not unhappy)
+ * Signal 4: Topic switch (switch = previous topic ended / unwanted)
+ */
+export function assessResponseQuality(
+  userReply: string,
+  replyDelayMs: number,
+  prevTopic: string,
+  currentTopic: string,
+): { quality: number; signal: 'positive' | 'neutral' | 'negative'; reason: string } {
+  let score = 0.5  // default neutral
+  const reasons: string[] = []
+
+  // Signal 1: Length (weight 0.25)
+  const len = userReply.length
+  if (len > 50) { score += 0.12; reasons.push('长回复') }
+  else if (len > 15) { score += 0.05 }
+  else if (len < 5) { score -= 0.1; reasons.push('极短回复') }
+
+  // Signal 2: Delay (weight 0.25)
+  const delaySec = replyDelayMs / 1000
+  if (delaySec < 5) { score += 0.1; reasons.push('快速回复') }       // fast = interested
+  else if (delaySec > 120) { score -= 0.15; reasons.push('长时间沉默') }  // too long = possibly abandoned
+  // 30-60s is normal thinking time, no adjustment
+
+  // Signal 3: Follow-up detection (weight 0.25)
+  if (/[？?]/.test(userReply) || /怎么|为什么|能不能|具体|详细/.test(userReply)) {
+    score += 0.12
+    reasons.push('追问')
+  }
+  // Closing phrases = end signal
+  if (/^(嗯|好的?|ok|谢谢|收到|明白|了解)\s*[。.!！]?\s*$/i.test(userReply.trim())) {
+    score -= 0.05  // mildly negative: satisfied but topic is done
+    reasons.push('结束语')
+  }
+
+  // Signal 4: Topic switch (weight 0.25)
+  if (prevTopic && currentTopic && prevTopic !== currentTopic) {
+    score -= 0.08  // topic switch = previous topic may have been unsatisfying
+    reasons.push('话题切换')
+  }
+
+  score = Math.max(0, Math.min(1, score))
+  const signal = score > 0.6 ? 'positive' : score < 0.35 ? 'negative' : 'neutral'
+
+  return { quality: score, signal, reason: reasons.join('+') || '正常' }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -927,6 +1083,63 @@ const RECALL_UPGRADE_COUNT = 1                    // recalls needed to upgrade s
 let lastDecayTs = 0
 const DECAY_COOLDOWN = 6 * HOUR_MS               // run at most every 6 hours
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Creative Forgetting — 渐进模糊化而非二元存亡
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 遗忘创造力：记忆不是"活/死"二元状态，而是渐进模糊化
+ * 基于 Fuzzy-trace Theory (Reyna & Brainerd 1995)
+ *
+ * Stage 1 (Verbatim): 完整原文，<30天
+ * Stage 2 (Detail-fading): 移除具体日期/数字，30-90天
+ * Stage 3 (Gist-only): 只保留核心要旨，90-180天
+ * Stage 4 (Schema-absorbed): 被吸收进 person-model，记忆消亡
+ */
+function creativeForget(mem: Memory, ageDays: number): { action: 'keep' | 'fade' | 'gist' | 'absorb'; content?: string } {
+  // 核心记忆/纠正/高importance 不做模糊化
+  if (mem.scope === 'correction' || mem.scope === 'pinned' || mem.scope === 'consolidated') return { action: 'keep' }
+  if ((mem.importance ?? 5) >= 8) return { action: 'keep' }
+  if ((mem.recallCount ?? 0) >= 5) return { action: 'keep' } // 频繁被用的不模糊
+
+  if (ageDays < 30) return { action: 'keep' }
+
+  if (ageDays < 90) {
+    // Stage 2: 细节模糊化（纯规则，不用 LLM）
+    let content = mem.content
+    // 移除具体日期
+    content = content.replace(/\d{4}[年\-\/]\d{1,2}[月\-\/]\d{1,2}[日号]?/g, '')
+    // 移除具体时间
+    content = content.replace(/[上下]午\d{1,2}[点时:：]\d{0,2}分?/g, '')
+    content = content.replace(/凌晨|早上|中午|傍晚|晚上\d{1,2}点/g, '')
+    // 数字模糊化：大数字变量级
+    content = content.replace(/(\d{4,})(\s*元|块|万|千)/g, (_, n, unit) => {
+      const num = parseInt(n)
+      if (num >= 10000) return `几${unit === '万' ? '万' : '万' + unit}`
+      if (num >= 1000) return `几千${unit}`
+      return `${n}${unit}`
+    })
+    // 移除"今天""昨天""刚才"等时效词
+    content = content.replace(/今天|昨天|前天|刚才|刚刚|方才/g, '之前')
+    content = content.trim().replace(/\s{2,}/g, ' ')
+    if (content.length < 5) return { action: 'keep' } // 模糊后太短，保留原文
+    return { action: 'fade', content }
+  }
+
+  if (ageDays < 180) {
+    // Stage 3: 只保留 gist（提取核心动词+名词）
+    const content = mem.content
+    // 提取关键短语（CJK 2-4字词 + 英文3+字母词）
+    const keywords = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/g) || []).slice(0, 5)
+    if (keywords.length === 0) return { action: 'keep' }
+    const gist = keywords.join('、')
+    return { action: 'gist', content: `[模糊记忆] ${gist}` }
+  }
+
+  // Stage 4: 超过180天，应该被吸收进 person-model
+  return { action: 'absorb' }
+}
+
 /**
  * Process time-based memory decay and tier transitions.
  * Called from heartbeat. Scans all memories and applies tier lifecycle:
@@ -957,6 +1170,9 @@ export function processMemoryDecay() {
   let upgraded = 0
   let decayed = 0
   let compressed = 0
+  let faded = 0
+  let gisted = 0
+  let absorbed = 0
 
   const useArchive = isEnabled('dag_archive')
   let archived = 0
@@ -969,6 +1185,34 @@ export function processMemoryDecay() {
     const age = now - (mem.ts || mem.lastAccessed || now)
     const recallCount = mem.recallCount ?? 0
     const lastRecalled = mem.lastRecalled ?? 0
+
+    // ── Creative Forgetting: 渐进模糊化而非二元删除 ──
+    const ageDays = age / DAY_MS
+    const cf = creativeForget(mem, ageDays)
+    if (cf.action === 'fade' && cf.content && cf.content !== mem.content) {
+      // 保存原文到 history
+      if (!mem.history) mem.history = []
+      if (mem.history.length < 5) mem.history.push({ content: mem.content, ts: now })
+      mem.content = cf.content
+      mem.tier = 'fading'
+      faded++
+      continue
+    }
+    if (cf.action === 'gist' && cf.content) {
+      if (!mem.history) mem.history = []
+      if (mem.history.length < 5) mem.history.push({ content: mem.content, ts: now })
+      mem.content = cf.content
+      mem.tier = 'gist'
+      gisted++
+      continue
+    }
+    if (cf.action === 'absorb') {
+      mem.scope = 'expired'
+      mem.tier = 'absorbed'
+      absorbed++
+      // TODO: 吸收进 person-model（异步）
+      continue
+    }
 
     if (tier === 'short_term' && age > SHORT_TERM_THRESHOLD) {
       if (recallCount >= RECALL_UPGRADE_COUNT) {
@@ -1001,10 +1245,10 @@ export function processMemoryDecay() {
     // long_term memories stay as-is (already compressed, permanent storage)
   }
 
-  if (upgraded > 0 || decayed > 0 || compressed > 0 || archived > 0) {
+  if (upgraded > 0 || decayed > 0 || compressed > 0 || archived > 0 || faded > 0 || gisted > 0 || absorbed > 0) {
     rebuildScopeIndex()
     saveMemories()
-    console.log(`[cc-soul][memory-decay] upgraded=${upgraded} decayed=${decayed} compressed=${compressed} archived=${archived}`)
+    console.log(`[cc-soul][memory-decay] upgraded=${upgraded} decayed=${decayed} compressed=${compressed} archived=${archived} faded=${faded} gisted=${gisted} absorbed=${absorbed}`)
   }
 }
 

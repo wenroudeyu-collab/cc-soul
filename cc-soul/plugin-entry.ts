@@ -115,10 +115,13 @@ export default {
         const senderId = ctx.senderId || ''
         if (!rawMsg) return
 
-        // Dedup: skip if we already processed this message
+        // Dedup: skip if this exact event was processed within 3s (hook registered multiple times)
+        // But allow same content re-sent by user after a gap (user intentionally repeats)
         const msgKey = rawMsg.slice(0, 50) + ':' + senderId
-        if ((globalThis as any).__ccSoulLastProcessed === msgKey) return
+        const now = Date.now()
+        if ((globalThis as any).__ccSoulLastProcessed === msgKey && now - ((globalThis as any).__ccSoulLastProcessedTs || 0) < 3000) return
         ;(globalThis as any).__ccSoulLastProcessed = msgKey
+        ;(globalThis as any).__ccSoulLastProcessedTs = now
 
         // Commands go through /command API endpoint (no direct engine imports)
         try {
@@ -150,7 +153,7 @@ export default {
               ? data.system_prompt + (data.augments ? '\n\n## 内部指令（仅本轮有效）\n' + data.augments : '')
               : data.augments
             writeFileSync(soulPath, fullPrompt, 'utf-8')
-            _soulMdLock = Date.now() + 30000  // block bootstrap from overwriting for 30s
+            _soulMdLock = Date.now() + 120000  // block bootstrap from overwriting for 2 min (30s was too short, bootstrap race condition)
             console.log(`[cc-soul][api] SOUL.md updated (${fullPrompt.length} chars)`)
           }
 

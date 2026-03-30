@@ -76,6 +76,83 @@ export function detectEmotionLabel(msg: string): { label: EmotionLabel; confiden
   return { label: 'neutral', confidence: 0.3 }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 情绪光谱：输出连续多维情绪评分，多种情绪可以共存
+// 和意图光谱对称的设计，形成 cc-soul 的"光谱哲学"
+//
+// 不是 "这条消息是 anger" 而是 "anger: 0.6, anxiety: 0.3, joy: 0.0"
+// 人的情绪本来就不是单一的——可以同时又气又急又委屈
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface EmotionSpectrum {
+  anger: number       // 愤怒 [0, 1]
+  anxiety: number     // 焦虑
+  frustration: number // 挫败
+  sadness: number     // 悲伤
+  joy: number         // 开心
+  pride: number       // 自豪
+  relief: number      // 释然
+  curiosity: number   // 好奇
+}
+
+export function computeEmotionSpectrum(msg: string): EmotionSpectrum {
+  const m = msg.toLowerCase()
+  const spectrum: EmotionSpectrum = {
+    anger: 0, anxiety: 0, frustration: 0, sadness: 0,
+    joy: 0, pride: 0, relief: 0, curiosity: 0,
+  }
+
+  // 愤怒信号
+  const angerSignals = (m.match(/生气|愤怒|气死|混蛋|什么鬼|太过分|凭什么|受够/g) || []).length
+  if (/[！!]{2,}/.test(msg) && angerSignals > 0) spectrum.anger = Math.min(1, 0.5 + angerSignals * 0.2)
+  else spectrum.anger = Math.min(1, angerSignals * 0.3)
+
+  // 焦虑信号
+  const anxietySignals = (m.match(/焦虑|担心|害怕|紧张|不安|怎么办|来不及|deadline|ddl|赶不上/g) || []).length
+  spectrum.anxiety = Math.min(1, anxietySignals * 0.3)
+
+  // 挫败信号
+  const frustSignals = (m.match(/又.*了|还是不行|试了.*次|搞不定|放弃|算了|不想|太难/g) || []).length
+  spectrum.frustration = Math.min(1, frustSignals * 0.3)
+
+  // 悲伤信号
+  const sadSignals = (m.match(/难过|伤心|失望|遗憾|可惜|唉|哭|委屈|孤独|想念/g) || []).length
+  spectrum.sadness = Math.min(1, sadSignals * 0.35)
+
+  // 开心信号
+  const joySignals = (m.match(/开心|高兴|太好了|哈哈|[🎉😊😄🥳]|棒|赞|厉害|成功/g) || []).length
+  spectrum.joy = Math.min(1, joySignals * 0.3)
+
+  // 自豪信号
+  const prideSignals = (m.match(/搞定|做到了|完成|上线了|通过了|拿到了|终于/g) || []).length
+  spectrum.pride = Math.min(1, prideSignals * 0.35)
+
+  // 释然信号
+  const reliefSignals = (m.match(/终于|解决了|松了口气|还好|幸好|好在|没事了/g) || []).length
+  spectrum.relief = Math.min(1, reliefSignals * 0.35)
+
+  // 好奇信号
+  const curSignals = (m.match(/怎么.*的|为什么|好奇|想知道|有意思|原来|没想到|居然/g) || []).length
+  spectrum.curiosity = Math.min(1, curSignals * 0.25)
+
+  // 归一化：确保不超过 1
+  for (const key of Object.keys(spectrum) as (keyof EmotionSpectrum)[]) {
+    spectrum[key] = Math.min(1, Math.max(0, spectrum[key]))
+  }
+
+  return spectrum
+}
+
+/** 从情绪光谱中提取主导情绪（兼容旧的单标签系统） */
+export function spectrumToDominant(spectrum: EmotionSpectrum): { label: string; confidence: number } | null {
+  let maxVal = 0.15  // 最低阈值
+  let maxKey = ''
+  for (const [key, val] of Object.entries(spectrum)) {
+    if (val > maxVal) { maxVal = val; maxKey = key }
+  }
+  return maxKey ? { label: maxKey, confidence: maxVal } : null
+}
+
 /** 情绪标签转旧版标签（兼容已有代码） */
 export function emotionLabelToLegacy(label: EmotionLabel): 'neutral' | 'warm' | 'painful' | 'important' {
   switch (label) {

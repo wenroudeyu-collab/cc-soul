@@ -81,6 +81,28 @@ const LONG_ABSENCE_MS = 3 * 24 * 60 * 60 * 1000
 const VERY_LONG_ABSENCE_MS = 7 * 24 * 60 * 60 * 1000
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PERSONALIZED ABSENCE THRESHOLD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 个性化缺席阈值：基于用户历史活跃模式动态计算
+ * 每天发 50 条的用户，4 小时不回就不正常
+ * 每周发 5 条的用户，3 天不回很正常
+ */
+function personalizedAbsenceThreshold(userId: string): { short: number; long: number; veryLong: number } {
+  // 找到这个用户的活跃记录
+  const record = state[userId]
+  const avgGapMs = record?.avgAbsenceDuration || 14400000  // 默认 4h
+
+  // 基于平均间隔计算阈值（倍数关系）
+  return {
+    short: Math.max(3600000, avgGapMs * 1.5),      // 1.5 倍平均间隔（至少 1h）
+    long: Math.max(86400000, avgGapMs * 8),          // 8 倍（至少 1 天）
+    veryLong: Math.max(259200000, avgGapMs * 24),    // 24 倍（至少 3 天）
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -126,7 +148,8 @@ export function heartbeatScanAbsence(): void {
 
     const silenceDuration = now - record.lastSeen
 
-    if (!record.isAbsent && silenceDuration > ABSENCE_THRESHOLD_MS) {
+    const thresholds = personalizedAbsenceThreshold(userId)
+    if (!record.isAbsent && silenceDuration > thresholds.short) {
       // User just became absent
       record.isAbsent = true
       record.absentSince = record.lastSeen
@@ -289,7 +312,8 @@ export function getAbsenceAugment(userId: string): Augment | null {
 
   const now = Date.now()
   const absenceDuration = record.absentSince > 0 ? now - record.absentSince : 0
-  if (absenceDuration < ABSENCE_THRESHOLD_MS) return null
+  const thresholds = personalizedAbsenceThreshold(userId)
+  if (absenceDuration < thresholds.short) return null
 
   // Mark welcome as shown so we don't repeat it
   record.welcomeShown = true
@@ -304,14 +328,14 @@ export function getAbsenceAugment(userId: string): Augment | null {
   const daysAway = Math.floor(absenceDuration / (24 * 60 * 60 * 1000))
   const hoursAway = Math.floor(absenceDuration / (60 * 60 * 1000))
 
-  if (absenceDuration >= VERY_LONG_ABSENCE_MS) {
-    // 7+ days — warm, careful welcome
+  if (absenceDuration >= thresholds.veryLong) {
+    // very long absence — warm, careful welcome
     hint = `[回归检测] ${name}已经离开了${daysAway}天。请自然地表达欢迎回来，简短提及上次聊天的话题（如果记得），不要过度热情或让用户感到压力。`
-  } else if (absenceDuration >= LONG_ABSENCE_MS) {
-    // 3-7 days — friendly note
+  } else if (absenceDuration >= thresholds.long) {
+    // long absence — friendly note
     hint = `[回归检测] ${name}有${daysAway}天没来了。可以轻松地打个招呼，提到"好久不见"即可，不要刻意列举之前的对话。`
   } else {
-    // 4h-3d — subtle acknowledgment
+    // short absence — subtle acknowledgment
     hint = `[回归检测] ${name}离开了约${hoursAway}小时。如果对话自然允许，可以简短问候一下，但不要刻意提及缺席。`
   }
 

@@ -43,8 +43,9 @@ export {
 export {
   recall, recallFused, getCachedFusedRecall, invalidateIDF, degradeMemoryConfidence,
   trackRecallImpact, getRecallImpactBoost, getRecallRate, recallStats, recallImpact,
-  recallWithScores, updateRecallIndex, rebuildRecallIndex, incrementalIDFUpdate,
+  recallWithScores, recallWithMetamemory, updateRecallIndex, rebuildRecallIndex, incrementalIDFUpdate,
 } from './memory-recall.ts'
+export type { MetamemoryResult } from './memory-recall.ts'
 export {
   consolidateMemories, generateInsights, recallFeedbackLoop,
   associateSync, triggerAssociativeRecall, getAssociativeRecall,
@@ -739,14 +740,54 @@ export function updateMemory(index: number, newContent: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Interference Forgetting — new memories suppress similar old memories
+// Retroactive Interference — new memories reshape (not just suppress) similar old memories
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * When a new fact/preference/correction is added, suppress (lower confidence of)
+ * 记忆干涉演化：新信息重塑旧记忆而非替换
+ * 基于 Retroactive Interference Theory
+ */
+function retroactiveInterference(oldMem: Memory, newContent: string, similarity: number): boolean {
+  // 只对中等相似度的记忆做干涉（太相似=重复，太不相似=无关）
+  if (similarity < 0.3 || similarity > 0.85) return false
+  // 只对 fact 和 preference 做干涉
+  if (oldMem.scope !== 'fact' && oldMem.scope !== 'preference') return false
+
+  // 提取新旧记忆的差异部分
+  const oldWords = new Set((oldMem.content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+  const newWords = new Set((newContent.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+
+  // 找出新增的关键词
+  const addedWords: string[] = []
+  for (const w of newWords) {
+    if (!oldWords.has(w)) addedWords.push(w)
+  }
+
+  if (addedWords.length === 0) return false
+
+  // 保存原文到 history
+  if (!oldMem.history) oldMem.history = []
+  if (oldMem.history.length < 5) {
+    oldMem.history.push({ content: oldMem.content, ts: Date.now() })
+  }
+
+  // 重塑：在旧记忆后面追加新条件/补充
+  const supplement = addedWords.slice(0, 3).join('、')
+  oldMem.content = `${oldMem.content}（补充：${supplement}）`
+  oldMem.confidence = Math.max(0.3, (oldMem.confidence ?? 0.7) * 0.85) // 置信度轻微降低
+  oldMem.ts = Date.now() // 更新时间戳（重塑=部分重建）
+
+  console.log(`[cc-soul][interference] reshaped: "${oldMem.content.slice(0, 50)}" (+${supplement})`)
+  return true
+}
+
+/**
+ * When a new fact/preference/correction is added, suppress or reshape
  * similar older memories. This prevents the 60K memory pile-up.
  *
- * Mechanism: trigram similarity > 0.6 with same scope → reduce confidence by 0.15.
+ * Mechanism: trigram similarity > 0.6 with same scope →
+ *   1. Try retroactive interference (reshape) for medium similarity (0.3-0.85)
+ *   2. Fall back to confidence penalty if reshape not applicable
  * If confidence drops below 0.2 → mark as expired (effectively forgotten).
  * Only suppresses memories older than 1 hour (avoid self-interference).
  */
@@ -754,6 +795,7 @@ function suppressSimilarMemories(newMem: Memory) {
   const newTri = trigrams(newMem.content)
   const MIN_AGE_MS = 3600000 // 1 hour — don't suppress very recent memories
   let suppressed = 0
+  let reshaped = 0
 
   const startIdx = Math.max(0, memoryState.memories.length - 500)
   for (let i = startIdx; i < memoryState.memories.length - 1; i++) { // -1 to skip the just-added one
@@ -772,19 +814,32 @@ function suppressSimilarMemories(newMem: Memory) {
     const sim = trigramSimilarity(newTri, oldTri)
 
     if (sim > 0.6) {
-      bayesPenalize(old, 1.5)  // interference suppression: β += 1.5
-      if (old.confidence < 0.2) {
-        old.scope = 'expired'
-        console.log(`[cc-soul][interference] expired: "${old.content.slice(0, 50)}" (suppressed by new memory)`)
+      const oldContent = old.content // 记住旧 content 用于 SQLite 查找
+      // 先尝试 retroactive interference（重塑而非压制）
+      const wasReshaped = retroactiveInterference(old, newMem.content, sim)
+      if (wasReshaped) {
+        reshaped++
+        // reshaped 后 old.content 已变，需用旧 content 查 SQLite 再更新
+        if (useSQLite) {
+          const found = sqliteFindByContent(oldContent)
+          if (found) sqliteUpdateMemory(found.id, { content: old.content, confidence: old.confidence, ts: old.ts } as any)
+        }
+      } else {
+        // 如果没有被重塑（不适用），维持原有的 confidence 降低
+        bayesPenalize(old, 1.5)  // interference suppression: β += 1.5
+        if (old.confidence < 0.2) {
+          old.scope = 'expired'
+          console.log(`[cc-soul][interference] expired: "${old.content.slice(0, 50)}" (suppressed by new memory)`)
+        }
+        suppressed++
+        syncToSQLite(old, { confidence: old.confidence, scope: old.scope })
       }
-      syncToSQLite(old, { confidence: old.confidence, scope: old.scope })
-      suppressed++
-      if (suppressed >= 5) break // cap per new memory
+      if (suppressed + reshaped >= 5) break // cap per new memory
     }
   }
 
-  if (suppressed > 0) {
-    console.log(`[cc-soul][interference] ${suppressed} old memories suppressed`)
+  if (suppressed > 0 || reshaped > 0) {
+    console.log(`[cc-soul][interference] ${suppressed} suppressed, ${reshaped} reshaped`)
   }
 }
 
@@ -1008,6 +1063,31 @@ function autoLinkMemories(newMem: Memory) {
   }
 }
 
+/**
+ * 预期违背编码：只有出乎预料的信息才值得记忆
+ * 基于 Predictive Coding Theory (Friston 2005)
+ */
+function computeSurprise(content: string, scope: string, _userId?: string): number {
+  let score = 5 // 默认中等
+
+  // 身份信息 → 高 surprise（重要但稀少）
+  if (/名字|叫我|职业|住在|工作|年龄|生日|毕业/.test(content)) score = 9
+  // 偏好信息 → 中高
+  if (/喜欢|讨厌|偏好|习惯|最爱|受不了/.test(content)) score = 7
+  // 纠正 → 高（意味着之前的理解错了）
+  if (scope === 'correction') score = 8
+  // 情绪爆发 → 高
+  if (/[！!]{2,}|卧槽|崩溃|太开心|难受|焦虑/.test(content)) score += 2
+  // 时效性信息 → 降级（"今天""刚才"这类信息过期快）
+  if (/今天|刚才|现在|刚刚/.test(content)) score -= 2
+  // 常见寒暄 → 极低
+  if (/^(你好|嗯|好的|谢谢|哈哈|ok|行|收到)$/i.test(content.trim())) score = 1
+  // 短内容 → 降级
+  if (content.length < 10) score -= 1
+
+  return Math.max(1, Math.min(10, score))
+}
+
 export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx']) {
   // Check skip flag from session (inclusion/exclusion control)
   try {
@@ -1047,6 +1127,14 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     return
   }
 
+  // ── Surprise-Only Encoding (Predictive Coding Theory, Friston 2005) ──
+  // 只有出乎预料的信息才值得记忆
+  const surprise = computeSurprise(content, scope, userId)
+  if (surprise <= 2 && scope !== 'correction' && scope !== 'preference') {
+    console.log(`[cc-soul][memory-crud] SKIP (low surprise=${surprise}): ${content.slice(0, 60)}`)
+    return // 太平凡了，不存储
+  }
+
   // Auto-attach current emotional state to every memory
   let autoSituationCtx = situationCtx
   if (!autoSituationCtx) {
@@ -1082,6 +1170,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     recallCount: 0,
     source: autoSource,
     emotionIntensity: autoEmotionIntensity,
+    importance: surprise, surprise,
     ...(FACT_SCOPES.includes(scope) ? { validFrom: Date.now(), validUntil: 0 } : {}),
     ...extractReasoning(content),
     ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),

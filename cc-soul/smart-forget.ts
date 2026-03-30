@@ -1,6 +1,7 @@
 import { resolve } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type { SoulModule } from './brain.ts'
+import { getParam } from './auto-tune.ts'
 
 /**
  * smart-forget.ts — Intelligent Memory Forgetting (Weibull + ACT-R)
@@ -28,6 +29,70 @@ import type { SoulModule } from './brain.ts'
  */
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FSRS-4.5 — Free Spaced Repetition Scheduler (replaces Weibull for new memories)
+// Paper: https://arxiv.org/abs/2402.07345
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface FSRSState {
+  stability: number    // 记忆稳定度（天数）— 90% 检索概率对应的间隔
+  difficulty: number   // 记忆难度 0-1 — 越难越容易忘
+  reps: number         // 复习/召回次数
+  lapses: number       // 遗忘次数
+}
+
+/** FSRS-4.5 default weights (from open-source FSRS optimizer) */
+const FSRS_W = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61]
+
+/** Retrievability: probability of recall after elapsedDays, given stability S.
+ *  R(t,S) = (1 + t/(9·S))^(-1)  — power-law decay, not exponential. */
+export function fsrsRetrievability(elapsedDays: number, stability: number): number {
+  if (stability <= 0 || !isFinite(stability)) return 1.0
+  if (elapsedDays <= 0) return 1.0
+  return Math.pow(1 + elapsedDays / (9 * stability), -1)
+}
+
+/** Update FSRS state after a recall event.
+ *  rating: 1=again(forgot), 2=hard, 3=good, 4=easy */
+export function fsrsUpdate(state: FSRSState, rating: 1 | 2 | 3 | 4, elapsedDays: number): FSRSState {
+  const s = { ...state }
+  const r = fsrsRetrievability(elapsedDays, s.stability)
+
+  if (rating >= 3) {
+    // Successful recall → stability grows
+    const growthFactor = 1 + Math.exp(FSRS_W[8]) * (11 - s.difficulty * 10) *
+      Math.pow(s.stability, -FSRS_W[9]) *
+      (Math.exp((1 - r) * FSRS_W[10]) - 1)
+    s.stability = Math.max(0.1, s.stability * growthFactor)
+    s.reps++
+    // Difficulty eases slightly on successful recall
+    s.difficulty = Math.max(0, Math.min(1, s.difficulty - 0.02 * (rating - 2)))
+  } else {
+    // Failed recall / hard → stability shrinks
+    s.stability = Math.max(0.1, s.stability * Math.pow(FSRS_W[11], s.difficulty * 10 - 1))
+    s.lapses++
+    s.reps++
+    // Difficulty increases on failure
+    s.difficulty = Math.max(0, Math.min(1, s.difficulty + 0.1 * (2 - rating)))
+  }
+
+  return s
+}
+
+/** Create initial FSRS state for a new memory */
+export function fsrsInit(scope?: string): FSRSState {
+  // scope-based initial difficulty: corrections are "easy" (never forget), episodes are harder
+  const difficultyMap: Record<string, number> = {
+    correction: 0.1, fact: 0.3, preference: 0.25, episode: 0.4, emotion: 0.5,
+  }
+  return {
+    stability: scope === 'correction' ? 365 : 1.0,  // 1 day initial stability (corrections: 1 year)
+    difficulty: difficultyMap[scope || 'fact'] ?? 0.3,
+    reps: 0,
+    lapses: 0,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -42,6 +107,8 @@ export interface MemoryInput {
   scope: string
   /** Optional confidence 0-1 (defaults to 0.5) */
   confidence?: number
+  /** FSRS state — new memories use FSRS, old memories without this field fall back to Weibull */
+  fsrs?: FSRSState
 }
 
 interface SweepResult {
@@ -64,46 +131,50 @@ interface ForgetStats {
 
 const MS_PER_DAY = 86400000
 
-/** Weibull shape parameter — per-scope learnable (stored in decay_params.json) */
+/** Weibull shape parameter — per-scope, read from tunable params (auto-tune.ts) */
 const WEIBULL_K_DEFAULT: Record<string, number> = {
   fact: 1.2,
   preference: 0.9,
   episode: 1.4,
   correction: Infinity,  // corrections never decay
 }
-const WEIBULL_K_FALLBACK = 1.2
 
-/** Get Weibull k for a scope (learnable, falls back to defaults) */
+/** Get Weibull k for a scope (learnable EMA → tunable params → hardcoded defaults) */
 export function getWeibullK(scope?: string): number {
   const s = scope || 'fact'
-  // Check learned params first
+  // Check learned EMA params first
   if (_decayParams.scopeK && _decayParams.scopeK[s] !== undefined) return _decayParams.scopeK[s]
-  return WEIBULL_K_DEFAULT[s] ?? WEIBULL_K_FALLBACK
+  // Then tunable params
+  const paramKey = `forget.weibull_k_${s}`
+  const tuned = getParam(paramKey)
+  if (tuned > 0) return tuned
+  return WEIBULL_K_DEFAULT[s] ?? getParam('forget.weibull_k_fact')
 }
 
 /** Backward-compatible constant (uses 'fact' default) */
 export const WEIBULL_K = 1.2
 
-/** Weibull scale (lambda) in days, by scope */
-const WEIBULL_LAMBDA: Record<string, number> = {
-  fact: 30,
-  preference: 90,
-  correction: Infinity,   // corrections never decay via Weibull
-  episode: 14,
-  emotion: 7,
+/** Weibull scale (lambda) in days, by scope — now reads from tunable params */
+function getWeibullLambda(scope: string): number {
+  if (scope === 'correction') return Infinity
+  const paramKey = `forget.weibull_lambda_${scope}`
+  const tuned = getParam(paramKey)
+  if (tuned > 0) return tuned
+  // Fallback for scopes without dedicated param (e.g. emotion)
+  const LEGACY_LAMBDA: Record<string, number> = { emotion: 7 }
+  return LEGACY_LAMBDA[scope] ?? getParam('forget.weibull_lambda_fact')
 }
-const WEIBULL_LAMBDA_DEFAULT = 30
 
-/** ACT-R decay exponent */
-const ACT_R_DECAY = 0.5
+/** ACT-R decay exponent — tunable */
+function getActRDecay(): number { return getParam('forget.act_r_decay') }
 
-/** Forget thresholds */
-const SURVIVAL_FORGET_THRESHOLD = 0.1
-const ACTIVATION_FORGET_THRESHOLD = -1.0
+/** Forget thresholds — tunable */
+function getSurvivalForgetThreshold(): number { return getParam('forget.survival_threshold') }
+function getActivationForgetThreshold(): number { return getParam('forget.activation_threshold') }
 
-/** Consolidation thresholds */
-const SURVIVAL_CONSOLIDATE_THRESHOLD = 0.8
-const ACTIVATION_CONSOLIDATE_THRESHOLD = 2.0
+/** Consolidation thresholds — tunable */
+function getSurvivalConsolidateThreshold(): number { return getParam('forget.consolidation_threshold_survival') }
+function getActivationConsolidateThreshold(): number { return getParam('forget.consolidation_threshold_activation') }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADAPTIVE DECAY — learn lambda multiplier from recall hit/miss feedback
@@ -138,23 +209,40 @@ function saveDecayParams() {
   try { writeFileSync(_decayParamsPath, JSON.stringify(_decayParams, null, 2)) } catch {}
 }
 
-/** EMA alpha for adaptive lambda adjustment */
-const EMA_ALPHA = 0.05
+/** EMA alpha for adaptive lambda adjustment — now reads from auto-tune */
+function getEMAAlpha(): number { return getParam('forget.ema_alpha') }
+
+/** Clamp lambda multiplier to [0.5, 2.0] range */
+function clampMultiplier(v: number): number { return Math.max(0.5, Math.min(2.0, v)) }
 
 /** Record a recall hit (user later referenced the recalled memory) */
-export function recordRecallHit() {
+export function recordRecallHit(scope?: string) {
   _decayParams.recallHits++
-  // EMA: nudge multiplier toward 1.05 on hit (memory was useful → slow decay)
-  _decayParams.lambdaMultiplier = _decayParams.lambdaMultiplier * (1 - EMA_ALPHA) + 1.05 * EMA_ALPHA
+  // EMA: nudge lambda multiplier toward 1.05 on hit (memory was useful → slow decay)
+  _decayParams.lambdaMultiplier = clampMultiplier(
+    _decayParams.lambdaMultiplier * (1 - getEMAAlpha()) + 1.05 * getEMAAlpha()
+  )
+  // EMA: nudge k downward on hit (lower k → flatter hazard → slower forget)
+  if (scope && _decayParams.scopeK && _decayParams.scopeK[scope] !== undefined) {
+    const kTarget = (WEIBULL_K_DEFAULT[scope] ?? 1.2) * 0.97  // target: 3% lower than default
+    _decayParams.scopeK[scope] = _decayParams.scopeK[scope] * (1 - getEMAAlpha()) + kTarget * getEMAAlpha()
+  }
   _decayParams.lastAdjustTs = Date.now()
   saveDecayParams()
 }
 
 /** Record a recall miss (recalled memory was ignored by user) */
-export function recordRecallMiss() {
+export function recordRecallMiss(scope?: string) {
   _decayParams.recallMisses++
-  // EMA: nudge multiplier toward 0.95 on miss (memory was useless → faster decay)
-  _decayParams.lambdaMultiplier = _decayParams.lambdaMultiplier * (1 - EMA_ALPHA) + 0.95 * EMA_ALPHA
+  // EMA: nudge lambda multiplier toward 0.95 on miss (memory was useless → faster decay)
+  _decayParams.lambdaMultiplier = clampMultiplier(
+    _decayParams.lambdaMultiplier * (1 - getEMAAlpha()) + 0.95 * getEMAAlpha()
+  )
+  // EMA: nudge k upward on miss (higher k → steeper hazard → faster forget)
+  if (scope && _decayParams.scopeK && _decayParams.scopeK[scope] !== undefined) {
+    const kDefault = WEIBULL_K_DEFAULT[scope] ?? 1.2
+    _decayParams.scopeK[scope] = _decayParams.scopeK[scope] * (1 - getEMAAlpha()) + (kDefault * 1.03) * getEMAAlpha()
+  }
   _decayParams.lastAdjustTs = Date.now()
   saveDecayParams()
 }
@@ -188,14 +276,20 @@ export function weibullSurvival(ageDays: number, lambda: number, k: number): num
  * More recalls → longer effective half-life (up to 3x).
  */
 export function effectiveLambda(scope: string, recallCount: number, emotionIntensity?: number): number {
-  const baseLambda = WEIBULL_LAMBDA[scope] ?? WEIBULL_LAMBDA_DEFAULT
+  const baseLambda = getWeibullLambda(scope)
   if (!isFinite(baseLambda)) return Infinity
-  // Each recall extends lambda by ~15%, capped at 3x
-  const recallMultiplier = Math.min(1 + recallCount * 0.15, 3.0)
-  // High-emotion memories decay slower (flashbulb memory effect)
-  // emotionIntensity 0.8+ → 2x lambda, 0.5+ → 1.5x, default → 1x
+  // Each recall extends lambda, capped at configurable max
+  const recallMultiplier = Math.min(1 + recallCount * getParam('forget.recall_increment_percent') / 100, getParam('forget.lambda_max_multiplier'))
+  // 连续情绪-记忆耦合（替代阶梯乘数）
+  // λ(ei) = 1 + α × ei^β，其中 α=1.5, β=2.0
+  // ei=0 → 1.0（无影响）
+  // ei=0.5 → 1.375（轻微延长）
+  // ei=0.8 → 1.96（接近2x）
+  // ei=1.0 → 2.5（极强记忆）
   const ei = emotionIntensity ?? 0
-  const emotionMultiplier = ei >= 0.8 ? 2.0 : ei >= 0.5 ? 1.5 : 1.0
+  const emotionAlpha = 1.5  // 最大增强幅度
+  const emotionBeta = 2.0   // 非线性指数（越大越需要高情绪才有效）
+  const emotionMultiplier = 1 + emotionAlpha * Math.pow(ei, emotionBeta)
   return baseLambda * recallMultiplier * emotionMultiplier * _decayParams.lambdaMultiplier
 }
 
@@ -222,15 +316,15 @@ function actRActivation(mem: MemoryInput, now: number): number {
 
   if (n === 1) {
     // Single access at lastAccessed time
-    sum = Math.pow(lastAgo, -ACT_R_DECAY)
+    sum = Math.pow(lastAgo, -getActRDecay())
   } else {
-    // Distribute accesses evenly from creation to lastAccessed (cap at 50 iterations)
-    const cap = Math.min(n, 50)
+    // Distribute accesses evenly from creation to lastAccessed (cap at configurable iterations)
+    const cap = Math.min(n, getParam('forget.actr_max_iterations'))
     for (let i = 0; i < cap; i++) {
       const fraction = cap === 1 ? 1 : i / (cap - 1)
       const accessAgo = createdAgo - fraction * (createdAgo - lastAgo)
       const t = Math.max(accessAgo, 1)
-      sum += Math.pow(t, -ACT_R_DECAY)
+      sum += Math.pow(t, -getActRDecay())
     }
   }
 
@@ -242,6 +336,23 @@ function actRActivation(mem: MemoryInput, now: number): number {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Ensure all memories have FSRS state — auto-initialize for legacy memories without fsrs field.
+ * Uses scope and age to produce reasonable initial stability/difficulty.
+ */
+function ensureFSRS(mem: MemoryInput): { stability: number; difficulty: number } {
+  if (mem.fsrs) return mem.fsrs
+  // 旧记忆：根据 scope 和年龄初始化 FSRS
+  const ageDays = (Date.now() - (mem.ts || Date.now())) / MS_PER_DAY
+  const scope = mem.scope || 'fact'
+  let stability = scope === 'correction' ? 365 : scope === 'preference' ? 60 : scope === 'episode' ? 7 : 30
+  let difficulty = scope === 'correction' ? 1 : scope === 'preference' ? 3 : scope === 'episode' ? 7 : 5
+  // 根据 recallCount 调整：被多次召回的记忆更稳定
+  const recalls = mem.recallCount || 0
+  if (recalls > 0) stability *= (1 + recalls * 0.3)
+  return { stability, difficulty }
+}
+
+/**
  * Compute a composite forget score for a single memory.
  *
  * @returns 0-1 probability of forgetting (1 = definitely forget)
@@ -250,10 +361,9 @@ export function computeForgetScore(mem: MemoryInput): number {
   const now = Date.now()
   const ageDays = (now - mem.ts) / MS_PER_DAY
 
-  // Weibull survival (scope-aware k)
-  const lambda = effectiveLambda(mem.scope, mem.recallCount, mem.emotionIntensity)
-  const k = getWeibullK(mem.scope)
-  const survival = weibullSurvival(ageDays, lambda, k)
+  // ── 统一 FSRS 路径：所有记忆（含旧记忆）都走 FSRS ──
+  const fsrs = ensureFSRS(mem)
+  const survival = fsrsRetrievability(ageDays, fsrs.stability)
 
   // ACT-R activation
   const activation = actRActivation(mem, now)
@@ -293,19 +403,20 @@ export function smartForgetSweep(memories: any[]): SweepResult {
     }
 
     const ageDays = (now - mem.ts) / MS_PER_DAY
-    const lambda = effectiveLambda(mem.scope, mem.recallCount, mem.emotionIntensity)
-    const k = getWeibullK(mem.scope)
-    const survival = weibullSurvival(ageDays, lambda, k)
+
+    // ── 统一 FSRS 路径 ──
+    const fsrs = ensureFSRS({ ...mem, fsrs: (m as any).fsrs })
+    const survival = fsrsRetrievability(ageDays, fsrs.stability)
     const activation = actRActivation(mem, now)
 
     // Forget: low survival AND low activation
-    if (survival < SURVIVAL_FORGET_THRESHOLD && activation < ACTIVATION_FORGET_THRESHOLD) {
+    if (survival < getSurvivalForgetThreshold() && activation < getActivationForgetThreshold()) {
       toForget.push(i)
       continue
     }
 
     // Consolidate: high survival AND high activation (memory is strong)
-    if (survival > SURVIVAL_CONSOLIDATE_THRESHOLD && activation > ACTIVATION_CONSOLIDATE_THRESHOLD) {
+    if (survival > getSurvivalConsolidateThreshold() && activation > getActivationConsolidateThreshold()) {
       toConsolidate.push(i)
     }
   }
@@ -352,7 +463,7 @@ export const smartForgetModule: SoulModule = {
       _decayParams.scopeK = { ...WEIBULL_K_DEFAULT }
       saveDecayParams()
     }
-    console.log(`[smart-forget] initialized — Weibull k per-scope, ACT-R d=0.5, λ-multiplier=${_decayParams.lambdaMultiplier.toFixed(3)} (EMA α=${EMA_ALPHA})`)
+    console.log(`[smart-forget] initialized — FSRS-4.5 + Weibull fallback, ACT-R d=0.5, λ-multiplier=${_decayParams.lambdaMultiplier.toFixed(3)} (EMA α=${getEMAAlpha()})`)
   },
 
   dispose(): void {
@@ -382,8 +493,8 @@ export const smartForgetModule: SoulModule = {
 
     // Execute forget: mark expired (reverse order to preserve indices)
     if (result.toForget.length > 0) {
-      const MAX_FORGET_PER_SWEEP = 20
-      const toForget = result.toForget.slice(0, MAX_FORGET_PER_SWEEP)
+      const maxPerSweep = getParam('forget.max_per_sweep')
+      const toForget = result.toForget.slice(0, maxPerSweep)
       for (let i = toForget.length - 1; i >= 0; i--) {
         const idx = toForget[i]
         if (idx >= 0 && idx < memories.length && memories[idx].scope !== 'expired') {

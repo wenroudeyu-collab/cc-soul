@@ -22,8 +22,10 @@ interface ConflictPair {
   source: 'seed' | 'learned'
   coOccurrences: number
   correctionCount: number
-  /** correctionCount / coOccurrences — auto-computed */
+  /** correctionCount / coOccurrences — auto-computed (legacy, kept for compat) */
   correctionRate: number
+  /** EWMA: 最近 20 次 co-occurrence 的 0/1 序列 */
+  recentCorrections?: number[]
 }
 
 interface AugmentInteraction {
@@ -130,6 +132,23 @@ function pairKey(a: string, b: string): string {
   return [a, b].sort().join('::')
 }
 
+/**
+ * EWMA 纠正率：最近的纠正权重更大，老的逐渐失效
+ * 替代简单频率 correctionCount / coOccurrences
+ */
+function ewmaCorrectionRate(pair: ConflictPair): number {
+  if (!pair.recentCorrections || pair.recentCorrections.length === 0) {
+    // 回退到简单频率（兼容旧数据）
+    return pair.coOccurrences > 0 ? pair.correctionCount / pair.coOccurrences : 0
+  }
+  const alpha = 0.15  // EWMA 系数
+  let ewma = 0.5  // 先验
+  for (const wasCorrection of pair.recentCorrections) {
+    ewma = alpha * (wasCorrection ? 1 : 0) + (1 - alpha) * ewma
+  }
+  return ewma
+}
+
 /** Extract a rough "type tag" from augment content for interaction tracking */
 function extractType(content: string): string {
   // Try to match bracketed tags like [相关记忆], [注意规则], etc.
@@ -184,9 +203,14 @@ export function learnConflict(augmentsUsed: string[], wasCorrected: boolean): vo
 
     existing.coOccurrences++
     if (wasCorrected) existing.correctionCount++
-    existing.correctionRate = existing.coOccurrences > 0
-      ? existing.correctionCount / existing.coOccurrences
-      : 0
+
+    // EWMA 序列追踪
+    if (!existing.recentCorrections) existing.recentCorrections = []
+    existing.recentCorrections.push(wasCorrected ? 1 : 0)
+    if (existing.recentCorrections.length > 20) existing.recentCorrections.shift()
+
+    // 更新 correctionRate（使用 EWMA，兼容旧字段）
+    existing.correctionRate = ewmaCorrectionRate(existing)
   }
 
   // Trim to max
@@ -209,7 +233,7 @@ function getActiveConflicts(): ConflictPair[] {
   ensureInit()
   return data.conflictPairs.filter(p =>
     p.source === 'seed' ||
-    (p.correctionRate >= LEARNED_CONFLICT_THRESHOLD && p.coOccurrences >= LEARNED_CONFLICT_MIN_SAMPLES)
+    (ewmaCorrectionRate(p) >= LEARNED_CONFLICT_THRESHOLD && p.coOccurrences >= LEARNED_CONFLICT_MIN_SAMPLES)
   )
 }
 

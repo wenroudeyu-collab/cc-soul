@@ -56,7 +56,55 @@ export function classifyTier(ts: number | undefined, now: number): CompressionTi
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Summary 策略：保留首句+末句，中间用"..."连接。
+ * 信息密度保留压缩：优先保留高信息密度的句子
+ * 与预期违背编码呼应 — surprise 高的内容更值得保留
+ *
+ * 每句话的信息密度 = 唯一词比例 × (1 + 实体/数字密度) × 位置权重
+ */
+export function compressByDensity(text: string, targetRatio: number = 0.4): string {
+  const sentences = text.split(/(?<=[。！？!?\.\n])\s*/).filter(s => s.trim().length > 3)
+  if (sentences.length <= 2) return text
+
+  // 计算每句的信息密度
+  const scored = sentences.map((sent, idx) => {
+    const words = (sent.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+    const unique = new Set(words)
+    const uniqueRatio = words.length > 0 ? unique.size / words.length : 0
+
+    // 实体/数字密度：包含代码、数字、专有名词的句子更有信息量
+    const entityCount = (sent.match(/\d+|`[^`]+`|[A-Z][a-z]+[A-Z]|[A-Z]{2,}/g) || []).length
+    const entityDensity = 1 + Math.min(entityCount * 0.2, 0.8)
+
+    // 位置权重：首句和末句轻微加权（通常是主题句和总结句）
+    const posWeight = (idx === 0 || idx === sentences.length - 1) ? 1.2 : 1.0
+
+    // 长度惩罚：太短的句子信息量低
+    const lengthFactor = sent.length < 10 ? 0.5 : 1.0
+
+    const density = uniqueRatio * entityDensity * posWeight * lengthFactor
+    return { sent, density, idx }
+  })
+
+  // 按密度排序，选到目标比例
+  const targetLen = Math.ceil(text.length * targetRatio)
+  scored.sort((a, b) => b.density - a.density)
+
+  const selected: { sent: string; idx: number }[] = []
+  let currentLen = 0
+  for (const s of scored) {
+    if (currentLen >= targetLen) break
+    selected.push(s)
+    currentLen += s.sent.length
+  }
+
+  // 按原始顺序排列
+  selected.sort((a, b) => a.idx - b.idx)
+
+  return selected.map(s => s.sent).join(' ')
+}
+
+/**
+ * Summary 策略：优先用信息密度压缩，fallback 到首句+末句。
  * 目标：压缩到原长 ~50%
  */
 export function summarize(text: string): string {
@@ -67,6 +115,13 @@ export function summarize(text: string): string {
   const sentences = trimmed.split(/(?<=[。！？!?\.\n])\s*/).filter(s => s.trim())
   if (sentences.length <= 2) return trimmed
 
+  // 优先用信息密度压缩
+  const densityResult = compressByDensity(trimmed, 0.4)
+  if (densityResult.length >= trimmed.length * 0.2 && densityResult.length <= trimmed.length * 0.6) {
+    return densityResult
+  }
+
+  // fallback: 首尾句
   const first = sentences[0].trim()
   const last = sentences[sentences.length - 1].trim()
 

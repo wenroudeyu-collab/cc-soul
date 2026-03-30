@@ -95,6 +95,67 @@ function analyzeGrowth(): DeepUnderstandState['growth'] {
   return { direction: 'plateauing', details: '模式稳定' }
 }
 
+// ── 3b. Learning Curve Fit (幂律学习曲线拟合) ──
+
+/**
+ * 学习曲线拟合：用幂律学习曲线 performance = a × t^b 拟合用户成长
+ * 认知科学基础：Power Law of Learning (Newell & Rosenbloom 1981)
+ *
+ * b > 0 = 在成长
+ * b ≈ 0 = 平台期
+ * b < 0 = 退步
+ */
+export interface LearningCurve {
+  growthRate: number      // b 值：正=成长，0=平台，负=退步
+  currentLevel: number    // 当前水平估计 [0, 1]
+  plateau: boolean        // 是否进入平台期
+  prediction: string      // 自然语言描述
+}
+
+export function fitLearningCurve(history: { user: string; ts: number }[]): LearningCurve {
+  if (history.length < 10) return { growthRate: 0, currentLevel: 0.5, plateau: false, prediction: '数据不足' }
+
+  // 按时间排序，每 5 条消息一组计算"水平"指标
+  const windowSize = 5
+  const dataPoints: { t: number; level: number }[] = []
+
+  for (let i = 0; i <= history.length - windowSize; i += windowSize) {
+    const window = history.slice(i, i + windowSize)
+    const avgLen = window.reduce((s, h) => s + h.user.length, 0) / windowSize
+    // 词汇丰富度：唯一 2-gram 数 / 总 2-gram 数
+    const allWords = window.map(h => h.user.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).flat()
+    const unique = new Set(allWords.map(w => w.toLowerCase()))
+    const richness = allWords.length > 0 ? unique.size / allWords.length : 0
+    // 综合水平 = 长度归一化 * 0.4 + 词汇丰富度 * 0.6
+    const level = Math.min(1, (avgLen / 100) * 0.4 + richness * 0.6)
+    dataPoints.push({ t: i / windowSize + 1, level })
+  }
+
+  if (dataPoints.length < 3) return { growthRate: 0, currentLevel: 0.5, plateau: false, prediction: '数据不足' }
+
+  // 对数线性回归拟合 log(level) = log(a) + b * log(t)
+  // 即 y = c + b * x，其中 y = log(level), x = log(t)
+  const xs = dataPoints.map(d => Math.log(d.t + 1))
+  const ys = dataPoints.map(d => Math.log(Math.max(0.01, d.level)))
+  const n = xs.length
+  const sumX = xs.reduce((s, x) => s + x, 0)
+  const sumY = ys.reduce((s, y) => s + y, 0)
+  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0)
+  const sumXX = xs.reduce((s, x) => s + x * x, 0)
+
+  const b = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX + 1e-9)
+  const currentLevel = dataPoints[dataPoints.length - 1].level
+  const plateau = Math.abs(b) < 0.05 && dataPoints.length >= 5
+
+  let prediction = ''
+  if (b > 0.15) prediction = '快速成长期，保持节奏'
+  else if (b > 0.05) prediction = '稳步提升中'
+  else if (b > -0.05) prediction = '平台期，可能需要新挑战'
+  else prediction = '有所下滑，建议调整方向'
+
+  return { growthRate: b, currentLevel, plateau, prediction }
+}
+
 // ── 4. Unspoken Needs ──
 function analyzeUnspokenNeeds(): DeepUnderstandState['unspoken'] {
   const recent = memoryState.chatHistory.filter(h => h.ts > Date.now() - 7 * 86400000)
@@ -140,6 +201,93 @@ function analyzeStress(): DeepUnderstandState['stress'] {
   return { stressLevel: Math.min(1, score), signals }
 }
 
+// ── 6b. Cognitive Load Dynamics (弹簧-阻尼压力模型) ──
+
+/**
+ * 认知负荷波动模型：建模压力的积累-释放动力学
+ * 不是检测"现在有没有压力"，而是建模压力的轨迹
+ *
+ * 积累期：连续短消息 + 负面词 → 压力上升
+ * 释放期：长消息 + 正面反馈 → 压力释放
+ * 爆发预测：压力超过阈值且加速 → 预测即将爆发
+ *
+ * 物理模型：弹簧-阻尼系统
+ * dx/dt = -k*x + F(t) - γ*v
+ * x = 压力水平, k = 恢复弹性, F(t) = 外部应激, γ = 阻尼（韧性）
+ */
+export interface StressDynamics {
+  level: number           // 当前压力 [0, 1]
+  velocity: number        // 变化速率（正=恶化）
+  phase: 'accumulating' | 'peak' | 'releasing' | 'calm'
+  turnsToBreakdown: number | null  // 预测几轮后可能爆发（null=不会）
+  resilience: number      // 估计的恢复弹性 [0, 1]
+}
+
+export function analyzeStressDynamics(history: { user: string; ts: number }[]): StressDynamics {
+  if (history.length < 5) return { level: 0, velocity: 0, phase: 'calm', turnsToBreakdown: null, resilience: 0.5 }
+
+  const recent = history.slice(-15)
+  const signals: number[] = []
+
+  for (let i = 0; i < recent.length; i++) {
+    const msg = recent[i].user
+    let signal = 0
+
+    // 消息长度信号：短消息 = 压力（失去耐心）
+    if (msg.length < 10) signal += 0.15
+    else if (msg.length > 80) signal -= 0.1  // 长消息 = 在思考/释放
+
+    // 负面词信号
+    if (/烦|累|崩|急|压力|焦虑|受不了|算了|不想|头疼|烦死/.test(msg)) signal += 0.25
+    // 正面词信号
+    if (/谢|好的|明白|解决|搞定|不错|太好/.test(msg)) signal -= 0.15
+
+    // 标点信号：多个感叹号/问号 = 激动
+    if (/[！!]{2,}|[？?]{2,}/.test(msg)) signal += 0.1
+
+    // 时间间隔信号：快速连发 = 急躁
+    if (i > 0) {
+      const gap = recent[i].ts - recent[i - 1].ts
+      if (gap < 10000) signal += 0.1  // 10秒内连发
+    }
+
+    signals.push(Math.max(-0.3, Math.min(0.5, signal)))
+  }
+
+  // 弹簧-阻尼模型：模拟压力积累
+  let x = 0       // 位置（压力水平）
+  let v = 0       // 速度
+  const k = 0.15  // 恢复弹性（越大恢复越快）
+  const gamma = 0.3  // 阻尼系数
+  const dt = 1
+
+  for (const F of signals) {
+    const a = -k * x + F - gamma * v  // 加速度
+    v += a * dt
+    x += v * dt
+    x = Math.max(0, Math.min(1, x))
+    v = Math.max(-0.5, Math.min(0.5, v))
+  }
+
+  // 判断阶段
+  let phase: StressDynamics['phase'] = 'calm'
+  if (x > 0.6 && v > 0) phase = 'peak'
+  else if (x > 0.3 && v > 0.05) phase = 'accumulating'
+  else if (x > 0.3 && v < -0.05) phase = 'releasing'
+
+  // 爆发预测：如果压力在上升，线性外推几轮后到 0.8
+  let turnsToBreakdown: number | null = null
+  if (v > 0.03 && x > 0.3) {
+    turnsToBreakdown = Math.ceil((0.8 - x) / v)
+    if (turnsToBreakdown > 10 || turnsToBreakdown < 0) turnsToBreakdown = null
+  }
+
+  // 韧性估计：从历史中观察压力峰值后的恢复速度
+  const resilience = Math.max(0.1, Math.min(0.9, k + (1 - x) * 0.3))
+
+  return { level: x, velocity: v, phase, turnsToBreakdown, resilience }
+}
+
 // ── 7. Dynamic Profile ──
 function synthesizeProfile(): string {
   const pm = getPersonModel(), parts: string[] = []
@@ -149,6 +297,14 @@ function synthesizeProfile(): string {
   if (g.direction === 'growing') parts.push('上升期')
   else if (g.direction === 'struggling') parts.push('瓶颈期')
   if (s.stressLevel > 0.5) parts.push(`压力高(${s.signals.join('+')})`)
+  // 认知负荷波动模型
+  const stressDyn = analyzeStressDynamics(memoryState.chatHistory)
+  if (stressDyn.phase === 'accumulating') parts.push(`压力积累中(${(stressDyn.level*100).toFixed(0)}%)`)
+  if (stressDyn.turnsToBreakdown !== null) parts.push(`预计${stressDyn.turnsToBreakdown}轮后可能爆发`)
+  if (stressDyn.phase === 'releasing') parts.push('压力释放中')
+  // 学习曲线拟合
+  const lc = fitLearningCurve(memoryState.chatHistory)
+  if (lc.prediction && lc.prediction !== '数据不足') parts.push(lc.prediction)
   if (c.load === 'high') parts.push('负荷高→简洁')
   else if (c.load === 'low') parts.push('专注→可深入')
   if (sd.gaps.length > 0) parts.push(`言行不一:${sd.gaps[0].stated}`)

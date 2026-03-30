@@ -118,6 +118,28 @@ const GOAL_PATTERNS: { regex: RegExp; extractor: (match: RegExpMatchArray) => st
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// BAYESIAN BELIEF CONFIDENCE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 贝叶斯信念更新：信念的置信度随证据累积而变化
+ * 首次提到 → confidence = 0.5（不确定）
+ * 重复提到 → confidence 上升
+ * 被用户否定 → confidence 下降
+ */
+function bayesianBeliefConfidence(existingConfidence: number | undefined, isReinforced: boolean): number {
+  const prior = existingConfidence ?? 0.5
+  // 简化贝叶斯：evidence ratio
+  if (isReinforced) {
+    // 用户再次表达同一信念 → 置信度上升
+    return prior + (1 - prior) * 0.2  // 渐近 1.0
+  } else {
+    // 用户否定/纠正 → 置信度下降
+    return prior * 0.6  // 快速下降
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CORE API
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -132,9 +154,12 @@ export function updateBeliefFromMessage(msg: string, botReply: string): void {
     const match = msg.match(pat.regex)
     if (match) {
       const { key, value } = pat.extractor(match)
+      const existing = state.model.beliefs[key]
       state.model.beliefs[key] = {
         value,
-        confidence: 0.7,
+        confidence: existing
+          ? bayesianBeliefConfidence(existing.confidence, true)
+          : 0.5,
         source: 'user_stated',
         ts: Date.now(),
       }
@@ -185,6 +210,14 @@ export function updateBeliefFromMessage(msg: string, botReply: string): void {
       const topic = msg.slice(0, 30).trim()
       state.corrections.push({ topic, correctInfo: botReply.slice(0, 100), ts: Date.now() })
       if (state.corrections.length > 50) state.corrections.shift()
+
+      // 被纠正的信念 → 贝叶斯降低置信度
+      for (const beliefKey of Object.keys(state.model.beliefs)) {
+        if (topic.includes(beliefKey) || beliefKey.includes(topic.slice(0, 10))) {
+          state.model.beliefs[beliefKey].confidence =
+            bayesianBeliefConfidence(state.model.beliefs[beliefKey].confidence, false)
+        }
+      }
 
       state.model.knowledge[topic] = {
         topic,
@@ -300,10 +333,17 @@ function extractTopic(msg: string): string {
 function capBeliefs() {
   const keys = Object.keys(state.model.beliefs)
   if (keys.length > MAX_BELIEFS) {
-    const sorted = keys.sort(
-      (a, b) => (state.model.beliefs[a]?.ts || 0) - (state.model.beliefs[b]?.ts || 0)
-    )
-    for (let i = 0; i < sorted.length - MAX_BELIEFS; i++) {
+    // LRU-K 混合淘汰：confidence 低且旧的先淘汰
+    const now = Date.now()
+    const sorted = keys.sort((a, b) => {
+      const ba = state.model.beliefs[a]
+      const bb = state.model.beliefs[b]
+      const scoreA = (ba?.confidence ?? 0.5) * Math.exp(-(now - (ba?.ts || 0)) / (30 * 86400000))
+      const scoreB = (bb?.confidence ?? 0.5) * Math.exp(-(now - (bb?.ts || 0)) / (30 * 86400000))
+      return scoreB - scoreA  // 高分保留
+    })
+    // 淘汰尾部
+    for (let i = MAX_BELIEFS; i < sorted.length; i++) {
       delete state.model.beliefs[sorted[i]]
     }
   }

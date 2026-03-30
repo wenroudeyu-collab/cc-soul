@@ -103,17 +103,48 @@ function extractFeatures(question: string, answer: string): QualityFeatures {
   }
 }
 
+// ── FTRL-Proximal per-feature state ──
+
+interface FTRLFeatureState {
+  z: number    // accumulated gradient term
+  n: number    // squared gradient sum
+}
+
 interface QualityWeights {
   bias: number
   weights: Record<string, number>
   learningRate: number
   trainingExamples: number
-  gradientSquaredSum: Record<string, number>  // legacy AdaGrad (kept for compat, unused by Adam)
-  // Adam optimizer state
-  adamM: Record<string, number>   // first moment (mean of gradients)
-  adamV: Record<string, number>   // second moment (mean of squared gradients)
-  adamT: number                    // timestep counter
+  gradientSquaredSum: Record<string, number>  // legacy AdaGrad (kept for compat)
+  // Adam optimizer state (legacy, kept for backward compat on load)
+  adamM: Record<string, number>
+  adamV: Record<string, number>
+  adamT: number
+  // FTRL-Proximal state (new optimizer)
+  ftrl: Record<string, FTRLFeatureState>
   hardExamples: Array<{ question: string; answer: string; target: number; loss: number }>
+}
+
+/** FTRL-Proximal update: sparse + per-feature adaptive learning rate */
+function ftrlUpdate(
+  state: FTRLFeatureState,
+  gradient: number,
+  alpha = 0.1,
+  beta = 1.0,
+  lambda1 = 0.01,
+  lambda2 = 0.001
+): { weight: number; state: FTRLFeatureState } {
+  // Standard FTRL-Proximal z-accumulation (simplified: sigma term absorbed into L2 regularization)
+  state.z += gradient
+  state.n += gradient * gradient
+
+  // L1 proximal: sparse feature elimination
+  if (Math.abs(state.z) <= lambda1) {
+    return { weight: 0, state }
+  }
+  const sign = state.z > 0 ? 1 : -1
+  const weight = -(state.z - sign * lambda1) / ((beta + Math.sqrt(state.n)) / alpha + lambda2)
+  return { weight: Math.max(-5, Math.min(5, weight)), state }
 }
 
 // Initial weights mirror the previous hardcoded heuristic values
@@ -137,6 +168,7 @@ export function loadQualityWeights() {
   if (!qw.adamM) qw.adamM = {}
   if (!qw.adamV) qw.adamV = {}
   if (!qw.adamT) qw.adamT = 0
+  if (!qw.ftrl) qw.ftrl = {}
   if (!qw.hardExamples) qw.hardExamples = []
   // Ensure new feature weights exist
   for (const key of FEATURE_KEYS) {
@@ -219,30 +251,23 @@ export function updateQualityWeights(question: string, answer: string, feedback:
     }
   }
 
-  // Adam optimizer update
-  if (!qw.adamM) qw.adamM = {}
-  if (!qw.adamV) qw.adamV = {}
-  if (!qw.adamT) qw.adamT = 0
-  qw.adamT++
-  const beta1 = 0.9, beta2 = 0.999, adamLr = 0.01, adamEps = 1e-8
+  // FTRL-Proximal optimizer update (replaces Adam — sparser weights, per-feature adaptive LR)
+  if (!qw.ftrl) qw.ftrl = {}
 
-  // Bias update via Adam
+  // Bias update via FTRL
   const biasGrad = error
-  qw.adamM['_bias'] = beta1 * (qw.adamM['_bias'] || 0) + (1 - beta1) * biasGrad
-  qw.adamV['_bias'] = beta2 * (qw.adamV['_bias'] || 0) + (1 - beta2) * biasGrad * biasGrad
-  const mHatBias = qw.adamM['_bias'] / (1 - Math.pow(beta1, qw.adamT))
-  const vHatBias = qw.adamV['_bias'] / (1 - Math.pow(beta2, qw.adamT))
-  qw.bias = Math.max(-5, Math.min(5, qw.bias - adamLr * mHatBias / (Math.sqrt(vHatBias) + adamEps)))
+  if (!qw.ftrl['_bias']) qw.ftrl['_bias'] = { z: 0, n: 0 }
+  const biasResult = ftrlUpdate(qw.ftrl['_bias'], biasGrad)
+  qw.ftrl['_bias'] = biasResult.state
+  qw.bias = biasResult.weight || qw.bias  // keep existing bias if FTRL zeros it
 
-  // Per-weight Adam update
+  // Per-weight FTRL update
   for (const key of FEATURE_KEYS) {
     const grad = error * features[key]
-    qw.adamM[key] = beta1 * (qw.adamM[key] || 0) + (1 - beta1) * grad
-    qw.adamV[key] = beta2 * (qw.adamV[key] || 0) + (1 - beta2) * grad * grad
-    const mHat = qw.adamM[key] / (1 - Math.pow(beta1, qw.adamT))
-    const vHat = qw.adamV[key] / (1 - Math.pow(beta2, qw.adamT))
-    const newW = (qw.weights[key] || 0) - adamLr * mHat / (Math.sqrt(vHat) + adamEps)
-    qw.weights[key] = Math.max(-5, Math.min(5, newW))
+    if (!qw.ftrl[key]) qw.ftrl[key] = { z: 0, n: 0 }
+    const result = ftrlUpdate(qw.ftrl[key], grad)
+    qw.ftrl[key] = result.state
+    qw.weights[key] = result.weight
   }
 
   qw.trainingExamples++
@@ -258,10 +283,7 @@ export function resampleHardExamples() {
   if (!qw.hardExamples || qw.hardExamples.length < 3) return
 
   const samples = qw.hardExamples.slice(0, 3)
-  const beta1 = 0.9, beta2 = 0.999, adamLr = 0.005, adamEps = 1e-8  // smaller LR for replay
-  if (!qw.adamM) qw.adamM = {}
-  if (!qw.adamV) qw.adamV = {}
-  if (!qw.adamT) qw.adamT = 0
+  if (!qw.ftrl) qw.ftrl = {}
 
   for (const { question, answer, target } of samples) {
     const features = extractFeatures(question, answer)
@@ -272,23 +294,18 @@ export function resampleHardExamples() {
     const predicted = 1 / (1 + Math.exp(-logit))
     const error = predicted - target
 
-    qw.adamT++
-    // Bias via Adam
-    const bg = error
-    qw.adamM['_bias'] = beta1 * (qw.adamM['_bias'] || 0) + (1 - beta1) * bg
-    qw.adamV['_bias'] = beta2 * (qw.adamV['_bias'] || 0) + (1 - beta2) * bg * bg
-    const mhB = qw.adamM['_bias'] / (1 - Math.pow(beta1, qw.adamT))
-    const vhB = qw.adamV['_bias'] / (1 - Math.pow(beta2, qw.adamT))
-    qw.bias = Math.max(-5, Math.min(5, qw.bias - adamLr * mhB / (Math.sqrt(vhB) + adamEps)))
+    // Bias via FTRL (smaller alpha for replay = more conservative)
+    if (!qw.ftrl['_bias']) qw.ftrl['_bias'] = { z: 0, n: 0 }
+    const biasResult = ftrlUpdate(qw.ftrl['_bias'], error, 0.05)
+    qw.ftrl['_bias'] = biasResult.state
+    if (biasResult.weight !== 0) qw.bias = biasResult.weight
 
     for (const key of FEATURE_KEYS) {
       const grad = error * features[key]
-      qw.adamM[key] = beta1 * (qw.adamM[key] || 0) + (1 - beta1) * grad
-      qw.adamV[key] = beta2 * (qw.adamV[key] || 0) + (1 - beta2) * grad * grad
-      const mH = qw.adamM[key] / (1 - Math.pow(beta1, qw.adamT))
-      const vH = qw.adamV[key] / (1 - Math.pow(beta2, qw.adamT))
-      const newW = (qw.weights[key] || 0) - adamLr * mH / (Math.sqrt(vH) + adamEps)
-      qw.weights[key] = Math.max(-5, Math.min(5, newW))
+      if (!qw.ftrl[key]) qw.ftrl[key] = { z: 0, n: 0 }
+      const result = ftrlUpdate(qw.ftrl[key], grad, 0.05)
+      qw.ftrl[key] = result.state
+      qw.weights[key] = result.weight
     }
   }
 

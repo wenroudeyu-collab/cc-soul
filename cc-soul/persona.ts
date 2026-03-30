@@ -238,7 +238,37 @@ export function updateUserStylePreference(userId: string, responseText: string, 
 
 let activePersona: Persona = PERSONAS[3] // default: analyst
 let lastPersonaSwitchTs = 0
-const PERSONA_COOLDOWN_MS = 120000 // 2 minutes — prevent rapid persona thrashing
+const PERSONA_COOLDOWN_MS = 120000 // 2 minutes — used for switch penalty decay
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERSONA TRANSITION MEMORY (HMM-inspired)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 人格转移矩阵：记录从一个人格切换到另一个人格的频率
+ * 基于 HMM 思想 — persona 有惯性，不应该每条消息都重新算
+ *
+ * transitionCounts[from][to] = 切换次数
+ * P(next=B | current=A) = counts[A][B] / Σ counts[A][*]
+ */
+const _transitionCounts: Record<string, Record<string, number>> = {}
+let _lastPersonaId = ''
+
+function recordTransition(fromId: string, toId: string) {
+  if (!fromId || fromId === toId) return  // 同一个人格不记录
+  if (!_transitionCounts[fromId]) _transitionCounts[fromId] = {}
+  _transitionCounts[fromId][toId] = (_transitionCounts[fromId][toId] || 0) + 1
+}
+
+function getTransitionBoost(fromId: string, candidateId: string): number {
+  if (!fromId || !_transitionCounts[fromId]) return 1.0
+  const row = _transitionCounts[fromId]
+  const total = Object.values(row).reduce((s, v) => s + v, 0)
+  if (total < 3) return 1.0  // 不够数据，不调整
+  const freq = (row[candidateId] || 0) / total
+  // 高频转移 → boost，低频 → 不惩罚（保持 1.0）
+  return 1.0 + freq * 0.5  // 最高 1.5x
+}
 
 /**
  * Select persona based on attention type from cognition pipeline.
@@ -371,12 +401,28 @@ export function selectPersona(attentionType: string, userFrustration?: number, u
     }
   }
 
-  // ── Layer 3: Inertia — current persona has momentum (but emotion overrides) ──
+  // ── Layer 3: Switch penalty (replaces hard cooldown) ──
+  // 用衰减的切换惩罚代替硬 cooldown：0-2min 内切换有代价，但不完全阻止
   const now = Date.now()
-  if (now - lastPersonaSwitchTs < PERSONA_COOLDOWN_MS && !isExtendedTrigger) {
-    // Reduced inertia when strong emotion detected (emotion should drive persona change)
-    const inertiaStrength = (detectedEmotion.confidence > 0.7 && detectedEmotion.label !== 'neutral') ? 0.2 : 0.5
-    affinities.set(activePersona.id, (affinities.get(activePersona.id) ?? 0) + inertiaStrength)
+  const timeSinceLastSwitch = now - lastPersonaSwitchTs
+  const switchPenalty = timeSinceLastSwitch < PERSONA_COOLDOWN_MS
+    ? 0.5 + 0.5 * (timeSinceLastSwitch / PERSONA_COOLDOWN_MS)  // 0-2min: 0.5→1.0 渐变
+    : 1.0  // 2min 后无惩罚
+
+  // Strong emotion reduces switch penalty (emotion should drive persona change)
+  const emotionOverride = (detectedEmotion.confidence > 0.7 && detectedEmotion.label !== 'neutral')
+  const effectivePenalty = emotionOverride ? Math.max(switchPenalty, 0.85) : switchPenalty
+
+  // Apply switch penalty to non-current personas + transition boost from HMM
+  for (const [id, aff] of affinities) {
+    let adjusted = aff
+    // 非当前人格受切换惩罚（extended trigger 豁免）
+    if (id !== activePersona.id && !isExtendedTrigger) {
+      adjusted *= effectivePenalty
+    }
+    // 转移概率 boost（基于历史转移频率）
+    adjusted *= getTransitionBoost(_lastPersonaId, id)
+    affinities.set(id, adjusted)
   }
 
   // ── Select highest affinity ──
@@ -390,6 +436,11 @@ export function selectPersona(attentionType: string, userFrustration?: number, u
   }
 
   const selected = PERSONAS.find(p => p.id === bestId) || PERSONAS[3]
+
+  // 记录转移并更新 lastPersonaId
+  recordTransition(_lastPersonaId, selected.id)
+  _lastPersonaId = selected.id
+
   return switchPersona(selected)
 }
 

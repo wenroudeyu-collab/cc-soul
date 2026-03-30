@@ -1,5 +1,5 @@
 {
-  "ts": 1774878444099,
+  "ts": 1774896425435,
   "duplicates": [
     {
       "a": "decay_test_old_memory_for_unit_test",
@@ -13,15 +13,16 @@
     }
   ],
   "tooShort": [
+    "用户今天加班到很晚",
     "用户在字节工作",
     "用户讨厌PHP",
     "大哥睡眠不太好",
     "大哥下周要北京出差",
     "用户名为wang"
   ],
-  "untagged": 156,
+  "untagged": 260,
   "lowConfidence": 0,
   "zombie": 0,
   "staleExpiry": 0,
-  "suggestions": "建议合并 2 组重复记忆；建议清理 5 条过短记忆；156 条记忆缺少标签，建议批量打标"
+  "suggestions": "建议合并 2 组重复记忆；建议清理 6 条过短记忆；260 条记忆缺少标签，建议批量打标"
 }

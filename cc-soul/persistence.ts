@@ -208,6 +208,34 @@ function syncMemoriesToWorkspace() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ADAPTIVE COOLDOWN — activity-based cooldown scaling (Strategy C)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Scale a cooldown based on user activity level.
+ * High activity (>50 msgs/day) → 0.33x cooldown (more frequent processing)
+ * Low activity (<5 msgs/day) → 3x cooldown (save resources)
+ * Returns scaled cooldown in ms.
+ */
+export function adaptiveCooldown(baseMs: number, userId?: string): number {
+  if (!userId) return baseMs
+  try {
+    // Lazy import to avoid circular dependency with user-profiles.ts
+    let getProfile: any
+    try { getProfile = require('./user-profiles.ts').getProfile } catch {
+      return baseMs
+    }
+    const profile = getProfile(userId)
+    if (!profile || !profile.firstSeen || !profile.messageCount) return baseMs
+    const daysSince = Math.max(1, (Date.now() - profile.firstSeen) / 86400000)
+    const msgsPerDay = profile.messageCount / daysSince
+    // High active(>50/day) → 0.33x, low freq(<5/day) → 3x
+    const factor = Math.max(0.33, Math.min(3.0, 15 / Math.max(1, msgsPerDay)))
+    return Math.round(baseMs * factor)
+  } catch { return baseMs }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CONFIG — env vars first, fall back to config.json
 // ═══════════════════════════════════════════════════════════════════════════════
 

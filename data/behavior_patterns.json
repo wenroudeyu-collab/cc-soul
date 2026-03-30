@@ -10,9 +10,9 @@
         "style": "concise",
         "hint": "深夜问技术问题，可能在排障，给命令和代码，少解释"
       },
-      "hits": 3,
+      "hits": 4,
       "misses": 0,
-      "lastHit": 1774874643353,
+      "lastHit": 1774890025441,
       "createdAt": 1774869015096,
       "source": "seeded"
     },
@@ -70,9 +70,9 @@
         "style": "empathetic",
         "hint": "用户情绪不好，先共情再给方案"
       },
-      "hits": 1,
+      "hits": 3,
       "misses": 0,
-      "lastHit": 1774869015096,
+      "lastHit": 1774894576829,
       "createdAt": 1774869015096,
       "source": "seeded"
     },
@@ -86,9 +86,9 @@
         "style": "empathetic",
         "hint": "工作压力大，别说教，给实际可操作的建议"
       },
-      "hits": 1,
+      "hits": 3,
       "misses": 0,
-      "lastHit": 1774869015096,
+      "lastHit": 1774894576829,
       "createdAt": 1774869015096,
       "source": "seeded"
     },
@@ -102,9 +102,9 @@
         "style": "code_first",
         "hint": "刚切到技术话题，先上代码再解释"
       },
-      "hits": 3,
+      "hits": 4,
       "misses": 0,
-      "lastHit": 1774874643353,
+      "lastHit": 1774890025441,
       "createdAt": 1774869015096,
       "source": "seeded"
     },
@@ -138,6 +138,40 @@
       "lastHit": 1774869015096,
       "createdAt": 1774869015096,
       "source": "seeded"
+    },
+    {
+      "id": "bp_1774897925404_0",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊go，历史3次互动表明平衡回答效果最好"
+      },
+      "hits": 3,
+      "misses": 0,
+      "lastHit": 1774897925403,
+      "createdAt": 1774897925403,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774897925404_1",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊devops，历史3次互动表明平衡回答效果最好"
+      },
+      "hits": 3,
+      "misses": 0,
+      "lastHit": 1774897925403,
+      "createdAt": 1774897925403,
+      "source": "learned"
     }
   ],
   "observations": [
@@ -338,7 +372,293 @@
       "userReaction": "neutral",
       "responseStyle": "balanced",
       "ts": 1774878328384
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889772633
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889836185
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889899550
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889962435
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774890025441
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "database",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891456821
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891519935
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "finance",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891585023
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891648802
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891712516
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774893502055
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894347099
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "javascript",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894365111
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894406210
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894416463
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894503701
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "negative",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894540803
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "negative",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894576829
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894788179
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894963041
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895347425
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895531952
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895704615
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895810181
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "network",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774896016797
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774896189822
     }
   ],
-  "lastLearningRun": 1774888944076
+  "lastLearningRun": 1774897925403
 }

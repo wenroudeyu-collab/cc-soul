@@ -26,11 +26,89 @@ interface Experiment {
   trafficPercent: number     // 10 = 10% of messages use experiment
   controlMetrics: { quality: number; corrections: number; messages: number }
   experimentMetrics: { quality: number; corrections: number; messages: number }
+  controlScores: number[]    // 每次 control 的原始分数（序贯检验用）
+  experimentScores: number[] // 每次 experiment 的原始分数（序贯检验用）
   status: 'running' | 'concluded' | 'winner_experiment' | 'winner_control'
+  conclusion?: string        // 结论描述（序贯检验或常规）
   config: Record<string, any>
 }
 
 let experiments: Experiment[] = loadJson(EXPERIMENTS_PATH, [])
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 序贯检验 (Sequential Testing)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 序贯检验：不等固定样本量，每次新数据到来时实时判断能否下结论
+ * 基于 O'Brien-Fleming 边界的简化版
+ *
+ * 优势：可以更早结束实验（节省 token），也能避免过早假结论
+ *
+ * 每次新样本到达时：
+ * 1. 计算累积 Z 统计量
+ * 2. 与当前 stage 的边界比较
+ * 3. 如果越界 → 下结论；否则继续
+ */
+interface SequentialTestResult {
+  canConclude: boolean
+  winner: 'experiment' | 'control' | null
+  confidence: number       // [0, 1]
+  samplesUsed: number
+  earlyStop: boolean       // 是否提前终止（未到最大样本量）
+}
+
+/** 标准正态分布 CDF 近似 */
+function normalCDF(x: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(x))
+  const d = 0.3989422804014327
+  const p = d * Math.exp(-x * x / 2) * (0.3193815 * t - 0.3565638 * t * t + 1.781478 * t * t * t - 1.8212560 * t * t * t * t + 1.3302744 * t * t * t * t * t)
+  return x > 0 ? 1 - p : p
+}
+
+function sequentialTest(
+  expScores: number[],
+  ctrlScores: number[],
+  maxSamples: number = 100,
+  _alpha: number = 0.05,
+): SequentialTestResult {
+  const nExp = expScores.length
+  const nCtrl = ctrlScores.length
+  const n = Math.min(nExp, nCtrl)
+
+  if (n < 5) return { canConclude: false, winner: null, confidence: 0, samplesUsed: n, earlyStop: false }
+
+  // 计算均值和标准误
+  const meanExp = expScores.reduce((s, v) => s + v, 0) / nExp
+  const meanCtrl = ctrlScores.reduce((s, v) => s + v, 0) / nCtrl
+  const varExp = expScores.reduce((s, v) => s + (v - meanExp) ** 2, 0) / (nExp - 1)
+  const varCtrl = ctrlScores.reduce((s, v) => s + (v - meanCtrl) ** 2, 0) / (nCtrl - 1)
+  const se = Math.sqrt(varExp / nExp + varCtrl / nCtrl + 1e-9)
+
+  // Z 统计量
+  const z = (meanExp - meanCtrl) / se
+
+  // O'Brien-Fleming 边界：随样本量增加而收紧
+  // 边界 = z_alpha / sqrt(t)，其中 t = 当前样本/最大样本
+  const t = Math.max(0.1, n / maxSamples)
+  const z_alpha = 1.96  // 对应 alpha=0.05
+  const boundary = z_alpha / Math.sqrt(t)
+
+  // 如果到了最大样本量，用固定边界
+  const effectiveBoundary = n >= maxSamples ? z_alpha : boundary
+
+  if (Math.abs(z) > effectiveBoundary) {
+    return {
+      canConclude: true,
+      winner: z > 0 ? 'experiment' : 'control',
+      confidence: 1 - 2 * normalCDF(-Math.abs(z)),
+      samplesUsed: n,
+      earlyStop: n < maxSamples,
+    }
+  }
+
+  return { canConclude: false, winner: null, confidence: 0, samplesUsed: n, earlyStop: false }
+}
 
 export function loadExperiments() {
   experiments = loadJson(EXPERIMENTS_PATH, [])
@@ -64,6 +142,8 @@ export function recordControl(experimentId: string, quality: number) {
   if (!exp) return
   exp.controlMetrics.quality = (exp.controlMetrics.quality * exp.controlMetrics.messages + quality) / (exp.controlMetrics.messages + 1)
   exp.controlMetrics.messages++
+  if (!exp.controlScores) exp.controlScores = []
+  exp.controlScores.push(quality)
   debouncedSave(EXPERIMENTS_PATH, experiments)
 }
 
@@ -72,6 +152,8 @@ export function recordExperiment(experimentId: string, quality: number) {
   if (!exp) return
   exp.experimentMetrics.quality = (exp.experimentMetrics.quality * exp.experimentMetrics.messages + quality) / (exp.experimentMetrics.messages + 1)
   exp.experimentMetrics.messages++
+  if (!exp.experimentScores) exp.experimentScores = []
+  exp.experimentScores.push(quality)
   debouncedSave(EXPERIMENTS_PATH, experiments)
 }
 
@@ -84,6 +166,8 @@ export function startExperiment(name: string, description: string, durationDays 
     trafficPercent,
     controlMetrics: { quality: 0, corrections: 0, messages: 0 },
     experimentMetrics: { quality: 0, corrections: 0, messages: 0 },
+    controlScores: [],
+    experimentScores: [],
     status: 'running',
     config,
   })
@@ -93,6 +177,21 @@ export function startExperiment(name: string, description: string, durationDays 
 }
 
 function concludeExperiment(exp: Experiment) {
+  // 序贯检验：实时判断是否可以提前下结论
+  const seqResult = sequentialTest(
+    exp.experimentScores || [],
+    exp.controlScores || [],
+    50,  // 最大样本量
+  )
+  if (seqResult.canConclude) {
+    exp.status = seqResult.winner === 'experiment' ? 'winner_experiment' : 'winner_control'
+    exp.conclusion = `序贯检验在${seqResult.samplesUsed}个样本时提前终止（置信度${(seqResult.confidence * 100).toFixed(1)}%）`
+    debouncedSave(EXPERIMENTS_PATH, experiments)
+    console.log(`[cc-soul][experiment] sequential test: ${exp.id} → ${exp.status} (n=${seqResult.samplesUsed}, early=${seqResult.earlyStop})`)
+    return
+  }
+
+  // 常规结论逻辑（序贯检验未能下结论时 fallback）
   const minSamples = 20 // need at least 20 per group for meaningful comparison
   if (exp.experimentMetrics.messages < minSamples || exp.controlMetrics.messages < minSamples) {
     exp.status = 'concluded' // insufficient data

@@ -5,10 +5,12 @@
  * Ported from handler.ts lines 444-570 with attention gate false-positive fix.
  */
 
-import type { CogResult } from './types.ts'
+import type { CogResult, IntentSpectrum, EntropyFeedbackResult } from './types.ts'
 import { body, bodyOnCorrection, bodyOnPositiveFeedback, emotionVector } from './body.ts'
 import { getProfile, getProfileTier } from './user-profiles.ts'
 import { CORRECTION_WORDS, CORRECTION_EXCLUDE, EMOTION_ALL, EMOTION_NEGATIVE, TECH_WORDS, CASUAL_WORDS } from './signals.ts'
+import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
+import { resolve } from 'path'
 
 // ── Layer 0: Bayesian Attention Gate ──
 // Instead of first-match-wins, compute probability for ALL intent types simultaneously.
@@ -108,6 +110,92 @@ function detectImplicitFeedbackSync(msg: string, prevResponse: string): string |
   }
 
   return null
+}
+
+// ── Algorithm: Intent Spectrum (意图光谱) ──
+// 不是分类为单一意图，而是输出连续多维评分
+// 每个维度独立评分 [0-1]，可以同时有多种需求
+// 认知科学基础：人的意图不是离散的分类，是连续的需求组合
+
+export function computeIntentSpectrum(msg: string): IntentSpectrum {
+  const len = msg.length
+  const spectrum: IntentSpectrum = { information: 0.3, action: 0.1, emotional: 0.1, validation: 0.1, exploration: 0.1 }
+
+  // 信息需求信号
+  const infoSignals = (msg.match(/什么|怎么|为什么|哪个|多少|是不是|如何|区别|对比|原理/g) || []).length
+  spectrum.information = Math.min(1, 0.2 + infoSignals * 0.2)
+
+  // 行动需求信号
+  const actionSignals = (msg.match(/帮我|做|写|改|实现|生成|创建|删除|修复|部署|安装|配置/g) || []).length
+  spectrum.action = Math.min(1, actionSignals * 0.3)
+
+  // 情感需求信号
+  const emotionSignals = (msg.match(/烦|累|难受|焦虑|开心|郁闷|崩溃|压力|害怕|纠结|迷茫|无聊|孤独/g) || []).length
+  spectrum.emotional = Math.min(1, emotionSignals * 0.35)
+
+  // 验证需求信号
+  const validationSignals = (msg.match(/对吗|是吧|可以吗|行不行|这样[好行对]|没问题吧|对不对/g) || []).length
+  spectrum.validation = Math.min(1, validationSignals * 0.4)
+
+  // 探索需求信号
+  const explorationSignals = (msg.match(/有没有.*更|还有.*方法|其他|替代|更好|优化|改进|推荐/g) || []).length
+  spectrum.exploration = Math.min(1, explorationSignals * 0.3)
+
+  // 消息长度调节：长消息通常信息/行动需求高
+  if (len > 100) { spectrum.information *= 1.2; spectrum.action *= 1.1 }
+  // 短消息通常情感/验证需求高
+  if (len < 15) { spectrum.emotional *= 1.3; spectrum.validation *= 1.2 }
+
+  // 归一化到 [0, 1]
+  for (const key of Object.keys(spectrum) as (keyof IntentSpectrum)[]) {
+    spectrum[key] = Math.min(1, Math.max(0, spectrum[key]))
+  }
+
+  return spectrum
+}
+
+// ── Algorithm: Entropy Feedback (信息熵隐式反馈) ──
+// 用信息论量化用户回复的"信息量"
+// 高熵 = 用户给了很多新信息 = 对话有效
+// 低熵 = "嗯""好""谢谢" = 可能结束或不满意
+// 零 = 无回复 = 明确不满
+// 基于 Shannon entropy: H = -Σ p(x) log₂ p(x)
+
+export function computeResponseEntropy(userReply: string, prevBotResponse: string): EntropyFeedbackResult {
+  if (!userReply || userReply.length < 2) return { entropy: 0, signal: 'disengaged' }
+
+  // 提取用户回复中的独立词汇
+  const userWords = new Set((userReply.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+  // 提取 bot 回复中的词汇
+  const botWords = new Set((prevBotResponse.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+
+  // 计算用户回复中的"新信息"比例（不在 bot 回复中的词）
+  let newWords = 0
+  for (const w of userWords) {
+    if (!botWords.has(w)) newWords++
+  }
+  const noveltyRatio = userWords.size > 0 ? newWords / userWords.size : 0
+
+  // 字符级 Shannon 熵
+  const charFreq = new Map<string, number>()
+  for (const ch of userReply) {
+    charFreq.set(ch, (charFreq.get(ch) || 0) + 1)
+  }
+  let entropy = 0
+  for (const count of charFreq.values()) {
+    const p = count / userReply.length
+    if (p > 0) entropy -= p * Math.log2(p)
+  }
+
+  // 综合评分
+  const combinedScore = entropy * 0.5 + noveltyRatio * 0.5
+
+  // 判定
+  const signal = combinedScore > 0.5 ? 'engaged'
+    : combinedScore > 0.2 ? 'passive'
+    : 'disengaged'
+
+  return { entropy: combinedScore, signal }
 }
 
 // ── Intent Prediction from Behavioral Patterns ──
@@ -237,14 +325,98 @@ export function detectConversationPace(
   return { speed, avgMsgLength: avgLen, msgsPerMinute, hint }
 }
 
+// ── Online Naive Bayes Intent Classifier ──
+
+interface NBClassState {
+  classes: Record<string, { wordCounts: Record<string, number>; totalWords: number; docCount: number }>
+  totalDocs: number
+}
+
+const NB_PATH = resolve(DATA_DIR, 'nb_classifier.json')
+let nbClassifier: NBClassState = loadJson<NBClassState>(NB_PATH, { classes: {}, totalDocs: 0 })
+
+function nbTokenize(msg: string): string[] {
+  return (msg.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+}
+
+/** Online update: add a confirmed intent sample */
+export function updateNBClassifier(msg: string, cls: string) {
+  const words = nbTokenize(msg)
+  if (words.length === 0) return
+  if (!nbClassifier.classes[cls]) {
+    nbClassifier.classes[cls] = { wordCounts: {}, totalWords: 0, docCount: 0 }
+  }
+  const c = nbClassifier.classes[cls]
+  c.docCount++
+  nbClassifier.totalDocs++
+  for (const w of words) {
+    c.wordCounts[w] = (c.wordCounts[w] || 0) + 1
+    c.totalWords++
+  }
+  debouncedSave(NB_PATH, nbClassifier)
+}
+
+/** Predict intent probabilities via Naive Bayes with Laplace smoothing */
+function predictNB(msg: string): Record<string, number> {
+  if (nbClassifier.totalDocs < 50) return {}  // need enough data before overriding rule-based classification
+  const words = nbTokenize(msg)
+  if (words.length === 0) return {}
+
+  const scores: Record<string, number> = {}
+  for (const [cls, c] of Object.entries(nbClassifier.classes)) {
+    let logProb = Math.log(c.docCount / nbClassifier.totalDocs)
+    const vocab = c.totalWords + 1000  // Laplace smoothing denominator
+    for (const w of words) {
+      const count = c.wordCounts[w] || 0
+      logProb += Math.log((count + 1) / vocab)
+    }
+    scores[cls] = logProb
+  }
+  return scores
+}
+
+/** Apply NB correction to attention gate result */
+function nbCorrectAttention(baseType: string, msg: string): string {
+  const nbScores = predictNB(msg)
+  if (Object.keys(nbScores).length === 0) return baseType
+
+  // Find NB's top prediction
+  let bestCls = baseType, bestScore = -Infinity
+  for (const [cls, score] of Object.entries(nbScores)) {
+    if (score > bestScore) { bestScore = score; bestCls = cls }
+  }
+
+  // Only override if NB is significantly more confident than base
+  // (NB score for base type is much lower than NB's top)
+  const baseScore = nbScores[baseType]
+  if (baseScore !== undefined && bestScore - baseScore > 2.0 && bestCls !== baseType) {
+    return bestCls
+  }
+  return baseType
+}
+
 // ── Main Entry ──
 
 export function cogProcess(msg: string, lastResponseContent: string, lastPrompt: string, senderId?: string): CogResult {
   const attention = attentionGate(msg)
+  // NB correction: refine attention type using online-learned classifier
+  attention.type = nbCorrectAttention(attention.type, msg)
   const intent = detectIntent(msg)
+  const intentSpectrum = computeIntentSpectrum(msg)
   const complexity = Math.min(1, msg.length / 500)
   const strategy = decideStrategy(attention, intent, msg.length)
   const hints: string[] = []
+
+  // NB online learning: correction → train NB with correct label
+  if (attention.type === 'correction') {
+    updateNBClassifier(lastResponseContent || msg, 'correction')
+  } else if (attention.type === 'emotional') {
+    updateNBClassifier(msg, 'emotional')
+  } else if (attention.type === 'technical') {
+    updateNBClassifier(msg, 'technical')
+  } else if (attention.type === 'casual') {
+    updateNBClassifier(msg, 'casual')
+  }
 
   // Correction handling — weighted by user tier
   if (attention.type === 'correction') {
@@ -298,6 +470,11 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
 
   // SYNC implicit feedback (fast, for immediate body state)
   const implicit = detectImplicitFeedbackSync(msg, lastResponseContent)
+  const entropyFeedback = computeResponseEntropy(msg, lastResponseContent)
+  // Entropy feedback supplements implicit feedback: low entropy + disengaged = additional verbosity signal
+  if (entropyFeedback.signal === 'disengaged' && !implicit) {
+    hints.push('用户回复信息量很低，可能在敷衍或准备结束对话')
+  }
   if (implicit === 'too_verbose') {
     body.energy = Math.max(0, body.energy - 0.03)
     hints.push('上次回答可能太长了，这次简洁些')
@@ -318,5 +495,5 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
     }
   }
 
-  return { hints, intent, strategy, attention: attention.type, complexity }
+  return { hints, intent, strategy, attention: attention.type, complexity, spectrum: intentSpectrum, entropyFeedback }
 }

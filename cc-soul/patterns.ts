@@ -11,6 +11,7 @@ import type { SoulModule } from './brain.ts'
 import { SUCCESS_PATTERNS_PATH, loadJson, debouncedSave } from './persistence.ts'
 import { spawnCLI } from './cli.ts'
 import { TECH_CLASSIFY, EMOTION_CLASSIFY } from './signals.ts'
+import { adaptiveDecay } from './memory-utils.ts'
 
 // ── Types ──
 
@@ -133,31 +134,55 @@ function betaSample(alpha: number, beta: number): number {
   return jitter * alpha / (alpha + beta)
 }
 
-// ── Decay & cleanup ──
+// ── Usage-Based Decay (使用频率驱动衰减) ──
+//
+// Delegates to adaptiveDecay() from memory-utils.ts for consistency.
+// hitCount=0  → normal decay
+// hitCount=5  → decay rate reduced to ~1/3.5
+// hitCount=10 → decay rate reduced to ~1/6
+
+/**
+ * Compute decay factor for a pattern based on age and usage frequency.
+ * Returns value in [0, 1] where 1 = fully alive, 0 = should be deleted.
+ */
+function computePatternDecay(pattern: SuccessPattern, now: number): number {
+  const ageMs = now - (pattern.lastUsed || now)
+  // Use alpha as hit count proxy: alpha starts at 1 (prior), each success adds 1
+  const hitCount = Math.max(0, pattern.alpha - 1)
+  return adaptiveDecay(ageMs, hitCount, DECAY_THRESHOLD_MS, 0.5)
+}
 
 function applyDecayAndCleanup() {
   const now = Date.now()
   let changed = false
+  const toDelete: number[] = []
 
-  patterns = patterns.filter(p => {
+  for (let i = patterns.length - 1; i >= 0; i--) {
+    const p = patterns[i]
     const age = now - p.lastUsed
 
-    // Delete patterns older than 180 days
-    if (age > DELETE_THRESHOLD_MS) {
-      changed = true
-      console.log(`${TAG} deleted stale pattern: ${p.patternName} (${Math.round(age / 86400000)}d old)`)
-      return false
-    }
+    // Skip recently-used patterns (no decay needed)
+    if (age <= DECAY_THRESHOLD_MS) continue
 
-    // Decay patterns older than 90 days
-    if (age > DECAY_THRESHOLD_MS) {
-      p.alpha = Math.max(1, p.alpha * DECAY_FACTOR)
-      p.beta = Math.max(1, p.beta * DECAY_FACTOR)
+    const decay = computePatternDecay(p, now)
+
+    if (decay < 0.1) {
+      // Decayed to near-zero → delete
+      console.log(`${TAG} deleted decayed pattern: ${p.patternName} (${Math.round(age / 86400000)}d old, α=${p.alpha.toFixed(1)}, decay=${decay.toFixed(3)})`)
+      toDelete.push(i)
+      changed = true
+    } else {
+      // Apply usage-based decay to alpha/beta
+      p.alpha = Math.max(1, p.alpha * decay)
+      p.beta = Math.max(1, p.beta * decay)
       changed = true
     }
+  }
 
-    return true
-  })
+  // Remove deleted patterns (iterate in reverse so indices stay valid)
+  for (const i of toDelete) {
+    patterns.splice(i, 1)
+  }
 
   if (changed) {
     debouncedSave(SUCCESS_PATTERNS_PATH, patterns)

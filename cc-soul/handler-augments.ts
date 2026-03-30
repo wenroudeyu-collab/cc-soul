@@ -25,7 +25,7 @@ import { getProfileContext, getRhythmContext, getProfile, getProfileTier, getRel
 import { getDomainConfidence, detectDomain, popBlindSpotQuestion } from './epistemic.ts'
 import { getPersonModel, getUnifiedUserContext } from './person-model.ts'
 // blindSpots analysis now done inline (no heartbeat dependency)
-import { queryEntityContext, findMentionedEntities, generateEntitySummary, graphWalkRecallScored } from './graph.ts'
+import { queryEntityContext, findMentionedEntities, generateEntitySummary, graphWalkRecallScored, traceCausalChain } from './graph.ts'
 import { getFlowHints, getFlowContext } from './flow.ts'
 import { getAssociativeRecall, triggerAssociativeRecall, associateSync } from './memory.ts'
 import { queryLorebook } from './lorebook.ts'
@@ -34,7 +34,7 @@ import { detectSkillOpportunity, autoCreateSkill, getActivePlanHint, getActiveGo
 import { getExperimentSummary, getEvolutionSummary } from './experiment.ts'
 import { processIngestion } from './rag.ts'
 import { getBlendedPersonaOverlay } from './persona.ts'
-import { checkAugmentConsistency, snapshotAugments } from './metacognition.ts'
+import { checkAugmentConsistency, getConflictResolutions, snapshotAugments } from './metacognition.ts'
 import { getCachedDriftWarning } from './fingerprint.ts'
 import { getParam } from './auto-tune.ts'
 import { getBestPattern } from './patterns.ts'
@@ -98,6 +98,9 @@ function recordAugmentFeedbackFromUser(lastAugments: string[], userMsg: string) 
   for (const t of tracked) {
     if (!augmentFeedback[t]) augmentFeedback[t] = { useful: 0, ignored: 0 }
     engaged ? augmentFeedback[t].useful++ : augmentFeedback[t].ignored++
+
+    // 同步更新连续反馈模型：engaged → 0.8 分，ignored → 0.2 分
+    recordAugmentQuality(t, engaged ? 0.8 : 0.2)
   }
   debouncedSave(AUGMENT_FEEDBACK_PATH, augmentFeedback)
 }
@@ -109,6 +112,44 @@ function getAugmentFeedbackDelta(type: string): number {
   if (fb.ignored / total > 0.7) return -2
   if (fb.useful / total > 0.7) return 1
   return 0
+}
+
+// ── Augment 连续反馈学习（sigmoid 映射） ──
+
+/**
+ * Augment 反馈学习：用连续分数替代 binary 有用/忽视
+ * 分数 = sigmoid(质量信号强度)
+ * 自动学习哪些 augment 类型最有效
+ */
+interface AugmentFeedbackState {
+  totalScore: number
+  count: number
+  recentScores: number[]  // 最近 20 次的分数
+}
+
+const _augmentFeedback = new Map<string, AugmentFeedbackState>()
+
+function recordAugmentQuality(augmentType: string, qualitySignal: number) {
+  // qualitySignal: 0-1，从 assessResponseQuality 获取
+  if (!_augmentFeedback.has(augmentType)) {
+    _augmentFeedback.set(augmentType, { totalScore: 0, count: 0, recentScores: [] })
+  }
+  const state = _augmentFeedback.get(augmentType)!
+  state.totalScore += qualitySignal
+  state.count++
+  state.recentScores.push(qualitySignal)
+  if (state.recentScores.length > 20) state.recentScores.shift()
+}
+
+function getAugmentPriorityAdjustment(augmentType: string): number {
+  const state = _augmentFeedback.get(augmentType)
+  if (!state || state.count < 5) return 0  // 不够数据
+
+  const recentAvg = state.recentScores.reduce((s, v) => s + v, 0) / state.recentScores.length
+
+  // sigmoid 映射：recentAvg > 0.6 → 正向调整；< 0.4 → 负向调整
+  const adjustment = (recentAvg - 0.5) * 4  // range: [-2, +2]
+  return Math.max(-2, Math.min(2, adjustment))
 }
 
 // Prediction Mode (预言模式) → moved to behavior-prediction.ts
@@ -369,8 +410,8 @@ export async function buildAndSelectAugments(params: {
   session: SessionState
   senderId: string
   channelId: string
-  cog: { attention: string; complexity: number; intent: string; hints: string[]; strategy: string }
-  flow: { turnCount: number; frustration: number }
+  cog: { attention: string; complexity: number; intent: string; hints: string[]; strategy: string; spectrum?: { information: number; action: number; emotional: number; validation: number; exploration: number } }
+  flow: { turnCount: number; frustration: number; frustrationTrajectory?: { current: number; velocity: number; turnsToAbandon: number | null } }
   flowKey: string
   followUpHints: string[]
   workingMemKey: string
@@ -809,6 +850,16 @@ export async function buildAndSelectAugments(params: {
       }
     }
 
+    // ── Graph causal chain: trace caused_by/triggers edges and inject chain context ──
+    const mentionedEnts = findMentionedEntities(userMsg)
+    if (mentionedEnts.length > 0) {
+      const chains = traceCausalChain(mentionedEnts, 3)
+      if (chains.length > 0) {
+        const chainContent = '[因果推理] ' + chains.slice(0, 3).join('；')
+        augments.push({ content: chainContent, priority: 7, tokens: estimateTokens(chainContent) })
+      }
+    }
+
     // Memory reference + natural citation merged into 相关记忆 content above
     // (deleted 2 standalone augments — their formatting is now part of the recall content)
 
@@ -1111,12 +1162,11 @@ export async function buildAndSelectAugments(params: {
   }
 
   // ── Quality feedback loop (质量反馈闭环) ──
-  if (session.lastQualityScore >= 0 && session.lastQualityScore <= 3) {
-    const qHint = `[质量警告] 上轮回答质量评分 ${session.lastQualityScore}/10，这轮需要更认真：检查事实准确性，回答要更完整，不要敷衍。`
-    augments.push({ content: qHint, priority: 10, tokens: estimateTokens(qHint) })
-  } else if (session.lastQualityScore >= 9) {
-    const qHint = `[质量正反馈] 上轮回答质量 ${session.lastQualityScore}/10，保持这个水平。`
-    augments.push({ content: qHint, priority: 2, tokens: 30 })
+  if (session.lastQualityScore >= 0 && session.lastQualityScore <= 4) {
+    const qHint = `[质量自检] 上次回答质量评分较低(${session.lastQualityScore.toFixed(1)}/10)，这次要更谨慎：检查事实准确性，回答要更具体。`
+    augments.push({ content: qHint, priority: 9, tokens: estimateTokens(qHint) })
+  } else if (session.lastQualityScore > 8) {
+    // 上次回答质量高，保持状态，不额外注入 augment 以节省 token
   }
 
   // ── Cognition augment (认知分析注入) ──
@@ -1500,11 +1550,24 @@ export async function buildAndSelectAugments(params: {
     }
   }
 
-  // Metacognitive check
+  // Metacognitive check + conflict demotion
   if (isEnabled('metacognition')) {
     const metaWarning = checkAugmentConsistency(augments)
     if (metaWarning && metaWarning.length > 0) {
       augments.push({ content: `[内部矛盾警告] ${metaWarning}`, priority: 6, tokens: Math.ceil(metaWarning.length * 0.8) })
+
+      // ── Metacognition 冲突降权：实际调低被标记 augment 的优先级 ──
+      try {
+        const conflicts = getConflictResolutions(augments)
+        for (const conflict of conflicts) {
+          if (!conflict.demote) continue
+          for (const aug of augments) {
+            if (aug.content.toLowerCase().includes(conflict.demote)) {
+              aug.priority = Math.max(1, aug.priority - 3)
+            }
+          }
+        }
+      } catch {}
     }
   }
 
@@ -1576,10 +1639,118 @@ export async function buildAndSelectAugments(params: {
   const brainAugments = brain.firePreprocessed({ userMessage: userMsg, senderId, channelId })
   if (brainAugments.length > 0) augments.push(...brainAugments)
 
+  // ── 压力/挫败感预警注入 ──
+  try {
+    if (flow?.frustrationTrajectory) {
+      const ft = flow.frustrationTrajectory
+      if (ft.turnsToAbandon !== null && ft.turnsToAbandon <= 3) {
+        augments.push({
+          content: `[紧急] 用户挫败感很高，预计${ft.turnsToAbandon}轮后可能放弃对话。简短回答，不要追问，提供直接解决方案。`,
+          priority: 10,
+          tokens: 30,
+        })
+      } else if (ft.current > 0.5) {
+        augments.push({
+          content: `[注意] 用户有些急躁(${(ft.current * 100).toFixed(0)}%)，回答简洁直接。`,
+          priority: 8,
+          tokens: 20,
+        })
+      }
+    }
+  } catch {}
+
+  // ── 意图光谱驱动 augment 优先级 ──
+  const spectrum = cog?.spectrum
+  if (spectrum) {
+    // 行动需求高 → 代码/方案类 augment 优先
+    if (spectrum.action > 0.6) {
+      for (const aug of augments) {
+        if (typeof aug === 'object' && aug.content && /代码|方案|实现|步骤/.test(aug.content)) {
+          aug.priority = Math.min(10, (aug.priority || 5) + 2)
+        }
+      }
+    }
+    // 探索需求高 → 举一反三/替代方案 augment 优先
+    if (spectrum.exploration > 0.5) {
+      for (const aug of augments) {
+        if (typeof aug === 'object' && aug.content && /替代|更好|其他|推荐|对比/.test(aug.content)) {
+          aug.priority = Math.min(10, (aug.priority || 5) + 2)
+        }
+      }
+    }
+    // 情感需求高 → 共情/情绪 augment 优先
+    if (spectrum.emotional > 0.5) {
+      for (const aug of augments) {
+        if (typeof aug === 'object' && aug.content && /情绪|共情|感受|心情/.test(aug.content)) {
+          aug.priority = Math.min(10, (aug.priority || 5) + 2)
+        }
+      }
+    }
+    // 验证需求高 → 纠正/确认 augment 优先
+    if (spectrum.validation > 0.5) {
+      for (const aug of augments) {
+        if (typeof aug === 'object' && aug.content && /纠正|确认|验证|正确/.test(aug.content)) {
+          aug.priority = Math.min(10, (aug.priority || 5) + 2)
+        }
+      }
+    }
+  }
+
+  // ── 用户成长阶段 → 影响回复深度 ──
+  try {
+    const { fitLearningCurve } = await import('./deep-understand.ts')
+    const { memoryState: ms } = await import('./memory.ts')
+    const history = ms.memories
+      .filter(m => m.scope !== 'expired' && m.scope !== 'decayed')
+      .map(m => ({ user: m.content, ts: m.ts }))
+    if (history.length >= 10) {
+      const curve = fitLearningCurve(history)
+      if (curve.plateau) {
+        augments.push({
+          type: '成长感知',
+          content: `[成长感知] 用户可能进入平台期，尝试从新角度切入或提供更高层次的见解。`,
+          priority: 6,
+          tokens: 20,
+        })
+      } else if (curve.growthRate > 0.15) {
+        augments.push({
+          type: '成长感知',
+          content: `[成长感知] 用户处于快速成长期，可以适当提高回答深度和复杂度。`,
+          priority: 5,
+          tokens: 15,
+        })
+      }
+    }
+  } catch {}
+
+  // ── 知识衰减 → 不确定领域降低自信度 ──
+  try {
+    const { computeKnowledgeDecay, detectDomain: detectDom } = await import('./epistemic.ts')
+    const domain = detectDom(userMsg)
+    if (domain && domain !== 'general' && domain !== '通用' && domain !== '闲聊') {
+      const { getDomainConfidence: gdc } = await import('./epistemic.ts')
+      const domainResult = gdc(userMsg)
+      // 仅在前面 epistemic hint 未注入时补充（避免重复）
+      if (domainResult.decay && domainResult.decay.confidence < 0.4 && !domainResult.hint) {
+        augments.push({
+          type: '知识边界',
+          content: `[知识边界] 在「${domain}」领域置信度较低(${(domainResult.decay.confidence * 100).toFixed(0)}%)，回答时多用"可能""我理解是"等不确定表达。`,
+          priority: 8,
+          tokens: 20,
+        })
+      }
+    }
+  } catch {}
+
   // ── Apply augment feedback learning adjustments ──
   for (const aug of augments) {
     const tm = aug.content.match(/^\[([^\]]+)\]/)
-    if (tm) { const d = getAugmentFeedbackDelta(tm[1]); if (d) aug.priority = Math.max(1, aug.priority + d) }
+    if (tm) {
+      // 优先使用连续反馈模型，回退到二元反馈
+      const continuous = getAugmentPriorityAdjustment(tm[1])
+      const d = continuous !== 0 ? continuous : getAugmentFeedbackDelta(tm[1])
+      if (d) aug.priority = Math.max(1, aug.priority + d)
+    }
   }
 
   // ── Select augments within budget ──

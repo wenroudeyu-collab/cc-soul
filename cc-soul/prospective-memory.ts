@@ -81,6 +81,30 @@ const FUTURE_PATTERNS: FuturePattern[] = [
     remindTemplate: (_m, msg) => `用户之前提到有截止日期：${msg.slice(0, 60)}`,
     expiryDays: 14,
   },
+  {
+    detect: /(?:下[周个]?月|下季度|明年).*(?:旅[行游]|出[国门]|度假)/,
+    triggerKeywords: '旅行|出发|机票|签证|行李|酒店|攻略',
+    remindTemplate: (_m, msg) => `用户之前提到有旅行计划：${msg.slice(0, 60)}`,
+    expiryDays: 60,
+  },
+  {
+    detect: /(?:下周|这周|明天|后天|周[一二三四五六日天]).*(?:开会|会议|review|评审|述职)/,
+    triggerKeywords: '会议|review|评审|述职|汇报|PPT|材料',
+    remindTemplate: (_m, msg) => `用户之前提到有会议安排：${msg.slice(0, 60)}`,
+    expiryDays: 7,
+  },
+  {
+    detect: /(?:下周|这周|明天|后天|周[一二三四五六日天]).*(?:考试|测验|认证|答辩)/,
+    triggerKeywords: '考试|测验|认证|答辩|复习|准备|通过',
+    remindTemplate: (_m, msg) => `用户之前提到有考试计划：${msg.slice(0, 60)}`,
+    expiryDays: 14,
+  },
+  {
+    detect: /(?:准备|打算|计划|想).*(?:学|练|入门|转行|转型)/,
+    triggerKeywords: '学习|入门|教程|课程|进度|坚持',
+    remindTemplate: (_m, msg) => `用户之前提到有学习计划：${msg.slice(0, 60)}`,
+    expiryDays: 30,
+  },
 ]
 
 /**

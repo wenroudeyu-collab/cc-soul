@@ -15,6 +15,7 @@ import {
   dbGetEntities, dbAddEntity, dbUpdateEntity,
   dbGetRelations, dbAddRelation,
   dbInvalidateEntity, dbTrimEntities, dbTrimRelations,
+  dbInvalidateStaleRelations,
   isSQLiteReady,
 } from './sqlite-store.ts'
 
@@ -121,7 +122,7 @@ export function addEntity(name: string, type: string, attrs: string[] = []) {
   if (!name || name.length < 2) return
   dbAddEntity(name, type, attrs)
   // Trim if needed
-  dbTrimEntities(400)
+  dbTrimEntities(800)
   // Sync cache
   syncFromDb()
   _pageRankDirty = true
@@ -144,7 +145,7 @@ export function addEntitiesFromAnalysis(entities: { name: string; type: string; 
       if (e.relation) dbAddRelation(e.name, '用户', e.relation.slice(0, 30))
     }
   }
-  dbTrimEntities(400)
+  dbTrimEntities(800)
   dbTrimRelations(800)
   syncFromDb()
   _pageRankDirty = true
@@ -179,6 +180,29 @@ export function invalidateStaleEntities(): number {
   return count
 }
 
+/** Mark relations not activated in the last 90 days as stale (set invalid_at) */
+export function invalidateStaleRelations(): number {
+  const now = Date.now()
+  const thresholdMs = getStaleThresholdMs()
+  let count = 0
+  for (const r of graphState.relations) {
+    if (r.invalid_at !== null) continue
+    const lastActivity = Math.max(r.valid_at || 0, r.ts || 0)
+    if (now - lastActivity > thresholdMs) {
+      r.invalid_at = now
+      count++
+    }
+  }
+  if (count > 0) {
+    // Persist via bulk DB update
+    if (isSQLiteReady()) {
+      dbInvalidateStaleRelations(thresholdMs)
+    }
+    _pageRankDirty = true
+  }
+  return count
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Query
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -189,7 +213,7 @@ export function invalidateStaleEntities(): number {
 export function findMentionedEntities(msg: string): string[] {
   const mentioned = graphState.entities
     .filter(e => e.invalid_at === null && e.name.length >= 3 &&
-      new RegExp('\\b' + e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(msg))
+      new RegExp('(?:^|[^a-zA-Z\\u4e00-\\u9fff])' + e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:[^a-zA-Z\\u4e00-\\u9fff]|$)', 'i').test(msg))
     .sort((a, b) => b.mentions - a.mentions)
     .slice(0, 5)
 
@@ -223,27 +247,41 @@ export function decayActivations(factor = 0.92) {
   }
 }
 
+// ── Relation type weights for BFS traversal ──
+const RELATION_WEIGHTS: Record<string, number> = {
+  caused_by: 1.5, depends_on: 1.3, contradicts: 0.5,
+  uses: 1.0, works_at: 1.0, knows: 0.8, part_of: 0.9,
+  related_to: 0.7, follows: 0.6,
+  prefers_over: 1.1, triggers: 1.2, learned_from: 1.3,
+}
+
 /**
  * From mentioned entities, traverse relations 1-2 hops to find related entity names.
- * Used to expand recall query scope.
+ * Weighted by relation type — higher-weight relations are explored first.
  */
 export function getRelatedEntities(mentionedEntities: string[], maxHops = 2, maxResults = 10): string[] {
   const visited = new Set<string>(mentionedEntities)
   let frontier = [...mentionedEntities]
 
   for (let hop = 0; hop < maxHops; hop++) {
-    const nextFrontier: string[] = []
+    const candidates: { name: string; weight: number }[] = []
     for (const entity of frontier) {
-      const neighbors = graphState.relations
-        .filter(r => r.invalid_at === null && (r.source === entity || r.target === entity))
-        .map(r => r.source === entity ? r.target : r.source)
-
-      for (const n of neighbors) {
-        if (!visited.has(n)) {
-          visited.add(n)
-          nextFrontier.push(n)
-        }
+      for (const r of graphState.relations) {
+        if (r.invalid_at !== null) continue
+        const neighbor = r.source === entity ? r.target : r.target === entity ? r.source : null
+        if (!neighbor || visited.has(neighbor)) continue
+        const relWeight = (r.weight ?? 1.0) * (RELATION_WEIGHTS[r.type] ?? 0.8)
+        candidates.push({ name: neighbor, weight: relWeight })
       }
+    }
+    // Sort by weight descending — explore high-value relations first
+    candidates.sort((a, b) => b.weight - a.weight)
+    const nextFrontier: string[] = []
+    for (const c of candidates) {
+      if (visited.has(c.name)) continue
+      visited.add(c.name)
+      nextFrontier.push(c.name)
+      if (visited.size >= maxResults + mentionedEntities.length) break
     }
     frontier = nextFrontier
     if (visited.size >= maxResults + mentionedEntities.length) break
@@ -307,13 +345,76 @@ export function graphWalkRecall(
  * Returns memory contents ranked by: hop distance (closer=better),
  * relation freshness (newer=better), entity mentions (more=better).
  */
+// ═══════════════════════════════════════════════════════════════════════════════
+// Personalized PageRank — query-biased ranking instead of global PageRank
+// Seeds teleport back to query-relevant entities, so nearby nodes get higher rank.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Personalized PageRank with seed entities as teleport targets.
+ * α = teleport probability (back to seeds), 1-α = walk along edges.
+ */
+export function personalizedPageRank(seeds: string[], alpha = 0.15, maxIter = 20): Map<string, number> {
+  if (seeds.length === 0) return new Map()
+
+  const activeEntities = new Set(
+    graphState.entities.filter(e => e.invalid_at === null).map(e => e.name)
+  )
+  // Only use seeds that exist in the graph
+  const validSeeds = seeds.filter(s => activeEntities.has(s))
+  if (validSeeds.length === 0) return new Map()
+
+  const ranks = new Map<string, number>()
+  // Initialize: seeds get equal rank, others get 0
+  for (const s of validSeeds) ranks.set(s, 1 / validSeeds.length)
+
+  // Build adjacency: outDegree per node
+  const outEdges = new Map<string, { target: string; weight: number }[]>()
+  for (const name of activeEntities) outEdges.set(name, [])
+  for (const r of graphState.relations) {
+    if (r.invalid_at !== null) continue
+    if (!activeEntities.has(r.source) || !activeEntities.has(r.target)) continue
+    const relTypeWeight = RELATION_WEIGHTS[r.type] ?? 0.8
+    const w = (r.weight ?? 1.0) * (r.confidence ?? 0.7) * relTypeWeight
+    outEdges.get(r.source)!.push({ target: r.target, weight: w })
+  }
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    const newRanks = new Map<string, number>()
+    // Teleport component: α probability → return to seed nodes
+    for (const s of validSeeds) newRanks.set(s, alpha / validSeeds.length)
+
+    // Walk component: (1-α) probability → propagate along edges
+    for (const [node, rank] of ranks) {
+      const edges = outEdges.get(node)
+      if (!edges || edges.length === 0) continue
+      const totalWeight = edges.reduce((s, e) => s + e.weight, 0)
+      if (totalWeight <= 0) continue
+      for (const e of edges) {
+        const share = (1 - alpha) * rank * (e.weight / totalWeight)
+        newRanks.set(e.target, (newRanks.get(e.target) || 0) + share)
+      }
+    }
+
+    // Copy new ranks
+    ranks.clear()
+    for (const [k, v] of newRanks) ranks.set(k, v)
+  }
+
+  return ranks
+}
+
 export function graphWalkRecallScored(
   startEntities: string[],
   memories: { content: string; scope?: string }[],
   maxDepth = 2,
   maxResults = 8,
 ): { content: string; graphScore: number }[] {
-  // Weighted BFS: collect entities with distance-based scores
+  // ── Personalized PageRank: query-biased entity scoring ──
+  const pprRanks = personalizedPageRank(startEntities, 0.15, 15)
+
+  // Weighted BFS still useful for depth-limited exploration (PPR may spread too thin)
+  // Combine PPR rank with BFS distance score
   const entityScores = new Map<string, number>()
   for (const start of startEntities) entityScores.set(start, 1.0)
   let frontier = [...startEntities]
@@ -327,16 +428,22 @@ export function graphWalkRecallScored(
         const neighbor = r.source === entity ? r.target : r.target === entity ? r.source : null
         if (!neighbor || entityScores.has(neighbor)) continue
 
-        // Score: hop decay × relation freshness × entity mentions
+        // Score: hop decay × relation freshness × entity mentions × relation type weight
         const freshnessMs = Date.now() - (r.valid_at || r.ts || 0)
         const freshness = Math.exp(-freshnessMs / (90 * 86400000)) // 90-day half-life
         const entityNode = graphState.entities.find(e => e.name === neighbor && e.invalid_at === null)
         const mentionBoost = entityNode ? Math.min(2.0, 1 + Math.log2(entityNode.mentions + 1) * 0.3) : 1.0
         // Activation boost: recently mentioned entities score higher
         const activationBoost = entityNode?.activation ? (1.0 + entityNode.activation * 0.5) : 1.0
+        // Relation type weight + stored weight/confidence
+        const relTypeWeight = RELATION_WEIGHTS[r.type] ?? 0.8
+        const relWeight = (r.weight ?? 1.0) * (r.confidence ?? 0.7) * relTypeWeight
 
-        const score = hopDecay * freshness * mentionBoost * activationBoost
-        entityScores.set(neighbor, score)
+        const bfsScore = hopDecay * freshness * mentionBoost * activationBoost * relWeight
+        // PPR contribution: blend BFS score with personalized PageRank
+        const pprScore = pprRanks.get(neighbor) ?? 0
+        const combinedScore = bfsScore * 0.5 + pprScore * 5000 * 0.5  // scale PPR to comparable range
+        entityScores.set(neighbor, combinedScore)
         next.push(neighbor)
         if (entityScores.size >= maxResults * 3) break
       }
@@ -425,25 +532,34 @@ export function queryGraphPath(from: string, to: string, maxHops = 3): string[] 
 }
 
 export function queryEntityContext(msg: string): string[] {
+  // Find mentioned entities for personalized PageRank seeding
+  const mentionedNames: string[] = []
   const results: { text: string; rank: number }[] = []
   for (const entity of graphState.entities) {
-    // Only return active (non-invalidated) entities
     if (entity.invalid_at !== null) continue
-    if (msg.includes(entity.name)) {
-      // 找这个实体的所有有效关系
-      const rels = graphState.relations.filter(r =>
-        r.invalid_at === null && (r.source === entity.name || r.target === entity.name),
-      )
-      const rank = graphState.ranks.get(entity.name) || 0
-      if (rels.length > 0) {
-        const relStr = rels.map(r => `${r.source} ${r.type} ${r.target}`).join(', ')
-        results.push({ text: `[${entity.type}] ${entity.name}: ${relStr}`, rank })
-      } else if (entity.attrs.length > 0) {
-        results.push({ text: `[${entity.type}] ${entity.name}: ${entity.attrs.join(', ')}`, rank })
-      }
+    if (msg.includes(entity.name)) mentionedNames.push(entity.name)
+  }
+
+  // Use Personalized PageRank with mentioned entities as seeds (query-biased)
+  const pprRanks = mentionedNames.length > 0
+    ? personalizedPageRank(mentionedNames, 0.15, 10)
+    : graphState.ranks  // fallback to global PageRank if no entities mentioned
+
+  for (const entity of graphState.entities) {
+    if (entity.invalid_at !== null) continue
+    if (!msg.includes(entity.name)) continue
+    const rels = graphState.relations.filter(r =>
+      r.invalid_at === null && (r.source === entity.name || r.target === entity.name),
+    )
+    const rank = pprRanks.get(entity.name) || 0
+    if (rels.length > 0) {
+      const relStr = rels.map(r => `${r.source} ${r.type} ${r.target}`).join(', ')
+      results.push({ text: `[${entity.type}] ${entity.name}: ${relStr}`, rank })
+    } else if (entity.attrs.length > 0) {
+      results.push({ text: `[${entity.type}] ${entity.name}: ${entity.attrs.join(', ')}`, rank })
     }
   }
-  // Sort by PageRank descending
+  // Sort by personalized PageRank descending
   results.sort((a, b) => b.rank - a.rank)
   return results.slice(0, 3).map(r => r.text)
 }
@@ -477,10 +593,9 @@ export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
   for (const r of graphState.relations) {
     if (r.invalid_at !== null) continue
     if (!names.has(r.source) || !names.has(r.target)) continue
+    // Directed graph: source → target only
     outDegree.set(r.source, (outDegree.get(r.source) || 0) + 1)
-    outDegree.set(r.target, (outDegree.get(r.target) || 0) + 1)
     inEdges.get(r.target)!.push(r.source)
-    inEdges.get(r.source)!.push(r.target)
   }
 
   // Iterative PageRank
@@ -619,6 +734,45 @@ export function getSocialContext(msg: string): string | null {
 
 /** Reset graph state (for testing) */
 export function _resetSocialGraph() { socialGraph.length = 0 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Causal Chain — 沿 caused_by 方向做有向 BFS，返回因果链上的实体
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Trace causal chain from given entities along caused_by/triggers/depends_on edges.
+ * Returns chain of entity names with direction arrows for augment display.
+ */
+export function traceCausalChain(startEntities: string[], maxHops = 3): string[] {
+  const CAUSAL_TYPES = new Set(['caused_by', 'triggers', 'depends_on', 'learned_from'])
+  const chains: string[] = []
+
+  for (const start of startEntities.slice(0, 3)) {
+    const visited = new Set<string>([start])
+    const path = [start]
+    let current = start
+
+    for (let hop = 0; hop < maxHops; hop++) {
+      let best: { target: string; type: string; ts: number } | null = null
+      for (const r of graphState.relations) {
+        if (r.invalid_at !== null) continue
+        if (!CAUSAL_TYPES.has(r.type)) continue
+        // Follow source→target direction for causal edges
+        if (r.source === current && !visited.has(r.target)) {
+          if (!best || r.ts > best.ts) best = { target: r.target, type: r.type, ts: r.ts }
+        }
+      }
+      if (!best) break
+      visited.add(best.target)
+      path.push(`-[${best.type}]→`, best.target)
+      current = best.target
+    }
+
+    if (path.length > 1) chains.push(path.join(' '))
+  }
+
+  return chains
+}
 
 export const graphModule: SoulModule = {
   id: 'graph',

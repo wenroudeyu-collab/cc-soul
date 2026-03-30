@@ -245,6 +245,26 @@ function bm25Score(queryWords: Set<string>, doc: string, avgDocLen: number): num
 // Recall: tag-based (primary) + TF-IDF (fallback for untagged)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** MMR (Maximal Marginal Relevance) — 去除召回结果中的语义重复 */
+function mmrRerank(candidates: (Memory & { score: number })[], topN: number, lambda = 0.7): (Memory & { score: number })[] {
+  if (candidates.length <= topN) return candidates
+  const selected: (Memory & { score: number })[] = []
+  const remaining = [...candidates]
+  while (selected.length < topN && remaining.length > 0) {
+    let bestIdx = 0, bestMMR = -Infinity
+    for (let i = 0; i < remaining.length; i++) {
+      const relevance = remaining[i].score
+      const maxSim = selected.length > 0
+        ? Math.max(...selected.map(s => trigramSimilarity(trigrams(s.content), trigrams(remaining[i].content))))
+        : 0
+      const mmr = lambda * relevance - (1 - lambda) * maxSim
+      if (mmr > bestMMR) { bestMMR = mmr; bestIdx = i }
+    }
+    selected.push(remaining.splice(bestIdx, 1)[0])
+  }
+  return selected
+}
+
 /** Internal recall that preserves `score` on returned memories (for fusion ranking). */
 export function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }): (Memory & { score: number })[] {
   if (memoryState.memories.length === 0 || !msg) return []
@@ -288,6 +308,23 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     if (SKIP_SCOPES.has(scope)) continue
     for (const m of mems) activeMemories.push(m)
   }
+
+  // Cache getParam results outside loop to avoid per-memory calls
+  const _scopeBoostPref = getParam('recall.scope_boost_preference')
+  const _scopeBoostCorr = getParam('recall.scope_boost_correction')
+  const _emotionBoostImportant = getParam('recall.emotion_boost_important')
+  const _emotionBoostPainful = getParam('recall.emotion_boost_painful')
+  const _emotionBoostWarm = getParam('recall.emotion_boost_warm')
+  const _userBoostSame = getParam('recall.user_boost_same')
+  const _userBoostOther = getParam('recall.user_boost_other')
+  const _tierWeightHot = getParam('recall.tier_weight_hot')
+  const _tierWeightWarm = getParam('recall.tier_weight_warm')
+  const _tierWeightCool = getParam('recall.tier_weight_cool')
+  const _tierWeightCold = getParam('recall.tier_weight_cold')
+  const _consolidatedBoost = getParam('recall.consolidated_boost')
+  const _reflexionBoost = getParam('recall.reflexion_boost')
+  const _flashbulbHigh = getParam('recall.flashbulb_high')
+  const _flashbulbMedium = getParam('recall.flashbulb_medium')
 
   const scored: (Memory & { score: number })[] = []
   for (const mem of activeMemories) {
@@ -339,36 +376,72 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       }
     }
 
+    // ── Reasoning field matching: context + conclusion also participate in scoring ──
+    if (mem.reasoning) {
+      const rText = `${mem.reasoning.context || ''} ${mem.reasoning.conclusion || ''}`.toLowerCase()
+      if (rText.length > 5) {
+        let rHits = 0
+        for (const qw of queryWords) { if (rText.includes(qw)) rHits++ }
+        const rSim = rHits / Math.max(1, queryWords.size) * 0.6
+        if (rSim > 0) sim = Math.max(sim, sim + rSim * 0.5)
+      }
+    }
+
+    // ── Causal Chain Enhancement: 当 query 含"为什么/原因/怎么回事"时，利用 reasoning 字段 ──
+    if (mem.reasoning && mem.reasoning.conclusion && /为什么|因为|原因|怎么回事|why|because|导致|所以/.test(msg)) {
+      const reasonWords = (mem.reasoning.context + ' ' + mem.reasoning.conclusion)
+        .match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []
+      let reasonHits = 0
+      for (const rw of reasonWords) {
+        if (queryWords.has(rw.toLowerCase())) reasonHits++
+      }
+      if (reasonHits > 0) {
+        sim = Math.max(sim, sim + reasonHits * 0.12) // 因果内容命中加分
+      }
+    }
+    // ── 如果记忆有 because 字段，也纳入相似度计算 ──
+    if (mem.because && queryWords.size > 0) {
+      const becauseWords = (mem.because.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+      const becauseHits = becauseWords.filter((w: string) => queryWords.has(w)).length
+      if (becauseHits > 0) {
+        sim += becauseHits * 0.08
+      }
+    }
+
     if (sim < 0.03) continue
+
+    // ── Causal query boost: "为什么/因为/原因" queries boost memories with because/reasoning ──
+    const _isCausalQuery = /为什么|因为|原因|怎么回事|why|because|caused|reason/i.test(msg)
+    const causalBoost = _isCausalQuery && (mem.because || mem.reasoning) ? 1.5 : 1.0
 
     // Weighted scoring: recency (Weibull) + scope boost + emotion boost + userId boost + confidence
     // Unified Weibull decay model from smart-forget.ts (replaces exp(-age * rate))
     const recency = timeDecay(mem)
     // Bonus for recently recalled memories (tags indicate they've been useful)
     const usageBoost = (mem.tags && mem.tags.length > 5) ? 1.2 : 1.0
-    const scopeBoost = (mem.scope === 'preference' || mem.scope === 'fact') ? 1.3 :
-                       (mem.scope === 'correction') ? 1.5 : 1.0
+    const scopeBoost = (mem.scope === 'preference' || mem.scope === 'fact') ? _scopeBoostPref :
+                       (mem.scope === 'correction') ? _scopeBoostCorr : 1.0
     let emotionBoost = 1.0
     // Legacy labels
-    if (mem.emotion === 'important') emotionBoost = 1.4
-    else if (mem.emotion === 'painful') emotionBoost = 1.3
-    else if (mem.emotion === 'warm') emotionBoost = 1.2
+    if (mem.emotion === 'important') emotionBoost = _emotionBoostImportant
+    else if (mem.emotion === 'painful') emotionBoost = _emotionBoostPainful
+    else if (mem.emotion === 'warm') emotionBoost = _emotionBoostWarm
     // New fine-grained labels (stored in emotionLabel)
     const eLabel = (mem as any).emotionLabel
     if (eLabel === 'anger' || eLabel === 'anxiety') emotionBoost = Math.max(emotionBoost, 1.4)
     else if (eLabel === 'pride' || eLabel === 'relief') emotionBoost = Math.max(emotionBoost, 1.3)
     else if (eLabel === 'frustration' || eLabel === 'sadness') emotionBoost = Math.max(emotionBoost, 1.3)
     // #5 Multi-user memory isolation: same user ×2.0, global ×1.0, other user's private → already filtered above
-    const userBoost = (userId && mem.userId && mem.userId === userId) ? 2.0
-                    : (userId && mem.userId && mem.userId !== userId) ? 0.7 : 1.0
+    const userBoost = (userId && mem.userId && mem.userId === userId) ? _userBoostSame
+                    : (userId && mem.userId && mem.userId !== userId) ? _userBoostOther : 1.0
     // #3 HOT/WARM/COLD tier weighting
     const lastAcc = mem.lastAccessed || mem.ts || 0
     const accAgeDays = (Date.now() - lastAcc) / 86400000
-    const tierWeight = ((accAgeDays <= 1 || (mem.recallCount ?? 0) >= 5) ? 1.5   // HOT
-                      : (accAgeDays <= 7) ? 1.0                                    // WARM
-                      : (accAgeDays <= 30) ? 0.8 : 0.5)                            // COLD
-    const consolidatedBoost = mem.scope === 'consolidated' ? 1.5 : mem.scope === 'pinned' ? 2.0 : 1.0
-    const reflexionBoost = mem.scope === 'reflexion' ? 2.0 : 1.0
+    const tierWeight = ((accAgeDays <= 1 || (mem.recallCount ?? 0) >= 5) ? _tierWeightHot   // HOT
+                      : (accAgeDays <= 7) ? _tierWeightWarm                                  // WARM
+                      : (accAgeDays <= 30) ? _tierWeightCool : _tierWeightCold)              // COLD
+    const consolidatedBoost = mem.scope === 'consolidated' ? _consolidatedBoost : mem.scope === 'pinned' ? 2.0 : 1.0
+    const reflexionBoost = mem.scope === 'reflexion' ? _reflexionBoost : 1.0
     // Confidence factor (time decay removed — recency already covers age-based weighting)
     const confidenceWeight = mem.confidence ?? 0.7
     // Temporal validity: past facts (validUntil set and elapsed) get reduced weight but not zero
@@ -421,19 +494,34 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     }
     // Flashbulb memory effect: high emotional intensity → always easier to recall
     const ei = mem.emotionIntensity ?? 0
-    if (ei >= 0.8) moodMatchBoost *= 1.6  // "我永远记得那天..." 效应
-    else if (ei >= 0.5) moodMatchBoost *= 1.2
+    if (ei >= 0.8) moodMatchBoost *= _flashbulbHigh  // "我永远记得那天..." 效应
+    else if (ei >= 0.5) moodMatchBoost *= _flashbulbMedium
 
     // Weighted log-sum scoring (replaces multiplicative — avoids zero-product collapse)
     const _l = Math.log
     const _e = 0.01
     const logScore =
-      3.0 * _l(sim + _e) + 1.5 * _l(recency + _e) + 1.0 * _l(scopeBoost)
-      + 0.8 * _l(emotionBoost) + 0.8 * _l(userBoost) + 0.5 * _l(consolidatedBoost)
-      + 0.3 * _l(usageBoost) + 0.3 * _l(reflexionBoost) + 1.0 * _l(confidenceWeight + _e)
+      getParam('recall.w_sim') * _l(sim + _e) + getParam('recall.w_recency') * _l(recency + _e) + getParam('recall.w_scope') * _l(scopeBoost)
+      + getParam('recall.w_emotion') * _l(emotionBoost) + getParam('recall.w_user') * _l(userBoost) + getParam('recall.w_mood') * _l(consolidatedBoost)
+      + 0.3 * _l(usageBoost) + 0.3 * _l(reflexionBoost) + getParam('recall.w_confidence') * _l(confidenceWeight + _e)
       + 0.5 * _l(temporalWeight + _e) + 0.7 * _l(graphBoost) + 0.3 * _l(tierWeight)
-      + 0.3 * _l(impactBoost) + 0.2 * _l(archiveWeight) + 0.5 * _l(moodMatchBoost)
-    scored.push({ ...mem, score: logScore })
+      + 0.3 * _l(impactBoost) + 0.2 * _l(archiveWeight) + getParam('recall.w_mood') * _l(moodMatchBoost)
+      + 0.4 * _l(causalBoost)
+
+    // ── State-Dependent Memory Gating (Godden & Baddeley 1975) ──
+    // 在不同情绪/能量状态下，某些记忆更难被访问
+    let stateGate = 1.0
+    if (mem.situationCtx && moodCtx) {
+      const moodDist = Math.abs((moodCtx.mood || 0) - (mem.situationCtx.mood || 0))
+      const alertDist = Math.abs((moodCtx.alertness || 0) - (mem.situationCtx.alertness || 0))
+      const stateDist = Math.sqrt(moodDist * moodDist + alertDist * alertDist)
+      // sigmoid gate: 状态差异大 → gate 关闭
+      stateGate = 1 / (1 + Math.exp(stateDist * 3 - 1.5))
+      // 最低不低于 0.1（完全封锁太极端）
+      stateGate = Math.max(0.1, stateGate)
+    }
+
+    scored.push({ ...mem, score: logScore * stateGate })
   }
 
   // ── Spreading Activation with IDF weighting: memories activate related memories ──
@@ -473,7 +561,64 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   }
 
   scored.sort((a, b) => b.score - a.score)
-  const topResults = scored.slice(0, topN)
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // RRF (Reciprocal Rank Fusion) — multi-channel re-ranking
+  // Each channel sorts independently, then fused via 1/(k+rank) to reduce
+  // sensitivity to any single scoring dimension's scale.
+  // ═══════════════════════════════════════════════════════════════════════════════
+  if (scored.length >= 4) {
+    // Build per-channel rank arrays using different sort keys
+    // Channel 1: BM25/trigram sim (already primary factor in logScore, re-sort by sim component)
+    const ch1 = scored.map((s, i) => ({ idx: i, key: s.score }))  // overall score as proxy for textual match
+    // Channel 2: recency — newer memories ranked higher
+    const ch2 = scored.map((s, i) => ({ idx: i, key: s.lastAccessed || s.ts || 0 }))
+    ch2.sort((a, b) => b.key - a.key)
+    // Channel 3: scope+emotion boost
+    const ch3 = scored.map((s, i) => {
+      const scopeW = (s.scope === 'correction') ? 3 : (s.scope === 'preference' || s.scope === 'fact') ? 2
+        : (s.scope === 'consolidated') ? 2.5 : (s.scope === 'pinned') ? 4 : 1
+      const emotionW = (s.emotion === 'important') ? 1.4 : (s.emotion === 'painful') ? 1.3 : 1.0
+      const eiW = (s.emotionIntensity ?? 0) >= 0.8 ? 1.6 : (s.emotionIntensity ?? 0) >= 0.5 ? 1.2 : 1.0
+      return { idx: i, key: scopeW * emotionW * eiW }
+    })
+    ch3.sort((a, b) => b.key - a.key)
+    // Channel 4: graph/entity relevance (use graphBoost proxy — memories with expansion word hits)
+    const ch4 = scored.map((s, i) => {
+      let graphHits = 0
+      if (expansionWords.size > 0) {
+        const ml = s.content.toLowerCase()
+        for (const w of expansionWords) { if (ml.includes(w)) graphHits++ }
+      }
+      return { idx: i, key: graphHits + (s.recallCount ?? 0) * 0.1 }
+    })
+    ch4.sort((a, b) => b.key - a.key)
+
+    // Build rank maps: idx → rank (0-based)
+    const rankMaps: Map<number, number>[] = []
+    for (const channel of [ch1, ch2, ch3, ch4]) {
+      const rm = new Map<number, number>()
+      for (let r = 0; r < channel.length; r++) rm.set(channel[r].idx, r)
+      rankMaps.push(rm)
+    }
+
+    // RRF fusion: score = Σ 1/(k + rank_i)
+    const RRF_K = 60
+    for (let i = 0; i < scored.length; i++) {
+      let rrfScore = 0
+      for (const rm of rankMaps) {
+        const rank = rm.get(i) ?? scored.length
+        rrfScore += 1 / (RRF_K + rank)
+      }
+      // Blend: 60% original logScore ranking + 40% RRF (avoid completely overriding tuned weights)
+      const originalRank = i  // already sorted by logScore
+      const originalRRF = 1 / (RRF_K + originalRank)
+      scored[i].score = 0.6 * scored[i].score + 0.4 * (rrfScore * 1000) // scale RRF to comparable range
+    }
+    scored.sort((a, b) => b.score - a.score)
+  }
+
+  const topResults = mmrRerank(scored.slice(0, topN * 3), topN)
 
   // ── Graph Walk Recall: supplement with memories reachable via entity graph BFS ──
   if (mentionedEntities.length > 0 && topResults.length < topN) {
@@ -569,6 +714,44 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   }
 
   return topResults
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Meta-memory: Tip-of-Tongue recall
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** 元记忆分级：recalled (确定记得) / tip_of_tongue (有印象但不确定) / not_found */
+export interface MetamemoryResult {
+  memory: Memory
+  score: number
+  state: 'recalled' | 'tip_of_tongue'
+  hint?: string  // tip_of_tongue 时给出模糊提示
+}
+
+export function recallWithMetamemory(msg: string, topN: number = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }): MetamemoryResult[] {
+  // 多检索一些候选
+  const scored = recallWithScores(msg, topN * 3, userId, channelId, moodCtx)
+  const results: MetamemoryResult[] = []
+
+  for (const mem of scored) {
+    if (mem.score > 0.3) {
+      results.push({ memory: mem, score: mem.score, state: 'recalled' })
+    } else if (mem.score > 0.08 && results.length < topN * 2) {
+      // Tip of tongue: 有信号但不确定
+      const topic = (mem.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{4,}/)?.[0]) || '某个话题'
+      results.push({
+        memory: mem,
+        score: mem.score,
+        state: 'tip_of_tongue',
+        hint: `好像聊过${topic}相关的内容`,
+      })
+    }
+  }
+
+  // 确定记得的优先，tip_of_tongue 补充
+  const recalled = results.filter(r => r.state === 'recalled').slice(0, topN)
+  const tipOfTongue = results.filter(r => r.state === 'tip_of_tongue').slice(0, 2)
+  return [...recalled, ...tipOfTongue]
 }
 
 /** Detect if user is explicitly asking about past memories */

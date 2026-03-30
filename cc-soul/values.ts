@@ -206,6 +206,10 @@ export function recordConflict(winner: string, loser: string, context: string, u
   if (!arr) { arr = []; userConflicts.set(userId, arr) }
   arr.push({ winner, loser, context, ts: Date.now() })
   if (arr.length > 50) arr.splice(0, arr.length - 50) // cap at 50
+
+  // 同步更新 Bradley-Terry 强度
+  btUpdateStrength(winner, loser)
+
   saveValues()
 }
 
@@ -213,6 +217,17 @@ export function getValuePriority(a: string, b: string, userId?: string): string 
   if (!userId) return null
   const arr = userConflicts.get(userId)
   if (!arr || arr.length === 0) return null
+
+  // 优先使用 Bradley-Terry 概率模型（有足够数据时）
+  const sA = btPreferenceScore(a)
+  const sB = btPreferenceScore(b)
+  if (sA !== 1.0 || sB !== 1.0) {
+    // BT 模型有数据，用概率判断
+    const result = btCompare(a, b)
+    if (result.probability > 0.55) return result.winner  // 概率 > 55% 才算有倾向
+  }
+
+  // 回退到简单计数（兼容旧数据）
   let aWins = 0, bWins = 0
   for (const c of arr) {
     if (c.winner === a && c.loser === b) aWins++
@@ -240,6 +255,46 @@ export function getConflictContext(userId?: string): string {
   }
   if (hints.length === 0) return ''
   return `[价值观] 用户在取舍时: ${hints.join('、')}`
+}
+
+// ── Bradley-Terry 偏好概率模型 ──
+
+/**
+ * Bradley-Terry 偏好概率模型：
+ * P(A > B) = strength(A) / (strength(A) + strength(B))
+ * 比简单计数更好：能处理间接对比（A>B, B>C → A>C 的传递性）
+ */
+const _preferenceStrengths = new Map<string, number>()
+
+function btUpdateStrength(winner: string, loser: string, learningRate: number = 0.1) {
+  const sW = _preferenceStrengths.get(winner) || 1.0
+  const sL = _preferenceStrengths.get(loser) || 1.0
+
+  // Bradley-Terry 更新
+  const pWin = sW / (sW + sL)
+  const surprise = 1 - pWin  // 越意外的结果更新越大
+
+  _preferenceStrengths.set(winner, sW * (1 + learningRate * surprise))
+  _preferenceStrengths.set(loser, sL * (1 - learningRate * (1 - surprise)))
+
+  // 归一化防止数值爆炸
+  const total = [..._preferenceStrengths.values()].reduce((s, v) => s + v, 0)
+  if (total > 100) {
+    for (const [k, v] of _preferenceStrengths) {
+      _preferenceStrengths.set(k, v / total * _preferenceStrengths.size)
+    }
+  }
+}
+
+function btPreferenceScore(item: string): number {
+  return _preferenceStrengths.get(item) || 1.0
+}
+
+function btCompare(a: string, b: string): { winner: string; probability: number } {
+  const sA = _preferenceStrengths.get(a) || 1.0
+  const sB = _preferenceStrengths.get(b) || 1.0
+  const pA = sA / (sA + sB)
+  return pA >= 0.5 ? { winner: a, probability: pA } : { winner: b, probability: 1 - pA }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

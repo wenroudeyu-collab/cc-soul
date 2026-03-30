@@ -113,6 +113,27 @@ async function handleProcess(body: any): Promise<any> {
     }
   } catch {}
 
+  // ── 7b. Duplicate message detection ──
+  let dupHint = ''
+  try {
+    const { resolve } = await import('path')
+    const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
+    const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
+    const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
+    const dedupKey = message.slice(0, 100).toLowerCase().trim()
+    const prev = dedup[dedupKey]
+    if (prev && Date.now() - prev.ts < 3600000) {
+      dupHint = `[重要] 用户刚才发了和之前一样的消息："${message.slice(0, 50)}"。上次的回复摘要："${prev.reply.slice(0, 100)}"。不要重复上次的回答，换个角度回答或说"这个刚说过"。`
+    }
+    // 记录这次的 key（回复内容在 /feedback 中更新）
+    dedup[dedupKey] = { reply: '', ts: Date.now() }
+    // 清理过期
+    for (const [k, v] of Object.entries(dedup)) {
+      if (Date.now() - v.ts > 3600000) delete dedup[k]
+    }
+    debouncedSave(DEDUP_PATH, dedup)
+  } catch {}
+
   // ── 8. Build augments ──
   let selected: string[] = []
   let augmentObjects: any[] = []
@@ -131,6 +152,8 @@ async function handleProcess(body: any): Promise<any> {
       flowKey: userId, followUpHints: [], workingMemKey: userId,
     })
     selected = result.selected || []
+    // 注入重复消息检测提醒（最高优先级）
+    if (dupHint) selected.unshift(`[重复消息检测] ${dupHint}`)
     augmentObjects = (result.augments || []).map((a: any) => ({
       content: a.content || '', priority: a.priority || 0, tokens: a.tokens || 0,
     }))
@@ -147,6 +170,20 @@ async function handleProcess(body: any): Promise<any> {
     const { buildSoulPrompt } = await import('./prompt-builder.ts')
     const { stats } = await import('./handler-state.ts')
     soulPrompt = buildSoulPrompt(stats.totalMessages, stats.corrections, stats.firstSeen, [])
+  } catch {}
+
+  // 始终把上次回复摘要和去重提醒嵌入 system_prompt（不依赖 SOUL.md 写入时序）
+  try {
+    const { resolve } = await import('path')
+    const { DATA_DIR, loadJson } = await import('./persistence.ts')
+    const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
+    const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
+    const dedupKey = message.slice(0, 100).toLowerCase().trim()
+    const prev = dedup[dedupKey]
+    if (prev && prev.reply && Date.now() - prev.ts < 3600000) {
+      // 重复消息：强制在 system_prompt 开头加指令
+      soulPrompt = `⚠️ 重要：用户重复发了同一条消息。上次你的回复是："${prev.reply.slice(0, 150)}"。\n你必须换一种完全不同的方式回答。可以说"这个刚回答过，还有什么不清楚的？"或从另一个角度展开。绝对不能重复上次的内容。\n\n` + soulPrompt
+    }
   } catch {}
 
   return {
@@ -177,6 +214,17 @@ async function handleFeedback(body: any): Promise<any> {
   }
 
   if (!userMessage || !aiReply) return { error: 'user_message and ai_reply required' }
+
+  // Update dedup cache with actual reply content
+  try {
+    const { resolve } = await import('path')
+    const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
+    const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
+    const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
+    const dedupKey = userMessage.slice(0, 100).toLowerCase().trim()
+    dedup[dedupKey] = { reply: aiReply.slice(0, 200), ts: Date.now() }
+    debouncedSave(DEDUP_PATH, dedup)
+  } catch {}
 
   // History
   try { (await import('./memory.ts')).addToHistory(userMessage, aiReply) } catch {}

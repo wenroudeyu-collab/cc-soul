@@ -82,10 +82,61 @@ function shouldWriteJournal(stats: InteractionStats): boolean {
   return false
 }
 
+/**
+ * 差分日记：只记录和预期不同的事（节省 80% LLM token）
+ * 基于 Predictive Coding Theory — 大脑只编码预期违背
+ *
+ * 不记"发生了什么"，只记"什么出乎意料"
+ */
+function writeDeltaJournal(stats: InteractionStats, bodyState: typeof body): string | null {
+  const parts: string[] = []
+
+  // 1. 情绪 delta：显著偏离时记录
+  const mood = bodyState?.mood ?? 0
+  const energy = bodyState?.energy ?? 0.5
+  if (mood < -0.3) parts.push(`情绪低谷(mood=${mood.toFixed(2)})`)
+  if (mood > 0.5) parts.push(`情绪高涨(mood=${mood.toFixed(2)})`)
+  if (energy < 0.2) parts.push(`极度疲惫(energy=${energy.toFixed(2)})`)
+
+  // 2. 纠正 delta：最近被纠正过
+  const corrections = stats?.corrections ?? 0
+  if (corrections > lastJournalCorrections) {
+    parts.push(`被纠正(总${corrections}次)`)
+  }
+
+  // 3. 用户行为 delta：异常活跃或异常沉默
+  const recentMsgCount = stats?.recentMessageCount ?? 0
+  if (recentMsgCount > 20) parts.push(`用户异常活跃(${recentMsgCount}条/30min)`)
+  if (recentMsgCount === 0 && stats?.totalMessages > 10) parts.push('用户沉默')
+
+  if (parts.length === 0) return null  // 一切正常，不写日记
+
+  const entry = `[差分日记 ${new Date().toLocaleTimeString('zh-CN')}] ${parts.join('；')}`
+  console.log(`[cc-soul][delta-journal] ${entry}`)
+  return entry
+}
+
 export function writeJournalWithCLI(lastPrompt: string, lastResponseContent: string, stats: InteractionStats) {
   const now = Date.now()
   if (now - innerState.lastJournalTime < 1800000) return // 30 min cooldown (absolute minimum)
 
+  // 优先使用差分日记（零 LLM 成本）
+  const deltaEntry = writeDeltaJournal(stats, body)
+  if (deltaEntry) {
+    innerState.lastJournalTime = now
+    addMemory(deltaEntry, 'reflection', undefined, 'private')
+    innerState.journal.push({
+      time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      thought: deltaEntry,
+      type: 'reflection',
+    })
+    if (innerState.journal.length > 100) innerState.journal = innerState.journal.slice(-80)
+    debouncedSave(JOURNAL_PATH, innerState.journal)
+    lastJournalCorrections = stats.corrections
+    return // 差分日记已记录，跳过 LLM 日记
+  }
+
+  // 只有差分日记没有内容（一切正常）时，才考虑 LLM 日记
   // 按需触发：不满足条件就跳过 LLM 调用
   if (!shouldWriteJournal(stats)) return
 
@@ -230,6 +281,113 @@ export function getRecentJournal(n = 5): string {
 // DREAM MODE — idle memory replay + insight generation
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * 记忆重放整合：不用 LLM，用图遍历发现隐藏联系
+ * 基于海马体 replay — 睡眠时大脑重放白天的记忆，发现新连接
+ *
+ * 算法：选最近 N 条未被关联的记忆 → 提取实体 → 找共享实体发现新联想
+ */
+async function memoryReplay(): Promise<string | null> {
+  try {
+    const { graphState } = await import('./graph.ts')
+
+    const now = Date.now()
+    const DAY = 86400000
+
+    // 选最近 7 天内、recall 次数少（<2）的记忆（"还没被整合的新记忆"）
+    const unlinked = memoryState.memories
+      .filter(m =>
+        m.scope !== 'expired' && m.scope !== 'decayed' &&
+        now - m.ts < 7 * DAY &&
+        ((m as any).recallCount ?? 0) < 2
+      )
+      .slice(-10)  // 最多 10 条
+
+    if (unlinked.length < 3) return null  // 不够多，跳过
+
+    // 从这些记忆中提取实体
+    const entityMentions = new Map<string, string[]>()  // entity → [memory content snippet]
+    for (const mem of unlinked) {
+      for (const entity of graphState.entities) {
+        if (entity.invalid_at !== null) continue
+        if (mem.content.includes(entity.name)) {
+          if (!entityMentions.has(entity.name)) entityMentions.set(entity.name, [])
+          entityMentions.get(entity.name)!.push(mem.content.slice(0, 50))
+        }
+      }
+    }
+
+    // 找共享实体的记忆对（它们通过某个实体相连但之前没被关联）
+    const discoveries: string[] = []
+    const entityList = [...entityMentions.entries()].filter(([, mems]) => mems.length >= 2)
+
+    for (const [entity, mems] of entityList.slice(0, 3)) {
+      discoveries.push(`"${mems[0]}"和"${mems[1]}"都提到了${entity}`)
+    }
+
+    // 找图中不同记忆实体之间的短路径（通过 relations 2跳以内）
+    const allEntities = [...entityMentions.keys()]
+    for (let i = 0; i < Math.min(allEntities.length, 3); i++) {
+      for (let j = i + 1; j < Math.min(allEntities.length, 4); j++) {
+        // BFS 2-hop path through relations
+        const from = allEntities[i], to = allEntities[j]
+        const neighbors = new Map<string, string>()  // entity → relation label
+        for (const r of graphState.relations) {
+          if (r.from === from) neighbors.set(r.to, r.label)
+          if (r.to === from) neighbors.set(r.from, r.label)
+        }
+        // Direct connection (1-hop)
+        if (neighbors.has(to)) {
+          discoveries.push(`${from}和${to}通过"${neighbors.get(to)}"直接相连`)
+        } else {
+          // 2-hop: check neighbors of from's neighbors
+          for (const [mid, label1] of neighbors) {
+            for (const r of graphState.relations) {
+              if ((r.from === mid && r.to === to) || (r.to === mid && r.from === to)) {
+                discoveries.push(`${from}→${mid}→${to}(经${label1}/${r.label})`)
+                break
+              }
+            }
+            if (discoveries.length > 0) break
+          }
+        }
+      }
+    }
+
+    if (discoveries.length === 0) return null
+
+    // 记忆重放发现的联系 → 交叉标签注入（让相关记忆在未来被一起召回）
+    if (entityList.length > 0) {
+      try {
+        const { memoryState: ms, saveMemories } = await import('./memory.ts')
+        let tagged = 0
+        for (const [entityName, memContents] of entityList) {
+          for (const memContent of memContents) {
+            const mem = ms.memories.find(m => m.content.includes(memContent.slice(0, 30)))
+            if (mem) {
+              if (!mem.tags) mem.tags = []
+              if (!mem.tags.includes(entityName)) {
+                mem.tags.push(entityName)
+                tagged++
+              }
+            }
+          }
+        }
+        if (tagged > 0) {
+          saveMemories()
+          console.log(`[cc-soul][memory-replay] cross-tagged ${tagged} memories`)
+        }
+      } catch {}
+    }
+
+    const replay = `[记忆重放] 发现${discoveries.length}条新联系：${discoveries.slice(0, 3).join('；')}`
+    console.log(`[cc-soul][memory-replay] ${replay}`)
+    return replay
+  } catch {
+    return null
+  }
+}
+
 export function checkDreamMode() {
   const now = Date.now()
   const idleMinutes = (now - innerState.lastActivityTime) / 60000
@@ -241,6 +399,27 @@ export function checkDreamMode() {
 
   innerState.lastDreamTime = now
 
+  // 优先使用记忆重放（零 LLM 成本）
+  memoryReplay().then(replay => {
+    if (replay) {
+      addMemory(replay, 'reflection', undefined, 'private')
+      innerState.journal.push({
+        time: 'dream',
+        thought: replay,
+        type: 'reflection',
+      })
+      debouncedSave(JOURNAL_PATH, innerState.journal)
+      return // 记忆重放完成，跳过 LLM 梦境
+    }
+    // fallback: LLM 梦境（保留但仅在记忆重放无结果时触发）
+    _fallbackLLMDream()
+  }).catch(() => {
+    _fallbackLLMDream()
+  })
+}
+
+/** LLM 梦境 fallback — 仅在 memoryReplay 返回 null 时调用 */
+function _fallbackLLMDream() {
   // Weighted selection: prefer emotional + cross-domain memories
   const candidates = memoryState.memories.filter(m =>
     m.scope !== 'expired' && m.scope !== 'proactive' && m.content.length > 15

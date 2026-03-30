@@ -12,6 +12,77 @@ import { memoryState, addMemory } from './memory.ts'
 import { extractJSON } from './utils.ts'
 import { getParam } from './auto-tune.ts'
 
+// ── Algorithm: Frustration Dynamics (挫败感动力学) ──
+// 不只检测"现在是否挫败"，而是建模挫败感的积累轨迹
+// 基于 Yerkes-Dodson 激活曲线 — 挫败感不是二元状态，是有惯性的连续过程
+// 能预测"再过几轮可能放弃"
+
+export interface FrustrationTrajectory {
+  current: number           // 当前挫败感 [0, 1]
+  velocity: number          // 变化速率（正=恶化，负=改善）
+  turnsToAbandon: number | null  // 预测几轮后放弃（null=不会）
+}
+
+// 每个用户的挫败感历史
+const _frustrationHistory = new Map<string, number[]>()
+
+export function computeFrustrationDynamics(
+  flowKey: string,
+  msgLength: number,
+  prevMsgLength: number,
+  turnCount: number,
+  hasQuestionMark: boolean,
+  hasNegativeWords: boolean,
+): FrustrationTrajectory {
+  // 获取历史
+  if (!_frustrationHistory.has(flowKey)) _frustrationHistory.set(flowKey, [])
+  const history = _frustrationHistory.get(flowKey)!
+
+  // 计算当前信号
+  let signal = 0
+  // 消息变短 = 失去耐心
+  if (prevMsgLength > 0 && msgLength < prevMsgLength * 0.5) signal += 0.2
+  // 连续问号 = 没得到答案
+  if (hasQuestionMark && turnCount > 3) signal += 0.15
+  // 负面词 = 明确表达不满
+  if (hasNegativeWords) signal += 0.3
+  // 回合数递增 = 疲劳累积
+  signal += Math.min(0.15, turnCount * 0.02)
+
+  // 衰减项：如果消息变长了或没有负面信号 = 缓解
+  if (msgLength > prevMsgLength * 1.2) signal -= 0.15
+  if (!hasQuestionMark && !hasNegativeWords) signal -= 0.05
+
+  signal = Math.max(-0.2, Math.min(0.5, signal))
+  history.push(signal)
+  if (history.length > 20) history.shift()
+
+  // 计算当前值：指数加权移动平均
+  let current = 0
+  let weight = 1
+  for (let i = history.length - 1; i >= 0; i--) {
+    current += history[i] * weight
+    weight *= 0.7 // 最近的信号权重最大
+  }
+  current = Math.max(0, Math.min(1, current))
+
+  // 计算速率：最近3个信号的趋势
+  const recentSlice = history.slice(-3)
+  const velocity = recentSlice.length >= 2
+    ? (recentSlice[recentSlice.length - 1] - recentSlice[0]) / recentSlice.length
+    : 0
+
+  // 预测放弃轮数
+  let turnsToAbandon: number | null = null
+  if (current > 0.3 && velocity > 0) {
+    // 线性外推：几轮后到 0.8（放弃阈值）
+    turnsToAbandon = Math.ceil((0.8 - current) / velocity)
+    if (turnsToAbandon > 10 || turnsToAbandon < 0) turnsToAbandon = null
+  }
+
+  return { current, velocity, turnsToAbandon }
+}
+
 interface ConversationFlow {
   topic: string              // current topic being discussed
   turnCount: number          // consecutive turns on same topic
@@ -21,6 +92,7 @@ interface ConversationFlow {
   lastMsgLengths: number[]   // last 5 message lengths for frustration detection
   topicKeywords: string[]    // keywords that define this topic
   lastUpdate: number         // timestamp of last update
+  frustrationTrajectory?: FrustrationTrajectory  // 挫败感动力学轨迹
 }
 
 // ── Session end tracking ──
@@ -122,6 +194,12 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
       flow.frustration = Math.max(0, flow.frustration - getParam('flow.frustration_decay_per_turn'))
     }
 
+  // Frustration Dynamics: compute trajectory alongside existing frustration
+  const prevMsgLen = flow.lastMsgLengths.length >= 2 ? flow.lastMsgLengths[flow.lastMsgLengths.length - 2] : 0
+  const hasQuestionMark = /[？?]/.test(userMsg)
+  const hasNegativeWords = ['算了', '不对', '还是不行', '怎么又', '说了多少遍', '烦', '累'].some(w => userMsg.includes(w))
+  flow.frustrationTrajectory = computeFrustrationDynamics(flowKey, userMsg.length, prevMsgLen, flow.turnCount, hasQuestionMark, hasNegativeWords)
+
   // Resolution detection
   if (['搞定', '可以了', '好了', '解决了', '谢谢', 'thanks', '成功了'].some(w => userMsg.toLowerCase().includes(w))) {
     flow.resolved = true
@@ -173,6 +251,15 @@ export function getFlowHints(flowKey: string): string[] {
   }
   if (flow.frustration >= 0.6) {
     hints.push('用户可能越来越不耐烦了，简化回答，直接给方案')
+  }
+  // Frustration trajectory: predictive warning
+  if (flow.frustrationTrajectory) {
+    const ft = flow.frustrationTrajectory
+    if (ft.turnsToAbandon !== null && ft.turnsToAbandon <= 3) {
+      hints.push(`⚠ 预测用户可能在${ft.turnsToAbandon}轮内放弃，立即给出最终方案`)
+    } else if (ft.velocity > 0.1 && ft.current > 0.2) {
+      hints.push('挫败感正在快速上升，注意调整策略')
+    }
   }
   if (flow.resolved) {
     hints.push('问题似乎已解决，自然收尾即可')

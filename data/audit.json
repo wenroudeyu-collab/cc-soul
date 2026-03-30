@@ -1012,5 +1012,599 @@
     "action": "memory_add",
     "detail": "[fact] [对话] 用户: 测试SDK → AI: 收到",
     "hash": "cd020a1852c1b131277b853aa3579fa5e215911f43fc1d1e292832340545febb"
+  },
+  {
+    "ts": 1774889772628,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Python 的 asyncio 和多线程怎么选？ → AI: **一句话：I/O 密集用 asyncio，CPU 密集用多进程，多线程在 Python 里很尴尬。**\n\n---\n\n",
+    "hash": "70c50a2a263a2de02782ed27fea1d33f5f554fbad942fb1cf8dfed819f321014"
+  },
+  {
+    "ts": 1774889782404,
+    "action": "memory_add",
+    "detail": "[fact] Python中I/O密集型任务推荐使用asyncio，CPU密集型任务推荐使用multiprocessing，多线程在Python中因GIL限制表现尴尬",
+    "hash": "294206124652a1fc651e4ea62fbd2d56c6bd8876e47a86fdd71d3352bfb4cfa4"
+  },
+  {
+    "ts": 1774889782408,
+    "action": "memory_add",
+    "detail": "[fact] 混合场景（I/O+CPU）推荐使用asyncio配合进程池处理",
+    "hash": "6dd7bfd619099a2cee0ce0461d69d9730fbca7c92ea0ccf4ab7c2b1ee8dc72a9"
+  },
+  {
+    "ts": 1774889850025,
+    "action": "memory_add",
+    "detail": "[opinion] 孩子不愿上学需先区分'不愿去'还是'不能去'，不同表现对应不同原因和应对方法",
+    "hash": "8d70cf659c332445b4fe5a85949a479410b18e6c4f37a3acbbcf36f7b78bfe7c"
+  },
+  {
+    "ts": 1774889850027,
+    "action": "memory_add",
+    "detail": "[opinion] 应对孩子不愿上学的短期方法：不质问先倾听、降低启动难度、和老师结盟",
+    "hash": "2ebcaa5d0c81d1dc933db193261b0398bcb25731b15cc0e31e28b52e23a1e973"
+  },
+  {
+    "ts": 1774889850029,
+    "action": "memory_add",
+    "detail": "[opinion] 孩子持续两周以上不愿上学且严重影响家庭功能是需要专业帮助的红线信号",
+    "hash": "25cae4c2d2289b217b88b92afbcaea24bba2a56bd37a3761c529fe6bd893f380"
+  },
+  {
+    "ts": 1774889899549,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 年终奖怎么算个税？ → AI: **年终奖个税：单独计税 or 并入综合所得，选低的那个。**\n\n---\n\n**两种算法：**\n\n| 方式 | 适用 |",
+    "hash": "602a592fbfe56a30aaf954c049a3215338075bf5efdb93d8d947a0606eca0f8f"
+  },
+  {
+    "ts": 1774889914041,
+    "action": "memory_add",
+    "detail": "[fact] 年终奖个税有两种计算方式：单独计税和并入综合所得，应选择税额较低的方式",
+    "hash": "9dbd77d0697576e04fdb551727caa41e963932ab23ade4a546d79d7cc378d5c4"
+  },
+  {
+    "ts": 1774889914045,
+    "action": "memory_add",
+    "detail": "[fact] 单独计税方法：年终奖÷12后按月税率表确定税率，计算公式为年终奖×税率-速算扣除数",
+    "hash": "237b7d34acd71a40182c9b9b08820d32ef28598399594de7046f562cba40df5e"
+  },
+  {
+    "ts": 1774889914048,
+    "action": "memory_add",
+    "detail": "[fact] 并入综合所得方法：将年终奖与全年工资合并后按年度累计税率计算个税",
+    "hash": "f1fd211349867c421f49e764386a997e7d7902bd045633d688879856c0e325e2"
+  },
+  {
+    "ts": 1774889914051,
+    "action": "memory_add",
+    "detail": "[fact] 年收入较高（如超过20万）时通常单独计税更划算；年收入低（扣除后不足6万）时并入综合所得可能免税",
+    "hash": "a6e4be723ae1a88dfad22d82bfb13b4e0384e474725cbc236dcf71e6bb14b26f"
+  },
+  {
+    "ts": 1774889962433,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 腰疼好几天了需要去医院吗？ → AI: **看情况，有几个红线信号必须去：**\n\n| 必须立即就医 | 可以观察1-2周 |\n|-------------|--",
+    "hash": "5fd00c877abf4eb03c99e1ada294eb16000189fa2c05bb17f5750d351a00f809"
+  },
+  {
+    "ts": 1774889983451,
+    "action": "memory_add",
+    "detail": "[fact] 腰疼伴随腿麻、脚麻、无力可能是腰椎间盘突出压迫神经，需要立即就医",
+    "hash": "4fabec7c7d768cbff70e05b97eb3eb59d7a4fa64475ef06d19c346aa25173b88"
+  },
+  {
+    "ts": 1774889983456,
+    "action": "memory_add",
+    "detail": "[fact] 腰疼伴随大小便失禁或困难是马尾综合征的紧急信号，必须立即就医",
+    "hash": "77ced54587eebe37a1c4aeb90b3e250fbb18cf1d02c97619f8f18c32669eeb3d"
+  },
+  {
+    "ts": 1774889983460,
+    "action": "memory_add",
+    "detail": "[fact] 腰疼伴随发烧可能是感染，需要立即就医",
+    "hash": "41d4f1163ce95541dc6996253cc469a88e6d1d3a57086bf79b9c4ae22b4a18a6"
+  },
+  {
+    "ts": 1774889983463,
+    "action": "memory_add",
+    "detail": "[fact] 单纯腰疼、活动后减轻、久坐后疼休息缓解、有明确诱因（如搬重物）的情况可以观察1-2周",
+    "hash": "7ad6e75beab76d89c70af221378645b50c403edbe70e67d2cdf46452864709b6"
+  },
+  {
+    "ts": 1774889983467,
+    "action": "memory_add",
+    "detail": "[fact] 直腿抬高测试（平躺抬腿30-70度间腿麻/疼）可能提示神经根受压",
+    "hash": "1af9a4c85bd86595a83c03cab05cc408fa7ced859199ca1af4140f3a2d823c99"
+  },
+  {
+    "ts": 1774890025439,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你还记得我之前说过喜欢什么编程语言吗？ → AI: 老板喜欢 **Go**，讨厌 **PHP**。\n\n主要用 Go 写后端，Python 应该也常用（问过 GIL、asyn",
+    "hash": "ce76bc50526ad9b0070570124f65da639c8d637e35fca74a7aac74fa48ea6ead"
+  },
+  {
+    "ts": 1774890043118,
+    "action": "memory_add",
+    "detail": "[preference] 用户喜欢Go编程语言",
+    "hash": "5f1ae97db070805f42be2f5564373d31e61ec34a5c08ae508009b3cd00332392"
+  },
+  {
+    "ts": 1774890043126,
+    "action": "memory_version",
+    "detail": "[preference] \"用户讨厌PHP\" → \"用户讨厌PHP编程语言\"",
+    "hash": "97e2d0cc8cc3f39722e2aed77379d11f6cdc2563d875bf824a2ce8fc534011df"
+  },
+  {
+    "ts": 1774890043131,
+    "action": "memory_add",
+    "detail": "[fact] 用户主要用Go写后端",
+    "hash": "40a265ebbc2e5c39d38d9d8afdcf0de758d326e665aa7650ed8b9f5199f78267"
+  },
+  {
+    "ts": 1774890043135,
+    "action": "memory_add",
+    "detail": "[fact] 用户可能常用Python（问过GIL、asyncio、JSON相关问题）",
+    "hash": "a8bec57948b6418307879febf6690ec5b1e18f95b08f8b39fd135f2f3f480a0e"
+  },
+  {
+    "ts": 1774890043139,
+    "action": "memory_add",
+    "detail": "[fact] 用户在关注Rust和TypeScript",
+    "hash": "ad083c7477fd11e780f13c3a1a92d17ff3acba7c01c23470ee01cb836042feba"
+  },
+  {
+    "ts": 1774891456818,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Redis 集群怎么做数据分片？ → AI: **Redis 集群数据分片：哈希槽（Hash Slot）**\n\n---\n\n**核心机制：**\n\n```\n16384 个",
+    "hash": "4a83439219e144015c47f1e692378a990529e188ba5d9ccb0c1fa4509f22620c"
+  },
+  {
+    "ts": 1774891467251,
+    "action": "memory_add",
+    "detail": "[fact] Redis集群使用16384个哈希槽进行数据分片，key的槽位通过CRC16(key) % 16384计算",
+    "hash": "4fcfa23ea91e550b4fb3e281882c215dc5f49f18c51f4177753538362880e305"
+  },
+  {
+    "ts": 1774891467255,
+    "action": "memory_add",
+    "detail": "[fact] Redis集群中多key操作必须在同一哈希槽才能执行",
+    "hash": "0a49ba4e5db9b4e9b44f391c20fc86d2550e20a513be6969b5de65c7166b1393"
+  },
+  {
+    "ts": 1774891467258,
+    "action": "memory_add",
+    "detail": "[fact] Redis集群采用主从架构，主节点负责读写，从节点负责故障切换",
+    "hash": "4f41c27ef1c3399f9fc1942f1790e3732f9a1611422890abd5066753dc035da7"
+  },
+  {
+    "ts": 1774891519933,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 怎么和孩子聊学校发生的事？他总是说没什么 → AI: **\"没什么\"是孩子的标准防御，换个问法：**\n\n---\n\n**别问开放式问题：**\n\n| ❌ 无效 | ✅ 有效 |\n",
+    "hash": "bcb2fa5904fbfc2d55321ed0d0b018167e92c9c28018655fc3879fcae6a95394"
+  },
+  {
+    "ts": 1774891532540,
+    "action": "memory_add",
+    "detail": "[opinion] 孩子说'没什么'是标准防御，需要改变提问方式",
+    "hash": "61faa02a45a0fc6328eef498eb326214d602a27f951d739078f169d8ca6aca16"
+  },
+  {
+    "ts": 1774891532547,
+    "action": "memory_add",
+    "detail": "[opinion] 与孩子交流时，应避免开放式问题，使用具体、小范围、有场景的问题",
+    "hash": "57d17f269cd5c85c0fec632abd7e0632e2faf97455f5976abc7fe955032781b0"
+  },
+  {
+    "ts": 1774891532552,
+    "action": "memory_add",
+    "detail": "[fact] 有效提问示例：'今天课间你和谁玩了？'、'数学课上老师讲了什么题？'、'你们班今天谁最搞笑？'",
+    "hash": "9b5c8eaaac3c19edc00b38668d9b79a92220ec4946729ab9aec57c901454eec5"
+  },
+  {
+    "ts": 1774891532555,
+    "action": "memory_add",
+    "detail": "[opinion] 更有效的沟通策略包括：先分享自己的一天、利用碎片时间、关注情绪而非事实、不评判不立刻给建议",
+    "hash": "b298059577b81249c0044fc28538799eda50bcca4f0b16b5ae2c34ec0620a443"
+  },
+  {
+    "ts": 1774891532558,
+    "action": "memory_add",
+    "detail": "[opinion] 如果孩子始终封闭，需要观察非语言信号",
+    "hash": "cc440a54217777765b8a056926fc16b078badb0b02d63c2b17fde2b9c89ffa7a"
+  },
+  {
+    "ts": 1774891585022,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 公积金贷款和商业贷款怎么选？ → AI: **能贷公积金优先用，额度不够再组合。**\n\n---\n\n**核心对比：**\n\n| | 公积金贷款 | 商业贷款 |\n|-",
+    "hash": "be69b07ce8c5bc9e5e903e3eaed3dfbb42a6c1114f43d7450ab8176d8e9e789e"
+  },
+  {
+    "ts": 1774891598699,
+    "action": "memory_add",
+    "detail": "[fact] 公积金贷款5年以上利率为2.85%，商业贷款利率为3.5%-4.5%（LPR浮动）",
+    "hash": "8d2a662e7e946926ac6223a7f0fc5a27a91be19c2a7e168c2ed971c256f310a0"
+  },
+  {
+    "ts": 1774891598701,
+    "action": "memory_add",
+    "detail": "[fact] 公积金贷款额度有限（通常60-120万），商业贷款额度高（可贷房价70-80%）",
+    "hash": "2ba82d10fd2b8a9f98272e911369cd4822ef8cb925dc4f169388317d9b063c5c"
+  },
+  {
+    "ts": 1774891598703,
+    "action": "memory_add",
+    "detail": "[fact] 公积金贷款审批速度慢（1-2个月），商业贷款审批速度快（1-2周）",
+    "hash": "34929049a402ffc139dad86ccc812bf45a782553e8f7ef9bcca5ee2e784b5941"
+  },
+  {
+    "ts": 1774891598705,
+    "action": "memory_add",
+    "detail": "[fact] 公积金贷款提前还款灵活通常无违约金，商业贷款提前还款看合同可能收违约金",
+    "hash": "0de58059c2f7ebc8090424041f57e152f93932573b94a3e4facbef805c18e298"
+  },
+  {
+    "ts": 1774891598707,
+    "action": "memory_add",
+    "detail": "[opinion] 贷款决策路径：公积金能贷满需求则用纯公积金，否则用组合贷或纯商贷",
+    "hash": "2cfb54f96896a8e7ad402e5fe36ececc5c2887b54d8195377d1888573a494caa"
+  },
+  {
+    "ts": 1774891648800,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 颈椎疼，长期对着电脑有什么改善办法？ → AI: **程序员职业病，从环境+习惯+锻炼三方面改：**\n\n---\n\n**1. 环境调整（立竿见影）**\n\n| 问题 | 解决",
+    "hash": "052a6033d7491e6bda92cc15859d33a1226501dad02d0510aca76f553c71d40d"
+  },
+  {
+    "ts": 1774891662277,
+    "action": "memory_add",
+    "detail": "[fact] 改善颈椎问题的三个方向：环境调整、习惯打断、强化锻炼",
+    "hash": "9b42bd8190f74bb51164405ef459ae4d62309016cd4d9f16e7fe3a7984662a4e"
+  },
+  {
+    "ts": 1774891662282,
+    "action": "memory_add",
+    "detail": "[fact] 显示器上沿应与眼睛水平线齐平",
+    "hash": "3476475d8e510e9ba61e664db191a41fc13b4f77ff0b4855bdf6c1e6852294ee"
+  },
+  {
+    "ts": 1774891662286,
+    "action": "memory_add",
+    "detail": "[fact] 番茄钟工作法改良版：25分钟专注，5分钟强制离开座位进行活动",
+    "hash": "7f1a1d30ed1503484e5e7a7d0595d19ce13771dde63a68823985e74bfb656465"
+  },
+  {
+    "ts": 1774891662289,
+    "action": "memory_add",
+    "detail": "[fact] 每小时应进行下巴后缩、头侧倾、耸肩后旋下沉等颈部拉伸动作",
+    "hash": "a8a8194343734b699173cd43d17956006cad794061b5077caf82fdce8c6232f9"
+  },
+  {
+    "ts": 1774891662292,
+    "action": "memory_add",
+    "detail": "[fact] YTWL肩背激活、死虫式、鸟狗式、游泳、颈部抗阻训练是强化锻炼颈椎的有效动作",
+    "hash": "c70773b2a50d6e77b5164afd87f2ebfca3feba9a2c874f7f14be4f3c996817e4"
+  },
+  {
+    "ts": 1774891712514,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我之前提过在哪工作来着？ → AI: 老板在 **字节** 工作。",
+    "hash": "ea8285151175b378f83139fe2e91e05ba8fa7f425e23dfcd6b996038c04a8042"
+  },
+  {
+    "ts": 1774893502053,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 为什么我之前选了 Go 而不是 Rust？ → AI: 老板之前没说过为什么选 Go 而不是 Rust。\n\n但从聊的内容看，Go 是主力语言，Rust 是关注/学习状态。可能的",
+    "hash": "f4be229b775e8e96a274b373ea1c32d3d8f4aff9d9cd6b356dec05532d081227"
+  },
+  {
+    "ts": 1774893518726,
+    "action": "memory_add",
+    "detail": "[preference] 用户之前选择了Go而不是Rust作为主要开发语言",
+    "hash": "4d8df5d363e25452a40224d6212a26a3fd0c35d54b63f4dc893be35a88d70ca1"
+  },
+  {
+    "ts": 1774893518728,
+    "action": "memory_add",
+    "detail": "[fact] 字节跳动内部Go生态成熟，拥有Kitex、Hertz等框架",
+    "hash": "02ad84daec289d11fe41b8fbdea558ebd7c9e495c34409d96c517ddd181e63cb"
+  },
+  {
+    "ts": 1774893518730,
+    "action": "memory_add",
+    "detail": "[fact] Go在字节跳动业务后端占主导，Rust主要用于基础设施和存储引擎",
+    "hash": "c33f73752631bb7cde329dd765402084949ef75141aec66dd691eaa9e9412dc6"
+  },
+  {
+    "ts": 1774893518731,
+    "action": "memory_add",
+    "detail": "[fact] Go上手速度快（1-2周），Rust所有权学习曲线陡峭",
+    "hash": "6edd47402c1768fd8e193fbbe0112e956438345a70034e2fa24010f9f49006fc"
+  },
+  {
+    "ts": 1774893518732,
+    "action": "memory_add",
+    "detail": "[fact] Go开发者社区规模大，招聘容易；Rust相对小众",
+    "hash": "cde701533dd8e32f1cc52cd490598f47e25c4f2e531988a354111768be6a3969"
+  },
+  {
+    "ts": 1774894347097,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: a → AI: 老板想问 Docker 的什么？\n\n镜像优化、网络配置、Compose 编排，还是部署问题？",
+    "hash": "32cdd76dc23743d45091f51b1bd46eefb36fefbbc9142873330d43095177c941"
+  },
+  {
+    "ts": 1774894365108,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: aaaaaaayaoaaaaaa React aa Vue → AI: 老板想问 **iOS** 的什么？\n\n开发（Swift/SwiftUI）、上架审核、还是日常使用问题？",
+    "hash": "078c8bfa2f589821c381f641f4c1306363f539f4f1754ba20633a392f4df3d4b"
+  },
+  {
+    "ts": 1774894406207,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: aaaaaaa → AI: 老板想问 **Python 和 Rust 怎么选**？\n\n还是两个都想聊？",
+    "hash": "c0444410a49a01e005c4dab65373304b32546ae9acc217f42819c634bb102269"
+  },
+  {
+    "ts": 1774894416459,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: aaaaaaa → AI: 老板想问 **Python 和 Rust 怎么选**？\" → \"[对话] 用户: 你好，在吗 → AI: 老板想问 **Python 和 Rust 怎么选**？\n\n\"",
+    "hash": "1076b95bd5d7120c64abd99ec51ac7f9b5b38c9e3b83a4ac79ed866f85ba984b"
+  },
+  {
+    "ts": 1774894424207,
+    "action": "memory_add",
+    "detail": "[opinion] 用户询问Python和Rust的选择问题",
+    "hash": "35e21792f9d7a671d8da261e823f4840c3f3fa49e8db4296b29ccbb5f7521fef"
+  },
+  {
+    "ts": 1774894503699,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你还记得我叫什么吗 → AI: 老板在 **字节** 工作。",
+    "hash": "5236c54b4adcde5983352980e724838eea32abc859a4a4a1d3da910f1f6b6ce2"
+  },
+  {
+    "ts": 1774894540802,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我在哪工作来着 → AI: 老板辛苦了。今天什么进度？项目延期的事有缓解吗？",
+    "hash": "0f16b7fb679ae2167de4f9b48dda06157bdd5218b4cb8474636eee139e8474dd"
+  },
+  {
+    "ts": 1774894583166,
+    "action": "memory_add",
+    "detail": "[event] 用户今天加班到很晚",
+    "hash": "55a89fec92e22b53b35eb67463bd7e8b6ab9e24da024f20f3f8941be35b95353"
+  },
+  {
+    "ts": 1774894788177,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpreter Lock）** 是 CPython 的全局解释器锁，确保同一时刻只有一",
+    "hash": "e19749188e65fe3506bca646c6e85166d8899683c970b33ada259bc5a405cbef"
+  },
+  {
+    "ts": 1774894803757,
+    "action": "memory_version",
+    "detail": "[fact] \"GIL导致Python线程不能真正并行执行CPU密集型任务，多线程在CPU密集型场景下无效甚至更慢\" → \"Python线程不能真正并行执行CPU密集型任务，多线程在CPU密集型场景下无效甚至更慢\"",
+    "hash": "95542866971caa0d2858a8628ab311ae68e05db535e4b90ed0a5de699377de68"
+  },
+  {
+    "ts": 1774894803767,
+    "action": "memory_add",
+    "detail": "[fact] GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此多线程对I/O密集型任务有效",
+    "hash": "36a90f54af802d0662cd0eb1a936d485d343100fa35b5fa256a7809653e8a863"
+  },
+  {
+    "ts": 1774894803771,
+    "action": "memory_add",
+    "detail": "[fact] CPU并行计算可使用multiprocessing多进程，异步I/O可使用asyncio，真并行线程可用Cython/numba写扩展或换PyPy/Jython",
+    "hash": "3e7624d0ecc5a69f9c590fbcabe64971c239b679e512642fdf182eab36addd30"
+  },
+  {
+    "ts": 1774894963037,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Redis和MongoDB怎么选 → AI: **一句话：结构化查询用 Redis，文档存储用 MongoDB。**\n\n---\n\n**核心差异：**\n\n| | Red",
+    "hash": "1f62c45d11f599ec99d74c689eca24473f91911ef1a714a70c33a7ce5184d40e"
+  },
+  {
+    "ts": 1774894973041,
+    "action": "memory_add",
+    "detail": "[fact] Redis是Key-Value内存数据库，适合缓存、会话、排行榜、实时计数等场景",
+    "hash": "d22bfd8da3e411432f367eca06593d66cad9f631f18f08c75ec7e45a2822d96c"
+  },
+  {
+    "ts": 1774894973048,
+    "action": "memory_add",
+    "detail": "[fact] MongoDB是JSON-like文档数据库，适合内容管理、用户数据、日志、物联网等场景",
+    "hash": "db28eb3032244c366d93f4789f647fa8ac9e3f78885ce4d833ed0f444b49dacc"
+  },
+  {
+    "ts": 1774894973052,
+    "action": "memory_add",
+    "detail": "[fact] Redis和MongoDB的核心差异：数据模型、持久化方式、查询能力、事务支持和适用场景",
+    "hash": "1ed36bce0f7ca55082aa8fa91ec274db5770e09a66b3f83834ae1ea5fbd23d08"
+  },
+  {
+    "ts": 1774895347419,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: 帮我理解什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务\" → \"[对话] 用户: 什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**\n\"",
+    "hash": "0094e31b97a94fdea84901bbec5ccab0302f0bad4328fa4db526d8a065119285"
+  },
+  {
+    "ts": 1774895360483,
+    "action": "memory_add",
+    "detail": "[fact] 微服务是一种将大型系统拆分为多个独立部署的小服务的架构风格",
+    "hash": "1fcebb6829fa7556b6c4f09d840123a134d665b55cc34e7bf17e74b85c03fa33"
+  },
+  {
+    "ts": 1774895360487,
+    "action": "memory_version",
+    "detail": "[fact] \"单体架构与微服务架构在代码库、部署、技术栈、团队协作、故障影响方面的对比\" → \"微服务架构与单体架构在代码库、部署方式、技术栈、团队协作和故障影响方面存在差异\"",
+    "hash": "b30a35584c454d696641d37cd552262b033eebfe58def796f728a8675e691a7a"
+  },
+  {
+    "ts": 1774895360491,
+    "action": "memory_add",
+    "detail": "[fact] 微服务适合团队规模较大（如50+人）、需要独立扩容、技术债务重的场景",
+    "hash": "b9ab698bea4dca8b8f82144d621a085c14cb1d4b53191a226d52f6169801a1a0"
+  },
+  {
+    "ts": 1774895360493,
+    "action": "memory_add",
+    "detail": "[fact] 微服务会带来分布式复杂度、运维成本增加、调试困难和数据一致性等挑战",
+    "hash": "60f0bc70b5b934a2afb574151ded4d8952def7a695cb0b12dcf5195c21e74a7b"
+  },
+  {
+    "ts": 1774895507024,
+    "action": "memory_add",
+    "detail": "[wisdom] [技术选择背后的自我怀疑与遗憾] 对过去技术选型（Go vs Rust）的反复追问，透露出对决策合理性的深度怀疑和潜在的后悔。可能认为当初为追求开发效率（Go的简洁）而牺牲了技术前瞻性或性能（Rust",
+    "hash": "36d9f280b78a8ff1982315ecc1916b7b5b66e6096b140e610aeb46ee44f52d5b"
+  },
+  {
+    "ts": 1774895507031,
+    "action": "memory_add",
+    "detail": "[wisdom] [幽默方式] 使用混乱的‘aaaaa’夹杂技术词汇，是一种自嘲式、近乎行为艺术的情绪表达。用看似无意义的重复和拼写错误（如‘iguPython’）来调侃技术学习的混乱感与信息过载，而非直接抱怨。",
+    "hash": "76c13a86796977441440614a5abb0e57aa30f11ca691b4fdce36b3062a0dcc96"
+  },
+  {
+    "ts": 1774895507035,
+    "action": "memory_add",
+    "detail": "[wisdom] [对健康损耗的焦虑与忽视] 反复询问颈椎疼痛的改善方法，但仅停留在提问层面（消息1、2相同），暗示他明知问题根源（长期对电脑）却难以改变工作习惯。这折射出一种深层矛盾：理性上重视健康，但行动上被工作或",
+    "hash": "fe82d4788c8c879856f6832976f76aa4fd36dc6b7ae9042cb9b0274d74c54233"
+  },
+  {
+    "ts": 1774895531948,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Docker和K8s什么关系 → AI: **Docker 是容器，K8s 是管容器的编排平台。**\n\n---\n\n**关系类比：**\n\n| | 类比 |\n|--|",
+    "hash": "745edcc9d61b0ad0f5df82c27f1db4c3209e84a4c5af01d7c755be2da61cdaaf"
+  },
+  {
+    "ts": 1774895545219,
+    "action": "memory_add",
+    "detail": "[fact] Docker 是容器技术，用于打包应用和依赖成镜像，解决单机运行和开发环境一致性问题",
+    "hash": "a498fc81723209bc388f1caaa2115e8b13a007df479711af580e987a94cb0dec"
+  },
+  {
+    "ts": 1774895545224,
+    "action": "memory_add",
+    "detail": "[fact] Kubernetes (K8s) 是容器编排平台，用于跨多台机器调度容器，提供自动扩缩容、故障自愈、服务发现等功能",
+    "hash": "f39a2152fb18f55341cc8f726344eb3eba1667ecafed735123086cd3944cf590"
+  },
+  {
+    "ts": 1774895545228,
+    "action": "memory_add",
+    "detail": "[fact] Docker 与 K8s 的关系类比：Docker 类似集装箱（标准化打包），K8s 类似港口调度系统（管理大量容器）",
+    "hash": "3a715b7bb435ce6ad2c21e84e970d33ac392d38d9fac806e8bf9d29119f3381e"
+  },
+  {
+    "ts": 1774895545232,
+    "action": "memory_add",
+    "detail": "[fact] 技术演进路径：裸机部署 → 虚拟机 → Docker（单机容器）→ K8s（容器编排）",
+    "hash": "9dfda265c126dee943f0025dad198e28b3b19c7c75034ee4215577d4623d64ff"
+  },
+  {
+    "ts": 1774895545236,
+    "action": "memory_add",
+    "detail": "[opinion] 使用场景建议：本地开发/单机部署用 Docker；生产环境/多机集群/需要自动扩缩容用 K8s；不想运维 K8s 可用云厂商服务",
+    "hash": "161f0367a9e4b4517b4ad71d6ac1ed60737f2ca9d2ec0ce3a2b5b937621665c4"
+  },
+  {
+    "ts": 1774895704613,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 什么是Docker → AI: Docker是一个容器化平台，用于打包和运行应用。",
+    "hash": "135a1c825e23c8cf9866dfb1dcd5fb5fede2ee945b972625458821d397b7c332"
+  },
+  {
+    "ts": 1774895710809,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: 什么是Docker → AI: Docker是一个容器化平台，用于打包和运行应用。\" → \"Docker是一个容器化平台，用于打包和运行应用。\"",
+    "hash": "a459a98be483eb8bfa2578d51cfe5d790655c636bf5b2e438bc4b5dab7a44194"
+  },
+  {
+    "ts": 1774895810177,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Go语言的goroutine是什么 → AI: **Goroutine 是 Go 的轻量级线程，由 Go 运行时管理，不是操作系统线程。**\n\n---\n\n**核心特点：",
+    "hash": "b1c628028ad8bf113ceac15c06afa42d58f5e2e295d8373c7d06b18a36edd113"
+  },
+  {
+    "ts": 1774895823499,
+    "action": "memory_add",
+    "detail": "[fact] Goroutine 是 Go 语言的轻量级线程，由 Go 运行时管理，不是操作系统线程。",
+    "hash": "33798daf36417168c9cb3511ae135aa07c246a6ad041b3cdb83d9d756eb4ccc8"
+  },
+  {
+    "ts": 1774895823503,
+    "action": "memory_add",
+    "detail": "[fact] Goroutine 初始栈 2KB，可动态伸缩，可轻松开启百万个。",
+    "hash": "4583833c967d24f3a13f6af2b6985208fa450b6c6c0bbf6b716f35c746c2fa67"
+  },
+  {
+    "ts": 1774895823507,
+    "action": "memory_add",
+    "detail": "[fact] Goroutine 采用协作式调度（非抢占），在函数调用、I/O、channel 操作时切换。",
+    "hash": "54fbfbad534a6844a2bd72c375bff61377365090a1359addde2da6656935adf6"
+  },
+  {
+    "ts": 1774895823511,
+    "action": "memory_add",
+    "detail": "[fact] Goroutine 采用 M:N 调度模型，M 个 goroutine 映射到 N 个 OS 线程（GOMAXPROCS）。",
+    "hash": "a5c435e1976981fcad936b1abca45af9adccb8d041a5f6b5e58ed2dd64f8c0ed"
+  },
+  {
+    "ts": 1774895823514,
+    "action": "memory_add",
+    "detail": "[fact] Go 语言使用 `go` 关键字一键启动 goroutine，无需线程池。",
+    "hash": "9d965bc46e5ebbbdf3d231254a4a2ff3f5a6a2f6cecb2487424ad85e5ccf7cad"
+  },
+  {
+    "ts": 1774896016793,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 什么是RESTful API → AI: **RESTful API 是一种基于 HTTP 协议的设计风格，用 URL 定位资源，用 HTTP 方法描述操作。**",
+    "hash": "cd9e8c4ceb08e07152acf056d6df0c5093e6396c07941d471c194053e7130a39"
+  },
+  {
+    "ts": 1774896028885,
+    "action": "memory_add",
+    "detail": "[fact] RESTful API 的核心原则包括：资源（一切皆是资源，用 URL 标识）、HTTP 方法（GET/POST/PUT/DELETE）、无状态、统一接口",
+    "hash": "c5c31e7f9cb11e7c57b5fb13b33069b9589215f0e4b2f0998adcbbdf231ffe42"
+  },
+  {
+    "ts": 1774896028889,
+    "action": "memory_add",
+    "detail": "[fact] RESTful API 的 URL 设计示例：获取用户列表用 GET /users，获取单个用户用 GET /users/123，创建用户用 POST /users，更新用户用 PUT/PATCH",
+    "hash": "cf9b18a31c4f2972b53f579fc0fe5e60b27128757ee3873137edc97d471ec936"
+  },
+  {
+    "ts": 1774896189818,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Nginx和Apache哪个好 → AI: **Nginx 更现代，Apache 更老牌，新项目首选 Nginx。**\n\n---\n\n**核心对比：**\n\n| | N",
+    "hash": "f327b8cc95d71b73a48cc747496e701ce75a0931a6072327fcb320c4901865e3"
+  },
+  {
+    "ts": 1774896205951,
+    "action": "memory_add",
+    "detail": "[fact] Nginx采用异步事件驱动架构，Apache采用多进程/多线程架构",
+    "hash": "98c8a624820cc45fb477a5a51709e4164940c0a1a48353a7dd0e5f752b8a7ebe"
+  },
+  {
+    "ts": 1774896205957,
+    "action": "memory_add",
+    "detail": "[fact] Nginx处理静态资源极快且内存占用低，Apache处理静态资源性能一般",
+    "hash": "db09eede5788fb51728ca5584c218d357696fb6288ab6435b53d8e2a5cfe8399"
+  },
+  {
+    "ts": 1774896205961,
+    "action": "memory_add",
+    "detail": "[fact] Nginx处理动态内容需反向代理到后端，Apache可通过模块直接运行",
+    "hash": "27f3dbf11533afe6be25d4a6cdbf57b056b6eee4f7f3c7c457cdef96b81d1807"
+  },
+  {
+    "ts": 1774896205964,
+    "action": "memory_add",
+    "detail": "[fact] Nginx配置简洁声明式，Apache配置灵活但复杂",
+    "hash": "f5f3c1e31db579d5dd726e5101225d377df59622f6f504772f9c59496a8b7436"
+  },
+  {
+    "ts": 1774896205968,
+    "action": "memory_add",
+    "detail": "[fact] Apache支持.htaccess和模块动态加载，Nginx不支持.htaccess且模块热加载需重编译",
+    "hash": "a5ba0172980b7a2b970d8889361db3641082afebd433e47423ab09940a045e28"
   }
 ]

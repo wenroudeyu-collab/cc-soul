@@ -118,10 +118,61 @@ export function trackDomainCorrection(msg: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// KNOWLEDGE DECAY MODEL — 知识衰减曲线
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 知识衰减曲线：每个领域有独立的"知识半衰期"
+ * 刚被纠正 → 置信度快速衰减
+ * 一直答对 → 置信度缓慢巩固
+ *
+ * 公式：confidence(t) = base × (1 - decay × e^(-t/τ))
+ * τ = 半衰期，由纠正率决定
+ * base = 基础置信度，由回答质量决定
+ */
+export interface KnowledgeDecay {
+  domain: string
+  confidence: number      // [0, 1] 连续置信度
+  trend: 'improving' | 'stable' | 'degrading'
+  halfLife: number        // 天数：知识保持的半衰期
+  lastCorrection: number  // 距上次纠正的天数
+}
+
+export function computeKnowledgeDecay(domain: string, domainData: any): KnowledgeDecay {
+  const total = domainData?.totalResponses || 0
+  const corrections = domainData?.corrections || 0
+  const avgQuality = total > 0 ? (domainData?.qualitySum || 5 * total) / total : 5
+  const lastCorrectionTs = domainData?.lastCorrectionTs || 0
+  const daysSinceCorrection = lastCorrectionTs > 0 ? (Date.now() - lastCorrectionTs) / 86400000 : 999
+
+  // 基础置信度：由平均质量决定 (sigmoid 映射)
+  const base = 1 / (1 + Math.exp(-(avgQuality - 5) * 0.8))
+
+  // 半衰期：纠正率越高，半衰期越短（知识越不稳定）
+  const correctionRate = total > 0 ? corrections / total : 0
+  const halfLife = Math.max(3, 30 * (1 - correctionRate))  // 3-30 天
+
+  // 衰减：距上次纠正越久，恢复越多
+  const decay = correctionRate > 0 ? 0.3 * Math.exp(-daysSinceCorrection / halfLife) : 0
+
+  // 最终置信度
+  const confidence = Math.max(0.1, Math.min(0.95, base * (1 - decay)))
+
+  // 趋势：最近 5 次回答的质量趋势
+  let trend: 'improving' | 'stable' | 'degrading' = 'stable'
+  if (total >= 5) {
+    if (daysSinceCorrection < 3) trend = 'degrading'
+    else if (daysSinceCorrection > 14 && correctionRate < 0.1) trend = 'improving'
+  }
+
+  return { domain, confidence, trend, halfLife, lastCorrection: daysSinceCorrection }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CONFIDENCE QUERY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function getDomainConfidence(msg: string): { domain: string; confidence: 'high' | 'medium' | 'low'; hint: string } {
+export function getDomainConfidence(msg: string): { domain: string; confidence: 'high' | 'medium' | 'low'; hint: string; decay?: KnowledgeDecay } {
   const domain = detectDomain(msg)
   const d = domains.get(domain)
 
@@ -130,30 +181,13 @@ export function getDomainConfidence(msg: string): { domain: string; confidence: 
     return { domain, confidence: 'medium', hint: '' }
   }
 
-  // Low confidence: high correction rate with enough samples
-  if (d.correctionRate > 10 && d.totalResponses >= 5) {
-    return {
-      domain,
-      confidence: 'low',
-      hint: `[知识边界] "${domain}" 领域纠正率 ${d.correctionRate}%，这个领域我不太确定，你验证一下`,
-    }
-  }
-
-  // Low confidence: low quality with enough samples
-  if (d.avgQuality < 5 && d.totalResponses >= 5) {
-    return {
-      domain,
-      confidence: 'low',
-      hint: `[知识边界] "${domain}" 领域平均质量 ${d.avgQuality}/10，我在这方面表现不佳，请仔细核实`,
-    }
-  }
-
-  // High confidence: good quality with substantial data
-  if (d.avgQuality > 7 && d.totalResponses >= 10) {
-    return { domain, confidence: 'high', hint: '' }
-  }
-
-  return { domain, confidence: 'medium', hint: '' }
+  // 使用知识衰减曲线计算连续置信度
+  const kd = computeKnowledgeDecay(domain, d)
+  const confLabel: 'high' | 'medium' | 'low' = kd.confidence > 0.7 ? 'high' : kd.confidence > 0.4 ? 'medium' : 'low'
+  const hint = confLabel === 'low'
+    ? `[知识边界] "${domain}" 置信度${(kd.confidence*100).toFixed(0)}%，${kd.trend === 'degrading' ? '最近被纠正过' : '历史准确率低'}，请仔细核实`
+    : ''
+  return { domain, confidence: confLabel, hint, decay: kd }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

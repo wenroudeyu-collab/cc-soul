@@ -36,6 +36,32 @@ function ensureWelford(stats: WelfordStats | undefined): WelfordStats {
   return { mean: 0, m2: 0, count: 0 }
 }
 
+/**
+ * 自适应异常检测：替代固定 3-sigma
+ * 当样本少时（<20），放宽阈值（减少误报）
+ * 当样本多时（>50），收紧阈值（更精确）
+ * 用自适应 sigma 系数，对小样本更鲁棒
+ */
+function isAnomaly(value: number, mean: number, stddev: number, sampleCount: number): boolean {
+  if (sampleCount < 5) return false  // 数据不够，不判定
+  // 自适应系数：样本越多越严格
+  const adaptiveSigma = 2.5 + 1.5 / Math.sqrt(sampleCount)  // 5样本→3.17σ，50样本→2.71σ，200样本→2.61σ
+  return Math.abs(value - mean) > adaptiveSigma * Math.max(stddev, 0.01)
+}
+
+/**
+ * 趋势感知漂移检测：不只看单次离群，还看连续方向
+ * 如果连续 5 次都偏高（即使每次都在阈值内），也算漂移
+ */
+function detectTrend(recentValues: number[], mean: number): 'stable' | 'drifting_up' | 'drifting_down' {
+  if (recentValues.length < 5) return 'stable'
+  const last5 = recentValues.slice(-5)
+  const aboveMean = last5.filter(v => v > mean).length
+  if (aboveMean >= 4) return 'drifting_up'
+  if (aboveMean <= 1) return 'drifting_down'
+  return 'stable'
+}
+
 interface StyleFingerprint {
   avgLength: number           // average reply length
   avgSentenceLength: number   // average sentence length
@@ -45,9 +71,12 @@ interface StyleFingerprint {
   firstPersonRatio: number    // "我" usage
   samples: number             // how many replies analyzed
   lastUpdated: number
-  // Welford stats for 3-sigma anomaly detection
+  // Welford stats for adaptive anomaly detection
   lengthStats?: WelfordStats
   sentenceLengthStats?: WelfordStats
+  // 趋势检测：最近回复长度序列
+  recentLengths?: number[]
+  recentSentenceLengths?: number[]
 }
 
 let fingerprint: StyleFingerprint = loadJson<StyleFingerprint>(FINGERPRINT_PATH, {
@@ -88,11 +117,20 @@ export function updateFingerprint(response: string) {
   fingerprint.emojiRatio = fingerprint.emojiRatio * (1 - alpha) + hasEmoji * alpha
   fingerprint.firstPersonRatio = fingerprint.firstPersonRatio * (1 - alpha) + firstPerson * alpha
 
-  // Update Welford stats for 3-sigma detection
+  // Update Welford stats for adaptive anomaly detection
   fingerprint.lengthStats = ensureWelford(fingerprint.lengthStats)
   fingerprint.sentenceLengthStats = ensureWelford(fingerprint.sentenceLengthStats)
   updateWelford(fingerprint.lengthStats, length)
   updateWelford(fingerprint.sentenceLengthStats, avgSentLen)
+
+  // 追踪最近值用于趋势检测
+  if (!fingerprint.recentLengths) fingerprint.recentLengths = []
+  fingerprint.recentLengths.push(length)
+  if (fingerprint.recentLengths.length > 20) fingerprint.recentLengths.shift()
+
+  if (!fingerprint.recentSentenceLengths) fingerprint.recentSentenceLengths = []
+  fingerprint.recentSentenceLengths.push(avgSentLen)
+  if (fingerprint.recentSentenceLengths.length > 20) fingerprint.recentSentenceLengths.shift()
 
   fingerprint.samples++
   fingerprint.lastUpdated = Date.now()
@@ -109,16 +147,24 @@ export function checkPersonaConsistency(response: string): string {
 
   const issues: string[] = []
 
-  // Length deviation — 3-sigma detection with fallback to legacy 3x check
+  // Length deviation — adaptive anomaly detection with trend awareness
   const lenStats = ensureWelford(fingerprint.lengthStats)
   const lenStddev = getStddev(lenStats)
-  if (lenStddev > 0 && lenStats.count > 10) {
-    // 3-sigma: flag if response is > mean + 3*stddev
-    if (response.length > lenStats.mean + 3 * lenStddev) {
-      issues.push('回复异常长')
+  if (lenStddev > 0 && lenStats.count > 5) {
+    // 自适应阈值检测（替代固定 3-sigma）
+    if (isAnomaly(response.length, lenStats.mean, lenStddev, lenStats.count)) {
+      if (response.length > lenStats.mean) {
+        issues.push('回复异常长')
+      } else if (response.length > 5) {
+        issues.push('回复异常短')
+      }
     }
-    if (response.length < lenStats.mean - 3 * lenStddev && response.length > 5) {
-      issues.push('回复异常短')
+    // 趋势漂移检测
+    const lengthTrend = detectTrend(fingerprint.recentLengths || [], lenStats.mean)
+    if (lengthTrend === 'drifting_up') {
+      issues.push('回复长度持续偏高（趋势漂移）')
+    } else if (lengthTrend === 'drifting_down') {
+      issues.push('回复长度持续偏低（趋势漂移）')
     }
   } else {
     // Fallback: legacy hardcoded thresholds (insufficient Welford data)

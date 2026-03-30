@@ -119,6 +119,96 @@ const DEFAULT_PARAMS: Record<string, number> = {
   // persona.ts — blend thresholds
   'persona.blend_gap_threshold': 0.3,
   'persona.attention_trigger_bonus': 0.2,
+
+  // smart-forget — Weibull k (shape) per scope
+  'forget.weibull_k_fact': 1.2,
+  'forget.weibull_k_preference': 0.9,
+  'forget.weibull_k_episode': 1.4,
+  // smart-forget — Weibull lambda (scale) per scope
+  'forget.weibull_lambda_fact': 30,
+  'forget.weibull_lambda_preference': 90,
+  'forget.weibull_lambda_episode': 14,
+  // smart-forget — ACT-R & thresholds
+  'forget.act_r_decay': 0.5,
+  'forget.survival_threshold': 0.1,
+  'forget.activation_threshold': -1.0,
+  'forget.consolidation_threshold_survival': 0.8,
+  'forget.consolidation_threshold_activation': 2.0,
+
+  // recall — weighted log-sum weights
+  'recall.w_sim': 3.0,
+  'recall.w_recency': 1.5,
+  'recall.w_scope': 1.0,
+  'recall.w_emotion': 0.8,
+  'recall.w_user': 0.8,
+  'recall.w_confidence': 1.0,
+  'recall.w_mood': 0.5,
+
+  // lifecycle — cooldowns (hours)
+  'lifecycle.consolidation_cooldown_hours': 24,
+  'lifecycle.distill_l1_hours': 6,
+  'lifecycle.distill_l2_hours': 12,
+  'lifecycle.decay_scan_hours': 6,
+
+  // capacity limits
+  'capacity.core_memory_max': 100,
+  'capacity.working_memory_max': 20,
+  'capacity.entity_max': 800,
+  'capacity.relation_max': 1600,
+  'capacity.augment_budget': 3500,
+
+  // 遗忘模型（smart-forget 相关）
+  'forget.ema_alpha': 0.05,
+  'forget.lambda_max_multiplier': 3.0,
+  'forget.recall_increment_percent': 15,
+  'forget.emotion_high_multiplier': 2.0,
+  'forget.emotion_medium_multiplier': 1.5,
+  'forget.max_per_sweep': 20,
+  'forget.actr_max_iterations': 50,
+
+  // 召回 boost 系数
+  'recall.scope_boost_preference': 1.3,
+  'recall.scope_boost_correction': 1.5,
+  'recall.emotion_boost_important': 1.4,
+  'recall.emotion_boost_painful': 1.3,
+  'recall.emotion_boost_warm': 1.2,
+  'recall.user_boost_same': 2.0,
+  'recall.user_boost_other': 0.7,
+  'recall.tier_weight_hot': 1.5,
+  'recall.tier_weight_warm': 1.0,
+  'recall.tier_weight_cool': 0.8,
+  'recall.tier_weight_cold': 0.5,
+  'recall.consolidated_boost': 1.5,
+  'recall.reflexion_boost': 2.0,
+  'recall.flashbulb_high': 1.6,
+  'recall.flashbulb_medium': 1.2,
+  'recall.mmr_lambda': 0.7,
+
+  // 生命周期
+  'lifecycle.recall_feedback_cooldown_ms': 60000,
+  'lifecycle.association_cooldown_ms': 30000,
+  'lifecycle.session_summary_cooldown_ms': 1800000,
+  'lifecycle.contradiction_scan_cooldown_ms': 86400000,
+  'lifecycle.decay_cooldown_ms': 21600000,
+  'lifecycle.max_insights': 20,
+  'lifecycle.max_episodes': 200,
+
+  // 容量
+  'memory.max_memories': 10000,
+  'memory.max_history': 100,
+  'memory.inject_history': 30,
+  'memory.trigram_cache_max': 2000,
+
+  // 认知
+  'cognition.correction_weight': 3,
+  'cognition.emotion_weight': 2,
+  'cognition.tech_weight': 2,
+
+  // 其他
+  'persona.cooldown_ms': 120000,
+  'quality.repetition_sim_threshold': 0.7,
+  'metacognition.conflict_threshold': 0.3,
+  'metacognition.min_samples': 5,
 }
 
 /** The live params — loaded from disk, falls back to defaults */
@@ -151,6 +241,50 @@ export function getAllParams(): Record<string, number> {
 export function resetParam(key: string) {
   params[key] = DEFAULT_PARAMS[key] ?? 0
   debouncedSave(PARAMS_PATH, params)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PER-USER PARAMETER OVERRIDES (Strategy D)
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface UserParams {
+  overrides: Record<string, number>
+  lastUpdated: number
+}
+
+const userParamsCache = new Map<string, UserParams>()
+const USER_PARAMS_DIR = resolve(DATA_DIR, 'user_params')
+
+/** Get param with per-user override support */
+export function getUserParam(key: string, userId?: string): number {
+  if (userId && userParamsCache.has(userId)) {
+    const up = userParamsCache.get(userId)!
+    if (key in up.overrides) return up.overrides[key]
+  }
+  return getParam(key)
+}
+
+/** Set a per-user parameter override */
+export function setUserParam(key: string, value: number, userId: string) {
+  if (!userParamsCache.has(userId)) userParamsCache.set(userId, { overrides: {}, lastUpdated: 0 })
+  const up = userParamsCache.get(userId)!
+  up.overrides[key] = value
+  up.lastUpdated = Date.now()
+  try {
+    const { mkdirSync } = require('fs')
+    mkdirSync(USER_PARAMS_DIR, { recursive: true })
+  } catch {}
+  debouncedSave(resolve(USER_PARAMS_DIR, `${userId}.json`), up)
+}
+
+/** Load per-user params from disk (called on first access) */
+export function loadUserParams(userId: string) {
+  if (userParamsCache.has(userId)) return
+  const filePath = resolve(USER_PARAMS_DIR, `${userId}.json`)
+  const data = loadJson<UserParams>(filePath, { overrides: {}, lastUpdated: 0 })
+  if (data.lastUpdated > 0) {
+    userParamsCache.set(userId, data)
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -208,6 +342,101 @@ interface ParamBanditState {
 
 const BANDIT_STATE_PATH = resolve(DATA_DIR, 'bandit_state.json')
 let banditState: Record<string, ParamBanditState> = {}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONTEXTUAL THOMPSON SAMPLING — context-aware arm selection layer
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ContextualArm {
+  contextKey: string  // e.g. "morning:tech:neutral"
+  alpha: number
+  beta: number
+}
+
+/** Per-param contextual bandit state — layered on top of global bandit */
+interface ContextualBanditState {
+  arms: Record<string, ContextualArm[]>  // paramKey → contextKey → per-arm Beta
+}
+
+const CTX_BANDIT_PATH = resolve(DATA_DIR, 'ctx_bandit_state.json')
+let ctxBanditState: ContextualBanditState = { arms: {} }
+
+function loadCtxBanditState() {
+  ctxBanditState = loadJson<ContextualBanditState>(CTX_BANDIT_PATH, { arms: {} })
+}
+
+function saveCtxBanditState() {
+  debouncedSave(CTX_BANDIT_PATH, ctxBanditState)
+}
+
+/** Build context key from current environment */
+function buildContextKey(timeSlot?: string, domain?: string, mood?: string): string {
+  const ts = timeSlot || getTimeSlot(new Date().getHours())
+  const d = domain || 'general'
+  const m = mood || 'neutral'
+  return `${ts}:${d}:${m}`
+}
+
+function getTimeSlot(hour: number): string {
+  if (hour >= 6 && hour < 12) return 'morning'
+  if (hour >= 12 && hour < 18) return 'afternoon'
+  if (hour >= 18 && hour < 23) return 'evening'
+  return 'night'
+}
+
+/** Context-aware arm selection: use context-specific Beta if enough data, else fall back to global */
+function selectArmContextual(state: ParamBanditState, ctxKey: string): number {
+  const ctxArms = ctxBanditState.arms[state.key]
+  if (ctxArms) {
+    // Find arms matching this context with enough samples
+    const matching = ctxArms.filter(a => a.contextKey === ctxKey)
+    if (matching.length >= state.arms.length) {
+      const totalPulls = matching.reduce((s, a) => s + a.alpha + a.beta - 2, 0)
+      if (totalPulls >= 5) {
+        // Use contextual Beta distributions
+        let bestIdx = 0, bestSample = -1
+        for (let i = 0; i < Math.min(matching.length, state.arms.length); i++) {
+          const sample = betaSample(matching[i].alpha, matching[i].beta)
+          if (sample > bestSample) { bestSample = sample; bestIdx = i }
+        }
+        return bestIdx
+      }
+    }
+  }
+  // Fall back to global Thompson Sampling
+  return selectArm(state)
+}
+
+/** Update contextual bandit reward */
+function updateCtxBanditReward(paramKey: string, armIdx: number, reward: number, ctxKey: string) {
+  if (!ctxBanditState.arms[paramKey]) ctxBanditState.arms[paramKey] = []
+  const arms = ctxBanditState.arms[paramKey]
+
+  // Ensure enough arms for this context
+  while (arms.filter(a => a.contextKey === ctxKey).length < (banditState[paramKey]?.arms.length || 3)) {
+    arms.push({ contextKey: ctxKey, alpha: 1, beta: 1 })
+  }
+
+  const matching = arms.filter(a => a.contextKey === ctxKey)
+  if (armIdx < matching.length) {
+    matching[armIdx].alpha += reward
+    matching[armIdx].beta += (1 - reward)
+  }
+
+  // Prune: keep max 200 context entries per param to bound memory
+  if (arms.length > 200) {
+    const sorted = arms.sort((a, b) => (a.alpha + a.beta) - (b.alpha + b.beta))
+    ctxBanditState.arms[paramKey] = sorted.slice(-150)
+  }
+}
+
+// Current context key (set per-message from handler)
+let _currentCtxKey = 'afternoon:general:neutral'
+
+/** Set context for current message (called from handler before bandit selection) */
+export function setBanditContext(timeSlot?: string, domain?: string, mood?: string) {
+  _currentCtxKey = buildContextKey(timeSlot, domain, mood)
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // THOMPSON SAMPLING MATH — pure JS, no dependencies
@@ -342,7 +571,8 @@ function loadBanditState() {
   for (const state of Object.values(banditState)) {
     if (!state.phase) state.phase = state.arms.length <= 3 ? 1 : 1  // treat old 5-arm as phase 1 too
   }
-  console.log(`[cc-soul][auto-tune] bandit state loaded: ${Object.keys(banditState).length} params tracked`)
+  loadCtxBanditState()
+  console.log(`[cc-soul][auto-tune] bandit state loaded: ${Object.keys(banditState).length} params tracked, ctx bins: ${Object.keys(ctxBanditState.arms).length}`)
 }
 
 function saveBanditState() {
@@ -371,6 +601,12 @@ const HIGH_IMPACT_PARAMS = [
   'evolution.rule_dedup_threshold',
   'body.contagion_max_shift',
   'graph.stale_days',
+  // forget & recall — high impact on memory quality
+  'forget.weibull_lambda_fact',
+  'forget.weibull_lambda_episode',
+  'forget.survival_threshold',
+  'recall.w_sim',
+  'recall.w_recency',
 ]
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -431,14 +667,14 @@ export function checkAutoTune(stats: InteractionStats) {
     toExplore.push(c.key)
   }
 
-  // ── Thompson Sampling: select arm for explored params ──
+  // ── Thompson Sampling: select arm for explored params (context-aware) ──
   for (const key of toExplore) {
     const state = banditState[key]
     if (!state) continue
-    const armIdx = selectArm(state)
+    const armIdx = selectArmContextual(state, _currentCtxKey)
     state.currentArm = armIdx
     setParam(key, state.arms[armIdx].value)
-    console.log(`[cc-soul][auto-tune] bandit explore: ${key} → arm[${armIdx}] = ${state.arms[armIdx].value} (pulls=${state.totalPulls})`)
+    console.log(`[cc-soul][auto-tune] bandit explore: ${key} → arm[${armIdx}] = ${state.arms[armIdx].value} (ctx=${_currentCtxKey}, pulls=${state.totalPulls})`)
   }
 
   saveBanditState()
@@ -477,11 +713,15 @@ export function updateBanditReward(qualityScore: number, wasCorrection: boolean)
     state.arms[armIdx].alpha += reward
     state.arms[armIdx].beta += (1 - reward)
 
+    // Contextual update
+    updateCtxBanditReward(key, armIdx, reward, _currentCtxKey)
+
     // Hierarchical search: check if Phase 1 winner is ready for Phase 2 refinement
     if (state.phase === 1) maybePromoteToPhase2(state)
   }
 
   saveBanditState()
+  saveCtxBanditState()
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

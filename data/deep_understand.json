@@ -2,8 +2,8 @@
   "temporal": {
     "peakHours": [
       10,
-      14,
-      11
+      20,
+      14
     ],
     "stressDay": null,
     "lateNightFrequency": 0
@@ -13,10 +13,21 @@
   },
   "growth": {
     "direction": "growing",
-    "details": "长度+43%，词汇0→1"
+    "details": "长度+40%，词汇0→2"
   },
   "unspoken": {
-    "needs": []
+    "needs": [
+      {
+        "domain": "编程",
+        "confidence": 0.4,
+        "evidence": "本周4次"
+      },
+      {
+        "domain": "职场",
+        "confidence": 0.4,
+        "evidence": "本周4次"
+      }
+    ]
   },
   "cognitive": {
     "load": "normal",
@@ -26,6 +37,6 @@
     "stressLevel": 0,
     "signals": []
   },
-  "dynamicProfile": "活跃10/14/11时；上升期；我的灵魂深处，驱动我的是对“掌控感”与“最优解”的执着追求。我渴望通过清晰的逻辑、高效的工具和明确的规则，在技术与生活的",
-  "updatedAt": 1774888944074
+  "dynamicProfile": "活跃10/20/14时；上升期；我渴望掌控与效率，追求以最小的认知成本获得最优解。这驱使我偏爱文档完善、生态成熟的技术（如Go），并厌恶混乱与低效（如P",
+  "updatedAt": 1774897925402
 }

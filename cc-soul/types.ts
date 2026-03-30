@@ -45,12 +45,27 @@ export interface BodyState {
 // COGNITION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+export interface IntentSpectrum {
+  information: number   // 信息需求："我想知道..."
+  action: number        // 行动需求："帮我做..."
+  emotional: number     // 情感需求："我好烦..."
+  validation: number    // 验证需求："这样对吗..."
+  exploration: number   // 探索需求："有没有更好的..."
+}
+
+export interface EntropyFeedbackResult {
+  entropy: number
+  signal: 'engaged' | 'passive' | 'disengaged'
+}
+
 export interface CogResult {
   hints: string[]
   intent: string
   strategy: string
   attention: string
   complexity: number
+  spectrum?: IntentSpectrum
+  entropyFeedback?: EntropyFeedbackResult
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -72,7 +87,7 @@ export interface Memory {
   validFrom?: number     // when this fact became true (timestamp)
   validUntil?: number    // when this fact stopped being true (0 = still valid)
   // ── Time-decay tiered memory fields ──
-  tier?: 'short_term' | 'mid_term' | 'long_term'  // lifecycle stage (default: short_term)
+  tier?: 'short_term' | 'mid_term' | 'long_term' | 'fading' | 'gist' | 'absorbed'  // lifecycle stage (default: short_term)
   recallCount?: number   // how many times this memory has been recalled
   lastRecalled?: number  // timestamp of last recall
   recallContexts?: string[]  // reconsolidation: contexts in which this memory was recalled
@@ -95,10 +110,14 @@ export interface Memory {
   source?: 'user_said' | 'ai_inferred' | 'ai_observed' | 'system'
   // ── Emotional intensity at creation (高情绪记忆衰减更慢) ──
   emotionIntensity?: number  // 0-1, used by smart-forget to slow decay
+  importance?: number    // 1-10, 预期违背评分 (surprise score)
+  surprise?: number      // 同 importance，别名
   because?: string           // causal reason: WHY this decision/preference was made
   // ── Bayesian confidence: Beta distribution parameters ──
   bayesAlpha?: number        // Beta α (default 2), incremented on positive evidence
   bayesBeta?: number         // Beta β (default 1), incremented on negative evidence
+  // ── FSRS-4.5 spaced repetition state (replaces Weibull for new memories) ──
+  fsrs?: { stability: number; difficulty: number; reps: number; lapses: number }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -200,10 +219,12 @@ export interface Entity {
 export interface Relation {
   source: string
   target: string
-  type: string // works_at | uses | knows | part_of | related_to
+  type: string // works_at | uses | knows | part_of | related_to | caused_by | depends_on | triggers | learned_from | prefers_over
   ts: number
   valid_at: number      // creation timestamp (legacy data defaults to 0)
   invalid_at: number | null  // invalidation timestamp (null = still valid)
+  weight?: number       // relation strength, default 1.0
+  confidence?: number   // trust level 0-1, default 0.7
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

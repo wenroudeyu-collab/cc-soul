@@ -12,7 +12,7 @@
  */
 
 import { resolve } from 'path'
-import { DATA_DIR, loadJson, saveJson, debouncedSave } from './persistence.ts'
+import { DATA_DIR, loadJson, saveJson, debouncedSave, adaptiveCooldown } from './persistence.ts'
 import { memoryState, addMemory, buildCoreMemoryContext } from './memory.ts'
 import { spawnCLI } from './cli.ts'
 import type { Memory } from './types.ts'
@@ -25,9 +25,13 @@ const MENTAL_MODELS_PATH = resolve(DATA_DIR, 'mental_models.json')
 const TOPIC_NODES_PATH = resolve(DATA_DIR, 'topic_nodes.json')
 const DISTILL_STATE_PATH = resolve(DATA_DIR, 'distill_state.json')
 
-const L1_TO_L2_COOLDOWN = 6 * 3600000    // 6 hours
-const L2_TO_L3_COOLDOWN = 12 * 3600000   // 12 hours
-const L3_REFRESH_COOLDOWN = 24 * 3600000 // 24 hours
+const L1_TO_L2_BASE = 6 * 3600000    // 6 hours
+const L2_TO_L3_BASE = 12 * 3600000   // 12 hours
+const L3_REFRESH_BASE = 24 * 3600000 // 24 hours
+// Adaptive cooldowns (scale by user activity when userId available)
+const L1_TO_L2_COOLDOWN = L1_TO_L2_BASE   // used in global context (no userId)
+const L2_TO_L3_COOLDOWN = L2_TO_L3_BASE
+const L3_REFRESH_COOLDOWN = L3_REFRESH_BASE
 const MIN_MEMORIES_FOR_DISTILL = 20       // don't distill if too few
 const MAX_TOPIC_NODES = 80
 const MAX_MODEL_LENGTH = 600              // chars per user mental model
