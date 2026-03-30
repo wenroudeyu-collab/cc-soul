@@ -733,6 +733,64 @@ test('smart-forget: smartForgetSweep returns sweep result', () => {
   assert(typeof result.toForget !== 'undefined' || typeof result.candidates !== 'undefined', 'should have forget candidates')
 })
 
+// ── smart-forget: adaptive decay (#17) ──
+
+import { recordRecallHit, recordRecallMiss, getLambdaMultiplier, effectiveLambda } from './smart-forget.ts'
+
+test('smart-forget: adaptive lambda EMA responds to hits', () => {
+  // EMA mode: hits nudge multiplier up slowly
+  for (let i = 0; i < 80; i++) recordRecallHit()
+  for (let i = 0; i < 20; i++) recordRecallMiss()
+  const m = getLambdaMultiplier()
+  assert(m >= 0.95 && m <= 1.2, `EMA multiplier should be 0.95-1.2 after 80/20 hits/misses, got ${m.toFixed(3)}`)
+})
+
+test('smart-forget: effectiveLambda uses adaptive multiplier', () => {
+  const lambda = effectiveLambda('fact', 0)
+  // base lambda for fact depends on scope-specific k params + adaptive
+  assert(lambda > 0 && lambda < 200, `lambda (${lambda.toFixed(1)}) should be reasonable`)
+})
+
+// ── Bayesian confidence (#18) ──
+
+import { bayesConfidence, bayesBoost, bayesPenalize, bayesCorrect } from './memory.ts'
+
+test('bayes: default confidence ≈ 0.67', () => {
+  const mem: any = { content: 'test', scope: 'fact', ts: Date.now() }
+  const c = bayesConfidence(mem)
+  assertInRange(c, 0.66, 0.68, `default bayes confidence should be ~0.67, got ${c.toFixed(3)}`)
+})
+
+test('bayes: boost increases confidence', () => {
+  const mem: any = { content: 'test', scope: 'fact', ts: Date.now(), bayesAlpha: 2, bayesBeta: 1 }
+  const before = bayesConfidence(mem)
+  bayesBoost(mem, 1)
+  assert(mem.confidence! > before, `confidence after boost (${mem.confidence}) should exceed before (${before})`)
+  assert(mem.bayesAlpha === 3, `alpha should be 3, got ${mem.bayesAlpha}`)
+})
+
+test('bayes: penalize decreases confidence', () => {
+  const mem: any = { content: 'test', scope: 'fact', ts: Date.now(), bayesAlpha: 2, bayesBeta: 1 }
+  const before = bayesConfidence(mem)
+  bayesPenalize(mem, 0.5)
+  assert(mem.confidence! < before, `confidence after penalize (${mem.confidence}) should be less than before (${before})`)
+})
+
+test('bayes: correct strongly decreases confidence', () => {
+  const mem: any = { content: 'test', scope: 'fact', ts: Date.now(), bayesAlpha: 2, bayesBeta: 1 }
+  bayesCorrect(mem, 2)
+  assert(mem.confidence! < 0.5, `confidence after correction (${mem.confidence}) should be < 0.5`)
+  assert(mem.bayesBeta === 3, `beta should be 3 after correction, got ${mem.bayesBeta}`)
+})
+
+test('bayes: backward-compatible with old memories (no bayesAlpha/bayesBeta)', () => {
+  const oldMem: any = { content: 'legacy', scope: 'fact', ts: Date.now(), confidence: 0.8 }
+  bayesBoost(oldMem, 0.5)
+  assert(typeof oldMem.bayesAlpha === 'number', 'should auto-initialize bayesAlpha')
+  assert(typeof oldMem.bayesBeta === 'number', 'should auto-initialize bayesBeta')
+  assert(oldMem.confidence! > 0.8, `boosted legacy mem confidence should exceed original 0.8`)
+})
+
 // ── episodic memory ──
 
 import { recordEpisode, recallEpisodes } from './memory.ts'
@@ -1325,7 +1383,11 @@ test('avatar: loadAvatarProfile returns valid profile structure', () => {
   assert(typeof profile === 'object', 'should return object')
   assert(typeof profile.expression === 'object', 'expression should exist')
   assert(typeof profile.social === 'object', 'social should exist')
-  assert(Array.isArray(profile.expression.samples), 'samples should be array')
+  assert(typeof profile.expression.samples === 'object', 'samples should be categorized object')
+  assert(Array.isArray(profile.expression.samples.casual), 'samples.casual should be array')
+  assert(Array.isArray(profile.expression.samples.technical), 'samples.technical should be array')
+  assert(Array.isArray(profile.expression.samples.emotional), 'samples.emotional should be array')
+  assert(Array.isArray(profile.expression.samples.general), 'samples.general should be array')
 })
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -18,5 +18,61 @@
     "source": "auto",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "firedAt": 1774864916322
+  },
+  {
+    "id": "pm_1774874875923_0",
+    "trigger": "wang",
+    "remind": "用户近期多次提到\"wang\"（7次），可能是持续关注的话题",
+    "createdAt": 1774874875923,
+    "expiresAt": 1776084475923,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774874875924_1",
+    "trigger": "historical",
+    "remind": "用户近期多次提到\"historical\"（5次），可能是持续关注的话题",
+    "createdAt": 1774874875924,
+    "expiresAt": 1776084475924,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774874875924_2",
+    "trigger": "python",
+    "remind": "用户近期多次提到\"python\"（3次），可能是持续关注的话题",
+    "createdAt": 1774874875924,
+    "expiresAt": 1776084475924,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774874875925_3",
+    "trigger": "用户曾问",
+    "remind": "用户近期多次提到\"用户曾问\"（3次），可能是持续关注的话题",
+    "createdAt": 1774874875925,
+    "expiresAt": 1776084475925,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774874875925_4",
+    "trigger": "问题",
+    "remind": "用户近期多次提到\"问题\"（3次），可能是持续关注的话题",
+    "createdAt": 1774874875925,
+    "expiresAt": 1776084475925,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774878444125_0",
+    "trigger": "对话",
+    "remind": "用户近期多次提到\"对话\"（3次），可能是持续关注的话题",
+    "createdAt": 1774878444125,
+    "expiresAt": 1776088044125,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774878444125_1",
+    "trigger": "日本旅行",
+    "remind": "用户近期多次提到\"日本旅行\"（3次），可能是持续关注的话题",
+    "createdAt": 1774878444125,
+    "expiresAt": 1776088044125,
+    "source": "auto"
   }
 ]

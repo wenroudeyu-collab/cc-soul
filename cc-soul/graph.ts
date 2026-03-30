@@ -31,6 +31,65 @@ export const graphState = {
   ranks: new Map<string, number>(),
 }
 
+// ── Inverted index: entity name → Set of memory indices that mention it ──
+// Populated by graphWalkRecallScored on first call, then updated incrementally.
+let _entityToMemIdx: Map<string, Set<number>> | null = null
+let _indexedMemCount = 0
+
+/** Build or incrementally update the inverted index for entity→memory mapping */
+function ensureEntityMemoryIndex(memories: { content: string; scope?: string }[]): Map<string, Set<number>> {
+  const entityNames = graphState.entities
+    .filter(e => e.invalid_at === null && e.name.length >= 2)
+    .map(e => e.name)
+
+  if (!_entityToMemIdx) {
+    // Full rebuild
+    _entityToMemIdx = new Map()
+    for (const name of entityNames) _entityToMemIdx.set(name, new Set())
+    for (let i = 0; i < memories.length; i++) {
+      const mem = memories[i]
+      if (mem.scope === 'expired' || mem.scope === 'decayed') continue
+      for (const name of entityNames) {
+        if (mem.content.includes(name)) {
+          _entityToMemIdx.get(name)!.add(i)
+        }
+      }
+    }
+    _indexedMemCount = memories.length
+  } else if (memories.length > _indexedMemCount) {
+    // Incremental: only scan new memories
+    for (let i = _indexedMemCount; i < memories.length; i++) {
+      const mem = memories[i]
+      if (mem.scope === 'expired' || mem.scope === 'decayed') continue
+      for (const name of entityNames) {
+        if (mem.content.includes(name)) {
+          if (!_entityToMemIdx.has(name)) _entityToMemIdx.set(name, new Set())
+          _entityToMemIdx.get(name)!.add(i)
+        }
+      }
+    }
+    // Ensure new entities have entries
+    for (const name of entityNames) {
+      if (!_entityToMemIdx.has(name)) {
+        const s = new Set<number>()
+        for (let i = 0; i < memories.length; i++) {
+          const mem = memories[i]
+          if (mem.scope !== 'expired' && mem.scope !== 'decayed' && mem.content.includes(name)) s.add(i)
+        }
+        _entityToMemIdx.set(name, s)
+      }
+    }
+    _indexedMemCount = memories.length
+  }
+  return _entityToMemIdx
+}
+
+/** Invalidate inverted index (call when entities change) */
+function invalidateEntityMemoryIndex() { _entityToMemIdx = null; _indexedMemCount = 0 }
+
+// ── PageRank dirty flag ──
+let _pageRankDirty = true
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Persistence — read/write via SQLite
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -65,6 +124,8 @@ export function addEntity(name: string, type: string, attrs: string[] = []) {
   dbTrimEntities(400)
   // Sync cache
   syncFromDb()
+  _pageRankDirty = true
+  invalidateEntityMemoryIndex()
 }
 
 export function addRelation(source: string, target: string, type: string) {
@@ -72,6 +133,7 @@ export function addRelation(source: string, target: string, type: string) {
   dbAddRelation(source, target, type)
   dbTrimRelations(800)
   syncFromDb()
+  _pageRankDirty = true
 }
 
 // ── Batch add from merged post-response analysis ──
@@ -85,6 +147,8 @@ export function addEntitiesFromAnalysis(entities: { name: string; type: string; 
   dbTrimEntities(400)
   dbTrimRelations(800)
   syncFromDb()
+  _pageRankDirty = true
+  invalidateEntityMemoryIndex()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -95,6 +159,8 @@ export function addEntitiesFromAnalysis(entities: { name: string; type: string; 
 export function invalidateEntity(name: string) {
   dbInvalidateEntity(name)
   syncFromDb()
+  _pageRankDirty = true
+  invalidateEntityMemoryIndex()
 }
 
 /** Mark entities not mentioned in the last 90 days as stale (set invalid_at) */
@@ -283,18 +349,21 @@ export function graphWalkRecallScored(
   for (const s of startEntities) entityScores.delete(s)
   if (entityScores.size === 0) return []
 
-  // Score memories by which walked entities they mention
-  const results: { content: string; graphScore: number }[] = []
-  for (const mem of memories) {
-    if (mem.scope === 'expired' || mem.scope === 'decayed') continue
-    let memScore = 0
-    for (const [entityName, entityScore] of entityScores) {
-      if (mem.content.includes(entityName)) {
-        memScore += entityScore
-      }
+  // Score memories using inverted index (O(walked_entities × avg_matches) instead of O(memories × entities))
+  const idx = ensureEntityMemoryIndex(memories)
+  const memScoreMap = new Map<number, number>()
+  for (const [entityName, entityScore] of entityScores) {
+    const memIndices = idx.get(entityName)
+    if (!memIndices) continue
+    for (const i of memIndices) {
+      memScoreMap.set(i, (memScoreMap.get(i) || 0) + entityScore)
     }
-    if (memScore > 0) {
-      results.push({ content: mem.content, graphScore: memScore })
+  }
+
+  const results: { content: string; graphScore: number }[] = []
+  for (const [i, score] of memScoreMap) {
+    if (i < memories.length) {
+      results.push({ content: memories[i].content, graphScore: score })
     }
   }
 
@@ -386,8 +455,10 @@ export function queryEntityContext(msg: string): string[] {
 /**
  * Simplified PageRank with mention-based boost.
  * Called from heartbeat to periodically recompute node importance.
+ * Skips recomputation if graph hasn't changed since last run (dirty flag).
  */
 export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
+  if (!_pageRankDirty && graphState.ranks.size > 0) return
   const activeEntities = graphState.entities.filter(e => e.invalid_at === null)
   const N = activeEntities.length
   if (N === 0) { graphState.ranks.clear(); return }
@@ -424,10 +495,15 @@ export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
       }
       newRanks.set(name, (1 - dampingFactor) / N + dampingFactor * sum)
     }
-    // Apply mention boost: more mentions = higher rank
+    // Apply time-decayed mention boost: recent mentions matter more
+    const now = Date.now()
     for (const entity of activeEntities) {
       const base = newRanks.get(entity.name) || 0
-      const mentionBoost = 1 + Math.log2(Math.max(1, entity.mentions)) * 0.15
+      // Time decay: use lastActivatedAt or firstSeen as reference
+      const refTs = entity.lastActivatedAt || entity.firstSeen || entity.valid_at || now
+      const ageDays = Math.max(0, (now - refTs) / 86400000)
+      const timeDecayedMentions = entity.mentions * Math.exp(-ageDays / 30)
+      const mentionBoost = 1 + Math.log1p(timeDecayedMentions) * 0.2
       newRanks.set(entity.name, base * mentionBoost)
     }
     // Copy to ranks for next iteration
@@ -435,6 +511,7 @@ export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
   }
 
   graphState.ranks = ranks
+  _pageRankDirty = false
   console.log(`[cc-soul][graph] PageRank computed for ${N} entities`)
 }
 

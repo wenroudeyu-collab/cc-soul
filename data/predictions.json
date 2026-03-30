@@ -335,6 +335,76 @@
     "domain": "闲聊",
     "createdAt": 1774873162515,
     "expiresAt": 1775477962515,
+    "status": "hit",
+    "hitAt": 1774874598197,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774874598197,
+    "expiresAt": 1775479398197,
+    "status": "hit",
+    "hitAt": 1774874914715,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774874914715,
+    "expiresAt": 1775479714715,
+    "status": "hit",
+    "hitAt": 1774874936033,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774874936033,
+    "expiresAt": 1775479736033,
+    "status": "hit",
+    "hitAt": 1774878166966,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774878166966,
+    "expiresAt": 1775482966966,
+    "status": "hit",
+    "hitAt": 1774878248472,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774878248473,
+    "expiresAt": 1775483048473,
+    "status": "hit",
+    "hitAt": 1774878327793,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774878327793,
+    "expiresAt": 1775483127793,
+    "status": "hit",
+    "hitAt": 1774878328372,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774878328373,
+    "expiresAt": 1775483128373,
     "status": "pending",
     "hitAt": null,
     "confidence": 0.9

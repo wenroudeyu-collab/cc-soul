@@ -18,6 +18,24 @@ const _envData = process.env.SOUL_DATA_DIR
 const _pluginsData = resolve(homedir(), '.openclaw/plugins/cc-soul/data')
 const _hooksData = resolve(homedir(), '.openclaw/hooks/cc-soul/data')
 export const DATA_DIR = _envData || (existsSync(_pluginsData) ? _pluginsData : _hooksData)
+
+// ── Multi-agent isolation: each agent gets its own data subdirectory ──
+let _activeAgentId = 'default'
+export function setActiveAgent(agentId: string) {
+  if (!agentId || agentId === _activeAgentId) return
+  _activeAgentId = agentId
+  const agentDir = resolve(DATA_DIR, 'agents', agentId)
+  if (!existsSync(agentDir)) mkdirSync(agentDir, { recursive: true })
+  console.log(`[cc-soul] active agent: ${agentId} → ${agentDir}`)
+}
+export function getActiveAgent(): string { return _activeAgentId }
+export function getAgentDataDir(agentId?: string): string {
+  const id = agentId || _activeAgentId
+  if (id === 'default') return DATA_DIR  // backward compat: default agent uses root data dir
+  const dir = resolve(DATA_DIR, 'agents', id)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  return dir
+}
 export const BRAIN_PATH = resolve(DATA_DIR, 'brain.json')
 export const MEMORIES_PATH = resolve(DATA_DIR, 'memories.json')
 export const RULES_PATH = resolve(DATA_DIR, 'rules.json')
@@ -218,3 +236,26 @@ export function loadConfig(): SoulConfig {
 
 // Loaded once at module init
 export const soulConfig = loadConfig()
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GRACEFUL SHUTDOWN — flush pending saves on process exit (#12)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _shutdownRegistered = false
+
+export function registerShutdownHooks() {
+  if (_shutdownRegistered) return
+  _shutdownRegistered = true
+
+  const onExit = (signal: string) => {
+    console.log(`[cc-soul][persistence] ${signal} received, flushing ${pendingSaves.size} pending saves…`)
+    flushAll()
+  }
+
+  process.on('SIGINT', () => { onExit('SIGINT'); process.exit(0) })
+  process.on('SIGTERM', () => { onExit('SIGTERM'); process.exit(0) })
+  process.on('beforeExit', () => { onExit('beforeExit') })
+}
+
+// Auto-register on module load
+registerShutdownHooks()

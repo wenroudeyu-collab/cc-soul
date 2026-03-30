@@ -13,6 +13,17 @@ import { body } from './body.ts'
 import { extractJSON } from './utils.ts'
 import { resolve } from 'path'
 
+// ── Contrastive feature context: track previous reply and next user message ──
+let _lastReply = ''
+let _nextUserMsgLen = -1  // -1 = not available yet
+
+/** Call after each bot reply to track for repetition detection */
+export function trackLastReply(reply: string) { _lastReply = reply }
+/** Call when next user message arrives — used for engagement feature */
+export function trackNextUserMsg(msg: string) { _nextUserMsgLen = msg.length }
+/** Reset next user msg tracking (called after features are extracted) */
+function consumeNextUserMsg(): number { const v = _nextUserMsgLen; _nextUserMsgLen = -1; return v }
+
 // ── Quality Features & Logistic Regression Weights ──
 
 const WEIGHTS_PATH = resolve(DATA_DIR, 'quality_weights.json')
@@ -30,19 +41,48 @@ interface QualityFeatures {
   relevance: number        // 0-1 word overlap ratio
   aiExposure: number       // 1 if AI identity leaked
   lengthRatio: number      // answer/question length ratio, capped
+  repetitionPenalty: number // -1.5 if reply is too similar to previous reply
+  informationGain: number  // +0.5 if reply adds substantial new words beyond query
+  userEngagement: number   // +0.5 if next user msg is long, -0.5 if very short
 }
 
 const FEATURE_KEYS: (keyof QualityFeatures)[] = [
   'mediumLength', 'longLength', 'tooLong', 'tooShort',
   'hasReasoning', 'hasCode', 'hasList', 'hasUncertainty',
-  'hasRefusal', 'relevance', 'aiExposure', 'lengthRatio'
+  'hasRefusal', 'relevance', 'aiExposure', 'lengthRatio',
+  'repetitionPenalty', 'informationGain', 'userEngagement',
 ]
+
+/** Quick character-trigram Jaccard for repetition detection */
+function _quickTrigramSim(a: string, b: string): number {
+  if (!a || !b) return 0
+  const triA = new Set<string>(), triB = new Set<string>()
+  for (let i = 0; i < a.length - 2; i++) triA.add(a.slice(i, i + 3))
+  for (let i = 0; i < b.length - 2; i++) triB.add(b.slice(i, i + 3))
+  if (triA.size === 0 || triB.size === 0) return 0
+  let inter = 0
+  for (const t of triA) { if (triB.has(t)) inter++ }
+  return inter / (triA.size + triB.size - inter)
+}
 
 function extractFeatures(question: string, answer: string): QualityFeatures {
   const qLen = question.length, aLen = answer.length
   const qWords = new Set((question.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
   const aWords = (answer.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
   const overlap = qWords.size > 0 ? aWords.filter(w => qWords.has(w)).length / Math.max(1, qWords.size) : 0
+
+  // Contrastive feature: repetition penalty (similarity to previous reply)
+  const repSim = _quickTrigramSim(answer.slice(0, 500), _lastReply.slice(0, 500))
+  const repetitionPenalty = repSim > 0.7 ? 1 : 0
+
+  // Contrastive feature: information gain (unique words in reply beyond query)
+  const aUniqueWords = aWords.filter(w => !qWords.has(w))
+  const infoGainRatio = qWords.size > 0 ? aUniqueWords.length / qWords.size : 0
+  const informationGain = infoGainRatio > 2 ? 1 : 0
+
+  // Contrastive feature: user engagement (next user message length as proxy)
+  const nextLen = consumeNextUserMsg()
+  const userEngagement = nextLen < 0 ? 0 : (nextLen > 20 ? 1 : (nextLen < 5 ? -1 : 0))
 
   return {
     mediumLength: aLen > 50 ? 1 : 0,
@@ -57,6 +97,9 @@ function extractFeatures(question: string, answer: string): QualityFeatures {
     relevance: Math.min(1, overlap),
     aiExposure: /作为一个?AI|作为人工智能|作为语言模型|I am an AI/i.test(answer) ? 1 : 0,
     lengthRatio: Math.min(100, aLen / Math.max(1, qLen)),
+    repetitionPenalty,
+    informationGain,
+    userEngagement,
   }
 }
 
@@ -65,7 +108,11 @@ interface QualityWeights {
   weights: Record<string, number>
   learningRate: number
   trainingExamples: number
-  gradientSquaredSum: Record<string, number>  // AdaGrad per-weight gradient accumulator
+  gradientSquaredSum: Record<string, number>  // legacy AdaGrad (kept for compat, unused by Adam)
+  // Adam optimizer state
+  adamM: Record<string, number>   // first moment (mean of gradients)
+  adamV: Record<string, number>   // second moment (mean of squared gradients)
+  adamT: number                    // timestep counter
   hardExamples: Array<{ question: string; answer: string; target: number; loss: number }>
 }
 
@@ -76,6 +123,7 @@ let qw: QualityWeights = {
     mediumLength: 0.5, longLength: 0.5, tooLong: -1.0, tooShort: -1.5,
     hasReasoning: 1.0, hasCode: 0.5, hasList: 0.3, hasUncertainty: 0.3,
     hasRefusal: -1.5, relevance: 1.5, aiExposure: -2.0, lengthRatio: 0,
+    repetitionPenalty: -1.5, informationGain: 0.5, userEngagement: 0.5,
   },
   learningRate: 0.1,
   trainingExamples: 0,
@@ -86,7 +134,14 @@ let qw: QualityWeights = {
 export function loadQualityWeights() {
   qw = loadJson<QualityWeights>(WEIGHTS_PATH, qw)
   if (!qw.gradientSquaredSum) qw.gradientSquaredSum = {}
+  if (!qw.adamM) qw.adamM = {}
+  if (!qw.adamV) qw.adamV = {}
+  if (!qw.adamT) qw.adamT = 0
   if (!qw.hardExamples) qw.hardExamples = []
+  // Ensure new feature weights exist
+  for (const key of FEATURE_KEYS) {
+    if (qw.weights[key] === undefined) qw.weights[key] = 0
+  }
   console.log(`[cc-soul][quality] loaded weights: ${qw.trainingExamples} training examples`)
 }
 
@@ -164,26 +219,30 @@ export function updateQualityWeights(question: string, answer: string, feedback:
     }
   }
 
-  // AdaGrad update
-  if (!qw.gradientSquaredSum) qw.gradientSquaredSum = {}
-  const baseLr = qw.learningRate / Math.sqrt(Math.min(qw.trainingExamples, 1000) + 1)
+  // Adam optimizer update
+  if (!qw.adamM) qw.adamM = {}
+  if (!qw.adamV) qw.adamV = {}
+  if (!qw.adamT) qw.adamT = 0
+  qw.adamT++
+  const beta1 = 0.9, beta2 = 0.999, adamLr = 0.01, adamEps = 1e-8
 
-  // Bias update
-  qw.bias = Math.max(-5, Math.min(5, qw.bias - baseLr * error))
+  // Bias update via Adam
+  const biasGrad = error
+  qw.adamM['_bias'] = beta1 * (qw.adamM['_bias'] || 0) + (1 - beta1) * biasGrad
+  qw.adamV['_bias'] = beta2 * (qw.adamV['_bias'] || 0) + (1 - beta2) * biasGrad * biasGrad
+  const mHatBias = qw.adamM['_bias'] / (1 - Math.pow(beta1, qw.adamT))
+  const vHatBias = qw.adamV['_bias'] / (1 - Math.pow(beta2, qw.adamT))
+  qw.bias = Math.max(-5, Math.min(5, qw.bias - adamLr * mHatBias / (Math.sqrt(vHatBias) + adamEps)))
 
-  // Per-weight adaptive update
+  // Per-weight Adam update
   for (const key of FEATURE_KEYS) {
     const grad = error * features[key]
-    qw.gradientSquaredSum[key] = (qw.gradientSquaredSum[key] || 0) + grad * grad
-    const adaptiveLr = baseLr / (1 + Math.sqrt(qw.gradientSquaredSum[key]))
-    const newW = (qw.weights[key] || 0) - adaptiveLr * grad
+    qw.adamM[key] = beta1 * (qw.adamM[key] || 0) + (1 - beta1) * grad
+    qw.adamV[key] = beta2 * (qw.adamV[key] || 0) + (1 - beta2) * grad * grad
+    const mHat = qw.adamM[key] / (1 - Math.pow(beta1, qw.adamT))
+    const vHat = qw.adamV[key] / (1 - Math.pow(beta2, qw.adamT))
+    const newW = (qw.weights[key] || 0) - adamLr * mHat / (Math.sqrt(vHat) + adamEps)
     qw.weights[key] = Math.max(-5, Math.min(5, newW))
-  }
-
-  // L2 regularization: decay weights toward zero to prevent overfitting
-  const l2Lambda = 0.0001  // reduced to avoid double-decay with AdaGrad
-  for (const key of FEATURE_KEYS) {
-    qw.weights[key] = qw.weights[key] * (1 - l2Lambda)
   }
 
   qw.trainingExamples++
@@ -199,6 +258,11 @@ export function resampleHardExamples() {
   if (!qw.hardExamples || qw.hardExamples.length < 3) return
 
   const samples = qw.hardExamples.slice(0, 3)
+  const beta1 = 0.9, beta2 = 0.999, adamLr = 0.005, adamEps = 1e-8  // smaller LR for replay
+  if (!qw.adamM) qw.adamM = {}
+  if (!qw.adamV) qw.adamV = {}
+  if (!qw.adamT) qw.adamT = 0
+
   for (const { question, answer, target } of samples) {
     const features = extractFeatures(question, answer)
     let logit = qw.bias
@@ -208,23 +272,24 @@ export function resampleHardExamples() {
     const predicted = 1 / (1 + Math.exp(-logit))
     const error = predicted - target
 
-    if (!qw.gradientSquaredSum) qw.gradientSquaredSum = {}
-    const lr = 0.01 // small fixed LR for replay
+    qw.adamT++
+    // Bias via Adam
+    const bg = error
+    qw.adamM['_bias'] = beta1 * (qw.adamM['_bias'] || 0) + (1 - beta1) * bg
+    qw.adamV['_bias'] = beta2 * (qw.adamV['_bias'] || 0) + (1 - beta2) * bg * bg
+    const mhB = qw.adamM['_bias'] / (1 - Math.pow(beta1, qw.adamT))
+    const vhB = qw.adamV['_bias'] / (1 - Math.pow(beta2, qw.adamT))
+    qw.bias = Math.max(-5, Math.min(5, qw.bias - adamLr * mhB / (Math.sqrt(vhB) + adamEps)))
 
-    qw.bias = Math.max(-5, Math.min(5, qw.bias - lr * error))
     for (const key of FEATURE_KEYS) {
       const grad = error * features[key]
-      qw.gradientSquaredSum[key] = (qw.gradientSquaredSum[key] || 0) + grad * grad
-      const adaptiveLr = lr / (1 + Math.sqrt(qw.gradientSquaredSum[key]))
-      const newW = (qw.weights[key] || 0) - adaptiveLr * grad
+      qw.adamM[key] = beta1 * (qw.adamM[key] || 0) + (1 - beta1) * grad
+      qw.adamV[key] = beta2 * (qw.adamV[key] || 0) + (1 - beta2) * grad * grad
+      const mH = qw.adamM[key] / (1 - Math.pow(beta1, qw.adamT))
+      const vH = qw.adamV[key] / (1 - Math.pow(beta2, qw.adamT))
+      const newW = (qw.weights[key] || 0) - adamLr * mH / (Math.sqrt(vH) + adamEps)
       qw.weights[key] = Math.max(-5, Math.min(5, newW))
     }
-  }
-
-  // L2 regularization: decay weights toward zero to prevent overfitting
-  const l2Lambda = 0.0001  // reduced to avoid double-decay with AdaGrad
-  for (const key of FEATURE_KEYS) {
-    qw.weights[key] = qw.weights[key] * (1 - l2Lambda)
   }
 
   debouncedSave(WEIGHTS_PATH, qw)

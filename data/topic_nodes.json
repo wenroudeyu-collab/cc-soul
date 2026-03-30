@@ -21,10 +21,10 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "Docker空间清理",
-    "summary": "总结Docker清理空间的核心命令与风险等级，包括查看占用、清理悬空镜像、清理未使用镜像及一键清理等操作，并提示不同命令的风险差异。",
-    "sourceCount": 11,
-    "lastUpdated": 1774861682048,
+    "topic": "技术栈交流",
+    "summary": "用户主要围绕Docker、MySQL、Kafka等技术进行讨论，但未透露具体的服务器配置细节。",
+    "sourceCount": 25,
+    "lastUpdated": 1774883549944,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
@@ -32,6 +32,48 @@
     "summary": "用户wang了解重要信息会被主动标记记忆，并掌握通过特定指令控制记忆开关的方法，对话记忆从今日起生效。",
     "sourceCount": 4,
     "lastUpdated": 1774861682368,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "沟通偏好",
+    "summary": "用户明确倾向于直接、简洁的沟通方式，避免冗余或迂回的表达。",
+    "sourceCount": 3,
+    "lastUpdated": 1774883549669,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "TypeScript类型差异",
+    "summary": "TypeScript中interface支持声明合并可扩展，type支持联合与映射类型但不可重复定义，两者在类型系统设计上各有侧重。",
+    "sourceCount": 3,
+    "lastUpdated": 1774883550015,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "数据库优化",
+    "summary": "针对无索引或索引未命中问题，通过创建索引并检查WHERE条件字段类型匹配来提升查询性能。",
+    "sourceCount": 3,
+    "lastUpdated": 1774883550259,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "项目压力与记忆功能",
+    "summary": "wang正面临项目延期压力，同时了解本系统的记忆机制——重要信息会被主动标记，对话默认记忆，并知晓如何控制记忆开关。",
+    "sourceCount": 5,
+    "lastUpdated": 1774883550497,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "消息队列选型",
+    "summary": "Kafka 适用于高吞吐、强持久化、需削峰与重放的场景（如订单系统），而 RabbitMQ 更适合低延迟、灵活路由的传统消息处理。",
+    "sourceCount": 5,
+    "lastUpdated": 1774883550694,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "用户身份与时区",
+    "summary": "用户要求被称作“大哥”，其身份标识为wang，并多次确认时区为Europe/Paris (GMT+1)，体现了对称呼偏好和地理位置信息的强调。",
+    "sourceCount": 6,
+    "lastUpdated": 1774883551229,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   }
 ]

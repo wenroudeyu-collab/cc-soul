@@ -20,6 +20,7 @@ import { findMentionedEntities, getRelatedEntities, graphWalkRecall } from './gr
 import {
   memoryState, scopeIndex, useSQLite, _memoriesLoaded, ensureSQLiteReady,
   saveMemories, syncToSQLite, getLazyModule,
+  bayesBoost, bayesPenalize, bayesCorrect,
 } from './memory.ts'
 import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
@@ -28,7 +29,7 @@ import {
 
 // ── Persistent recall indices (avoid O(n) rebuild each recall) ──
 const _contentMap = new Map<string, Memory>()      // content → Memory
-const _memLookup = new Map<string, Memory>()       // "content\0ts" → Memory
+export const _memLookup = new Map<string, Memory>()       // "content\0ts" → Memory
 
 /** Call when a new memory is added to keep recall indices in sync */
 export function updateRecallIndex(mem: Memory) {
@@ -58,7 +59,21 @@ export function getRecallRate(): { total: number; successful: number; rate: numb
 // ── Recall impact tracking: which memories actually helped? ──
 export const recallImpact = new Map<string, { recalled: number; helpedQuality: number; avgImpact: number }>()
 
+// ── Lazy-loaded smart-forget for adaptive decay feedback ──
+let _smartForgetMod: any = null
+setTimeout(() => { import('./smart-forget.ts').then(m => { _smartForgetMod = m }).catch(() => {}) }, 2000)
+
 export function trackRecallImpact(recalledContents: string[], qualityScore: number) {
+  // Adaptive decay feedback: track whether recalled memories were useful
+  if (_smartForgetMod) {
+    const n = recalledContents.length
+    if (qualityScore >= 5) {
+      for (let i = 0; i < n; i++) _smartForgetMod.recordRecallHit()
+    } else {
+      for (let i = 0; i < n; i++) _smartForgetMod.recordRecallMiss()
+    }
+  }
+
   for (const content of recalledContents) {
     const key = content.slice(0, 80)
     const entry = recallImpact.get(key) || { recalled: 0, helpedQuality: 0, avgImpact: 0 }
@@ -71,12 +86,21 @@ export function trackRecallImpact(recalledContents: string[], qualityScore: numb
     // Good response (≥7) → this memory helped → boost confidence
     // Bad response (≤3) → this memory may have misled → reduce confidence
     if (entry.recalled >= 2) { // only after enough data points
-      const mem = memoryState.memories.find(m => m.content.startsWith(key.slice(0, 40)) && m.scope !== 'expired')
+      // O(1) lookup via _contentMap — try exact key first (covers most cases)
+      const keyPrefix = key.slice(0, 40)
+      let mem = _contentMap.get(key)
+      if (!mem || mem.scope === 'expired') {
+        // Fallback: prefix search on _contentMap (still faster than full memories scan)
+        mem = undefined
+        for (const [content, m] of _contentMap) {
+          if (content.startsWith(keyPrefix) && m.scope !== 'expired') { mem = m; break }
+        }
+      }
       if (mem) {
         if (qualityScore >= 7) {
-          mem.confidence = Math.min(1.0, (mem.confidence ?? 0.7) + 0.03)
+          bayesBoost(mem, 1)  // strong positive evidence: α += 1
         } else if (qualityScore <= 3) {
-          mem.confidence = Math.max(0.1, (mem.confidence ?? 0.7) - 0.05)
+          bayesPenalize(mem, 1)  // negative evidence: β += 1
           if (mem.confidence < 0.2) {
             console.log(`[cc-soul][recall-feedback] low-quality memory demoted: "${content.slice(0, 50)}" (avgImpact=${entry.avgImpact.toFixed(1)})`)
           }
@@ -116,13 +140,41 @@ let lastIdfBuildTs = 0
 function getBM25K1() { return getParam('memory.bm25_k1') }
 function getBM25B() { return getParam('memory.bm25_b') }
 
+// ── BM25 CJK n-gram tokenizer (2-gram + 3-gram) with stop-word filtering ──
+const BM25_STOP_WORDS = new Set('的了是在我你他不有这那就也和但'.split(''))
+
+/** Tokenize for BM25: CJK → 2-gram + 3-gram, Latin → words 3+ chars. Filters stop words. */
+function bm25Tokenize(text: string): string[] {
+  const tokens: string[] = []
+  // Split into CJK runs and Latin runs
+  const segments = text.match(/[\u4e00-\u9fff]+|[a-zA-Z]{3,}/g) || []
+  for (const seg of segments) {
+    if (/[\u4e00-\u9fff]/.test(seg)) {
+      // CJK segment: generate 2-gram and 3-gram
+      for (let i = 0; i < seg.length - 1; i++) {
+        const bigram = seg.slice(i, i + 2)
+        // Filter: skip if both chars are stop words
+        if (!BM25_STOP_WORDS.has(bigram[0]) || !BM25_STOP_WORDS.has(bigram[1])) {
+          tokens.push(bigram)
+        }
+        if (i < seg.length - 2) {
+          tokens.push(seg.slice(i, i + 3))
+        }
+      }
+    } else {
+      tokens.push(seg.toLowerCase())
+    }
+  }
+  return tokens
+}
+
 function buildIDF(): Map<string, number> {
   if (idfCache && idfCache.size > 0) return idfCache
   const df = new Map<string, number>()
   const N = memoryState.memories.length || 1
   let totalDocLen = 0
   for (const mem of memoryState.memories) {
-    const words = (mem.content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+    const words = bm25Tokenize(mem.content)
     totalDocLen += words.length
     const unique = new Set(words)
     for (const w of unique) {
@@ -139,13 +191,36 @@ function buildIDF(): Map<string, number> {
   return idf
 }
 
+// ── BM25 tokenization cache: avoid re-tokenizing the same doc content ──
+const _bm25TokenCache = new Map<string, { words: string[]; tf: Map<string, number> }>()
+
+function _getDocTokens(doc: string): { words: string[]; tf: Map<string, number> } {
+  const cached = _bm25TokenCache.get(doc)
+  if (cached) return cached
+  const words = bm25Tokenize(doc)
+  const tf = new Map<string, number>()
+  for (const w of words) tf.set(w, (tf.get(w) || 0) + 1)
+  const entry = { words, tf }
+  _bm25TokenCache.set(doc, entry)
+  // Evict when too large (batch 20%)
+  if (_bm25TokenCache.size > 2000) {
+    const keys = _bm25TokenCache.keys()
+    const evict = Math.floor(_bm25TokenCache.size * 0.2)
+    for (let i = 0; i < evict; i++) {
+      const k = keys.next().value
+      if (k !== undefined) _bm25TokenCache.delete(k)
+    }
+  }
+  return entry
+}
+
+/** Invalidate BM25 token cache (call when memories change significantly) */
+export function invalidateBM25TokenCache() { _bm25TokenCache.clear() }
+
 function bm25Score(queryWords: Set<string>, doc: string, avgDocLen: number): number {
-  const docWords = (doc.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const { words: docWords, tf } = _getDocTokens(doc)
   const docLen = docWords.length
   if (docLen === 0) return 0
-
-  const tf = new Map<string, number>()
-  for (const w of docWords) tf.set(w, (tf.get(w) || 0) + 1)
 
   let score = 0
   for (const qw of queryWords) {
@@ -203,6 +278,9 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   // Lazy-build trigrams for fuzzy matching (outside loop)
   let queryTrigrams: Set<string> | null = null
 
+  // Lazy-build BM25 n-gram query tokens (matches bm25Tokenize output)
+  let bm25QueryTokens: Set<string> | null = null
+
   // Use scopeIndex to skip expired/decayed scopes in bulk instead of per-item check
   const SKIP_SCOPES = new Set(['expired', 'decayed'])
   const activeMemories: Memory[] = []
@@ -256,17 +334,16 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
           idf = buildIDF()
           avgDocLen = avgDocLenCache || 1
         }
-        sim = bm25Score(queryWords, mem.content, avgDocLen)
+        if (!bm25QueryTokens) bm25QueryTokens = new Set(bm25Tokenize(msg))
+        sim = bm25Score(bm25QueryTokens, mem.content, avgDocLen)
       }
     }
 
     if (sim < 0.03) continue
 
-    // Weighted scoring: recency + scope boost + emotion boost + userId boost + confidence + time decay
-    // Exponential time decay: memories not recalled in 30+ days lose weight fast
-    const ageDays = mem.ts > 0 ? (Date.now() - mem.ts) / 86400000 : 30
-    const ageDecayRate = getParam('memory.age_decay_rate')
-    const recency = Math.exp(-ageDays * ageDecayRate) // exponential decay
+    // Weighted scoring: recency (Weibull) + scope boost + emotion boost + userId boost + confidence
+    // Unified Weibull decay model from smart-forget.ts (replaces exp(-age * rate))
+    const recency = timeDecay(mem)
     // Bonus for recently recalled memories (tags indicate they've been useful)
     const usageBoost = (mem.tags && mem.tags.length > 5) ? 1.2 : 1.0
     const scopeBoost = (mem.scope === 'preference' || mem.scope === 'fact') ? 1.3 :
@@ -347,26 +424,50 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     if (ei >= 0.8) moodMatchBoost *= 1.6  // "我永远记得那天..." 效应
     else if (ei >= 0.5) moodMatchBoost *= 1.2
 
-    scored.push({ ...mem, score: sim * recency * scopeBoost * emotionBoost * userBoost * consolidatedBoost * usageBoost * reflexionBoost * confidenceWeight * temporalWeight * graphBoost * tierWeight * impactBoost * archiveWeight * moodMatchBoost })
+    // Weighted log-sum scoring (replaces multiplicative — avoids zero-product collapse)
+    const _l = Math.log
+    const _e = 0.01
+    const logScore =
+      3.0 * _l(sim + _e) + 1.5 * _l(recency + _e) + 1.0 * _l(scopeBoost)
+      + 0.8 * _l(emotionBoost) + 0.8 * _l(userBoost) + 0.5 * _l(consolidatedBoost)
+      + 0.3 * _l(usageBoost) + 0.3 * _l(reflexionBoost) + 1.0 * _l(confidenceWeight + _e)
+      + 0.5 * _l(temporalWeight + _e) + 0.7 * _l(graphBoost) + 0.3 * _l(tierWeight)
+      + 0.3 * _l(impactBoost) + 0.2 * _l(archiveWeight) + 0.5 * _l(moodMatchBoost)
+    scored.push({ ...mem, score: logScore })
   }
 
-  // ── Spreading Activation: memories activate related memories ──
-  // High-scoring memories "wake up" other memories that share keywords
+  // ── Spreading Activation with IDF weighting: memories activate related memories ──
+  // High-scoring memories "wake up" other memories that share keywords,
+  // weighted by IDF so rare/distinctive words propagate more activation.
   if (scored.length >= 3) {
-    const topActivators = scored.filter(s => s.score > 0.1).slice(0, 3)
-    const activatedWords = new Set<string>()
-    for (const act of topActivators) {
-      const words = (act.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
-      words.forEach(w => activatedWords.add(w.toLowerCase()))
-    }
-    // Boost other scored memories that share keywords with top activators
-    for (const s of scored) {
-      if (topActivators.includes(s)) continue
-      const sWords = (s.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
-      let activationHits = 0
-      for (const w of sWords) { if (activatedWords.has(w)) activationHits++ }
-      if (activationHits >= 2) {
-        s.score *= (1 + activationHits * 0.15) // spreading activation boost
+    // Pre-sort to pick top activators and limit spread candidates
+    scored.sort((a, b) => b.score - a.score)
+    const spreadLimit = Math.min(scored.length, topN * 3)
+    const topActivators = scored.slice(0, 3).filter(s => s.score > 0.1)
+    if (topActivators.length > 0) {
+      // Build IDF-weighted activation map: word → IDF weight
+      const idfMap = buildIDF()
+      const activatedWordWeights = new Map<string, number>()
+      for (const act of topActivators) {
+        const words = (act.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+        for (const w of words) {
+          const wl = w.toLowerCase()
+          const idfW = idfMap.get(wl) ?? 1.0
+          activatedWordWeights.set(wl, Math.max(activatedWordWeights.get(wl) ?? 0, idfW))
+        }
+      }
+      // Boost only top candidates with IDF-weighted activation score
+      for (let si = 3; si < spreadLimit; si++) {
+        const s = scored[si]
+        const sWords = (s.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+        let activation = 0
+        for (const w of sWords) {
+          const wt = activatedWordWeights.get(w)
+          if (wt !== undefined) activation += wt
+        }
+        if (activation > 0) {
+          s.score *= (1 + Math.min(activation * 0.1, 0.5)) // IDF-weighted activation boost, capped +50%
+        }
       }
     }
   }
@@ -395,7 +496,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     const mem = _memLookup.get(`${result.content}\0${result.ts}`)
     if (mem) {
       mem.lastAccessed = Date.now()
-      mem.confidence = Math.min(1.0, (mem.confidence ?? 0.7) + 0.02)
+      bayesBoost(mem, 0.5)  // Bayesian posterior update: α += 0.5
       mem.recallCount = (mem.recallCount ?? 0) + 1
       mem.lastRecalled = Date.now()
       syncToSQLite(mem, { confidence: mem.confidence, recallCount: mem.recallCount, lastAccessed: mem.lastAccessed, lastRecalled: mem.lastRecalled })
@@ -470,8 +571,14 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   return topResults
 }
 
+/** Detect if user is explicitly asking about past memories */
+const MEMORY_RECALL_TRIGGERS = /你还记得|你记不记得|之前说过|上次提到|我们聊过|你忘了吗|还记得吗/
+
 /** Public recall — strips internal score field from results. Merges OpenClaw native memory if available. */
-export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }): Memory[] {
+export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }): Memory[] {
+  // Auto-detect memory recall triggers → force awaitVector
+  const awaitVector = opts?.awaitVector ?? MEMORY_RECALL_TRIGGERS.test(msg)
+
   // ── Fast path: SQLite direct query (no need for loadMemories) ──
   // If memories haven't been loaded into memoryState yet, use SQLite directly.
   // This avoids the 4-5 second loadMemories() cost on first call.
@@ -482,22 +589,46 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
     ccResults = sqliteTagRecall(msg, topN, userId, channelId)
   } else if (_memoriesLoaded) {
     // Memories already in-memory, use the full scoring pipeline
-    ccResults = recallWithScores(msg, topN, userId, channelId, moodCtx).map(({ score, ...rest }) => rest) as Memory[]
+    ccResults = recallWithScores(msg, topN, userId, channelId, moodCtx) as Memory[]
   } else {
     // No SQLite, no in-memory — lightweight JSON file search (no full load)
     ccResults = recallFromJsonFile(msg, topN)
   }
 
-  // ── Async vector recall: fire-and-forget, cache for next turn ──
+  // ── Vector recall: await or fire-and-forget based on awaitVector flag ──
   if (ensureSQLiteReady() && hasVectorSearch()) {
     const cacheKey = `${userId || ''}:${channelId || ''}`
-    sqliteRecallAsync(msg, topN, userId, channelId).then(vecResults => {
-      if (vecResults.length > 0) {
-        console.log(`[cc-soul][recall] vector search found ${vecResults.length} semantic matches`)
-        _lastVectorResults = vecResults.slice(0, 5)
-        _lastVectorResultsKey = cacheKey
-      }
-    }).catch(() => {})
+    if (awaitVector) {
+      // Synchronous-ish: race with 100ms timeout, merge results into current turn
+      // We use a blocking approach via shared state since recall() is sync
+      let resolved = false
+      const vecPromise = sqliteRecallAsync(msg, topN, userId, channelId)
+      const timeoutPromise = new Promise<Memory[]>(res => setTimeout(() => res([]), 100))
+      Promise.race([vecPromise, timeoutPromise]).then(vecResults => {
+        if (vecResults.length > 0 && !resolved) {
+          resolved = true
+          _lastVectorResults = vecResults.slice(0, 5)
+          _lastVectorResultsKey = cacheKey
+          // Merge into ccResults if still in scope (synchronous merge for this turn)
+          const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
+          for (const m of vecResults) {
+            if (!seen.has(m.content.slice(0, 60))) {
+              ccResults.push(m)
+              seen.add(m.content.slice(0, 60))
+            }
+          }
+        }
+      }).catch(() => {})
+      // Also cache for next turn regardless
+    } else {
+      sqliteRecallAsync(msg, topN, userId, channelId).then(vecResults => {
+        if (vecResults.length > 0) {
+          console.log(`[cc-soul][recall] vector search found ${vecResults.length} semantic matches`)
+          _lastVectorResults = vecResults.slice(0, 5)
+          _lastVectorResultsKey = cacheKey
+        }
+      }).catch(() => {})
+    }
   }
 
   // Merge OpenClaw native memory results (best-effort, non-blocking)
@@ -529,8 +660,7 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
 
   // Adaptive depth: if too few results, expand search
   if (ccResults.length < topN && _memoriesLoaded) {
-    const expanded = recallWithScores(msg, topN * 3, userId, channelId, moodCtx)
-      .map(({ score, ...rest }) => rest) as Memory[]
+    const expanded = recallWithScores(msg, topN * 3, userId, channelId, moodCtx) as Memory[]
     const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
     for (const m of expanded) {
       if (!seen.has(m.content.slice(0, 60)) && ccResults.length < topN) {
@@ -541,19 +671,22 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
   }
 
   // Fusion rerank: sort merged results by relevance
+  // Reuse scores from recallWithScores when available; only compute trigram for non-scored results
   if (ccResults.length > topN) {
     const queryTri = trigrams(msg)
     ccResults.sort((a, b) => {
-      const simA = trigramSimilarity(queryTri, trigrams(a.content))
-      const simB = trigramSimilarity(queryTri, trigrams(b.content))
+      // If result already has a score from recallWithScores, use it directly
+      const scoreA = (a as any).score ?? trigramSimilarity(queryTri, trigrams(a.content))
+      const scoreB = (b as any).score ?? trigramSimilarity(queryTri, trigrams(b.content))
       const scopeA = (a.scope === 'preference' || a.scope === 'fact') ? 1.3 : a.scope === 'correction' ? 1.5 : 1.0
       const scopeB = (b.scope === 'preference' || b.scope === 'fact') ? 1.3 : b.scope === 'correction' ? 1.5 : 1.0
-      return (simB * scopeB) - (simA * scopeA)
+      return (scoreB * scopeB) - (scoreA * scopeA)
     })
     ccResults = ccResults.slice(0, topN)
   }
 
-  return ccResults.slice(0, topN)
+  // Strip internal score field before returning
+  return ccResults.slice(0, topN).map(m => { const { score: _, ...rest } = m as any; return rest as Memory })
 }
 
 /**
@@ -802,6 +935,7 @@ export function invalidateIDF() {
   idfCache = null
   avgDocLenCache = null
   idfInvalidateCount = 0
+  _bm25TokenCache.clear()
 }
 
 /**
@@ -811,7 +945,7 @@ export function invalidateIDF() {
 export function degradeMemoryConfidence(content: string) {
   const mem = memoryState.memories.find(m => m.content === content)
   if (mem) {
-    mem.confidence = Math.max(0, (mem.confidence ?? 0.7) - 0.2)
+    bayesCorrect(mem, 2)  // strong negative: β += 2 (user correction)
     if (mem.confidence <= 0.1) {
       mem.scope = 'expired'
     }

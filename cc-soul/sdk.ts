@@ -194,10 +194,11 @@ export class CCSoul {
    * Process a user message through the soul engine.
    * Returns enriched context (system prompt, augments, memories, emotion state).
    */
-  async process(message: string, userId: string, options?: ProcessOptions): Promise<ProcessResult> {
+  async process(message: string, userId: string, options?: ProcessOptions & { agentId?: string }): Promise<ProcessResult> {
     const raw = await this._post<any>('/process', {
       message,
       user_id: userId,
+      ...(options?.agentId ? { agent_id: options.agentId } : {}),
       ...(options?.systemPrompt ? { system_prompt: options.systemPrompt } : {}),
     })
     return {

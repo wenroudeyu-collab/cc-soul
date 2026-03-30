@@ -10,9 +10,9 @@
         "style": "concise",
         "hint": "深夜问技术问题，可能在排障，给命令和代码，少解释"
       },
-      "hits": 2,
+      "hits": 3,
       "misses": 0,
-      "lastHit": 1774872673235,
+      "lastHit": 1774874643353,
       "createdAt": 1774869015096,
       "source": "seeded"
     },
@@ -102,9 +102,9 @@
         "style": "code_first",
         "hint": "刚切到技术话题，先上代码再解释"
       },
-      "hits": 2,
+      "hits": 3,
       "misses": 0,
-      "lastHit": 1774872673235,
+      "lastHit": 1774874643353,
       "createdAt": 1774869015096,
       "source": "seeded"
     },
@@ -283,7 +283,62 @@
       "userReaction": "neutral",
       "responseStyle": "balanced",
       "ts": 1774873207550
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774874643353
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774877983825
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774878212111
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "travel",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774878293522
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774878328384
     }
   ],
-  "lastLearningRun": 1774872580697
+  "lastLearningRun": 1774888944076
 }

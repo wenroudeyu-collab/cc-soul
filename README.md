@@ -40,7 +40,7 @@ curl -X POST localhost:18800/config \
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/process` | **Core.** Send user message, get augmented context (memory + persona + emotion + cognition). No LLM needed. |
-| `POST` | `/feedback` | Send AI's reply back. cc-soul learns, stores memories, tracks quality. |
+| `POST` | `/feedback` | Send AI's reply back. cc-soul learns, stores memories, tracks quality. All POST endpoints accept optional `agent_id` for multi-agent data isolation. |
 | `POST` | `/soul` | Soul mode — cc-soul replies as the user's avatar (needs LLM). |
 | `POST` | `/config` | Configure LLM backend (only needed for `/soul`). |
 | `POST` | `/command` | Execute cc-soul commands (stats, search, habits, etc.). |
@@ -64,6 +64,11 @@ The core endpoint. Send a user message, get back enriched context to feed your A
 curl -X POST http://localhost:18800/process \
   -H "Content-Type: application/json" \
   -d '{"message": "Help me fix this timeout error", "user_id": "alice"}'
+
+# Multi-agent: each agent_id gets isolated memory/personality
+curl -X POST http://localhost:18800/process \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello", "user_id": "alice", "agent_id": "support-bot"}'
 ```
 
 Response:

@@ -868,5 +868,149 @@
     "action": "memory_add",
     "detail": "[fact] 用户曾讨论过Docker、MySQL、Kafka技术",
     "hash": "7243dbb5929d859f7c762949fc66c4137f9f7af8c498c5220b54c22fd1b2ac2d"
+  },
+  {
+    "ts": 1774874643350,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你还记得我之前说过什么编程语言吗？ → AI: 大哥之前问过这些技术问题：\n\n- **Python**（GIL、读 JSON）\n- **Go**（HTTP 服务器、ch",
+    "hash": "8b1081fa05a1d1e8a4ea921619d976ba843181c33131b16779e709dd3a677b20"
+  },
+  {
+    "ts": 1774874660435,
+    "action": "memory_add",
+    "detail": "[preference] 用户主要使用Python和Go编程语言",
+    "hash": "b7fe0e7388a1d7dfd086c8339dc6151b53338f4514b894cd7ece942bb702540f"
+  },
+  {
+    "ts": 1774874660440,
+    "action": "memory_add",
+    "detail": "[preference] 用户关注或学习Rust和TypeScript",
+    "hash": "c37eccbc8d081dcc60abbf52f90bd9dd43196d52cfd4f08b5bfa77368fdba248"
+  },
+  {
+    "ts": 1774874660446,
+    "action": "memory_add",
+    "detail": "[event] 用户曾问过Python的GIL和读JSON问题",
+    "hash": "3858a85329cf3a95ad8a08615e392641cff3690413dccef6da1342aff8a70b96"
+  },
+  {
+    "ts": 1774874660450,
+    "action": "memory_add",
+    "detail": "[event] 用户曾问过Go的HTTP服务器、channel vs mutex问题",
+    "hash": "6647758eb5571c7824db82aefcad8935283f63d9722323ba2ab7902cf102223d"
+  },
+  {
+    "ts": 1774874660452,
+    "action": "memory_add",
+    "detail": "[event] 用户曾问过Rust的所有权vs C++智能指针问题",
+    "hash": "14d827fa40b54735498b90d38caffd5911ea1f4e43d6907a45749ac94335014c"
+  },
+  {
+    "ts": 1774877938649,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢用Go写后端，讨厌PHP，目前在字节工作",
+    "hash": "44061097d7c67868566d163c1b4aecd73815940f6e15dc2bdab97fac476e45d6"
+  },
+  {
+    "ts": 1774877983822,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我喜欢用Go写后端，讨厌PHP，目前在字节工作 → AI: 收到，老板。\n\n（更正记忆：称呼\"大哥\"→\"老板\"；工作字节；技术偏好 Go 后端，讨厌 PHP）\n\n有什么需要我帮忙的",
+    "hash": "eb68588cae2b655dbac1149fa786b1f916c9b157c6a5d2ee78df874abf3a27e3"
+  },
+  {
+    "ts": 1774877997303,
+    "action": "memory_add",
+    "detail": "[preference] 用户喜欢用Go写后端",
+    "hash": "43089f48ffa0308290beae861f1e95a82da773b03d7c19544a56d7b5ee3da274"
+  },
+  {
+    "ts": 1774877997307,
+    "action": "memory_add",
+    "detail": "[preference] 用户讨厌PHP",
+    "hash": "efbfd4b8a1eb121b555c7194df7a2dd9e687e35e05c789561796c96217fdeb19"
+  },
+  {
+    "ts": 1774877997310,
+    "action": "memory_add",
+    "detail": "[fact] 用户在字节工作",
+    "hash": "429b9d5761ddca84bd34f91938077a582495cb52b11be609e1c6094bd1f1508f"
+  },
+  {
+    "ts": 1774878212108,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 最近想学吉他，零基础怎么入门？ → AI: **零基础吉他入门路径：**\n\n**第一步：选琴（别买烧火棍）**\n- 预算 500-1000：雅马哈 F310、卡马 ",
+    "hash": "7d81c21373cfbefe5a3df2fad8eab31d52ff3db43573d97e4306793b655e7f67"
+  },
+  {
+    "ts": 1774878232753,
+    "action": "memory_add",
+    "detail": "[fact] 零基础吉他入门路径：选琴（预算500-1000，推荐雅马哈F310、卡马D1C，尺寸建议41寸或40寸，避免低价劣质琴）",
+    "hash": "b84e6de17852926dfa34b2a1fc21dec988b258038a238cdc4f16f92fbd4182f6"
+  },
+  {
+    "ts": 1774878232759,
+    "action": "memory_add",
+    "detail": "[fact] 前两周每日15分钟练习计划：爬格子、53231323、C/G/Am/Em和弦切换",
+    "hash": "118b47c15f74c6a983daaabcfaea478550b326cc4ef793243d68aac36d44e667"
+  },
+  {
+    "ts": 1774878232763,
+    "action": "memory_add",
+    "detail": "[opinion] 第一首歌建议选择C-G-Am-Em循环的歌曲，如《平凡之路》《拥抱》",
+    "hash": "13feaa8e9b2ffb1d23c1a8c63bcbafd463c3a9cc94f833300c81935811f2b183"
+  },
+  {
+    "ts": 1774878232766,
+    "action": "memory_add",
+    "detail": "[fact] 1-2个月后系统学习乐理（音阶、和弦构成）和技巧（大横按、扫弦、指弹）",
+    "hash": "36fb14fc0207fc8161e39b85cefada9ae54a5ee551ceb9bbe3d2bc9d8c728bec"
+  },
+  {
+    "ts": 1774878232768,
+    "action": "memory_add",
+    "detail": "[opinion] 避坑建议：别一开始练solo，节奏感更重要；手指疼会持续两周左右；先免费学习（如B站），坚持3个月再考虑付费",
+    "hash": "8d4761531ac6d4a1f87855a00745e21d8e7aa7e1e15bcddeab26e572a98c4f49"
+  },
+  {
+    "ts": 1774878248474,
+    "action": "memory_add",
+    "detail": "[commitment] [承诺] 月要去日本旅行，需要什么？",
+    "hash": "f3b3ceb22ef3e3e7e0f4c07f902ce1683f831bfc5735b914e43c2f29cae347eb"
+  },
+  {
+    "ts": 1774878293518,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 下个月要去日本旅行，需要准备什么？ → AI: **日本旅行准备清单：**\n\n**证件/入境**\n- 护照（有效期6个月以上）\n- 签证（单次/多次，提前2周办）\n- ",
+    "hash": "09b51e147a76f2e656f02f7fd8add7a0c10fd337087a29f9b2c8fb3f8eb73f03"
+  },
+  {
+    "ts": 1774878314588,
+    "action": "memory_add",
+    "detail": "[fact] 日本旅行需准备护照（有效期6个月以上）、签证（提前2周办）、入境二维码（Visit Japan Web）",
+    "hash": "8e12475cbc0c1f7460d76a7767d7dfc4c4bcfb57ea76eaa2b404ceca70730679"
+  },
+  {
+    "ts": 1774878314592,
+    "action": "memory_add",
+    "detail": "[fact] 日本现金建议带5-10万日元，信用卡需Visa/Master，Suica/Pasmo卡可iPhone电子卡使用",
+    "hash": "77bac0aa73646b4892d9b5063367b0922730ac48910be715f98cdb7e26a91068"
+  },
+  {
+    "ts": 1774878314595,
+    "action": "memory_add",
+    "detail": "[opinion] 日本旅行推荐APP：Google Maps（地图）、换乘案内（交通）、Google翻译（翻译）、Tabelog（美食）",
+    "hash": "ce3d584401ee558ef1166c7f51e2c2ecac1b7976fa1a2ec7f2a73356489ca42c"
+  },
+  {
+    "ts": 1774878314597,
+    "action": "memory_add",
+    "detail": "[fact] 日本需带转换插头（两扁插）、便携垃圾袋（街上垃圾桶少）、充电宝（租借不便）",
+    "hash": "309087626d73288cce5b4de8ba5ff90cebf4babcb7e95eefd0219f4a10341c84"
+  },
+  {
+    "ts": 1774878328383,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 测试SDK → AI: 收到",
+    "hash": "cd020a1852c1b131277b853aa3579fa5e215911f43fc1d1e292832340545febb"
   }
 ]

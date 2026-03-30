@@ -377,7 +377,15 @@ export async function buildAndSelectAugments(params: {
 }): Promise<{ selected: string[]; augments: Augment[] }> {
   const { userMsg, session, senderId, channelId, cog, flow, flowKey, followUpHints, workingMemKey } = params
 
-
+  // ── Message-level recall cache (avoids redundant recall for same query in same turn) ──
+  const _recallCache = new Map<string, Memory[]>()
+  function cachedRecall(msg: string, topN: number, userId?: string, channelId?: string, moodCtx?: any): Memory[] {
+    const key = `${msg.slice(0, 50)}:${topN}:${userId || ''}`
+    if (_recallCache.has(key)) return _recallCache.get(key)!
+    const result = recall(msg, topN, userId, channelId, moodCtx)
+    _recallCache.set(key, result)
+    return result
+  }
 
   // ── Augment feedback: learn from user's reaction to last turn's augments ──
   recordAugmentFeedbackFromUser(session.lastAugmentsUsed, userMsg)
@@ -399,7 +407,7 @@ export async function buildAndSelectAugments(params: {
 
   // ── Cognitive Archaeology (认知考古) ──
   if (/为什么你|你怎么想|你为什么这么|怎么得出|凭什么说|依据是|reasoning|why do you think|how did you/i.test(userMsg)) {
-    const archRecalled = recall(userMsg, 3, senderId, channelId)
+    const archRecalled = cachedRecall(userMsg, 3, senderId, channelId)
     if (archRecalled.length > 0) {
       const source = archRecalled[archRecalled.length - 1] // oldest = origin
       const primary = archRecalled[0] // most relevant
@@ -475,7 +483,7 @@ export async function buildAndSelectAugments(params: {
 
       if (briefingParts.length > 1) {
         const content = briefingParts.join('\n')
-        augments.push({ content, priority: 10, tokens: estimateTokens(content) })
+        augments.push({ content, priority: 8, tokens: estimateTokens(content) })
       }
     }
   }
@@ -516,7 +524,7 @@ export async function buildAndSelectAugments(params: {
   if (isEnabled('memory_core')) {
     const coreCtx = buildCoreMemoryContext()
     if (coreCtx) {
-      augments.push({ content: coreCtx, priority: 10, tokens: estimateTokens(coreCtx) })
+      augments.push({ content: coreCtx, priority: 9, tokens: estimateTokens(coreCtx) })
     }
   }
 
@@ -544,7 +552,7 @@ export async function buildAndSelectAugments(params: {
             const date = new Date(m.ts).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
             return `  ${date}: ${m.content.slice(0, 80)}`
           }).join('\n')
-        augments.push({ content, priority: 10, tokens: estimateTokens(content) })
+        augments.push({ content, priority: 8, tokens: estimateTokens(content) })
       }
     }
   }
@@ -567,7 +575,7 @@ export async function buildAndSelectAugments(params: {
   if (isEnabled('persona_splitting')) {
     const profile = senderId ? getProfile(senderId) : null
     const personaCtx = getBlendedPersonaOverlay(cog.attention, profile?.style, flow.frustration, senderId)
-    augments.push({ content: personaCtx, priority: 10, tokens: estimateTokens(personaCtx) })
+    augments.push({ content: personaCtx, priority: 8, tokens: estimateTokens(personaCtx) })
   }
 
   // New user onboarding — removed. Users install cc-soul on top of OpenClaw,
@@ -626,7 +634,7 @@ export async function buildAndSelectAugments(params: {
     const lorebookHits = queryLorebook(userMsg)
     if (lorebookHits.length > 0) {
       const content = '[确定性知识] ' + lorebookHits.map(e => e.content).join('; ')
-      augments.push({ content, priority: 9, tokens: estimateTokens(content) })
+      augments.push({ content, priority: 7, tokens: estimateTokens(content) })
     }
   }
 
@@ -682,7 +690,7 @@ export async function buildAndSelectAugments(params: {
     const rhythmCtx = getRhythmContext(senderId)
     if (rhythmCtx) parts.push(rhythmCtx)
     const userProfile = parts.filter(Boolean).join('\n')
-    augments.push({ content: userProfile, priority: 10, tokens: estimateTokens(userProfile) })
+    augments.push({ content: userProfile, priority: 7, tokens: estimateTokens(userProfile) })
   }
 
   // ── 表达指纹：让 bot 适配用户的表达风格 ──
@@ -734,7 +742,7 @@ export async function buildAndSelectAugments(params: {
 
   // Memory recall — text-based (sync) first, then try vector search with timeout
   // Increased topN from 5→12 to improve cross-session memory continuity
-  const recalledRaw = recall(userMsg, 20, senderId, channelId, { mood: body.mood, alertness: body.alertness })
+  const recalledRaw = cachedRecall(userMsg, 20, senderId, channelId, { mood: body.mood, alertness: body.alertness })
 
   // LLM rerank 已砍掉：BM25+情绪权重已足够，边际收益<5%不值得浪费 token
   // 直接取 top 12
@@ -843,7 +851,7 @@ export async function buildAndSelectAugments(params: {
       // 提取关键词用于搜索
       const keywords = userMsg.replace(/以前|之前|上次|还记得|那时候|那次|当时|曾经|过去|我们?|你|的|了|吗|呢|吧/g, '').trim()
       if (keywords.length >= 2) {
-        const histMemories = recall(keywords, 5, senderId, channelId)
+        const histMemories = cachedRecall(keywords, 5, senderId, channelId)
         if (histMemories.length > 0) {
           const histContent = '[历史回忆] ' + histMemories.map(m => {
             const date = new Date(m.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
@@ -866,11 +874,11 @@ export async function buildAndSelectAugments(params: {
     // 连续 2+ 天日均情绪 < -0.3 → 触发关怀
     if (moodState.recentLowDays >= 2) {
       const careContent = `[情绪关怀] 用户最近 ${moodState.recentLowDays} 天情绪持续偏低，请在回复开头自然地关心一下（"最近感觉怎么样？"/"看起来你最近比较累"），不要机械地问，要像朋友一样`
-      augments.push({ content: careContent, priority: 9, tokens: estimateTokens(careContent) })
+      augments.push({ content: careContent, priority: 8, tokens: estimateTokens(careContent) })
     } else if (isTodayMoodAllLow()) {
       // Same-day consecutive low messages
       const careContent = '[情绪关怀] 用户今天连续几条消息情绪都偏低，在回复中自然地关心一下'
-      augments.push({ content: careContent, priority: 9, tokens: estimateTokens(careContent) })
+      augments.push({ content: careContent, priority: 8, tokens: estimateTokens(careContent) })
     }
   }
 
@@ -941,7 +949,7 @@ export async function buildAndSelectAugments(params: {
   // Prediction Mode (预言模式)
   if (isEnabled('behavior_prediction')) {
     const { hitAugment } = checkPredictions(userMsg)
-    if (hitAugment) augments.push({ content: hitAugment, priority: 10, tokens: estimateTokens(hitAugment) })
+    if (hitAugment) augments.push({ content: hitAugment, priority: 9, tokens: estimateTokens(hitAugment) })
     generateNewPredictions(memoryState.chatHistory)
   }
 
@@ -987,7 +995,7 @@ export async function buildAndSelectAugments(params: {
   // Cognition hints
   if (cog.hints.length > 0) {
     const content = '[认知] ' + cog.hints.join('; ')
-    augments.push({ content, priority: 10, tokens: estimateTokens(content) })
+    augments.push({ content, priority: 8, tokens: estimateTokens(content) })
   }
 
   // Conversation pace augment
@@ -1034,7 +1042,7 @@ export async function buildAndSelectAugments(params: {
   // Proactive context preparation
   const preparedCtx = prepareContext(userMsg)
   for (const pctx of preparedCtx) {
-    augments.push({ content: pctx.content, priority: 9, tokens: estimateTokens(pctx.content) })
+    augments.push({ content: pctx.content, priority: 7, tokens: estimateTokens(pctx.content) })
   }
 
   // Skill opportunity
@@ -1045,11 +1053,17 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Behavior engine — situational pattern matching (原创，竞品没有)
+  // Priority arbitration: behavior engine's style hints override persona's tone hints
+  // because behavior is context-specific (current situation), persona is identity-level.
+  // persona = "用什么身份说话", behavior = "怎么说"
   try {
     const { getBehaviorEngineHint } = await import('./behavior-engine.ts')
     const beHint = getBehaviorEngineHint(userMsg, body.mood, session)
     if (beHint) {
-      augments.push({ content: beHint, priority: 9, tokens: estimateTokens(beHint) })
+      // Find persona augment and ensure behavior priority is higher by 1
+      const personaAug = augments.find(a => a.content.startsWith('[当前面向') || a.content.startsWith('[Persona'))
+      const bePriority = personaAug ? personaAug.priority + 1 : 8
+      augments.push({ content: beHint, priority: bePriority, tokens: estimateTokens(beHint) })
     }
   } catch {}
 
@@ -1061,16 +1075,32 @@ export async function buildAndSelectAugments(params: {
     // Check if current message triggers any stored intentions
     const pmReminder = checkProspectiveMemory(userMsg, senderId)
     if (pmReminder) {
-      augments.push({ content: pmReminder, priority: 10, tokens: estimateTokens(pmReminder) })
+      augments.push({ content: pmReminder, priority: 9, tokens: estimateTokens(pmReminder) })
     }
   } catch {}
 
   // Structured facts — precise key-value knowledge about the user
+  // Dedup: filter out fact-store items already covered by recalled memories
   try {
     const { getFactSummary } = await import('./fact-store.ts')
     const factSummary = getFactSummary('user')
     if (factSummary) {
-      augments.push({ content: `[用户档案] ${factSummary}`, priority: 9, tokens: estimateTokens(factSummary) })
+      // Remove fact fragments that overlap with recalled memory content
+      const recalledText = recalled.map(m => m.content.toLowerCase()).join(' ')
+      const factParts = factSummary.split('；')
+      const dedupedParts = factParts.filter(part => {
+        // Extract the value portion after label (e.g. "喜欢: Python" → "Python")
+        const valueMatch = part.match(/[:：]\s*(.+)/)
+        if (!valueMatch) return true
+        const values = valueMatch[1].split('、')
+        // If ALL values in this fact are mentioned in recalled memories, skip it
+        const allCovered = values.every(v => recalledText.includes(v.trim().toLowerCase()))
+        return !allCovered
+      })
+      if (dedupedParts.length > 0) {
+        const dedupedSummary = dedupedParts.join('；')
+        augments.push({ content: `[用户档案] ${dedupedSummary}`, priority: 7, tokens: estimateTokens(dedupedSummary) })
+      }
     }
   } catch {}
 
@@ -1333,7 +1363,7 @@ export async function buildAndSelectAugments(params: {
   const flowHintsArr = getFlowHints(flowKey)
   if (flowHintsArr.length > 0) {
     const content = '[对话流] ' + flowHintsArr.join('; ')
-    augments.push({ content, priority: 9, tokens: estimateTokens(content) })
+    augments.push({ content, priority: 7, tokens: estimateTokens(content) })
   }
   const flowCtx = getFlowContext(flowKey)
   if (flowCtx) {
@@ -1370,7 +1400,7 @@ export async function buildAndSelectAugments(params: {
   if (isEnabled('fingerprint')) {
     const driftWarning = getCachedDriftWarning()
     if (driftWarning) {
-      augments.push({ content: driftWarning, priority: 9, tokens: estimateTokens(driftWarning) })
+      augments.push({ content: driftWarning, priority: 8, tokens: estimateTokens(driftWarning) })
     }
   }
 
@@ -1500,7 +1530,7 @@ export async function buildAndSelectAugments(params: {
     console.log(`[cc-soul][context-protect] 70% (${Math.round(usageRatio * 100)}%) — checkpoint`)
     if (isEnabled('memory_session_summary')) triggerSessionSummary(3)
     {
-      const recentMems = recall(userMsg, 8, senderId, channelId)
+      const recentMems = cachedRecall(userMsg, 8, senderId, channelId)
       const cp = {
         ts: Date.now(),
         topics: recentMems.map(m => m.content.slice(0, 40)),

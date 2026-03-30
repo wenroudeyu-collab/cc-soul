@@ -18,6 +18,9 @@ const SOUL_API = process.env.SOUL_API || 'http://localhost:18800'
 const _sentFeedbackHashes = new Set<string>()
 const FEEDBACK_DEDUP_MAX = 200  // prevent unbounded growth
 
+// Lock: when preprocessed writes SOUL.md with augments, block bootstrap from overwriting
+let _soulMdLock = 0
+
 function _feedbackHash(userMsg: string, aiReply: string): string {
   return createHash('md5').update(userMsg.slice(0, 100) + '||' + aiReply.slice(0, 200)).digest('hex')
 }
@@ -78,7 +81,12 @@ export default {
 
     try {
       // ── Bootstrap: get system_prompt from API, write to SOUL.md ──
+      // Skip if preprocessed just wrote a richer version (with augments)
       api.registerHook(['agent:bootstrap'], async (_event: any) => {
+        if (_soulMdLock > Date.now()) {
+          console.log(`[cc-soul][api] bootstrap: skipped (preprocessed lock active)`)
+          return
+        }
         try {
           const resp = await fetch(`${SOUL_API}/process`, {
             method: 'POST',
@@ -142,6 +150,7 @@ export default {
               ? data.system_prompt + (data.augments ? '\n\n## 内部指令（仅本轮有效）\n' + data.augments : '')
               : data.augments
             writeFileSync(soulPath, fullPrompt, 'utf-8')
+            _soulMdLock = Date.now() + 30000  // block bootstrap from overwriting for 30s
             console.log(`[cc-soul][api] SOUL.md updated (${fullPrompt.length} chars)`)
           }
 

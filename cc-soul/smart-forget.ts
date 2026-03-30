@@ -1,3 +1,5 @@
+import { resolve } from 'path'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type { SoulModule } from './brain.ts'
 
 /**
@@ -62,8 +64,25 @@ interface ForgetStats {
 
 const MS_PER_DAY = 86400000
 
-/** Weibull shape parameter */
-const WEIBULL_K = 1.5
+/** Weibull shape parameter — per-scope learnable (stored in decay_params.json) */
+const WEIBULL_K_DEFAULT: Record<string, number> = {
+  fact: 1.2,
+  preference: 0.9,
+  episode: 1.4,
+  correction: Infinity,  // corrections never decay
+}
+const WEIBULL_K_FALLBACK = 1.2
+
+/** Get Weibull k for a scope (learnable, falls back to defaults) */
+export function getWeibullK(scope?: string): number {
+  const s = scope || 'fact'
+  // Check learned params first
+  if (_decayParams.scopeK && _decayParams.scopeK[s] !== undefined) return _decayParams.scopeK[s]
+  return WEIBULL_K_DEFAULT[s] ?? WEIBULL_K_FALLBACK
+}
+
+/** Backward-compatible constant (uses 'fact' default) */
+export const WEIBULL_K = 1.2
 
 /** Weibull scale (lambda) in days, by scope */
 const WEIBULL_LAMBDA: Record<string, number> = {
@@ -87,6 +106,65 @@ const SURVIVAL_CONSOLIDATE_THRESHOLD = 0.8
 const ACTIVATION_CONSOLIDATE_THRESHOLD = 2.0
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ADAPTIVE DECAY — learn lambda multiplier from recall hit/miss feedback
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface DecayParams {
+  recallHits: number
+  recallMisses: number
+  lambdaMultiplier: number
+  lastAdjustTs: number
+  /** Per-scope learnable Weibull k values */
+  scopeK?: Record<string, number>
+}
+
+const DECAY_PARAMS_FILENAME = 'decay_params.json'
+
+let _decayParams: DecayParams = { recallHits: 0, recallMisses: 0, lambdaMultiplier: 1.0, lastAdjustTs: 0 }
+let _decayParamsPath = ''
+
+function loadDecayParams(dataDir: string) {
+  _decayParamsPath = resolve(dataDir, DECAY_PARAMS_FILENAME)
+  try {
+    if (existsSync(_decayParamsPath)) {
+      const raw = readFileSync(_decayParamsPath, 'utf-8').trim()
+      if (raw) Object.assign(_decayParams, JSON.parse(raw))
+    }
+  } catch {}
+}
+
+function saveDecayParams() {
+  if (!_decayParamsPath) return
+  try { writeFileSync(_decayParamsPath, JSON.stringify(_decayParams, null, 2)) } catch {}
+}
+
+/** EMA alpha for adaptive lambda adjustment */
+const EMA_ALPHA = 0.05
+
+/** Record a recall hit (user later referenced the recalled memory) */
+export function recordRecallHit() {
+  _decayParams.recallHits++
+  // EMA: nudge multiplier toward 1.05 on hit (memory was useful → slow decay)
+  _decayParams.lambdaMultiplier = _decayParams.lambdaMultiplier * (1 - EMA_ALPHA) + 1.05 * EMA_ALPHA
+  _decayParams.lastAdjustTs = Date.now()
+  saveDecayParams()
+}
+
+/** Record a recall miss (recalled memory was ignored by user) */
+export function recordRecallMiss() {
+  _decayParams.recallMisses++
+  // EMA: nudge multiplier toward 0.95 on miss (memory was useless → faster decay)
+  _decayParams.lambdaMultiplier = _decayParams.lambdaMultiplier * (1 - EMA_ALPHA) + 0.95 * EMA_ALPHA
+  _decayParams.lastAdjustTs = Date.now()
+  saveDecayParams()
+}
+
+/** Get current adaptive lambda multiplier */
+export function getLambdaMultiplier(): number {
+  return _decayParams.lambdaMultiplier
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // WEIBULL SURVIVAL MODEL
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -98,7 +176,7 @@ const ACTIVATION_CONSOLIDATE_THRESHOLD = 2.0
  * @param k — shape parameter (>1 means increasing hazard)
  * @returns survival probability in [0, 1]
  */
-function weibullSurvival(ageDays: number, lambda: number, k: number): number {
+export function weibullSurvival(ageDays: number, lambda: number, k: number): number {
   if (!isFinite(lambda)) return 1.0  // e.g. correction scope → never decays
   if (ageDays <= 0) return 1.0
   if (lambda <= 0) return 0.0
@@ -109,7 +187,7 @@ function weibullSurvival(ageDays: number, lambda: number, k: number): number {
  * Get Weibull lambda for a given scope, adjusted by recall count.
  * More recalls → longer effective half-life (up to 3x).
  */
-function effectiveLambda(scope: string, recallCount: number, emotionIntensity?: number): number {
+export function effectiveLambda(scope: string, recallCount: number, emotionIntensity?: number): number {
   const baseLambda = WEIBULL_LAMBDA[scope] ?? WEIBULL_LAMBDA_DEFAULT
   if (!isFinite(baseLambda)) return Infinity
   // Each recall extends lambda by ~15%, capped at 3x
@@ -118,7 +196,7 @@ function effectiveLambda(scope: string, recallCount: number, emotionIntensity?: 
   // emotionIntensity 0.8+ → 2x lambda, 0.5+ → 1.5x, default → 1x
   const ei = emotionIntensity ?? 0
   const emotionMultiplier = ei >= 0.8 ? 2.0 : ei >= 0.5 ? 1.5 : 1.0
-  return baseLambda * recallMultiplier * emotionMultiplier
+  return baseLambda * recallMultiplier * emotionMultiplier * _decayParams.lambdaMultiplier
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -146,9 +224,10 @@ function actRActivation(mem: MemoryInput, now: number): number {
     // Single access at lastAccessed time
     sum = Math.pow(lastAgo, -ACT_R_DECAY)
   } else {
-    // Distribute accesses evenly from creation to lastAccessed
-    for (let i = 0; i < n; i++) {
-      const fraction = n === 1 ? 1 : i / (n - 1)
+    // Distribute accesses evenly from creation to lastAccessed (cap at 50 iterations)
+    const cap = Math.min(n, 50)
+    for (let i = 0; i < cap; i++) {
+      const fraction = cap === 1 ? 1 : i / (cap - 1)
       const accessAgo = createdAgo - fraction * (createdAgo - lastAgo)
       const t = Math.max(accessAgo, 1)
       sum += Math.pow(t, -ACT_R_DECAY)
@@ -171,9 +250,10 @@ export function computeForgetScore(mem: MemoryInput): number {
   const now = Date.now()
   const ageDays = (now - mem.ts) / MS_PER_DAY
 
-  // Weibull survival
+  // Weibull survival (scope-aware k)
   const lambda = effectiveLambda(mem.scope, mem.recallCount, mem.emotionIntensity)
-  const survival = weibullSurvival(ageDays, lambda, WEIBULL_K)
+  const k = getWeibullK(mem.scope)
+  const survival = weibullSurvival(ageDays, lambda, k)
 
   // ACT-R activation
   const activation = actRActivation(mem, now)
@@ -214,7 +294,8 @@ export function smartForgetSweep(memories: any[]): SweepResult {
 
     const ageDays = (now - mem.ts) / MS_PER_DAY
     const lambda = effectiveLambda(mem.scope, mem.recallCount, mem.emotionIntensity)
-    const survival = weibullSurvival(ageDays, lambda, WEIBULL_K)
+    const k = getWeibullK(mem.scope)
+    const survival = weibullSurvival(ageDays, lambda, k)
     const activation = actRActivation(mem, now)
 
     // Forget: low survival AND low activation
@@ -253,8 +334,25 @@ export const smartForgetModule: SoulModule = {
   features: ['smart_forget'],
   priority: 20,
 
-  init(): void {
-    console.log('[smart-forget] initialized — Weibull k=1.5, ACT-R d=0.5')
+  async init(): Promise<void> {
+    // Load adaptive decay params
+    try {
+      const { DATA_DIR } = await import('./persistence.ts')
+      loadDecayParams(DATA_DIR)
+    } catch {
+      // Fallback: homedir-based path
+      try {
+        const { homedir } = await import('os')
+        const p = resolve(homedir(), '.openclaw/plugins/cc-soul/data')
+        if (existsSync(p)) loadDecayParams(p)
+      } catch {}
+    }
+    // Initialize per-scope k defaults if not yet stored
+    if (!_decayParams.scopeK) {
+      _decayParams.scopeK = { ...WEIBULL_K_DEFAULT }
+      saveDecayParams()
+    }
+    console.log(`[smart-forget] initialized — Weibull k per-scope, ACT-R d=0.5, λ-multiplier=${_decayParams.lambdaMultiplier.toFixed(3)} (EMA α=${EMA_ALPHA})`)
   },
 
   dispose(): void {

@@ -6,7 +6,7 @@
     "confidence": 0.85,
     "source": "system",
     "ts": 1774864519543,
-    "validUntil": 0,
+    "validUntil": 1774877938647,
     "memoryRef": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作"
   },
   {
@@ -18,5 +18,15 @@
     "ts": 1774864519543,
     "validUntil": 0,
     "memoryRef": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Go写后端",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774877938647,
+    "validUntil": 0,
+    "memoryRef": "[WAL事实] 我喜欢用Go写后端，讨厌PHP，目前在字节工作"
   }
 ]

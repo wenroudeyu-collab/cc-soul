@@ -20,7 +20,7 @@
 
 import { existsSync, readFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
-import { DATA_DIR, debouncedSave } from './persistence.ts'
+import { DATA_DIR, debouncedSave, loadJson } from './persistence.ts'
 import { spawnCLI } from './cli.ts'
 import { body, emotionVector, getEmotionVector } from './body.ts'
 import type { Memory } from './types.ts'
@@ -49,6 +49,20 @@ interface SocialContact {
   samples: string[]   // messages mentioning this person (max 15) — LLM infers tone from these
 }
 
+/** Categorized samples — messages grouped by context */
+interface CategorizedSamples {
+  casual: string[]      // 闲聊
+  technical: string[]   // 技术讨论
+  emotional: string[]   // 情绪表达
+  general: string[]     // 其他
+}
+
+interface LengthDistribution {
+  short: number    // <10 字占比
+  medium: number   // 10-30 字占比
+  long: number     // >30 字占比
+}
+
 interface AvatarProfile {
   id: string
   name: string
@@ -58,9 +72,10 @@ interface AvatarProfile {
     口头禅: string[]
     习惯: string
     avg_msg_length: number
-    samples: string[]       // recent user messages (rolling window of 30)
+    samples: CategorizedSamples  // categorized user messages (max 15 per category)
     tone_variants: Record<string, string>  // deprecated, kept for compat
   }
+  lengthDistribution: LengthDistribution
   decisions: {
     pattern: string
     traces: { scenario: string; chose: string; reason: string; rejected?: string }[]
@@ -91,6 +106,108 @@ interface AvatarProfile {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const TECH_KEYWORDS = /(?:code|bug|api|sdk|git|docker|npm|yarn|pip|import|class|func|def |return |async|await|http|sql|json|xml|debug|compile|deploy|linux|server|数据库|接口|编译|部署|框架|算法|内存|线程|进程|函数|变量|服务器)/i
+
+/** Classify a message into one of four categories */
+function classifyMessageCategory(msg: string): 'casual' | 'technical' | 'emotional' | 'general' {
+  // Emotional: contains strong emotion markers
+  if (/[!！]{2,}|😭|😤|😡|🥺|💔|气死|烦死|崩溃|绷不住|好难过|好开心|太爽了|心疼|受不了|郁闷|焦虑|压力|哭了|泪目/.test(msg)) {
+    return 'emotional'
+  }
+  // Technical: contains tech terms
+  if (TECH_KEYWORDS.test(msg)) {
+    return 'technical'
+  }
+  // Casual: short, informal, greeting-like
+  if (msg.length < 15 || /^(哈哈|嗯|ok|好的|行|对|是的|嗯嗯|哦|啊|666|牛|绝了|真的假的|不是吧|草)/.test(msg)) {
+    return 'casual'
+  }
+  return 'general'
+}
+
+/** Get all samples from categorized structure as flat array */
+function getAllSamples(samples: CategorizedSamples): string[] {
+  return [...samples.casual, ...samples.technical, ...samples.emotional, ...samples.general]
+}
+
+/** Total sample count across all categories */
+function totalSampleCount(samples: CategorizedSamples): number {
+  return samples.casual.length + samples.technical.length + samples.emotional.length + samples.general.length
+}
+
+/**
+ * Rule-based expression style analysis — no LLM, runs every 10 samples.
+ * Generates a concise style description like "简短、直接、偶尔反问".
+ */
+function updateExpressionStyle(profile: AvatarProfile): void {
+  const all = getAllSamples(profile.expression.samples)
+  if (all.length < 10) return
+
+  const traits: string[] = []
+
+  // Average sentence length
+  const avgLen = all.reduce((sum, s) => sum + s.length, 0) / all.length
+  if (avgLen < 10) traits.push('简短')
+  else if (avgLen > 40) traits.push('话多')
+
+  // Question mark frequency
+  const questionCount = all.filter(s => /[?？]/.test(s)).length
+  const questionRatio = questionCount / all.length
+  if (questionRatio > 0.3) traits.push('爱反问')
+
+  // Exclamation mark frequency
+  const exclamCount = all.filter(s => /[!！]/.test(s)).length
+  const exclamRatio = exclamCount / all.length
+  if (exclamRatio > 0.3) traits.push('情绪化')
+
+  // Comma usage (low comma = direct)
+  const commaCount = all.filter(s => /[,，]/.test(s)).length
+  const commaRatio = commaCount / all.length
+  if (commaRatio < 0.2) traits.push('直接')
+
+  // "其实" frequency (hedging)
+  const qishiCount = all.filter(s => s.includes('其实')).length
+  const qishiRatio = qishiCount / all.length
+  if (qishiRatio > 0.15) traits.push('委婉')
+
+  // Emoji usage
+  const emojiCount = all.filter(s => /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}]/u.test(s)).length
+  if (emojiCount / all.length > 0.3) traits.push('爱用表情')
+
+  // Ellipsis usage
+  const ellipsisCount = all.filter(s => /[…\.]{3,}|\.{3,}/.test(s)).length
+  if (ellipsisCount / all.length > 0.2) traits.push('爱用省略号')
+
+  if (traits.length > 0) {
+    profile.expression.style = traits.join('、')
+  }
+}
+
+/**
+ * Update length distribution statistics.
+ */
+function updateLengthDistribution(profile: AvatarProfile): void {
+  const all = getAllSamples(profile.expression.samples)
+  if (all.length === 0) return
+
+  let short = 0, medium = 0, long = 0
+  for (const s of all) {
+    if (s.length < 10) short++
+    else if (s.length <= 30) medium++
+    else long++
+  }
+  const total = all.length
+  profile.lengthDistribution = {
+    short: Math.round(short / total * 100) / 100,
+    medium: Math.round(medium / total * 100) / 100,
+    long: Math.round(long / total * 100) / 100,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -105,6 +222,24 @@ function ensureDir() {
 // LOAD / SAVE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Migrate legacy string[] samples to CategorizedSamples */
+function migrateSamples(profile: any): void {
+  if (Array.isArray(profile.expression?.samples)) {
+    const old: string[] = profile.expression.samples
+    const categorized: CategorizedSamples = { casual: [], technical: [], emotional: [], general: [] }
+    for (const s of old) {
+      const cat = classifyMessageCategory(s)
+      categorized[cat].push(s)
+      if (categorized[cat].length > 15) categorized[cat].shift()
+    }
+    profile.expression.samples = categorized
+  }
+  // Ensure lengthDistribution exists
+  if (!profile.lengthDistribution) {
+    profile.lengthDistribution = { short: 0, medium: 0, long: 0 }
+  }
+}
+
 export function loadAvatarProfile(userId: string): AvatarProfile {
   if (profiles.has(userId)) return profiles.get(userId)!
 
@@ -114,6 +249,7 @@ export function loadAvatarProfile(userId: string): AvatarProfile {
   if (existsSync(filePath)) {
     try {
       const data = JSON.parse(readFileSync(filePath, 'utf-8'))
+      migrateSamples(data)
       profiles.set(userId, data)
       return data
     } catch {}
@@ -129,9 +265,10 @@ export function loadAvatarProfile(userId: string): AvatarProfile {
       口头禅: [],
       习惯: '',
       avg_msg_length: 0,
-      samples: [],
+      samples: { casual: [], technical: [], emotional: [], general: [] },
       tone_variants: {},
     },
+    lengthDistribution: { short: 0, medium: 0, long: 0 },
     decisions: { pattern: '', traces: [] },
     social: {} as Record<string, SocialContact>,
     emotional_patterns: {
@@ -181,57 +318,79 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
 
   const profile = loadAvatarProfile(userId)
 
-  // ── 1. Expression samples (rolling window of 30) ──
+  // ── 1. Expression samples (categorized, max 15 per category) ──
   if (userMsg.length >= 5 && userMsg.length <= 200) {
-    profile.expression.samples.push(userMsg)
-    if (profile.expression.samples.length > 30) {
-      profile.expression.samples = profile.expression.samples.slice(-30)
-    }
+    const category = classifyMessageCategory(userMsg)
+    const bucket = profile.expression.samples[category]
+    bucket.push(userMsg)
+    if (bucket.length > 15) bucket.shift()
 
-    // Update avg message length
-    const lens = profile.expression.samples.map(s => s.length)
+    // Update avg message length from all samples
+    const all = getAllSamples(profile.expression.samples)
+    const lens = all.map(s => s.length)
     profile.expression.avg_msg_length = Math.round(lens.reduce((a, b) => a + b, 0) / lens.length)
-  }
 
-  // ── 2. 口头禅 detection (frequent short phrases) ──
-  // Strategy: extract ALL possible 2-3 char CJK substrings that could be catchphrases,
-  // then let frequency filtering do the work (only ≥3 occurrences across samples = catchphrase).
-  // This avoids complex regex for positional detection.
-  const shortPhrases = new Set<string>()
-  // Extract all 2-char and 3-char CJK substrings from the message
-  const cjkChars = userMsg.match(/[\u4e00-\u9fff]+/g) || []
-  for (const seg of cjkChars) {
-    for (let len = 2; len <= 3; len++) {
-      for (let i = 0; i <= seg.length - len; i++) {
-        shortPhrases.add(seg.slice(i, i + len))
-      }
+    // Update length distribution (#6)
+    updateLengthDistribution(profile)
+
+    // Every 10 total samples, update expression style by rules (#4)
+    const total = totalSampleCount(profile.expression.samples)
+    if (total > 0 && total % 10 === 0) {
+      updateExpressionStyle(profile)
     }
   }
 
-  // Filter catchphrases: frequency ≥ 3, deduplicate substrings, skip 1-char phrases
-  // Known names to exclude from catchphrase detection
+  // ── 2. 口头禅 detection (complete phrase extraction, sentence-boundary aware) ──
+  // Strategy: split message into clauses by punctuation, extract 4-8 char phrases
+  // from sentence HEAD and TAIL positions. Only ≥3 occurrences = catchphrase.
+  // 2-3 char fragments are too short to be meaningful catchphrases — ignored.
   const knownNames = new Set(Object.keys(profile.social))
 
-  for (const phrase of shortPhrases) {
-    if (phrase.length >= 2 && phrase.length <= 3) {
-      if (!profile.expression.口头禅.includes(phrase)) {
-        // Skip if it's a known person's name
-        if (knownNames.has(phrase)) continue
-        const count = profile.expression.samples.filter(s => s.includes(phrase)).length
-        if (count >= 3) {
-          // Skip if it's a substring of an existing longer catchphrase
-          const isSubOfExisting = profile.expression.口头禅.some(existing => existing.length > phrase.length && existing.includes(phrase))
-          if (isSubOfExisting) continue
-          // Skip if it's a common grammar particle (>60% of samples = too universal)
-          const ratio = count / Math.max(profile.expression.samples.length, 1)
-          if (ratio > 0.6 && profile.expression.samples.length >= 10) continue
-          // Remove existing shorter substrings that this phrase supersedes
-          profile.expression.口头禅 = profile.expression.口头禅.filter(existing => !(existing.length < phrase.length && phrase.includes(existing)))
-          profile.expression.口头禅.push(phrase)
-          if (profile.expression.口头禅.length > 10) profile.expression.口头禅.shift()
-          console.log(`[cc-soul][avatar] new 口头禅 detected: "${phrase}"`)
-        }
+  // Split into clauses by common Chinese/English punctuation
+  const clauses = userMsg.split(/[，。！？；、,\.!\?;\n]+/).filter(c => c.trim().length >= 4)
+
+  const candidatePhrases = new Set<string>()
+  for (const clause of clauses) {
+    const trimmed = clause.trim()
+    // Extract phrases of length 4-8 from HEAD and TAIL of each clause
+    for (let len = 4; len <= 8; len++) {
+      if (trimmed.length >= len) {
+        candidatePhrases.add(trimmed.slice(0, len))           // head phrase
+        candidatePhrases.add(trimmed.slice(trimmed.length - len))  // tail phrase
       }
+    }
+  }
+
+  // Count frequency across ALL stored samples (same head/tail extraction)
+  const allSamplesFlat = getAllSamples(profile.expression.samples)
+  const allSamplesCount = allSamplesFlat.length
+  for (const phrase of candidatePhrases) {
+    if (phrase.length < 4 || phrase.length > 8) continue
+    if (profile.expression.口头禅.includes(phrase)) continue
+    if (knownNames.has(phrase)) continue
+
+    // Count: how many samples have this phrase at sentence head or tail?
+    let count = 0
+    for (const sample of allSamplesFlat) {
+      const sampleClauses = sample.split(/[，。！？；、,\.!\?;\n]+/).filter(c => c.trim().length >= 4)
+      for (const sc of sampleClauses) {
+        const st = sc.trim()
+        if (st.startsWith(phrase) || st.endsWith(phrase)) { count++; break }
+      }
+    }
+
+    if (count >= 3) {
+      // Skip if it's a substring of an existing longer catchphrase
+      const isSubOfExisting = profile.expression.口头禅.some(existing => existing.length > phrase.length && existing.includes(phrase))
+      if (isSubOfExisting) continue
+      // Skip if too universal (>60% of samples)
+      const ratio = count / Math.max(allSamplesCount, 1)
+      if (ratio > 0.6 && allSamplesCount >= 10) continue
+      // Remove existing shorter substrings that this phrase supersedes
+      profile.expression.口头禅 = profile.expression.口头禅.filter(existing => !(existing.length < phrase.length && phrase.includes(existing)))
+      profile.expression.口头禅.push(phrase)
+      if (profile.expression.口头禅.length > 10) profile.expression.口头禅.shift()
+      console.log(`[cc-soul][avatar] new 口头禅 detected: "${phrase}"`)
     }
   }
 
@@ -330,38 +489,43 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
     }
   }
 
-  // ── 6. Periodic LLM-driven expression analysis (every 10 samples) ──
-  if (profile.expression.samples.length > 0 && profile.expression.samples.length % 10 === 0) {
-    const sampleList = profile.expression.samples.slice(-15).map((s, i) => `${i + 1}. ${s}`).join('\n')
-    spawnCLI(
-      `深入分析这个用户的说话风格和性格特征。从以下消息中提取：
+  // ── 6. Periodic LLM-driven expression deep analysis (every 10 samples) ──
+  // Note: style is now updated by rule-based updateExpressionStyle() in section 1.
+  // LLM analysis here focuses on deeper personality insights → stored in 习惯.
+  {
+    const allForLLM = getAllSamples(profile.expression.samples)
+    if (allForLLM.length > 0 && allForLLM.length % 10 === 0) {
+      const sampleList = allForLLM.slice(-15).map((s, i) => `${i + 1}. ${s}`).join('\n')
+      spawnCLI(
+        `深入分析这个用户的说话风格和性格特征。从以下消息中提取：
 1. 说话风格（语气、用词习惯、标点特征、消息长度偏好）
 2. 性格线索（内向/外向、直接/婉转、乐观/悲观、理性/感性）
 3. 情绪表达方式（高兴/愤怒/低落时分别怎么表达）
 
 用2-3句话综合概括，不要列清单：
 ${sampleList}`,
-      (output) => {
-        if (output && output.length > 10) {
-          profile.expression.style = output.slice(0, 300)
-          profile.expression.习惯 = output.slice(0, 300)
-          saveProfile(userId)
-          console.log(`[cc-soul][avatar] expression style updated: ${output.slice(0, 60)}`)
-        }
-      }, 15000
-    )
+        (output) => {
+          if (output && output.length > 10) {
+            profile.expression.习惯 = output.slice(0, 300)
+            saveProfile(userId)
+            console.log(`[cc-soul][avatar] expression 习惯 updated: ${output.slice(0, 60)}`)
+          }
+        }, 15000
+      )
+    }
   }
 
   // ── 7. Dynamic vocabulary learning ──
   // LLM analyzes messages and builds a custom vocabulary for THIS person.
   // Trigger: every 10 samples (offset by 3), OR on first 10 samples if vocab is empty (cold start).
   const vocabEmpty = !profile.vocabulary?.emotions || Object.keys(profile.vocabulary.emotions).length === 0
-  const shouldLearnVocab = profile.expression.samples.length > 0 && (
-    profile.expression.samples.length % 10 === 3 ||
-    (vocabEmpty && profile.expression.samples.length >= 8)  // cold start: learn after 8 samples
+  const allForVocab = getAllSamples(profile.expression.samples)
+  const shouldLearnVocab = allForVocab.length > 0 && (
+    allForVocab.length % 10 === 3 ||
+    (vocabEmpty && allForVocab.length >= 8)  // cold start: learn after 8 samples
   )
   if (shouldLearnVocab) {
-    const vocabBatch = profile.expression.samples.slice(-10).map((s, i) => `${i + 1}. ${s}`).join('\n')
+    const vocabBatch = allForVocab.slice(-10).map((s, i) => `${i + 1}. ${s}`).join('\n')
     spawnCLI(
       `分析这个用户的语言习惯，提取他/她个人的词汇表。输出 JSON：
 {
@@ -422,9 +586,10 @@ ${vocabBatch}`,
   // Every 10 messages, let LLM analyze the batch for deep patterns.
   // The LLM decides what's important — wisdom, regret, love, fear, anything.
   // No predefined categories. Every person is different.
-  if (profile.expression.samples.length > 0 && profile.expression.samples.length % 10 === 5) {
+  const allForDeep = getAllSamples(profile.expression.samples)
+  if (allForDeep.length > 0 && allForDeep.length % 10 === 5) {
     // Offset by 5 from style analysis (which runs at %10===0) to spread load
-    const recentBatch = profile.expression.samples.slice(-10).map((s, i) => `${i + 1}. ${s}`).join('\n')
+    const recentBatch = allForDeep.slice(-10).map((s, i) => `${i + 1}. ${s}`).join('\n')
     spawnCLI(
       `你是一个人格分析师。分析以下消息，提取这个人内心深处的东西——不是表面的聊天内容，而是能反映他灵魂的东西。
 
@@ -464,6 +629,18 @@ ${recentBatch}`,
         } catch {}
       }, 20000
     )
+  }
+
+  // ── 9. Reaction learning — learn how this user reacts to different situations ──
+  // When the user sends a message, check if the PREVIOUS message (botReply/incoming)
+  // was a trigger situation. If so, the user's current message IS their reaction.
+  if (userMsg.length >= 2 && userMsg.length <= 20) {
+    // Short messages are often reactions (e.g. "烦死了" "好的" "666")
+    // Check if botReply contained a trigger-like pattern
+    const triggerType = detectTriggerType(botReply)
+    if (triggerType) {
+      learnReaction(triggerType, userMsg.slice(0, 15))
+    }
   }
 
   saveProfile(userId)
@@ -703,9 +880,15 @@ export function generateAvatarReply(
     }
   } catch {}
 
+  // ── Instant reaction (rule-based, zero LLM cost) ──
+  const contact = profile.social[sender] as SocialContact | undefined
+  const relationshipDepth = contact?.samples ? Math.min(contact.samples.length / 15, 1) : 0
+  const reaction = getInstantReaction(message, body.mood, relationshipDepth)
+
   // ── Build soul prompt (reuses getAvatarPrompt) then append the actual message ──
   const basePrompt = await getAvatarPrompt(userId, sender, message)
-  const prompt = basePrompt + `\n\n${sender}发来: "${message}"\n\n以我本人的身份回复。`
+  const reactionLine = reaction ? `\n我的即时反应：${reaction}——这决定了我这条回复的语气和态度。\n` : ''
+  const prompt = basePrompt + `\n\n${reactionLine}${sender}发来: "${message}"\n\n以我本人的身份回复。`
 
   spawnCLI(prompt, (output) => {
     if (!output) { callback('生成失败'); return }
@@ -717,6 +900,112 @@ export function generateAvatarReply(
     console.error(`[cc-soul][avatar] generateAvatarReply error: ${e.message}`)
     callback('生成失败')
   })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INSTANT REACTION — rule-based, zero LLM cost
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Generate a one-liner instant reaction based on message content, mood, and relationship depth.
+ * This gives the LLM an emotional anchor BEFORE it starts generating the reply.
+ * No LLM call — pure pattern matching.
+ */
+// ── Learned reaction patterns: stored per-user, updated from actual behavior ──
+interface ReactionPattern {
+  trigger: string       // regex source
+  reactions: { text: string; count: number }[]  // observed reactions, sorted by frequency
+}
+
+const REACTION_PATTERNS_PATH = resolve(DATA_DIR, 'reaction_patterns.json')
+let _reactionPatterns: ReactionPattern[] = loadJson<ReactionPattern[]>(REACTION_PATTERNS_PATH, [])
+
+// Default triggers — only used as detection, reactions are learned
+const DEFAULT_TRIGGERS: { name: string; regex: RegExp }[] = [
+  { name: 'urged', regex: /催|怎么还没|快点|赶紧|来不及|deadline/ },
+  { name: 'praised', regex: /厉害|牛|不错|好棒|666|太强|辛苦了/ },
+  { name: 'criticized', regex: /笨|蠢|废物|垃圾|不行|太慢|太差/ },
+  { name: 'help_needed', regex: /帮我|救|怎么办|搞不定|不会/ },
+  { name: 'good_news', regex: /升职|加薪|过了|成功|拿到|offer|上线/ },
+  { name: 'venting', regex: /压力|累|烦|难受|失眠|焦虑|崩溃|受不了/ },
+  { name: 'joking', regex: /哈哈|lol|hhh|笑死|绝了|离谱/ },
+  { name: 'apologizing', regex: /对不起|抱歉|不好意思|sorry/i },
+  { name: 'questioning', regex: /你确定|真的假的|别骗|不信|靠谱吗/ },
+  { name: 'greeting', regex: /早|晚安|你好|在吗|hey|hi/i },
+]
+
+// Fallback reactions when no learned data exists (cold start only)
+const COLD_START_REACTIONS: Record<string, string> = {
+  urged: '收到，抓紧',
+  praised: '谢谢',
+  criticized: '...',
+  help_needed: '来看看',
+  good_news: '恭喜！',
+  venting: '怎么了',
+  joking: '哈哈',
+  apologizing: '没事',
+  questioning: '确定的',
+  greeting: '在',
+}
+
+function getInstantReaction(msg: string, mood: number, relationship: number): string {
+  // Detect which trigger matches
+  for (const trigger of DEFAULT_TRIGGERS) {
+    if (!trigger.regex.test(msg)) continue
+
+    // Look for learned reaction for this trigger
+    const learned = _reactionPatterns.find(p => p.trigger === trigger.name)
+    if (learned && learned.reactions.length > 0) {
+      // Pick most frequent reaction, with mood/relationship variation
+      const sorted = [...learned.reactions].sort((a, b) => b.count - a.count)
+      // Mood affects which reaction to pick: positive mood → first, negative → second (if exists)
+      const idx = mood < -0.3 && sorted.length > 1 ? 1 : 0
+      return sorted[idx].text
+    }
+
+    // Cold start fallback
+    return COLD_START_REACTIONS[trigger.name] || ''
+  }
+  return ''
+}
+
+/**
+ * Learn user's actual reaction to a situation.
+ * Called after observing how the user responded to a message of type X.
+ * Over time, replaces cold-start defaults with real personality.
+ */
+export function learnReaction(triggerName: string, userReaction: string) {
+  if (!userReaction || userReaction.length < 1 || userReaction.length > 20) return
+
+  let pattern = _reactionPatterns.find(p => p.trigger === triggerName)
+  if (!pattern) {
+    pattern = { trigger: triggerName, reactions: [] }
+    _reactionPatterns.push(pattern)
+  }
+
+  // Find or add this reaction
+  const existing = pattern.reactions.find(r => r.text === userReaction)
+  if (existing) {
+    existing.count++
+  } else {
+    pattern.reactions.push({ text: userReaction, count: 1 })
+  }
+
+  // Keep top 5 reactions per trigger
+  pattern.reactions.sort((a, b) => b.count - a.count)
+  if (pattern.reactions.length > 5) pattern.reactions = pattern.reactions.slice(0, 5)
+
+  debouncedSave(REACTION_PATTERNS_PATH, _reactionPatterns)
+}
+
+/**
+ * Auto-detect trigger type from a message (for learning from user's past messages).
+ */
+export function detectTriggerType(msg: string): string | null {
+  for (const trigger of DEFAULT_TRIGGERS) {
+    if (trigger.regex.test(msg)) return trigger.name
+  }
+  return null
 }
 
 // Note: Active probing (Step 1) uses inner-life.ts follow-up system — no duplication.
@@ -747,24 +1036,46 @@ export async function getAvatarPrompt(
   // Gather soul context from all modules
   const soulContext = await gatherSoulContext(userId, effectiveSender, effectiveMessage)
 
-  // Relationship context
+  // Relationship context + strategy (#7)
   const contact = profile.social[effectiveSender] as SocialContact | undefined
+  let relationshipStrategy = ''
+  if (contact) {
+    const sampleCount = contact.samples?.length || 0
+    if (sampleCount < 3) relationshipStrategy = '和这个人不熟，保持礼貌客气，用全称'
+    else if (sampleCount <= 15) relationshipStrategy = '和这个人比较熟，自然随意'
+    else relationshipStrategy = '和这个人很亲密，可以开玩笑、用昵称、说话随意'
+  }
   const relationshipBlock = contact
     ? [
       `${effectiveSender}是我的${contact.relation}（${contact.context}）`,
+      relationshipStrategy ? `回复策略：${relationshipStrategy}` : '',
       contact.samples && contact.samples.length > 0
         ? `我提到${effectiveSender}时的原话（注意语气差异）：\n${contact.samples.slice(-5).map(s => `  "${s}"`).join('\n')}`
         : '',
     ].filter(Boolean).join('\n')
     : effectiveSender !== '对方' ? `${effectiveSender}是我认识的人` : ''
 
-  // Expression DNA
+  // Expression DNA — inject samples matching current message category (#5)
+  const msgCategory = effectiveMessage ? classifyMessageCategory(effectiveMessage) : 'general'
+  const categorySamples = profile.expression.samples[msgCategory] || []
+  // Also include a few general samples for diversity
+  const generalSamples = msgCategory !== 'general' ? (profile.expression.samples.general || []).slice(-3) : []
+  const samplesForPrompt = [...categorySamples.slice(-8), ...generalSamples]
+
+  // Length distribution string (#6)
+  const ld = profile.lengthDistribution
+  const ldStr = (ld && (ld.short + ld.medium + ld.long) > 0)
+    ? `消息长度分布：短(${Math.round(ld.short * 100)}%) 中(${Math.round(ld.medium * 100)}%) 长(${Math.round(ld.long * 100)}%)`
+    : ''
+
   const expressionBlock = [
     profile.expression.style ? `说话风格：${profile.expression.style}` : '',
+    profile.expression.习惯 ? `性格特征：${profile.expression.习惯}` : '',
     profile.expression.口头禅.length > 0 ? `口头禅：${profile.expression.口头禅.join('、')}` : '',
     `平均消息长度：${profile.expression.avg_msg_length || 15}字`,
-    profile.expression.samples.length > 0
-      ? `最近的消息示例：\n${profile.expression.samples.slice(-8).map(s => `  "${s}"`).join('\n')}`
+    ldStr,
+    samplesForPrompt.length > 0
+      ? `最近的${msgCategory === 'general' ? '' : `${msgCategory}类`}消息示例：\n${samplesForPrompt.map(s => `  "${s}"`).join('\n')}`
       : '',
   ].filter(Boolean).join('\n')
 
@@ -815,7 +1126,7 @@ export function getAvatarStats(userId: string): {
 } {
   const profile = loadAvatarProfile(userId)
   return {
-    samples: profile.expression.samples.length,
+    samples: totalSampleCount(profile.expression.samples),
     catchphrases: profile.expression.口头禅.length,
     decisions: profile.decisions.traces.length,
     contacts: Object.keys(profile.social).length,

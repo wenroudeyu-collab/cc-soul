@@ -102,10 +102,17 @@ export function runHeartbeat() {
         learnFromObservations()
       })
 
-      // ── 前瞻记忆清理 ──
+      // ── 前瞻记忆清理 + 主动发现 ──
       safe('pmCleanup', async () => {
-        const { cleanupProspectiveMemories } = await import('./prospective-memory.ts')
+        const { cleanupProspectiveMemories, autoDetectFromMemories } = await import('./prospective-memory.ts')
         cleanupProspectiveMemories()
+        // Auto-detect recurring themes from recent memories
+        try {
+          const { memoryState } = await import('./memory.ts')
+          if (memoryState.memories.length > 0) {
+            autoDetectFromMemories(memoryState.memories)
+          }
+        } catch {}
       })
 
       // ── 轻量维护 ──

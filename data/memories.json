@@ -1,44 +1,801 @@
 [
   {
+    "content": "用户在字节工作",
+    "scope": "fact",
+    "ts": 1774877997309,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6666666666666666,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774877997309
+  },
+  {
+    "content": "用户讨厌PHP",
+    "scope": "preference",
+    "ts": 1774877997305,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6666666666666666,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774877997305
+  },
+  {
+    "content": "用户喜欢用Go写后端",
+    "scope": "preference",
+    "ts": 1774877997300,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6666666666666666,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774877997300
+  },
+  {
+    "content": "[对话] 用户: 我喜欢用Go写后端，讨厌PHP，目前在字节工作 → AI: 收到，老板。\n\n（更正记忆：称呼\"大哥\"→\"老板\"；工作字节；技术偏好 Go 后端，讨厌 PHP）\n\n有什么需要我帮忙的",
+    "scope": "fact",
+    "ts": 1774877983819,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6666666666666666,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774877983819
+  },
+  {
+    "content": "[WAL事实] 我喜欢用Go写后端，讨厌PHP，目前在字节工作",
+    "scope": "wal",
+    "ts": 1774877938647,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6666666666666666,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "用户曾问过Rust的所有权vs C++智能指针问题",
+    "scope": "event",
+    "ts": 1774874660451,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "用户曾问过Go的HTTP服务器、channel vs mutex问题",
+    "scope": "event",
+    "ts": 1774874660447,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "用户曾问过Python的GIL和读JSON问题",
+    "scope": "event",
+    "ts": 1774874660444,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "用户关注或学习Rust和TypeScript",
+    "scope": "preference",
+    "ts": 1774874660437,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774874660437
+  },
+  {
+    "content": "用户主要使用Python和Go编程语言",
+    "scope": "preference",
+    "ts": 1774874660431,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774874660431
+  },
+  {
+    "content": "[对话] 用户: 你还记得我之前说过什么编程语言吗？ → AI: 大哥之前问过这些技术问题：\n\n- **Python**（GIL、读 JSON）\n- **Go**（HTTP 服务器、ch",
+    "scope": "fact",
+    "ts": 1774874643346,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774874643347
+  },
+  {
+    "content": "用户曾讨论过Docker、MySQL、Kafka技术",
+    "scope": "fact",
+    "ts": 1774873219175,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873219175
+  },
+  {
+    "content": "用户可能拥有服务器配置需求，但未具体说明过",
+    "scope": "fact",
+    "ts": 1774873219165,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873219165
+  },
+  {
+    "content": "[对话] 用户: 我之前说过我服务器配置是什么 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
+    "scope": "fact",
+    "ts": 1774873207546,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [
+      "对话",
+      "用户",
+      "持不了",
+      "sql",
+      "我想减肥",
+      "但总是坚",
+      "大哥之前",
+      "没提过服",
+      "务器配置",
+      "我们只聊"
+    ],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873207546
+  },
+  {
+    "content": "[对话] 用户: 我想减肥但总是坚持不了 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
+    "scope": "fact",
+    "ts": 1774873171337,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873171337
+  },
+  {
+    "content": "微服务适合50人以上团队等场景，不适合小型简单项目",
+    "scope": "opinion",
+    "ts": 1774873022470,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "微服务的代价包括分布式复杂度、运维成本、调试困难、数据一致性问题",
+    "scope": "fact",
+    "ts": 1774873022468,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873022468
+  },
+  {
+    "content": "采用微服务的原因包括团队规模大、模块独立扩容需求、技术债务重",
+    "scope": "fact",
+    "ts": 1774873022466,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873022466
+  },
+  {
+    "content": "单体架构与微服务架构在代码库、部署、技术栈、团队协作、故障影响方面的对比",
+    "scope": "fact",
+    "ts": 1774873022463,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873022463
+  },
+  {
+    "content": "微服务是将一个大系统拆分成多个独立部署的小服务",
+    "scope": "fact",
+    "ts": 1774873022460,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774873022460
+  },
+  {
+    "content": "[对话] 用户: 帮我理解什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**\n\n---\n\n**单体 vs 微服务**\n\n| | 单体 | 微服",
+    "scope": "fact",
+    "ts": 1774873003686,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.76,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 3,
+    "lastRecalled": 1774873162514,
+    "validFrom": 1774873003686
+  },
+  {
+    "content": "用户正在考虑跳槽，处于职业决策阶段",
+    "scope": "event",
+    "ts": 1774872982534,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[对话] 用户: 我在考虑要不要跳槽 → AI: **先想清楚几个问题：**\n\n| 问题 | 为什么重要 |\n|------|-----------|\n| 想跳是因为现在",
+    "scope": "fact",
+    "ts": 1774872973384,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872973384
+  },
+  {
+    "content": "[对话] 用户: 最近睡不好 有什么建议吗 → AI: 大哥之前说过凌晨三点醒的问题，现在还是这样吗？\n\n先确认几点：\n- 晚上几点睡？躺下多久能睡着？\n- 醒了之后能再睡着吗",
+    "scope": "fact",
+    "ts": 1774872942999,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872942999
+  },
+  {
+    "content": "绑定挂载适合开发环境和配置文件，命名卷适合生产环境",
+    "scope": "opinion",
+    "ts": 1774872816354,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "Docker Volume有两种主要类型：绑定挂载（指定主机路径）和命名卷（Docker管理）",
+    "scope": "fact",
+    "ts": 1774872816350,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872816350
+  },
+  {
+    "content": "解决Docker容器数据丢失的方案是使用Volume进行持久化存储",
+    "scope": "fact",
+    "ts": 1774872816344,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872816344
+  },
+  {
+    "content": "Docker容器重启后数据丢失是因为容器层是临时的，重启后会重置",
+    "scope": "fact",
+    "ts": 1774872816340,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872816340
+  },
+  {
+    "content": "[对话] 用户: Docker容器重启后数据丢了怎么办 → AI: **数据丢失原因：容器层是临时的，重启后重置。**\n\n**解决方案：用 Volume 持久化**\n\n```dockerf",
+    "scope": "fact",
+    "ts": 1774872802767,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872802767
+  },
+  {
     "content": "Python读取JSON文件的基本方法是使用json.load()函数，通常需要指定文件编码为utf-8",
     "scope": "fact",
-    "ts": 1774872742486,
+    "ts": 1774872742480,
     "emotion": "neutral",
     "userId": "sdk_test",
     "visibility": "global",
-    "tags": [
-      "读取",
-      "使用",
-      "函数",
-      "编码为",
-      "文件的基",
-      "本方法是",
-      "通常需要",
-      "指定文件",
-      "json",
-      "utf-8"
-    ],
+    "tags": [],
     "confidence": 0.78,
-    "lastAccessed": 1774872742486,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872742480
+  },
+  {
+    "content": "UnicodeDecodeError通常由编码问题引起，需要指定正确的编码格式",
+    "scope": "fact",
+    "ts": 1774872740140,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872740140
+  },
+  {
+    "content": "JSONDecodeError通常由非标准JSON格式引起，如包含注释或尾部逗号",
+    "scope": "fact",
+    "ts": 1774872740138,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872740138
+  },
+  {
+    "content": "处理中文JSON时需要使用ensure_ascii=False参数",
+    "scope": "fact",
+    "ts": 1774872740136,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872740136
+  },
+  {
+    "content": "json.loads()用于从字符串解析JSON数据",
+    "scope": "fact",
+    "ts": 1774872740133,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.72,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774872757721,
+    "validFrom": 1774872740133
+  },
+  {
+    "content": "Python读取JSON文件的基本方法是使用json.load()函数，需要指定文件编码为utf-8",
+    "scope": "fact",
+    "ts": 1774872740130,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872740130
+  },
+  {
+    "content": "[对话] 用户: Python怎么读JSON文件 → AI: **Python 读 JSON 的几种方式：**\n\n```python\nimport json\n\n# 基本用法\nwith",
+    "scope": "fact",
+    "ts": 1774872723166,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872723166
+  },
+  {
+    "content": "[对话] 用户: 烦死了 这个bug改了一天都没搞定 → AI: 什么bug？说说现象和报错，说不定换个视角能看出问题。\n\n卡一天通常不是难度问题，是思路钻牛角尖了。",
+    "scope": "fact",
+    "ts": 1774872673230,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.8,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 5,
+    "lastRecalled": 1774873162510,
+    "validFrom": 1774872673230
+  },
+  {
+    "content": "大哥睡眠不太好",
+    "scope": "fact",
+    "ts": 1774872598714,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774872598714
+  },
+  {
+    "content": "大哥下周要北京出差",
+    "scope": "event",
+    "ts": 1774872598711,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "大哥最近在忙项目延期的事",
+    "scope": "event",
+    "ts": 1774872598709,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[对话] 用户: 最近在忙什么呢 → AI: 我在，等大哥消息。\n\n大哥最近忙项目延期的事，还要准备下周北京出差，睡眠也不太好。有什么我能帮上的？",
+    "scope": "fact",
+    "ts": 1774872587601,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.74,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 2,
+    "lastRecalled": 1774872928341,
+    "validFrom": 1774872587601
+  },
+  {
+    "content": "可安装网站屏蔽插件如Cold Turkey",
+    "scope": "fact",
+    "ts": 1774869270490,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869270490
+  },
+  {
+    "content": "避免完全禁止手机，否则容易反弹",
+    "scope": "opinion",
+    "ts": 1774869270488,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "应对手机成瘾的立即可做措施：物理隔离、契约代替命令、替代活动先跟上",
+    "scope": "opinion",
+    "ts": 1774869270486,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "孩子玩手机成瘾问题需区分是管不住还是不想学，不同表现对应不同应对策略",
+    "scope": "opinion",
+    "ts": 1774869270479,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[对话] 用户: 孩子总玩手机不学习怎么办？ → AI: 这个问题比\"不写作业\"更复杂，因为手机设计出来就是让人上瘾的。\n\n**先分清楚：是管不住，还是不想学？**\n\n| 表现 ",
+    "scope": "fact",
+    "ts": 1774869253893,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.74,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 2,
+    "lastRecalled": 1774872628181,
+    "validFrom": 1774869253893
+  },
+  {
+    "content": "低风险投资工具示例：货币基金/国债逆回购（灵活，约2%）、指数基金定投（长期年化6-10%）、债券基金（波动小，4-6%）",
+    "scope": "fact",
+    "ts": 1774869194084,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869194084
+  },
+  {
+    "content": "新手应避开的投资坑：个股（研究不透）、期货/期权/外汇（杠杆）、任何‘保本高收益’",
+    "scope": "opinion",
+    "ts": 1774869194081,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "新手投资路径：先建立安全垫（存生活费、还高息负债、买保险），再理解自己（资金期限、风险承受力、查看频率），最后从低风险工具开始",
+    "scope": "opinion",
+    "ts": 1774869194073,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "投资第一原则：不用的钱才能投",
+    "scope": "opinion",
+    "ts": 1774869194068,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "[对话] 用户: 想学投资理财，新手应该从哪里开始？ → AI: **新手路径：先防守，再进攻。**\n\n---\n\n**第一步：建立安全垫（1-3个月）**\n\n| 动作 | 为什么 |\n|",
+    "scope": "fact",
+    "ts": 1774869180122,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869180122
+  },
+  {
+    "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义；type 支持联合类型和映射类型，interface 不支持这些特性",
+    "scope": "fact",
+    "ts": 1774869073183,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [
+      "合并",
+      "复定义",
+      "支持声明",
+      "自动扩展",
+      "不支持重",
+      "type",
+      "interface",
+      "typescript"
+    ],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869073183
+  },
+  {
+    "content": "TypeScript 中 type 支持联合类型和映射类型，interface 不支持这些特性",
+    "scope": "fact",
+    "ts": 1774869070392,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869070392
+  },
+  {
+    "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义",
+    "scope": "fact",
+    "ts": 1774869070383,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869070383
+  },
+  {
+    "content": "[对话] 用户: TypeScript 的 interface 和 type 有什么区别？ → AI: **大部分场景没区别，但有几个关键差异：**\n\n---\n\n**1. 扩展方式不同**\n\n```typescript\n//",
+    "scope": "fact",
+    "ts": 1774869060244,
+    "emotion": "neutral",
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.7,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0,
+    "validFrom": 1774869060244
+  },
+  {
+    "content": "Python中读取JSON文件可以使用json.load()函数",
+    "scope": "fact",
+    "ts": 1774868970230,
+    "emotion": "neutral",
+    "userId": "sdk_test",
+    "visibility": "global",
+    "tags": [],
+    "confidence": 0.78,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 4,
     "lastRecalled": 1774872678121,
-    "validFrom": 1774868970230,
-    "validUntil": 1774872742480,
-    "recallContexts": [
-      "学习 rust 我选了方案 因为性能更好而且成本更低 异步 解决方案",
-      "异步 解决方案 学习 rust 我选了方案 因为性能更好而且成本更低",
-      "Python怎么读JSON文件"
-    ],
-    "history": [
-      {
-        "content": "Python中读取JSON文件可以使用json.load()函数",
-        "ts": 1774868970230
-      }
-    ]
+    "validFrom": 1774868970230
   },
   {
-    "content": "[多次被提及] [对话] 用户: Python怎么读JSON？ → AI: 用json.load()",
+    "content": "[对话] 用户: Python怎么读JSON？ → AI: 用json.load()",
     "scope": "fact",
     "ts": 1774868960886,
     "emotion": "neutral",
@@ -46,23 +803,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.8,
-    "lastAccessed": 1774872757722,
-    "tier": "long_term",
+    "lastAccessed": null,
+    "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774872757722,
-    "validFrom": 1774868960886,
-    "recallContexts": [
-      "学习 rust 我选了方案 因为性能更好而且成本更低 异步 解决方案",
-      "异步 解决方案 学习 rust 我选了方案 因为性能更好而且成本更低",
-      "Python怎么读JSON文件",
-      "Docker容器重启后数据丢了怎么办"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: Python怎么读JSON？ → AI: 用json.load()",
-        "ts": 1774872757722
-      }
-    ]
+    "validFrom": 1774868960886
   },
   {
     "content": "Mutex适合保护共享变量如计数器、缓存、配置",
@@ -73,14 +818,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872678124,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872678124,
-    "validFrom": 1774867960951,
-    "recallContexts": [
-      "用户 大哥 cold turkey typescript channel mut"
-    ]
+    "validFrom": 1774867960951
   },
   {
     "content": "Channel适合生产者-消费者模型、协调goroutine、数据流处理、避免共享状态",
@@ -91,15 +833,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.74,
-    "lastAccessed": 1774872757725,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 2,
     "lastRecalled": 1774872757725,
-    "validFrom": 1774867960949,
-    "recallContexts": [
-      "用户 大哥 cold turkey typescript channel mut",
-      "用户 大哥 cold turkey typescript json channe"
-    ]
+    "validFrom": 1774867960949
   },
   {
     "content": "Go语言中共享数据用mutex，传递数据用channel",
@@ -110,16 +848,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.78,
-    "lastAccessed": 1774872757725,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 4,
     "lastRecalled": 1774872757725,
-    "validFrom": 1774867960947,
-    "recallContexts": [
-      "Python怎么读JSON文件",
-      "Docker容器重启后数据丢了怎么办",
-      "用户 大哥 cold turkey typescript json channe"
-    ]
+    "validFrom": 1774867960947
   },
   {
     "content": "[对话] 用户: Go 的 channel 和 mutex 什么时候该用哪个？ → AI: **一句话：共享数据用 mutex，传递数据用 channel。**\n\n---\n\n**Channel 适合：**\n\n| ",
@@ -130,16 +863,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.78,
-    "lastAccessed": 1774872757725,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 4,
     "lastRecalled": 1774872757725,
-    "validFrom": 1774867947623,
-    "recallContexts": [
-      "Python怎么读JSON文件",
-      "Docker容器重启后数据丢了怎么办",
-      "用户 大哥 cold turkey typescript json channe"
-    ]
+    "validFrom": 1774867947623
   },
   {
     "content": "前端项目多阶段构建示例：第一阶段使用node镜像构建，第二阶段使用nginx镜像运行",
@@ -179,14 +907,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774866616602,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774866616602
   },
   {
     "content": "[对话] 用户: Docker 怎么写多阶段构建？ → AI: **多阶段构建核心：一个 Dockerfile 里用多个 `FROM`，最终镜像只保留最后一个阶段。**\n\n**Go 应",
@@ -197,16 +922,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.78,
-    "lastAccessed": 1774872757725,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 4,
     "lastRecalled": 1774872757725,
-    "validFrom": 1774866600827,
-    "recallContexts": [
-      "Python怎么读JSON文件",
-      "Docker容器重启后数据丢了怎么办",
-      "用户 大哥 cold turkey typescript json channe"
-    ]
+    "validFrom": 1774866600827
   },
   {
     "content": "[对话] 用户: 孩子不愿意写作业怎么办？ → AI: **先判断原因，再对症下药：**\n\n| 表现 | 可能原因 | 应对 |\n|------|----------|----",
@@ -217,15 +937,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.74,
-    "lastAccessed": 1774872678122,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 2,
     "lastRecalled": 1774872678122,
-    "validFrom": 1774865195716,
-    "validUntil": 1774869286264,
-    "recallContexts": [
-      "Python怎么读JSON文件"
-    ]
+    "validFrom": 1774865195716
   },
   {
     "content": "订单系统需要顺序性、可靠性、削峰能力和可回溯性",
@@ -298,7 +1014,7 @@
     "validFrom": 1774865138371
   },
   {
-    "content": "[多次被提及] [对话] 用户: Kafka 和 RabbitMQ 选哪个？场景是订单系统 → AI: **订单系统选 Kafka。**\n\n**核心原因：**\n\n| 维度 | Kafka | RabbitMQ |\n|----",
+    "content": "[对话] 用户: Kafka 和 RabbitMQ 选哪个？场景是订单系统 → AI: **订单系统选 Kafka。**\n\n**核心原因：**\n\n| 维度 | Kafka | RabbitMQ |\n|----",
     "scope": "fact",
     "ts": 1774865117999,
     "emotion": "neutral",
@@ -306,23 +1022,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.8,
-    "lastAccessed": 1774873126294,
-    "tier": "long_term",
+    "lastAccessed": null,
+    "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774873126294,
-    "validFrom": 1774865117999,
-    "recallContexts": [
-      "Python怎么读JSON文件",
-      "对话 用户",
-      "对话 用户 可安装网站屏蔽插件如 cold 用户偏好直接发送文件 图片或链接进行",
-      "对话 用户 用户偏好直接发送文件 图片或链接进行处理"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: Kafka 和 RabbitMQ 选哪个？场景是订单系统 → AI: **订单系统选 Kafka。**\n\n**核心原因：**\n\n| 维度 | Kafka | RabbitMQ |\n|----",
-        "ts": 1774873126294
-      }
-    ]
+    "validFrom": 1774865117999
   },
   {
     "content": "用户有睡眠问题，经常凌晨三点醒",
@@ -338,7 +1042,7 @@
     "recallCount": 0
   },
   {
-    "content": "[多次被提及] [对话] 用户: 我最近睡眠很差，总是凌晨三点醒 → AI: 凌晨三点醒是典型的问题，先排除几个常见原因：\n\n**先自查：**\n- 晚上喝酒或咖啡因？（酒精让你入睡快，但会在后半夜打",
+    "content": "[对话] 用户: 我最近睡眠很差，总是凌晨三点醒 → AI: 凌晨三点醒是典型的问题，先排除几个常见原因：\n\n**先自查：**\n- 晚上喝酒或咖啡因？（酒精让你入睡快，但会在后半夜打",
     "scope": "fact",
     "ts": 1774865040367,
     "emotion": "neutral",
@@ -346,24 +1050,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.8,
-    "lastAccessed": 1774873126293,
-    "tier": "long_term",
+    "lastAccessed": null,
+    "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774873126293,
-    "validFrom": 1774865040367,
-    "recallContexts": [
-      "对话 用户 异步 解决方案 学习 rust",
-      "对话 用户",
-      "对话 用户 大哥睡眠不太好 用户名为 wang",
-      "对话 用户 可安装网站屏蔽插件如 cold 用户偏好直接发送文件 图片或链接进行",
-      "对话 用户 用户偏好直接发送文件 图片或链接进行处理"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: 我最近睡眠很差，总是凌晨三点醒 → AI: 凌晨三点醒是典型的问题，先排除几个常见原因：\n\n**先自查：**\n- 晚上喝酒或咖啡因？（酒精让你入睡快，但会在后半夜打",
-        "ts": 1774873126294
-      }
-    ]
+    "validFrom": 1774865040367
   },
   {
     "content": "吃烤鸭推荐四季民福，性价比高于全聚德，可用'美味不用等'取号",
@@ -426,11 +1117,17 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.7,
-    "lastAccessed": null,
+    "confidence": 0.7749999999999999,
+    "lastAccessed": 1774878248471,
     "tier": "short_term",
-    "recallCount": 0,
-    "validFrom": 1774864961458
+    "recallCount": 2,
+    "lastRecalled": 1774878248471,
+    "validFrom": 1774864961458,
+    "bayesAlpha": 3.0999999999999996,
+    "bayesBeta": 0.9000000000000001,
+    "recallContexts": [
+      "下个月要去日本旅行，需要准备什么？"
+    ]
   },
   {
     "content": "[承诺] 我要去北京出差，需要什么？",
@@ -523,15 +1220,11 @@
     "visibility": "channel",
     "tags": [],
     "confidence": 0.74,
-    "lastAccessed": 1774872542556,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 2,
     "lastRecalled": 1774872542556,
-    "validFrom": 1774864519662,
-    "recallContexts": [
-      "学习 rust 我选了方案 因为性能更好而且成本更低 异步 解决方案",
-      "异步 解决方案 学习 rust 我选了方案 因为性能更好而且成本更低"
-    ]
+    "validFrom": 1774864519662
   },
   {
     "content": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作",
@@ -707,32 +1400,19 @@
     "validFrom": 1774862738915
   },
   {
-    "content": "[多次被提及] [对话] 用户: 叫我大哥 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你大哥）\n- 时区：Europe/Paris (GMT+1)",
+    "content": "[对话] 用户: 叫我大哥 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你大哥）\n- 时区：Europe/Paris (GMT+1)",
     "scope": "fact",
     "ts": 1774862727369,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.8,
-    "lastAccessed": 1774872928343,
-    "tier": "long_term",
-    "recallCount": 5,
-    "lastRecalled": 1774872928343,
-    "validFrom": 1774862727369,
-    "recallContexts": [
-      "对话 用户 异步 解决方案 学习 rust",
-      "用户 大哥 cold turkey typescript channel mut",
-      "用户 大哥 cold turkey typescript json channe",
-      "对话 用户",
-      "对话 用户 大哥睡眠不太好 用户名为 wang"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: 叫我大哥 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你大哥）\n- 时区：Europe/Paris (GMT+1)",
-        "ts": 1774872928343
-      }
-    ]
+    "confidence": 0.8200000000000001,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 6,
+    "lastRecalled": 1774874936029,
+    "validFrom": 1774862727369
   },
   {
     "content": "wang 当前面临项目延期压力",
@@ -742,13 +1422,14 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.7,
+    "confidence": 0.72,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0
+    "recallCount": 1,
+    "lastRecalled": 1774874936030
   },
   {
-    "content": "[多次被提及] [对话] 用户: 我最近压力很大，项目快延期了 → AI: 项目延期压力确实很难受。能说说具体情况吗？比如延期风险有多大、主要卡在哪里、团队还是个人问题。\n\n了解细节才能给实际建议",
+    "content": "[对话] 用户: 我最近压力很大，项目快延期了 → AI: 项目延期压力确实很难受。能说说具体情况吗？比如延期风险有多大、主要卡在哪里、团队还是个人问题。\n\n了解细节才能给实际建议",
     "scope": "fact",
     "ts": 1774862580267,
     "emotion": "neutral",
@@ -756,24 +1437,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.8,
-    "lastAccessed": 1774873126294,
-    "tier": "long_term",
+    "lastAccessed": null,
+    "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774873126294,
-    "validFrom": 1774862580267,
-    "recallContexts": [
-      "对话 用户 异步 解决方案 学习 rust",
-      "对话 用户",
-      "对话 用户 大哥睡眠不太好 用户名为 wang",
-      "对话 用户 可安装网站屏蔽插件如 cold 用户偏好直接发送文件 图片或链接进行",
-      "对话 用户 用户偏好直接发送文件 图片或链接进行处理"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: 我最近压力很大，项目快延期了 → AI: 项目延期压力确实很难受。能说说具体情况吗？比如延期风险有多大、主要卡在哪里、团队还是个人问题。\n\n了解细节才能给实际建议",
-        "ts": 1774873126294
-      }
-    ]
+    "validFrom": 1774862580267
   },
   {
     "content": "常见优化手段：无索引/索引未命中时使用CREATE INDEX，检查WHERE字段类型匹配",
@@ -924,16 +1592,11 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.78,
-    "lastAccessed": 1774873162512,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 4,
     "lastRecalled": 1774873162512,
-    "validFrom": 1774861784577,
-    "recallContexts": [
-      "对话 用户",
-      "对话 用户 可安装网站屏蔽插件如 cold 用户偏好直接发送文件 图片或链接进行",
-      "对话 用户 用户偏好直接发送文件 图片或链接进行处理"
-    ]
+    "validFrom": 1774861784577
   },
   {
     "content": "decay_test_old_memory_for_unit_test",
@@ -958,14 +1621,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860632011,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860632011
   },
   {
     "content": "docker image prune 清理悬空镜像（无标签、无容器使用）；docker image prune -a 清理所有未使用镜像（包括有标签但无容器使用）",
@@ -976,14 +1636,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.57,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860630626,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860630626
   },
   {
     "content": "Docker清理命令的风险等级：docker image prune风险低，docker image prune -a风险中，docker system prune风险中；常用命令：docker system df查看空间，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a清理所有未使用资源",
@@ -994,14 +1651,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757720,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757720,
-    "validFrom": 1774860628889,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860628889
   },
   {
     "content": "docker images --format 查看哪些镜像最占空间",
@@ -1012,14 +1666,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860627587,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860627587
   },
   {
     "content": "docker system prune -a --volumes 一键清理（停止容器+无用网络+悬空镜像+未使用卷）",
@@ -1030,14 +1681,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860627586,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860627586
   },
   {
     "content": "docker image prune -a 清理所有未使用镜像（包括有标签但无容器使用）",
@@ -1048,14 +1696,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860627583,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860627583
   },
   {
     "content": "docker image prune 清理悬空镜像（无标签、无容器使用）",
@@ -1066,14 +1711,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.57,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860627581,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860627581
   },
   {
     "content": "docker system df 查看Docker占用空间",
@@ -1084,14 +1726,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757722,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757722,
-    "validFrom": 1774860627579,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860627579
   },
   {
     "content": "Docker清理命令的风险等级：docker image prune风险低，docker image prune -a风险中（可能删除下次要用的镜像），docker system prune风险中",
@@ -1102,14 +1741,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860626015,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860626015
   },
   {
     "content": "Docker清理无用镜像的常用命令：docker system df查看空间占用，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a --volumes一键全面清理",
@@ -1120,14 +1756,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757720,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757720,
-    "validFrom": 1774860626012,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860626012
   },
   {
     "content": "Docker清理命令的风险等级：docker image prune风险低，docker image prune -a风险中，docker system prune风险中",
@@ -1138,14 +1771,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860624903,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860624903
   },
   {
     "content": "Docker清理无用镜像的常用命令：docker system df查看空间，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a --volumes一键全面清理",
@@ -1156,17 +1786,14 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774872757721,
-    "validFrom": 1774860624898,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
-    ]
+    "validFrom": 1774860624898
   },
   {
-    "content": "[多次被提及] [对话] 用户: Docker 怎么清理无用镜像？ → AI: **清理无用 Docker 镜像：**\n\n```bash\n# 查看占用空间\ndocker system df\n\n# 清理",
+    "content": "[对话] 用户: Docker 怎么清理无用镜像？ → AI: **清理无用 Docker 镜像：**\n\n```bash\n# 查看占用空间\ndocker system df\n\n# 清理",
     "scope": "fact",
     "ts": 1774860612318,
     "emotion": "neutral",
@@ -1174,27 +1801,14 @@
     "visibility": "private",
     "tags": [],
     "confidence": 0.8,
-    "lastAccessed": 1774872958653,
-    "tier": "long_term",
+    "lastAccessed": null,
+    "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774872958653,
-    "validFrom": 1774860612318,
-    "recallContexts": [
-      "对话 用户 异步 解决方案 学习 rust",
-      "Docker容器重启后数据丢了怎么办",
-      "对话 用户",
-      "对话 用户 大哥睡眠不太好 用户名为 wang",
-      "对话 用户 可安装网站屏蔽插件如 cold 用户偏好直接发送文件 图片或链接进行"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: Docker 怎么清理无用镜像？ → AI: **清理无用 Docker 镜像：**\n\n```bash\n# 查看占用空间\ndocker system df\n\n# 清理",
-        "ts": 1774872958653
-      }
-    ]
+    "validFrom": 1774860612318
   },
   {
-    "content": "[多次被提及] 学习Rust可以从Rust Book开始",
+    "content": "学习Rust可以从Rust Book开始",
     "scope": "fact",
     "ts": 1774860518886,
     "emotion": "neutral",
@@ -1202,22 +1816,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.8800000000000001,
-    "lastAccessed": 1774872628183,
-    "tier": "long_term",
+    "lastAccessed": null,
+    "tier": "short_term",
     "recallCount": 9,
     "lastRecalled": 1774872628183,
-    "validFrom": 1774860518886,
-    "recallContexts": [
-      "学习 rust 我选了方案 因为性能更好而且成本更低 异步 解决方案",
-      "异步 解决方案 学习 rust 我选了方案 因为性能更好而且成本更低",
-      "对话 用户 异步 解决方案 学习 rust"
-    ],
-    "history": [
-      {
-        "content": "学习Rust可以从Rust Book开始",
-        "ts": 1774872628183
-      }
-    ]
+    "validFrom": 1774860518886
   },
   {
     "content": "Rust是一门值得学习的编程语言",
@@ -1228,14 +1831,10 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.8600000000000001,
-    "lastAccessed": 1774872542555,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 8,
-    "lastRecalled": 1774872542555,
-    "recallContexts": [
-      "学习 rust 我选了方案 因为性能更好而且成本更低 异步 解决方案",
-      "异步 解决方案 学习 rust 我选了方案 因为性能更好而且成本更低"
-    ]
+    "lastRecalled": 1774872542555
   },
   {
     "content": "用户正在学习Rust",
@@ -1273,16 +1872,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.76,
-    "lastAccessed": 1774872628183,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 3,
     "lastRecalled": 1774872628183,
-    "validFrom": 1774860496200,
-    "recallContexts": [
-      "学习 rust 我选了方案 因为性能更好而且成本更低 异步 解决方案",
-      "异步 解决方案 学习 rust 我选了方案 因为性能更好而且成本更低",
-      "对话 用户 异步 解决方案 学习 rust"
-    ]
+    "validFrom": 1774860496200
   },
   {
     "content": "CPU并行计算解决方案：使用multiprocessing多进程",
@@ -1321,15 +1915,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774872678124,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 23,
     "lastRecalled": 1774872678124,
-    "validFrom": 1774860496194,
-    "recallContexts": [
-      "Python怎么读JSON文件",
-      "用户 大哥 cold turkey typescript channel mut"
-    ]
+    "validFrom": 1774860496194
   },
   {
     "content": "GIL（Global Interpreter Lock）是CPython的全局解释器锁，确保同一时刻只有一个线程执行Python字节码",
@@ -1340,14 +1930,11 @@
     "visibility": "global",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774872678121,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 22,
     "lastRecalled": 1774872678121,
-    "validFrom": 1774860496189,
-    "recallContexts": [
-      "Python怎么读JSON文件"
-    ]
+    "validFrom": 1774860496189
   },
   {
     "content": "decay_test_old_memory_for_unit_test",
@@ -1372,14 +1959,11 @@
     "visibility": "channel",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774872678121,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 22,
     "lastRecalled": 1774872678121,
-    "validFrom": 1774860485291,
-    "recallContexts": [
-      "Python怎么读JSON文件"
-    ]
+    "validFrom": 1774860485291
   },
   {
     "content": "Python排序函数已提供，支持自定义比较器_e2e_test",
@@ -1390,40 +1974,26 @@
     "visibility": "global",
     "tags": [],
     "confidence": 0.9400000000000002,
-    "lastAccessed": 1774872678121,
+    "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 12,
     "lastRecalled": 1774872678121,
-    "validFrom": 1774860485290,
-    "recallContexts": [
-      "Python怎么读JSON文件"
-    ]
+    "validFrom": 1774860485290
   },
   {
-    "content": "[多次被提及] 用户 wang 知道重要信息会被主动标记记忆，也可以随时提醒记录",
+    "content": "用户 wang 知道重要信息会被主动标记记忆，也可以随时提醒记录",
     "scope": "preference",
     "ts": 1774860216278,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.8200000000000001,
-    "lastAccessed": 1774872928343,
-    "tier": "long_term",
-    "recallCount": 6,
-    "lastRecalled": 1774872928343,
-    "validFrom": 1774860216278,
-    "recallContexts": [
-      "用户 大哥 cold turkey typescript channel mut",
-      "用户 大哥 cold turkey typescript json channe",
-      "对话 用户 大哥睡眠不太好 用户名为 wang"
-    ],
-    "history": [
-      {
-        "content": "用户 wang 知道重要信息会被主动标记记忆，也可以随时提醒记录",
-        "ts": 1774872928343
-      }
-    ]
+    "confidence": 0.8400000000000001,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 7,
+    "lastRecalled": 1774874936029,
+    "validFrom": 1774860216278
   },
   {
     "content": "用户 wang 知道对话会被记住，除非明确说'别记了'或'隐私模式'",
@@ -1433,16 +2003,12 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.8,
-    "lastAccessed": 1774872928344,
+    "confidence": 0.8200000000000001,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 5,
-    "lastRecalled": 1774872928344,
-    "validFrom": 1774860216274,
-    "recallContexts": [
-      "用户 大哥 cold turkey typescript channel mut",
-      "对话 用户 大哥睡眠不太好 用户名为 wang"
-    ]
+    "recallCount": 6,
+    "lastRecalled": 1774874936029,
+    "validFrom": 1774860216274
   },
   {
     "content": "与wang的对话从今天开始",
@@ -1452,11 +2018,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.74,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774860429113
+    "recallCount": 2,
+    "lastRecalled": 1774874936030
   },
   {
     "content": "与 wang 的对话从今天开始",
@@ -1554,11 +2120,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.72,
+    "confidence": 0.74,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 1,
-    "lastRecalled": 1774860429113,
+    "recallCount": 2,
+    "lastRecalled": 1774874936029,
     "validFrom": 1774860160276
   },
   {
@@ -1601,8 +2167,7 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
-    "validFrom": 1774860108888,
-    "validUntil": 1774869289318
+    "validFrom": 1774860108888
   },
   {
     "content": "用户名为wang",
@@ -1627,11 +2192,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.8200000000000001,
+    "confidence": 0.8600000000000001,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 6,
-    "lastRecalled": 1774862702369
+    "recallCount": 8,
+    "lastRecalled": 1774874914714
   },
   {
     "content": "[historical] A friend named Lao Meng invited wang to play basketball tomorrow.",
@@ -1713,1329 +2278,418 @@
     "lastRecalled": 1774860157782
   },
   {
-    "content": "[对话] 用户: TypeScript 的 interface 和 type 有什么区别？ → AI: **大部分场景没区别，但有几个关键差异：**\n\n---\n\n**1. 扩展方式不同**\n\n```typescript\n//",
+    "content": "[对话] 用户: 最近想学吉他，零基础怎么入门？ → AI: **零基础吉他入门路径：**\n\n**第一步：选琴（别买烧火棍）**\n- 预算 500-1000：雅马哈 F310、卡马 ",
     "scope": "fact",
-    "ts": 1774869060244,
+    "ts": 1774878212104,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774869060244,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878212104,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774869060244,
+    "validFrom": 1774878212104,
     "validUntil": 0,
     "situationCtx": {
-      "mood": 0.147786886267652,
+      "mood": 0.04135011579111534,
       "energy": 0.971
     },
     "tags": [
       "对话",
       "用户",
-      "不同",
-      "有什么区",
-      "大部分场",
-      "景没区别",
-      "但有几个",
-      "关键差异",
-      "扩展方式",
-      "type"
-    ]
-  },
-  {
-    "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义；type 支持联合类型和映射类型，interface 不支持这些特性",
-    "scope": "fact",
-    "ts": 1774869073185,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869073185,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774869070383,
-    "validUntil": 1774869073183,
-    "situationCtx": {
-      "mood": 0.147786886267652,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "合并",
-      "复定义",
-      "射类型",
-      "些特性",
-      "支持声明",
-      "自动扩展",
-      "不支持重",
-      "支持联合",
-      "类型和映",
-      "不支持这"
-    ],
-    "history": [
-      {
-        "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义",
-        "ts": 1774869070383
-      }
-    ]
-  },
-  {
-    "content": "TypeScript 中 type 支持联合类型和映射类型，interface 不支持这些特性",
-    "scope": "expired",
-    "ts": 1774869070392,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869070392,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774869070392,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.147786886267652,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "射类型",
-      "些特性",
-      "支持联合",
-      "类型和映",
-      "不支持这",
-      "type",
-      "interface",
-      "typescript"
-    ]
-  },
-  {
-    "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义；type 支持联合类型和映射类型，interface 不支持这些特性",
-    "scope": "fact",
-    "ts": 1774869073183,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869073183,
-    "tier": "short_term",
-    "recallCount": 0,
-    "validFrom": 1774869073183,
-    "validUntil": 0,
-    "tags": [
-      "合并",
-      "复定义",
-      "支持声明",
-      "自动扩展",
-      "不支持重",
-      "type",
-      "interface",
-      "typescript"
-    ],
-    "history": [
-      {
-        "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义",
-        "ts": 1774869070383
-      }
-    ]
-  },
-  {
-    "content": "[对话] 用户: 想学投资理财，新手应该从哪里开始？ → AI: **新手路径：先防守，再进攻。**\n\n---\n\n**第一步：建立安全垫（1-3个月）**\n\n| 动作 | 为什么 |\n|",
-    "scope": "fact",
-    "ts": 1774869180122,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774869180122,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774869180122,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.14193361754482606,
-      "energy": 0.971
-    },
-    "tags": [
-      "对话",
-      "用户",
-      "理财",
-      "个月",
-      "动作",
-      "先防守",
-      "再进攻",
+      "吉他",
+      "选琴",
+      "预算",
+      "卡马",
+      "么入门",
       "第一步",
-      "为什么",
-      "想学投资"
+      "雅马哈",
+      "最近想学"
     ]
   },
   {
-    "content": "投资第一原则：不用的钱才能投",
-    "scope": "opinion",
-    "ts": 1774869194068,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869194068,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.14193361754482606,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "原则",
-      "才能投",
-      "投资第一",
-      "不用的钱"
-    ]
-  },
-  {
-    "content": "新手投资路径：先建立安全垫（存生活费、还高息负债、买保险），再理解自己（资金期限、风险承受力、查看频率），最后从低风险工具开始",
-    "scope": "opinion",
-    "ts": 1774869194073,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869194073,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.14193361754482606,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "路径",
-      "全垫",
-      "开始",
-      "买保险",
-      "新手投资",
-      "先建立安",
-      "存生活费",
-      "还高息负",
-      "再理解自",
-      "资金期限"
-    ]
-  },
-  {
-    "content": "新手应避开的投资坑：个股（研究不透）、期货/期权/外汇（杠杆）、任何‘保本高收益’",
-    "scope": "opinion",
-    "ts": 1774869194081,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869194081,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.14193361754482606,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "个股",
-      "期货",
-      "期权",
-      "外汇",
-      "杠杆",
-      "任何",
-      "新手应避",
-      "开的投资",
-      "研究不透",
-      "保本高收"
-    ]
-  },
-  {
-    "content": "低风险投资工具示例：货币基金/国债逆回购（灵活，约2%）、指数基金定投（长期年化6-10%）、债券基金（波动小，4-6%）",
+    "content": "零基础吉他入门路径：选琴（预算500-1000，推荐雅马哈F310、卡马D1C，尺寸建议41寸或40寸，避免低价劣质琴）",
     "scope": "fact",
-    "ts": 1774869194084,
+    "ts": 1774878232745,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "global",
     "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869194084,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878232745,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774869194084,
+    "validFrom": 1774878232745,
     "validUntil": 0,
     "situationCtx": {
-      "mood": 0.14193361754482606,
+      "mood": 0.04135011579111534,
       "energy": 0.971
     },
-    "emotion": "neutral",
+    "emotion": "warm",
     "tags": [
-      "灵活",
-      "定投",
-      "波动小",
-      "低风险投",
-      "资工具示",
-      "货币基金",
-      "国债逆回",
-      "指数基金",
-      "长期年化",
-      "债券基金"
+      "选琴",
+      "预算",
+      "卡马",
+      "寸或",
+      "劣质琴",
+      "d1c",
+      "零基础吉",
+      "他入门路",
+      "推荐雅马",
+      "尺寸建议"
     ]
   },
   {
-    "content": "[对话] 用户: 孩子总玩手机不学习怎么办？ → AI: 这个问题比\"不写作业\"更复杂，因为手机设计出来就是让人上瘾的。\n\n**先分清楚：是管不住，还是不想学？**\n\n| 表现 ",
+    "content": "前两周每日15分钟练习计划：爬格子、53231323、C/G/Am/Em和弦切换",
     "scope": "fact",
-    "ts": 1774869253893,
+    "ts": 1774878232756,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878232756,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "ai_observed",
+    "emotionIntensity": 0.3,
+    "validFrom": 1774878232756,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.04135011579111534,
+      "energy": 0.971
+    },
+    "emotion": "warm",
+    "tags": [
+      "计划",
+      "爬格子",
+      "前两周每",
+      "分钟练习",
+      "和弦切换"
+    ]
+  },
+  {
+    "content": "第一首歌建议选择C-G-Am-Em循环的歌曲，如《平凡之路》《拥抱》",
+    "scope": "opinion",
+    "ts": 1774878232762,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878232762,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "system",
+    "emotionIntensity": 0.3,
+    "situationCtx": {
+      "mood": 0.04135011579111534,
+      "energy": 0.971
+    },
+    "emotion": "warm",
+    "tags": [
+      "拥抱",
+      "第一首歌",
+      "建议选择",
+      "循环的歌",
+      "平凡之路",
+      "c-g-am-em"
+    ]
+  },
+  {
+    "content": "1-2个月后系统学习乐理（音阶、和弦构成）和技巧（大横按、扫弦、指弹）",
+    "scope": "fact",
+    "ts": 1774878232765,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878232765,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "ai_observed",
+    "emotionIntensity": 0.3,
+    "validFrom": 1774878232765,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.04135011579111534,
+      "energy": 0.971
+    },
+    "emotion": "warm",
+    "tags": [
+      "音阶",
+      "扫弦",
+      "指弹",
+      "和技巧",
+      "大横按",
+      "个月后系",
+      "统学习乐",
+      "和弦构成"
+    ]
+  },
+  {
+    "content": "避坑建议：别一开始练solo，节奏感更重要；手指疼会持续两周左右；先免费学习（如B站），坚持3个月再考虑付费",
+    "scope": "opinion",
+    "ts": 1774878232767,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "global",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878232767,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "system",
+    "emotionIntensity": 0.3,
+    "situationCtx": {
+      "mood": 0.04135011579111534,
+      "energy": 0.971
+    },
+    "emotion": "warm",
+    "tags": [
+      "重要",
+      "左右",
+      "坚持",
+      "虑付费",
+      "避坑建议",
+      "别一开始",
+      "节奏感更",
+      "手指疼会",
+      "持续两周",
+      "先免费学"
+    ]
+  },
+  {
+    "content": "[承诺] 月要去日本旅行，需要什么？",
+    "scope": "commitment",
+    "ts": 1774878248473,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "channel",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878248473,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "system",
+    "emotionIntensity": 0.3,
+    "situationCtx": {
+      "mood": 0.0933320423678925,
+      "energy": 0.971
+    },
+    "tags": [
+      "承诺",
+      "本旅行",
+      "月要去日",
+      "需要什么"
+    ]
+  },
+  {
+    "content": "[对话] 用户: 下个月要去日本旅行，需要准备什么？ → AI: **日本旅行准备清单：**\n\n**证件/入境**\n- 护照（有效期6个月以上）\n- 签证（单次/多次，提前2周办）\n- ",
+    "scope": "fact",
+    "ts": 1774878293510,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
-    "confidence": 0.74,
-    "lastAccessed": 1774872628181,
-    "tier": "short_term",
-    "recallCount": 2,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774869253893,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.08017670776387642,
-      "energy": 0.971
-    },
-    "because": "手机设计出来就是让人上瘾的",
-    "tags": [
-      "对话",
-      "用户",
-      "表现",
-      "更复杂",
-      "上瘾的",
-      "孩子总玩",
-      "手机不学",
-      "习怎么办",
-      "这个问题",
-      "不写作业"
-    ],
-    "lastRecalled": 1774872628181,
-    "recallContexts": [
-      "烦死了 这个bug改了一天都没搞定"
-    ]
-  },
-  {
-    "content": "孩子玩手机成瘾问题需区分是管不住还是不想学，不同表现对应不同应对策略",
-    "scope": "opinion",
-    "ts": 1774869270479,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869270479,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.08017670776387642,
-      "energy": 0.971
-    },
-    "emotion": "important",
-    "tags": [
-      "孩子玩手",
-      "机成瘾问",
-      "题需区分",
-      "是管不住",
-      "还是不想",
-      "不同表现",
-      "对应不同",
-      "应对策略"
-    ]
-  },
-  {
-    "content": "应对手机成瘾的立即可做措施：物理隔离、契约代替命令、替代活动先跟上",
-    "scope": "opinion",
-    "ts": 1774869270486,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869270486,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.08017670776387642,
-      "energy": 0.971
-    },
-    "emotion": "important",
-    "tags": [
-      "命令",
-      "先跟上",
-      "应对手机",
-      "成瘾的立",
-      "即可做措",
-      "物理隔离",
-      "契约代替",
-      "替代活动"
-    ]
-  },
-  {
-    "content": "避免完全禁止手机，否则容易反弹",
-    "scope": "opinion",
-    "ts": 1774869270488,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869270488,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.08017670776387642,
-      "energy": 0.971
-    },
-    "emotion": "important",
-    "tags": [
-      "反弹",
-      "避免完全",
-      "禁止手机",
-      "否则容易"
-    ]
-  },
-  {
-    "content": "可安装网站屏蔽插件如Cold Turkey",
-    "scope": "fact",
-    "ts": 1774869270490,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774869270490,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878293510,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774869270490,
+    "validFrom": 1774878293510,
     "validUntil": 0,
     "situationCtx": {
-      "mood": 0.08017670776387642,
+      "mood": 0.0933320423678925,
       "energy": 0.971
-    },
-    "emotion": "important",
-    "tags": [
-      "件如",
-      "可安装网",
-      "站屏蔽插",
-      "cold",
-      "turkey"
-    ]
-  },
-  {
-    "content": "[对话] 用户: 最近在忙什么呢 → AI: 我在，等大哥消息。\n\n大哥最近忙项目延期的事，还要准备下周北京出差，睡眠也不太好。有什么我能帮上的？",
-    "scope": "fact",
-    "ts": 1774872587601,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.74,
-    "lastAccessed": 1774872928341,
-    "tier": "short_term",
-    "recallCount": 2,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872587601,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.051581087362251865,
-      "energy": 0.9798974666666667
     },
     "tags": [
       "对话",
       "用户",
-      "我在",
-      "出差",
-      "太好",
-      "什么呢",
-      "期的事",
-      "最近在忙",
-      "等大哥消",
-      "大哥最近"
-    ],
-    "lastRecalled": 1774872928341,
-    "recallContexts": [
-      "我在考虑要不要跳槽"
-    ]
-  },
-  {
-    "content": "大哥最近在忙项目延期的事",
-    "scope": "event",
-    "ts": 1774872598709,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872598709,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.051581087362251865,
-      "energy": 0.9798974666666667
-    },
-    "emotion": "neutral",
-    "tags": [
-      "大哥最近",
-      "在忙项目",
-      "延期的事"
-    ]
-  },
-  {
-    "content": "大哥下周要北京出差",
-    "scope": "event",
-    "ts": 1774872598711,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872598711,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.051581087362251865,
-      "energy": 0.9798974666666667
-    },
-    "emotion": "neutral"
-  },
-  {
-    "content": "大哥睡眠不太好",
-    "scope": "fact",
-    "ts": 1774872598714,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872598714,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872598714,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.051581087362251865,
-      "energy": 0.9798974666666667
-    },
-    "emotion": "neutral"
-  },
-  {
-    "content": "[多次被提及] [对话] 用户: 烦死了 这个bug改了一天都没搞定 → AI: 什么bug？说说现象和报错，说不定换个视角能看出问题。\n\n卡一天通常不是难度问题，是思路钻牛角尖了。",
-    "scope": "fact",
-    "ts": 1774872673230,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.8,
-    "lastAccessed": 1774873162510,
-    "tier": "long_term",
-    "recallCount": 5,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872673230,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": -0.15751226013703423,
-      "energy": 0.9619798666666667
-    },
-    "tags": [
-      "对话",
-      "用户",
-      "这个",
       "什么",
-      "烦死了",
-      "和报错",
-      "度问题",
-      "bug",
-      "改了一天",
-      "都没搞定"
-    ],
-    "lastRecalled": 1774873162510,
-    "recallContexts": [
-      "最近睡不好 有什么建议吗",
-      "帮我理解什么是微服务",
-      "我之前说过我服务器配置是什么"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: 烦死了 这个bug改了一天都没搞定 → AI: 什么bug？说说现象和报错，说不定换个视角能看出问题。\n\n卡一天通常不是难度问题，是思路钻牛角尖了。",
-        "ts": 1774873162510
-      }
+      "证件",
+      "入境",
+      "护照",
+      "签证",
+      "单次",
+      "多次",
+      "提前"
     ]
   },
   {
-    "content": "[对话] 用户: Python怎么读JSON文件 → AI: **Python 读 JSON 的几种方式：**\n\n```python\nimport json\n\n# 基本用法\nwith",
+    "content": "日本旅行需准备护照（有效期6个月以上）、签证（提前2周办）、入境二维码（Visit Japan Web）",
     "scope": "fact",
-    "ts": 1774872723166,
+    "ts": 1774878314583,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774872723166,
+    "visibility": "global",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878314583,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774872723166,
+    "validFrom": 1774878314583,
     "validUntil": 0,
     "situationCtx": {
-      "mood": 0.049916264661319674,
+      "mood": 0.0933320423678925,
       "energy": 0.971
     },
+    "emotion": "neutral",
     "tags": [
-      "对话",
-      "用户",
-      "文件",
-      "怎么读",
-      "的几种方",
-      "基本用法",
-      "json",
-      "python",
-      "import"
+      "签证",
+      "提前",
+      "周办",
+      "有效期",
+      "web",
+      "日本旅行",
+      "需准备护",
+      "个月以上",
+      "入境二维",
+      "visit"
     ]
   },
   {
-    "content": "Python读取JSON文件的基本方法是使用json.load()函数，需要指定文件编码为utf-8",
-    "scope": "expired",
-    "ts": 1774872740130,
+    "content": "日本现金建议带5-10万日元，信用卡需Visa/Master，Suica/Pasmo卡可iPhone电子卡使用",
+    "scope": "fact",
+    "ts": 1774878314590,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "global",
     "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872740130,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878314590,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774872740130,
+    "validFrom": 1774878314590,
     "validUntil": 0,
     "situationCtx": {
-      "mood": 0.049916264661319674,
+      "mood": 0.0933320423678925,
       "energy": 0.971
     },
     "emotion": "neutral",
     "tags": [
-      "读取",
-      "使用",
-      "函数",
-      "文件的基",
-      "本方法是",
-      "需要指定",
-      "文件编码",
-      "json",
-      "utf-8",
-      "python"
+      "卡可",
+      "建议带",
+      "万日元",
+      "日本现金",
+      "信用卡需",
+      "电子卡使",
+      "visa",
+      "suica",
+      "pasmo",
+      "master"
     ]
   },
   {
-    "content": "json.loads()用于从字符串解析JSON数据",
-    "scope": "fact",
-    "ts": 1774872740133,
+    "content": "日本旅行推荐APP：Google Maps（地图）、换乘案内（交通）、Google翻译（翻译）、Tabelog（美食）",
+    "scope": "opinion",
+    "ts": 1774878314594,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "global",
     "channelId": "",
-    "confidence": 0.72,
-    "lastAccessed": 1774872757721,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878314594,
     "tier": "short_term",
-    "recallCount": 1,
-    "source": "ai_observed",
+    "recallCount": 0,
+    "source": "system",
     "emotionIntensity": 0.3,
-    "validFrom": 1774872740133,
-    "validUntil": 0,
     "situationCtx": {
-      "mood": 0.049916264661319674,
+      "mood": 0.0933320423678925,
       "energy": 0.971
     },
     "emotion": "neutral",
     "tags": [
-      "数据",
-      "用于从字",
-      "符串解析",
-      "json",
-      "json.loads"
-    ],
-    "lastRecalled": 1774872757721,
-    "recallContexts": [
-      "Docker容器重启后数据丢了怎么办"
+      "推荐",
+      "地图",
+      "交通",
+      "翻译",
+      "美食",
+      "app",
+      "日本旅行",
+      "换乘案内",
+      "maps",
+      "google"
     ]
   },
   {
-    "content": "处理中文JSON时需要使用ensure_ascii=False参数",
+    "content": "日本需带转换插头（两扁插）、便携垃圾袋（街上垃圾桶少）、充电宝（租借不便）",
     "scope": "fact",
-    "ts": 1774872740136,
+    "ts": 1774878314596,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "global",
     "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872740136,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878314596,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774872740136,
+    "validFrom": 1774878314596,
     "validUntil": 0,
     "situationCtx": {
-      "mood": 0.049916264661319674,
+      "mood": 0.0933320423678925,
       "energy": 0.971
     },
     "emotion": "neutral",
     "tags": [
-      "参数",
-      "ci",
-      "处理中文",
-      "时需要使",
-      "json",
-      "false",
-      "ensure_ascii"
+      "桶少",
+      "两扁插",
+      "充电宝",
+      "日本需带",
+      "转换插头",
+      "便携垃圾",
+      "街上垃圾",
+      "租借不便"
     ]
   },
   {
-    "content": "JSONDecodeError通常由非标准JSON格式引起，如包含注释或尾部逗号",
+    "content": "[对话] 用户: 测试SDK → AI: 收到",
     "scope": "fact",
-    "ts": 1774872740138,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872740138,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872740138,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.049916264661319674,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "标准",
-      "逗号",
-      "通常由非",
-      "格式引起",
-      "如包含注",
-      "释或尾部",
-      "json",
-      "jsondecodeerror"
-    ]
-  },
-  {
-    "content": "UnicodeDecodeError通常由编码问题引起，需要指定正确的编码格式",
-    "scope": "fact",
-    "ts": 1774872740140,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872740140,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872740140,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.049916264661319674,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "码格式",
-      "通常由编",
-      "码问题引",
-      "需要指定",
-      "正确的编",
-      "unicodedecodeerror"
-    ]
-  },
-  {
-    "content": "Python读取JSON文件的基本方法是使用json.load()函数，通常需要指定文件编码为utf-8",
-    "scope": "fact",
-    "ts": 1774872742480,
+    "ts": 1774878328383,
     "userId": "sdk_test",
-    "visibility": "global",
-    "confidence": 0.78,
-    "lastAccessed": 1774872742480,
-    "tier": "short_term",
-    "recallCount": 0,
-    "validFrom": 1774872742480,
-    "validUntil": 0,
-    "tags": [],
-    "history": [
-      {
-        "content": "Python中读取JSON文件可以使用json.load()函数",
-        "ts": 1774868970230
-      }
-    ]
-  },
-  {
-    "content": "[对话] 用户: Docker容器重启后数据丢了怎么办 → AI: **数据丢失原因：容器层是临时的，重启后重置。**\n\n**解决方案：用 Volume 持久化**\n\n```dockerf",
-    "scope": "fact",
-    "ts": 1774872802767,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774872802767,
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.6666666666666666,
+    "lastAccessed": 1774878328383,
     "tier": "short_term",
     "recallCount": 0,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
-    "validFrom": 1774872802767,
+    "validFrom": 1774878328383,
     "validUntil": 0,
     "situationCtx": {
-      "mood": -0.009678834122205389,
+      "mood": 0.03977100160396956,
       "energy": 0.971
     },
     "tags": [
       "对话",
       "用户",
-      "原因",
-      "临时的",
-      "持久化",
-      "容器重启",
-      "后数据丢",
-      "了怎么办",
-      "数据丢失",
-      "容器层是"
-    ]
-  },
-  {
-    "content": "Docker容器重启后数据丢失是因为容器层是临时的，重启后会重置",
-    "scope": "fact",
-    "ts": 1774872816340,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872816340,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872816340,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": -0.009678834122205389,
-      "energy": 0.971
-    },
-    "because": "容器层是临时的，重启后会重置",
-    "emotion": "neutral",
-    "tags": [
-      "重置",
-      "临时的",
-      "容器重启",
-      "后数据丢",
-      "失是因为",
-      "容器层是",
-      "重启后会",
-      "docker"
-    ]
-  },
-  {
-    "content": "解决Docker容器数据丢失的方案是使用Volume进行持久化存储",
-    "scope": "fact",
-    "ts": 1774872816344,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872816344,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872816344,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": -0.009678834122205389,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "解决",
-      "化存储",
-      "容器数据",
-      "丢失的方",
-      "案是使用",
-      "进行持久",
-      "docker",
-      "volume"
-    ]
-  },
-  {
-    "content": "Docker Volume有两种主要类型：绑定挂载（指定主机路径）和命名卷（Docker管理）",
-    "scope": "fact",
-    "ts": 1774872816350,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872816350,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872816350,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": -0.009678834122205389,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "路径",
-      "管理",
-      "要类型",
-      "有两种主",
-      "绑定挂载",
-      "指定主机",
-      "和命名卷",
-      "docker",
-      "volume"
-    ]
-  },
-  {
-    "content": "绑定挂载适合开发环境和配置文件，命名卷适合生产环境",
-    "scope": "opinion",
-    "ts": 1774872816354,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872816354,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": -0.009678834122205389,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "置文件",
-      "绑定挂载",
-      "适合开发",
-      "环境和配",
-      "命名卷适",
-      "合生产环"
-    ]
-  },
-  {
-    "content": "[对话] 用户: 最近睡不好 有什么建议吗 → AI: 大哥之前说过凌晨三点醒的问题，现在还是这样吗？\n\n先确认几点：\n- 晚上几点睡？躺下多久能睡着？\n- 醒了之后能再睡着吗",
-    "scope": "fact",
-    "ts": 1774872942999,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774872942999,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872942999,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04588297795322566,
-      "energy": 0.971
-    },
-    "tags": [
-      "对话",
-      "用户",
-      "议吗",
-      "问题",
-      "这样吗",
-      "能睡着",
-      "最近睡不",
-      "有什么建",
-      "大哥之前",
-      "说过凌晨"
-    ]
-  },
-  {
-    "content": "[对话] 用户: 我在考虑要不要跳槽 → AI: **先想清楚几个问题：**\n\n| 问题 | 为什么重要 |\n|------|-----------|\n| 想跳是因为现在",
-    "scope": "fact",
-    "ts": 1774872973384,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774872973384,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774872973384,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "tags": [
-      "对话",
-      "用户",
-      "问题",
-      "为现在",
-      "我在考虑",
-      "要不要跳",
-      "先想清楚",
-      "几个问题",
-      "为什么重",
-      "想跳是因"
-    ]
-  },
-  {
-    "content": "用户正在考虑跳槽，处于职业决策阶段",
-    "scope": "event",
-    "ts": 1774872982534,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774872982534,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "emotion": "important",
-    "tags": [
-      "用户正在",
-      "考虑跳槽",
-      "处于职业",
-      "决策阶段"
-    ]
-  },
-  {
-    "content": "[对话] 用户: 帮我理解什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**\n\n---\n\n**单体 vs 微服务**\n\n| | 单体 | 微服",
-    "scope": "fact",
-    "ts": 1774873003686,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.76,
-    "lastAccessed": 1774873162514,
-    "tier": "short_term",
-    "recallCount": 3,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873003686,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "tags": [
-      "对话",
-      "用户",
-      "服务",
-      "单体",
-      "微服",
-      "微服务",
-      "帮我理解",
-      "什么是微",
-      "把一个大",
-      "系统拆成"
-    ],
-    "lastRecalled": 1774873162514,
-    "recallContexts": [
-      "我之前说过我服务器配置是什么",
-      "说过服务器配置是什么"
-    ]
-  },
-  {
-    "content": "微服务是将一个大系统拆分成多个独立部署的小服务",
-    "scope": "fact",
-    "ts": 1774873022460,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873022460,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873022460,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "小服务",
-      "微服务是",
-      "将一个大",
-      "系统拆分",
-      "成多个独",
-      "立部署的"
-    ]
-  },
-  {
-    "content": "单体架构与微服务架构在代码库、部署、技术栈、团队协作、故障影响方面的对比",
-    "scope": "fact",
-    "ts": 1774873022463,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873022463,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873022463,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "码库",
-      "部署",
-      "技术栈",
-      "单体架构",
-      "与微服务",
-      "架构在代",
-      "团队协作",
-      "故障影响",
-      "方面的对"
-    ]
-  },
-  {
-    "content": "采用微服务的原因包括团队规模大、模块独立扩容需求、技术债务重",
-    "scope": "fact",
-    "ts": 1774873022466,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873022466,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873022466,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "规模大",
-      "采用微服",
-      "务的原因",
-      "包括团队",
-      "模块独立",
-      "扩容需求",
-      "技术债务"
-    ]
-  },
-  {
-    "content": "微服务的代价包括分布式复杂度、运维成本、调试困难、数据一致性问题",
-    "scope": "fact",
-    "ts": 1774873022468,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873022468,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873022468,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "杂度",
-      "性问题",
-      "微服务的",
-      "代价包括",
-      "分布式复",
-      "运维成本",
-      "调试困难",
-      "数据一致"
-    ]
-  },
-  {
-    "content": "微服务适合50人以上团队等场景，不适合小型简单项目",
-    "scope": "opinion",
-    "ts": 1774873022470,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "global",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873022470,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "situationCtx": {
-      "mood": 0.04541710517194293,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "微服务适",
-      "人以上团",
-      "队等场景",
-      "不适合小",
-      "型简单项"
-    ]
-  },
-  {
-    "content": "[对话] 用户: 我之前说过我服务器配置是什么 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
-    "scope": "fact",
-    "ts": 1774873207547,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774873207547,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873171337,
-    "validUntil": 1774873207546,
-    "situationCtx": {
-      "mood": 0.07240417120016338,
-      "energy": 0.971
-    },
-    "tags": [
-      "对话",
-      "用户",
-      "什么",
-      "sql",
-      "我之前说",
-      "过我服务",
-      "器配置是",
-      "大哥之前",
-      "没提过服",
-      "务器配置"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: 我想减肥但总是坚持不了 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
-        "ts": 1774873171337
-      }
-    ]
-  },
-  {
-    "content": "[对话] 用户: 我之前说过我服务器配置是什么 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
-    "scope": "fact",
-    "ts": 1774873207546,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "confidence": 0.7,
-    "lastAccessed": 1774873207546,
-    "tier": "short_term",
-    "recallCount": 0,
-    "validFrom": 1774873207546,
-    "validUntil": 0,
-    "tags": [
-      "对话",
-      "用户",
-      "持不了",
-      "sql",
-      "我想减肥",
-      "但总是坚",
-      "大哥之前",
-      "没提过服",
-      "务器配置",
-      "我们只聊"
-    ],
-    "history": [
-      {
-        "content": "[对话] 用户: 我想减肥但总是坚持不了 → AI: 大哥之前没提过服务器配置。\n\n我们只聊过 Docker、MySQL、Kafka 这些技术，但没具体说过你的服务器环境。\n",
-        "ts": 1774873171337
-      }
-    ]
-  },
-  {
-    "content": "用户可能拥有服务器配置需求，但未具体说明过",
-    "scope": "fact",
-    "ts": 1774873219165,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873219165,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873219165,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.07240417120016338,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "说明过",
-      "用户可能",
-      "拥有服务",
-      "器配置需",
-      "但未具体"
-    ]
-  },
-  {
-    "content": "用户曾讨论过Docker、MySQL、Kafka技术",
-    "scope": "fact",
-    "ts": 1774873219175,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "visibility": "private",
-    "channelId": "",
-    "confidence": 0.7,
-    "lastAccessed": 1774873219175,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "ai_observed",
-    "emotionIntensity": 0.3,
-    "validFrom": 1774873219175,
-    "validUntil": 0,
-    "situationCtx": {
-      "mood": 0.07240417120016338,
-      "energy": 0.971
-    },
-    "emotion": "neutral",
-    "tags": [
-      "论过",
-      "技术",
-      "sql",
-      "用户曾讨",
-      "mysql",
-      "kafka",
-      "docker"
+      "测试",
+      "收到",
+      "sdk"
     ]
   }
 ]

@@ -69,6 +69,45 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'prefers', object: `${m[1].trim()} over ${m[2].trim()}`,
     confidence: 0.7, source: 'ai_inferred', ts: Date.now(), validUntil: 0,
   })},
+  // "我X岁" / "我今年X" → age
+  { pattern: /我(?:今年)?(\d{1,3})岁/, extract: (m) => ({
+    subject: 'user', predicate: 'age', object: m[1],
+    confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
+  // "我养了X" / "我家有X（猫/狗/宠物）" → has_pet
+  { pattern: /我(?:养了|家有|有一只|有一条|有一个)\s*([^，。！？,;；\n]{2,10}?)(?:猫|狗|鱼|鸟|兔|仓鼠|宠物)?/, extract: (m) => {
+    const obj = m[1].trim()
+    if (obj.length < 1 || /^(什么|哪|这|那)/.test(obj)) return null
+    return { subject: 'user', predicate: 'has_pet', object: m[0].replace(/^我(?:养了|家有|有一只|有一条|有一个)\s*/, '').replace(/[。，！？\s]+$/, ''),
+      confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0 }
+  }},
+  // "我每天X" / "我习惯X" → habit
+  { pattern: /我(?:每天|习惯|一般都|通常|经常)\s*([^，。！？,;；\n]{2,20})/, extract: (m) => ({
+    subject: 'user', predicate: 'habit', object: m[1].replace(/[。，！？\s]+$/, ''),
+    confidence: 0.75, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
+  // "我毕业于X" / "我读的X大学" → educated_at
+  { pattern: /我(?:毕业于|毕业|读的|上的)\s*([^，。！？,;；\n]{2,15})(?:大学|学院|学校)?/, extract: (m) => ({
+    subject: 'user', predicate: 'educated_at', object: m[1].replace(/[。，！？\s]+$/, ''),
+    confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
+  // "我老婆/老公/女朋友/男朋友" → relationship
+  { pattern: /我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)\s*([^，。！？,;；\n]{0,15})/, extract: (m) => {
+    const relType = m[0].match(/老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人/)?.[0] || 'partner'
+    const detail = m[1]?.trim()
+    return { subject: 'user', predicate: 'relationship', object: detail ? `${relType}：${detail}` : relType,
+      confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0 }
+  }},
+  // "我住X楼/X层" → lives_in (floor)
+  { pattern: /我住(?:在)?(\d{1,3})(?:楼|层)/, extract: (m) => ({
+    subject: 'user', predicate: 'lives_in', object: `${m[1]}楼`,
+    confidence: 0.7, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
+  // "我用Mac/Windows/Linux" → uses_os
+  { pattern: /我(?:用|在用|一直用)\s*(Mac|MacBook|Windows|Linux|Ubuntu|macOS|win|WSL)/i, extract: (m) => ({
+    subject: 'user', predicate: 'uses_os', object: m[1],
+    confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
 ]
 
 /**
@@ -169,6 +208,8 @@ export function getFactSummary(subject = 'user'): string {
   const LABELS: Record<string, string> = {
     likes: '喜欢', dislikes: '不喜欢', uses: '使用', works_at: '工作于',
     lives_in: '住在', occupation: '职业', prefers: '偏好', has: '拥有',
+    age: '年龄', has_pet: '养宠', habit: '习惯', educated_at: '毕业于',
+    relationship: '伴侣', uses_os: '操作系统',
   }
 
   return Object.entries(grouped)

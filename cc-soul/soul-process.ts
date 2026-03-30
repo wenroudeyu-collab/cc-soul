@@ -13,7 +13,13 @@ export { handleProcess, handleFeedback }
 async function handleProcess(body: any): Promise<any> {
   const message = body.message || ''
   const userId = body.user_id || body.userId || 'default'
+  const agentId = body.agent_id || body.agentId || 'default'
   const customPrompt = body.system_prompt || ''
+
+  // Multi-agent isolation: switch data directory if agent_id provided
+  if (agentId !== 'default') {
+    try { const { setActiveAgent } = await import('./persistence.ts'); setActiveAgent(agentId) } catch {}
+  }
 
   // Bootstrap mode: empty message → return system_prompt only
   if (!message) {
@@ -162,7 +168,13 @@ async function handleFeedback(body: any): Promise<any> {
   const userMessage = body.user_message || ''
   const aiReply = body.ai_reply || ''
   const userId = body.user_id || body.userId || 'default'
+  const agentId = body.agent_id || body.agentId || 'default'
   const satisfaction = body.satisfaction || ''
+
+  // Multi-agent isolation
+  if (agentId !== 'default') {
+    try { const { setActiveAgent } = await import('./persistence.ts'); setActiveAgent(agentId) } catch {}
+  }
 
   if (!userMessage || !aiReply) return { error: 'user_message and ai_reply required' }
 

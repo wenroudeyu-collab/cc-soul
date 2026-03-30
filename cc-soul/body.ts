@@ -45,13 +45,31 @@ export const body: BodyState = {
 
 let lastTickTime = Date.now()
 
-// ── #7 昼夜节律 ──
+// ── #7 昼夜节律（非线性 cos 曲线）──
+// cos 曲线模拟人类昼夜精力变化：peak=10:00, trough=03:00
+// energyMod 范围 [-0.50, +0.15]，深夜指数衰减
 function circadianModifier(): { energyMod: number; moodMod: number } {
   const hour = new Date().getHours()
-  if (hour >= 23 || hour < 6) return { energyMod: -0.2, moodMod: -0.1 }
-  if (hour >= 6 && hour < 9) return { energyMod: 0.1, moodMod: 0.1 }
-  if (hour >= 14 && hour < 16) return { energyMod: -0.1, moodMod: 0 }
-  return { energyMod: 0, moodMod: 0 }
+  const minute = new Date().getMinutes()
+  const t = hour + minute / 60
+
+  // cos curve: peak at 10:00, trough at 22:00
+  const phase = ((t - 10) / 24) * 2 * Math.PI
+  const cosVal = Math.cos(phase) // [-1, +1]
+
+  // Base map: cosVal=+1(10:00)→+0.15, cosVal=-1(22:00)→-0.35
+  let energyMod = cosVal * 0.25 - 0.10
+
+  // Deep night (0-5) exponential decay: extra penalty peaks at ~2:30
+  if (t >= 0 && t < 5) {
+    const nightDepth = 1 - Math.abs(t - 2.5) / 2.5
+    energyMod -= nightDepth * 0.15
+  }
+
+  // Mood follows energy but dampened
+  const moodMod = energyMod * 0.4
+
+  return { energyMod, moodMod }
 }
 
 export function bodyTick() {
@@ -86,9 +104,11 @@ export function bodyTick() {
   // Anomaly decay
   body.anomaly = Math.max(0, body.anomaly - (getParam('body.anomaly_decay_per_min') || 0.01) * minutes)
 
-  // #6 情绪向量自然衰减（向中性漂移）
-  for (const k of Object.keys(emotionVector) as (keyof EmotionVector)[]) {
-    emotionVector[k] *= 0.98
+  // #6 情绪向量自然衰减（向中性漂移）— 遍历所有 per-user vectors (#11)
+  for (const ev of _emotionVectors.values()) {
+    for (const k of Object.keys(ev) as (keyof EmotionVector)[]) {
+      ev[k] *= 0.98
+    }
   }
 
   recordMoodSnapshot()
@@ -103,32 +123,35 @@ export function bodyOnMessage(complexity: number, _userId?: string) {
   const complexityLoadIncrease = getParam('body.message_load_complexity') || 0.15
   body.energy = Math.max(0, body.energy - baseEnergyCost - complexity * complexityEnergyCost)
   body.load = Math.min(1.0, body.load + baseLoadIncrease + complexity * complexityLoadIncrease)
-  // #6 情绪向量：高复杂度 → arousal↑ novelty↑
+  // #6 情绪向量：高复杂度 → arousal↑ novelty↑ (#11: per-user)
+  const ev = getEmotionVector(_userId)
   const clamp = (v: number) => Math.max(-1, Math.min(1, v))
-  emotionVector.arousal = clamp(emotionVector.arousal + complexity * 0.15)
-  emotionVector.novelty = clamp(emotionVector.novelty + complexity * 0.1)
+  ev.arousal = clamp(ev.arousal + complexity * 0.15)
+  ev.novelty = clamp(ev.novelty + complexity * 0.1)
 }
 
-export function bodyOnCorrection() {
+export function bodyOnCorrection(userId?: string) {
   body.alertness = Math.min(1.0, body.alertness + getParam('body.correction_alertness_boost'))
   body.mood = Math.max(-1, body.mood - getParam('body.correction_mood_penalty'))
   body.anomaly = Math.min(1.0, body.anomaly + (getParam('body.correction_anomaly_boost') || 0.15))
-  // #6 情绪向量：被纠正 → certainty↓ dominance↓ pleasure↓
+  // #6 情绪向量：被纠正 → certainty↓ dominance↓ pleasure↓ (#11: per-user)
+  const ev = getEmotionVector(userId)
   const clamp = (v: number) => Math.max(-1, Math.min(1, v))
-  emotionVector.certainty = clamp(emotionVector.certainty - 0.2)
-  emotionVector.dominance = clamp(emotionVector.dominance - 0.1)
-  emotionVector.pleasure = clamp(emotionVector.pleasure - 0.15)
+  ev.certainty = clamp(ev.certainty - 0.2)
+  ev.dominance = clamp(ev.dominance - 0.1)
+  ev.pleasure = clamp(ev.pleasure - 0.15)
 }
 
-export function bodyOnPositiveFeedback() {
+export function bodyOnPositiveFeedback(userId?: string) {
   body.energy = Math.min(1.0, body.energy + getParam('body.positive_energy_boost'))
   body.mood = Math.min(1.0, body.mood + getParam('body.positive_mood_boost'))
   body.anomaly = Math.max(0, body.anomaly - (getParam('body.positive_anomaly_reduction') || 0.05))
-  // #6 情绪向量：正面反馈 → pleasure↑ certainty↑ dominance↑
+  // #6 情绪向量：正面反馈 → pleasure↑ certainty↑ dominance↑ (#11: per-user)
+  const ev = getEmotionVector(userId)
   const clamp = (v: number) => Math.max(-1, Math.min(1, v))
-  emotionVector.pleasure = clamp(emotionVector.pleasure + 0.2)
-  emotionVector.certainty = clamp(emotionVector.certainty + 0.1)
-  emotionVector.dominance = clamp(emotionVector.dominance + 0.1)
+  ev.pleasure = clamp(ev.pleasure + 0.2)
+  ev.certainty = clamp(ev.certainty + 0.1)
+  ev.dominance = clamp(ev.dominance + 0.1)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -142,10 +165,14 @@ interface UserEmotionState {
   trend: number          // -1 (declining) to 1 (improving)
   history: number[]      // last 10 valence readings
   lastUpdate: number
+  /** Consecutive same-direction emotion count (for momentum/cumulative effect) */
+  consecutiveSameDir: number
+  /** Last valence direction: 1=positive, -1=negative, 0=neutral */
+  lastDir: number
 }
 
 const userEmotions = new Map<string, UserEmotionState>()
-const DEFAULT_EMOTION: UserEmotionState = { valence: 0, arousal: 0, trend: 0, history: [], lastUpdate: 0 }
+const DEFAULT_EMOTION: UserEmotionState = { valence: 0, arousal: 0, trend: 0, history: [], lastUpdate: 0, consecutiveSameDir: 0, lastDir: 0 }
 
 function getUserEmotion(senderId?: string): UserEmotionState {
   const key = senderId || '_default'
@@ -235,9 +262,33 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
     if (oldestKey) userEmotions.delete(oldestKey)
   }
 
-  // === Emotional contagion: user's emotion affects cc's mood ===
-  const contagionStrength = (1 - Math.max(0, Math.min(1, getParam('body.resilience')))) * getParam('body.contagion_max_shift') // max mood shift per message
-  const moodDelta = valence * contagionStrength
+  // === Emotional contagion: nonlinear + cumulative + asymmetric ===
+
+  // 1. Track consecutive same-direction emotions for momentum
+  const currentDir = valence > 0.05 ? 1 : valence < -0.05 ? -1 : 0
+  if (currentDir !== 0 && currentDir === userEmotion.lastDir) {
+    userEmotion.consecutiveSameDir++
+  } else {
+    userEmotion.consecutiveSameDir = currentDir !== 0 ? 1 : 0
+  }
+  userEmotion.lastDir = currentDir
+
+  // 2. Cumulative momentum: consecutive same-direction emotions amplify effect
+  const momentum = Math.min(userEmotion.consecutiveSameDir * 0.15, 0.6)
+
+  // 3. Resilience decays under sustained emotional pressure
+  const baseResilience = Math.max(0, Math.min(1, getParam('body.resilience')))
+  const effectiveResilience = baseResilience * (1 - momentum)
+
+  // 4. Nonlinear activation: sign(v) * |v|^0.7 — small emotions compressed, strong emotions amplified
+  const absV = Math.abs(valence)
+  const nonlinearValence = Math.sign(valence) * Math.pow(absV, 0.7)
+
+  // 5. Direction asymmetry: negative emotions are 1.3x stickier
+  const asymmetryFactor = nonlinearValence < 0 ? 1.3 : 1.0
+
+  const contagionStrength = (1 - effectiveResilience) * getParam('body.contagion_max_shift')
+  const moodDelta = nonlinearValence * contagionStrength * asymmetryFactor * (1 + momentum)
 
   body.mood = Math.max(-1, Math.min(1, body.mood + moodDelta))
 
@@ -457,7 +508,9 @@ export function bodyGetParams(): BodyParams {
 
 export function bodyStateString(): string {
   const params = bodyGetParams()
-  return `精力:${body.energy.toFixed(2)} 心情:${params.soulTone} 负载:${body.load.toFixed(2)} 警觉:${body.alertness.toFixed(2)} 异常感:${body.anomaly.toFixed(2)} 情绪:${getEmotionSummary()} → 风格:${params.responseStyle}`
+  // #10: Only expose 4 useful dimensions to prompt (energy, mood, alertness, emotion).
+  // load/anomaly retained internally but not injected — reduces prompt noise.
+  return `精力:${body.energy.toFixed(2)} 心情:${params.soulTone} 警觉:${body.alertness.toFixed(2)} 情绪:${getEmotionSummary()} → 风格:${params.responseStyle}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

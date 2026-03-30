@@ -165,3 +165,60 @@ export function cleanupProspectiveMemories() {
 export function getProspectiveMemoryCount(): number {
   return pmStore.filter(pm => !pm.firedAt && (!pm.expiresAt || pm.expiresAt > Date.now())).length
 }
+
+/** Get all active (unfired, unexpired) PM trigger keywords for dedup with follow-ups */
+export function getActivePMTriggers(): string[] {
+  const now = Date.now()
+  return pmStore
+    .filter(pm => !pm.firedAt && (!pm.expiresAt || pm.expiresAt > now))
+    .flatMap(pm => pm.trigger.split('|').filter(k => k.length >= 2))
+    .map(k => k.toLowerCase())
+}
+
+/**
+ * Auto-detect recurring themes from recent memories and create prospective memories.
+ * If the same keyword appears 3+ times in the last 20 memories, it's likely an
+ * ongoing concern — create a prospective memory so we can proactively bring it up.
+ */
+export function autoDetectFromMemories(memories: Memory[]) {
+  // Take last 20 non-expired memories
+  const recent = memories
+    .filter(m => m.scope !== 'expired' && m.scope !== 'decayed')
+    .slice(-20)
+  if (recent.length < 5) return
+
+  // Extract keywords (Chinese 2+ char, English 3+ char)
+  const keywordCounts = new Map<string, number>()
+  for (const m of recent) {
+    const words = (m.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{4,}/g) || []).map(w => w.toLowerCase())
+    const unique = new Set(words)
+    for (const w of unique) {
+      // Skip common stop words
+      if (/^(什么|这个|那个|可以|不是|没有|就是|但是|然后|因为|所以|如果|the|and|for|this|that|with)$/.test(w)) continue
+      keywordCounts.set(w, (keywordCounts.get(w) || 0) + 1)
+    }
+  }
+
+  // Find keywords appearing 3+ times
+  for (const [keyword, count] of keywordCounts) {
+    if (count < 3) continue
+
+    // Skip if we already have a PM with this trigger
+    const exists = pmStore.some(pm =>
+      !pm.firedAt && pm.trigger.includes(keyword) && pm.source === 'auto'
+    )
+    if (exists) continue
+
+    const pm: ProspectiveMemory = {
+      id: makeId(),
+      trigger: keyword,
+      remind: `用户近期多次提到"${keyword}"（${count}次），可能是持续关注的话题`,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 14 * 86400000, // 14 days
+      source: 'auto',
+    }
+    pmStore.push(pm)
+    savePM()
+    console.log(`[cc-soul][prospective] auto-created from recurring theme: "${keyword}" (${count}x in last 20)`)
+  }
+}

@@ -96,6 +96,9 @@ export interface Memory {
   // ── Emotional intensity at creation (高情绪记忆衰减更慢) ──
   emotionIntensity?: number  // 0-1, used by smart-forget to slow decay
   because?: string           // causal reason: WHY this decision/preference was made
+  // ── Bayesian confidence: Beta distribution parameters ──
+  bayesAlpha?: number        // Beta α (default 2), incremented on positive evidence
+  bayesBeta?: number         // Beta β (default 1), incremented on negative evidence
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

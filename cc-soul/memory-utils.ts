@@ -4,7 +4,7 @@
  */
 
 import type { Memory } from './types.ts'
-import { getParam } from './auto-tune.ts'
+// getParam no longer needed — timeDecay now delegates to smart-forget.ts Weibull model
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Constants
@@ -32,7 +32,7 @@ export function shuffleArray<T>(arr: T[]): T[] {
 // Trigram Fuzzy Matching — fills the gap between exact-tag and TF-IDF
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Extract character trigrams from text (works for CJK + Latin) — LRU cached (max 500) */
+/** Extract character trigrams from text (works for CJK + Latin) — LRU cached (max 2000, batch evict 20%) */
 const _trigramCache = new Map<string, { set: Set<string>; ts: number }>()
 export function trigrams(text: string): Set<string> {
   const s = text.toLowerCase().replace(/\s+/g, ' ').trim()
@@ -42,10 +42,10 @@ export function trigrams(text: string): Set<string> {
   for (let i = 0; i <= s.length - 3; i++) {
     set.add(s.slice(i, i + 3))
   }
-  if (_trigramCache.size >= 500) {
-    // Batch evict 20% (100 entries) — sorted by oldest access time
+  if (_trigramCache.size >= 2000) {
+    // Batch evict 20% (400 entries) — sorted by oldest access time
     const entries = [..._trigramCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
-    const evictCount = 100
+    const evictCount = Math.ceil(_trigramCache.size * 0.2)
     for (let i = 0; i < evictCount && i < entries.length; i++) {
       _trigramCache.delete(entries[i][0])
     }
@@ -110,13 +110,27 @@ export function expandQueryWithSynonyms(words: Set<string>): Set<string> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Time Decay — exponential decay with configurable half-life
+// Time Decay — unified Weibull model (delegates to smart-forget.ts)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Unified time decay using Weibull survival model from smart-forget.ts.
+ * Replaces the old exp(half-life) model for consistency across the codebase.
+ */
+let _sfMod: any = null
 export function timeDecay(mem: Memory): number {
+  // Lazy import (cached) to avoid circular dependency at module level
+  if (!_sfMod) {
+    try { _sfMod = require('./smart-forget.ts') } catch {
+      // ESM fallback: use inline Weibull (same formula as smart-forget.ts)
+      const ageDays = (Date.now() - (mem.lastAccessed || mem.ts || Date.now())) / 86400000
+      const lambda = 30 // default fact scope
+      return Math.exp(-Math.pow(ageDays / lambda, 1.5))
+    }
+  }
   const ageDays = (Date.now() - (mem.lastAccessed || mem.ts || Date.now())) / 86400000
-  // Exponential decay: half-life configurable (default 90 days)
-  return Math.pow(0.5, ageDays / getParam('memory.time_decay_halflife_days'))
+  const lambda = _sfMod.effectiveLambda(mem.scope || 'fact', mem.recallCount ?? 0, mem.emotionIntensity)
+  return _sfMod.weibullSurvival(ageDays, lambda, _sfMod.WEIBULL_K)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

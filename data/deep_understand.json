@@ -2,8 +2,8 @@
   "temporal": {
     "peakHours": [
       10,
-      11,
-      12
+      14,
+      11
     ],
     "stressDay": null,
     "lateNightFrequency": 0
@@ -12,8 +12,8 @@
     "gaps": []
   },
   "growth": {
-    "direction": "plateauing",
-    "details": "模式稳定"
+    "direction": "growing",
+    "details": "长度+43%，词汇0→1"
   },
   "unspoken": {
     "needs": []
@@ -26,6 +26,6 @@
     "stressLevel": 0,
     "signals": []
   },
-  "dynamicProfile": "活跃10/11/12时；我的灵魂深处，驱动我的是对“高效掌控”的执着。我渴望像优化代码一样，为生活的一切找到最佳路径，这源于一种深层的不安：害怕",
-  "updatedAt": 1774872580696
+  "dynamicProfile": "活跃10/14/11时；上升期；我的灵魂深处，驱动我的是对“掌控感”与“最优解”的执着追求。我渴望通过清晰的逻辑、高效的工具和明确的规则，在技术与生活的",
+  "updatedAt": 1774888944074
 }

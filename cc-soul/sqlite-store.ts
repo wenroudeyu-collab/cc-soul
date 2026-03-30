@@ -477,6 +477,16 @@ export function sqliteSearchContent(keywords: string[], limit = 20): { id: numbe
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RECALL — vector search (primary when available) + tag/keyword fallback
+// ── Weibull recency (unified with smart-forget.ts model, inlined to avoid circular import) ──
+const WEIBULL_K = 1.5
+const WEIBULL_LAMBDA: Record<string, number> = { fact: 30, preference: 90, correction: Infinity, episode: 14, emotion: 7 }
+function weibullRecency(ageDays: number, scope?: string): number {
+  const lambda = WEIBULL_LAMBDA[scope || 'fact'] ?? 30
+  if (!isFinite(lambda)) return 1.0
+  if (ageDays <= 0) return 1.0
+  return Math.exp(-Math.pow(ageDays / lambda, WEIBULL_K))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -547,7 +557,7 @@ export function tagRecall(msg: string, topN = 3, userId?: string, channelId?: st
     if (sim < 0.05) continue
 
     const ageDays = (Date.now() - mem.ts) / 86400000
-    const recency = Math.exp(-ageDays * 0.02)
+    const recency = weibullRecency(ageDays, mem.scope)
     const scopeBoost = (mem.scope === 'preference' || mem.scope === 'fact') ? 1.3
       : (mem.scope === 'correction') ? 1.5
       : (mem.scope === 'consolidated') ? 1.5
@@ -626,7 +636,7 @@ async function vectorRecall(msg: string, topN: number, userId?: string, channelI
       if (vecSim < 0.3) continue // too dissimilar
 
       const ageDays = (Date.now() - mem.ts) / 86400000
-      const recency = Math.exp(-ageDays * 0.02)
+      const recency = weibullRecency(ageDays, mem.scope)
       const scopeBoost = (mem.scope === 'correction') ? 1.5
         : (mem.scope === 'preference' || mem.scope === 'fact' || mem.scope === 'consolidated') ? 1.3
         : 1.0

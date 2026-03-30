@@ -85,7 +85,8 @@ async function generateProactiveItems(): Promise<ProactiveItem[]> {
     for (const [name, contact] of Object.entries(profile.social || {})) {
       const sc = contact as any
       if (sc.samples?.length >= 5) {
-        const recentMentions = profile.expression.samples.filter((s: string) => s.includes(name)).length
+        const allSamples = [...(profile.expression.samples?.casual || []), ...(profile.expression.samples?.technical || []), ...(profile.expression.samples?.emotional || []), ...(profile.expression.samples?.general || [])]
+        const recentMentions = allSamples.filter((s: string) => s.includes(name)).length
         if (recentMentions === 0) {
           items.push({ type: 'relationship', message: `用户最近没提到${name}（${sc.relation}）`, priority: 5, userId, createdAt: now })
         }

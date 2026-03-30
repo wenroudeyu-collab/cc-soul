@@ -202,6 +202,8 @@ interface ParamBanditState {
   arms: BanditArm[]
   currentArm: number  // index of currently active arm
   totalPulls: number
+  phase: 1 | 2          // hierarchical search phase
+  winnerMultiplier?: number  // Phase 1 winner direction (for Phase 2 refinement)
 }
 
 const BANDIT_STATE_PATH = resolve(DATA_DIR, 'bandit_state.json')
@@ -265,12 +267,12 @@ function isIntegerParam(key: string): boolean {
          key.includes('max_') || key.includes('top_n') || key.includes('min_')
 }
 
-/** Create bandit state for a single parameter */
+/** Create bandit state for a single parameter — Phase 1: 3 arms [0.8x, 1.0x, 1.2x] */
 function initBanditForParam(key: string): ParamBanditState | null {
   const defaultVal = DEFAULT_PARAMS[key]
   if (defaultVal === undefined) return null
 
-  const multipliers = [0.5, 0.75, 1.0, 1.25, 1.5]
+  const multipliers = [0.8, 1.0, 1.2]  // Phase 1: coarse search
   const isInt = isIntegerParam(key)
 
   return {
@@ -281,13 +283,65 @@ function initBanditForParam(key: string): ParamBanditState | null {
       beta: 1,
       pulls: 0,
     })),
-    currentArm: 2, // index 2 = 1.0x = default value
+    currentArm: 1, // index 1 = 1.0x = default value
     totalPulls: 0,
+    phase: 1 as const,
   }
+}
+
+/** Phase 2 refinement: zoom into winner direction with 3 finer arms */
+const PHASE2_THRESHOLD = 30  // samples needed to lock Phase 1 winner
+
+function maybePromoteToPhase2(state: ParamBanditState): boolean {
+  if (state.phase === 2) return false
+
+  // Find arm with most pulls that crossed threshold
+  const winnerArm = state.arms.reduce((best, arm, i) =>
+    arm.pulls > best.pulls ? { ...arm, idx: i, pulls: arm.pulls } : best,
+    { idx: 0, pulls: 0, value: 0, alpha: 1, beta: 1 } as BanditArm & { idx: number }
+  )
+  if (winnerArm.pulls < PHASE2_THRESHOLD) return false
+
+  // Confirm winner via win rate (must be best)
+  const winRates = state.arms.map(a => a.alpha / (a.alpha + a.beta))
+  const bestIdx = winRates.indexOf(Math.max(...winRates))
+  if (state.arms[bestIdx].pulls < PHASE2_THRESHOLD) return false
+
+  const defaultVal = DEFAULT_PARAMS[state.key]
+  if (defaultVal === undefined) return false
+
+  // Determine Phase 2 multipliers based on winner direction
+  const winnerMultiplier = state.arms[bestIdx].value / defaultVal
+  let phase2Multipliers: number[]
+  if (winnerMultiplier >= 1.15) {
+    phase2Multipliers = [1.1, 1.2, 1.3]  // winner was 1.2x → refine upward
+  } else if (winnerMultiplier <= 0.85) {
+    phase2Multipliers = [0.7, 0.8, 0.9]  // winner was 0.8x → refine downward
+  } else {
+    phase2Multipliers = [0.9, 1.0, 1.1]  // winner was 1.0x → refine around center
+  }
+
+  const isInt = isIntegerParam(state.key)
+  state.arms = phase2Multipliers.map(m => ({
+    value: isInt ? Math.max(1, Math.round(defaultVal * m)) : Math.max(0.001, +(defaultVal * m).toFixed(4)),
+    alpha: 1,
+    beta: 1,
+    pulls: 0,
+  }))
+  state.currentArm = 1
+  state.phase = 2
+  state.winnerMultiplier = winnerMultiplier
+  state.totalPulls = 0  // reset for Phase 2
+  console.log(`[cc-soul][auto-tune] ${state.key} promoted to Phase 2: winner=${winnerMultiplier.toFixed(2)}x → refine [${phase2Multipliers}]`)
+  return true
 }
 
 function loadBanditState() {
   banditState = loadJson<Record<string, ParamBanditState>>(BANDIT_STATE_PATH, {})
+  // Migrate legacy 5-arm states → Phase 1 (3-arm) on next init; existing states get phase=1 default
+  for (const state of Object.values(banditState)) {
+    if (!state.phase) state.phase = state.arms.length <= 3 ? 1 : 1  // treat old 5-arm as phase 1 too
+  }
   console.log(`[cc-soul][auto-tune] bandit state loaded: ${Object.keys(banditState).length} params tracked`)
 }
 
@@ -422,6 +476,9 @@ export function updateBanditReward(qualityScore: number, wasCorrection: boolean)
     // Continuous Beta update
     state.arms[armIdx].alpha += reward
     state.arms[armIdx].beta += (1 - reward)
+
+    // Hierarchical search: check if Phase 1 winner is ready for Phase 2 refinement
+    if (state.phase === 1) maybePromoteToPhase2(state)
   }
 
   saveBanditState()

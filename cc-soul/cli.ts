@@ -297,13 +297,33 @@ export function getActiveTaskStatus(): string {
   return [...running, ...queued].join(' | ')
 }
 
+const HARD_TIMEOUT_MS = 30000 // 30s hard ceiling — prevents infinite hangs when LLM stalls
+
 export function spawnCLI(prompt: string, callback: (output: string) => void, timeoutMs = 120000, label = 'ai-task') {
+  // Hard timeout: independent 30s safety net — if backend never calls back, force-resolve
+  // Does NOT override caller's timeoutMs (that's passed to the backend as-is)
+  let callbackSettled = false
+  const hardTimer = setTimeout(() => {
+    if (!callbackSettled) {
+      callbackSettled = true
+      console.log(`[cc-soul][ai] HARD TIMEOUT (${HARD_TIMEOUT_MS}ms) for ${label} — forcing callback('')`)
+      callback('')
+    }
+  }, HARD_TIMEOUT_MS)
+
+  const safeCallback = (result: string) => {
+    if (callbackSettled) return // already timed out, discard late result
+    callbackSettled = true
+    clearTimeout(hardTimer)
+    callback(result)
+  }
+
   // If fallback API is configured (from openclaw providers), prefer it for background tasks
   console.log(`[cc-soul][ai] spawnCLI: backend=${aiConfig.backend} fallback=${!!_fallbackApiConfig} label=${label}`)
   if (aiConfig.backend === 'cli' && _fallbackApiConfig) {
     callOpenAICompatibleDirect(_fallbackApiConfig, prompt, (result) => {
       if (onTaskDone) onTaskDone(label, 0, result.length > 0)
-      callback(result)
+      safeCallback(result)
     }, timeoutMs)
     return
   }
@@ -314,14 +334,14 @@ export function spawnCLI(prompt: string, callback: (output: string) => void, tim
     // Already one task running — queue it
     if (taskQueue.length >= MAX_QUEUE_SIZE) {
       console.log(`[cc-soul][ai] queue full (${MAX_QUEUE_SIZE}), dropping: ${label}`)
-      callback('')
+      safeCallback('')
       return
     }
-    taskQueue.push({ prompt, callback, timeoutMs, label })
+    taskQueue.push({ prompt, callback: safeCallback, timeoutMs, label })
     return
   }
   // No task running — execute immediately
-  executeTask(prompt, callback, timeoutMs, label)
+  executeTask(prompt, safeCallback, timeoutMs, label)
 }
 
 function executeTask(prompt: string, callback: (output: string) => void, timeoutMs: number, label: string) {

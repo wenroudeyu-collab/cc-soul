@@ -57,7 +57,7 @@ import {
   predictiveRecall, generatePrediction,
 
   loadCoreMemories, buildCoreMemoryContext, autoPromoteToCoreMemory,
-  loadEpisodes, buildEpisodeContext,
+  loadEpisodes, buildEpisodeContext, recordEpisode,
   addWorkingMemory, buildWorkingMemoryContext, cleanupWorkingMemory,
   getMemoriesByScope, processMemoryDecay,
   sqliteMaintenance, getStorageStatus, saveMemories,
@@ -326,6 +326,30 @@ export async function handlePreprocessed(event: any): Promise<void> {
         console.log(`[cc-soul][auto-topic-save] failed: ${e.message}`)
       }
     }
+
+    // ── Episodic memory: record completed episode on topic shift ──
+    if (isEnabled('episodic_memory')) {
+      try {
+        const recentHistory = memoryState.chatHistory.slice(-10)
+        if (recentHistory.length >= 2) {
+          const turns = recentHistory.map(h => [
+            { role: 'user' as const, content: h.user },
+            { role: 'assistant' as const, content: h.bot },
+          ]).flat()
+          // Extract topic label from recent messages
+          const topicWords = recentHistory.flatMap(h => (h.user || '').match(/[\u4e00-\u9fff]{2,4}|[A-Za-z]{3,}/g) || [])
+          const freq = new Map<string, number>()
+          for (const w of topicWords) { const k = w.toLowerCase(); freq.set(k, (freq.get(k) || 0) + 1) }
+          const topicLabel = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]).join(' ') || 'general'
+          // Check if there was a correction in this episode
+          const hadCorrection = recentHistory.some(h => /不对|错了|不是这样|纠正|其实/.test(h.user))
+          const correction = hadCorrection ? { what: '上一轮对话中被纠正', cause: '需要从 episode 中学习' } : undefined
+          recordEpisode(topicLabel, turns, correction, 'resolved', 0)
+        }
+      } catch (e: any) {
+        console.log(`[cc-soul][episodic] record failed: ${e.message}`)
+      }
+    }
   }
 
   // ── Previous turn analysis & learning loop ──
@@ -390,7 +414,9 @@ export async function handlePreprocessed(event: any): Promise<void> {
           }
         }
         if (result.satisfaction === 'POSITIVE') { bodyOnPositiveFeedback(); stats.positiveFeedback++ }
-        if (result.reflection) addMemory(`[反思] ${result.reflection}`, 'reflection', snapSenderId, 'private', snapChannelId)
+        // Heuristic: only persist reflection when quality is actually poor (score < 5)
+        // — the merged analysis returns reflection for free, but 90% are trivial "无" equivalents
+        if (result.reflection && result.quality.score < 5) addMemory(`[反思] ${result.reflection}`, 'reflection', snapSenderId, 'private', snapChannelId)
         if (result.curiosity) addMemory(`[好奇] ${result.curiosity}`, 'curiosity', snapSenderId, 'private', snapChannelId)
         const codeBlocks = snapResponse.match(/```(\w+)?\n([\s\S]*?)```/g)
         if (codeBlocks && codeBlocks.length > 0) {
@@ -523,6 +549,19 @@ export async function handlePreprocessed(event: any): Promise<void> {
     onCorrectionAdvanced(userMsg, session.lastResponseContent)
     trackDomainCorrection(userMsg)
     attributeCorrection(userMsg, session.lastResponseContent, session.lastAugmentsUsed)
+    // Record correction as episodic memory for future recall
+    if (isEnabled('episodic_memory') && session.lastResponseContent) {
+      try {
+        recordEpisode(
+          userMsg.slice(0, 80),
+          [{ role: 'assistant', content: session.lastResponseContent.slice(0, 200) }, { role: 'user', content: userMsg.slice(0, 200) }],
+          { what: userMsg.slice(0, 100), cause: '用户纠正了上一轮回复' },
+          'resolved',
+          0.4,
+          `被纠正: ${userMsg.slice(0, 80)}`
+        )
+      } catch (_) {}
+    }
     session._pendingCorrectionVerify = true
   }
 
@@ -956,7 +995,8 @@ export function handleSent(event: any): void {
               recordRuleQuality(matchedRuleObjs, result.quality.score)
             }
           }
-          if (result.reflection) {
+          // Heuristic: only persist reflection when quality < 5 (avoid storing trivial "无" reflections)
+          if (result.reflection && result.quality.score < 5) {
             addMemory(`[反思] ${result.reflection}`, 'reflection', snapSenderId, 'private', snapChannelId)
           }
           if (result.curiosity) {

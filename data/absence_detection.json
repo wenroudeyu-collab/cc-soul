@@ -1,6 +1,6 @@
 {
   "test": {
-    "lastSeen": 1774868273406,
+    "lastSeen": 1774878327791,
     "isAbsent": false,
     "absentSince": 0,
     "welcomeShown": false,
@@ -8,7 +8,7 @@
     "avgAbsenceDuration": 0
   },
   "ou_db9ed11831f16364610ed6eefcff963e": {
-    "lastSeen": 1774873162509,
+    "lastSeen": 1774878248464,
     "isAbsent": false,
     "absentSince": 0,
     "welcomeShown": false,
@@ -17,14 +17,14 @@
   },
   "default": {
     "lastSeen": 1774861849907,
-    "isAbsent": false,
-    "absentSince": 0,
+    "isAbsent": true,
+    "absentSince": 1774861849907,
     "welcomeShown": false,
     "totalAbsences": 0,
     "avgAbsenceDuration": 0
   },
   "sdk_test": {
-    "lastSeen": 1774868960857,
+    "lastSeen": 1774878328371,
     "isAbsent": false,
     "absentSince": 0,
     "welcomeShown": false,

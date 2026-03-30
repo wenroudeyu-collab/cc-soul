@@ -53,12 +53,42 @@ export function loadInnerLife() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// JOURNAL — CLI-powered genuine thoughts
+// JOURNAL — CLI-powered genuine thoughts (按需触发，不再 30min 无脑调 LLM)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+let lastJournalCorrections = 0
+let _lastMoodSnapshot = { mood: 0, ts: 0 }
+let _journalForceNext = false
+
+/** 外部调用：手动触发下一次日记生成 */
+export function forceNextJournal() { _journalForceNext = true }
+
+/** 检查是否满足日记触发条件 */
+function shouldWriteJournal(stats: InteractionStats): boolean {
+  // 手动触发
+  if (_journalForceNext) { _journalForceNext = false; return true }
+
+  // 用户被纠正（correction count 自上次写日记后增加）
+  if (stats.corrections > lastJournalCorrections) return true
+
+  // 情绪剧变（5 分钟内 mood delta > 0.3）
+  const now = Date.now()
+  const currentMood = body.mood ?? 0
+  if (_lastMoodSnapshot.ts > 0 && (now - _lastMoodSnapshot.ts) < 300000) {
+    if (Math.abs(currentMood - _lastMoodSnapshot.mood) > 0.3) return true
+  }
+  _lastMoodSnapshot = { mood: currentMood, ts: now }
+
+  return false
+}
 
 export function writeJournalWithCLI(lastPrompt: string, lastResponseContent: string, stats: InteractionStats) {
   const now = Date.now()
-  if (now - innerState.lastJournalTime < 1800000) return // 30 min cooldown
+  if (now - innerState.lastJournalTime < 1800000) return // 30 min cooldown (absolute minimum)
+
+  // 按需触发：不满足条件就跳过 LLM 调用
+  if (!shouldWriteJournal(stats)) return
+
   innerState.lastJournalTime = now
 
   const context = [
@@ -89,8 +119,6 @@ export function writeJournalWithCLI(lastPrompt: string, lastResponseContent: str
 }
 
 // ── Fallback journal (sync, guaranteed to work) ──
-let lastJournalCorrections = 0
-
 export function writeJournalFallback(stats: InteractionStats) {
   const hour = new Date().getHours()
   const timeStr = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -206,9 +234,9 @@ export function checkDreamMode() {
   const now = Date.now()
   const idleMinutes = (now - innerState.lastActivityTime) / 60000
 
-  // 1-8 hours idle, dream at most once per 2 hours
+  // 1-8 hours idle, dream at most once per 6 hours
   if (idleMinutes < 60 || idleMinutes > 480) return
-  if (now - innerState.lastDreamTime < 7200000) return // 2 hour cooldown
+  if (now - innerState.lastDreamTime < 21600000) return // 6 hour cooldown
   if (memoryState.memories.length < 5) return
 
   innerState.lastDreamTime = now
@@ -280,9 +308,35 @@ export function checkDreamMode() {
 // REGRET SYSTEM — reflect on last response quality
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function reflectOnLastResponse(lastPrompt: string, lastResponseContent: string) {
+// ── Regret heuristic state ──
+let lastRegretTime = 0
+
+/**
+ * Heuristic pre-filter: skip reflection when it's almost certainly "无".
+ * Only trigger when there's a correction OR quality < 5.
+ */
+export function reflectOnLastResponse(
+  lastPrompt: string,
+  lastResponseContent: string,
+  opts?: { hadCorrection?: boolean; qualityScore?: number }
+) {
   if (!lastPrompt || !lastResponseContent) return
   if (lastResponseContent.length < 30) return
+
+  // ── Heuristic: skip trivial cases to save 90% wasted LLM calls ──
+  const now = Date.now()
+  // 1. Cooldown: < 10 min since last reflection → skip
+  if (now - lastRegretTime < 10 * 60 * 1000) return
+  // 2. User sent a chitchat filler → skip
+  const trimmedPrompt = lastPrompt.trim()
+  if (/^(哈哈|嗯|好的|ok|嗯嗯|哦|行|收到|了解|明白|好吧|嘻嘻|呵呵|666|👍|谢谢|thanks|thx|lol|haha)$/i.test(trimmedPrompt)) return
+  if (trimmedPrompt.length < 5) return
+  // 3. Only trigger if correction happened OR quality is poor
+  const hadCorrection = opts?.hadCorrection ?? false
+  const qualityScore = opts?.qualityScore ?? 5
+  if (!hadCorrection && qualityScore >= 5) return
+
+  lastRegretTime = now
 
   const prompt = `回顾：用户问"${lastPrompt.slice(0, 100)}" 你回答了"${lastResponseContent.slice(0, 200)}"\n\n有没有什么遗憾？下次可以做得更好的？1句话。没有就回答"无"。`
 
@@ -339,12 +393,33 @@ export function extractFollowUp(msg: string) {
  * Peek at pending follow-ups WITHOUT marking them as asked.
  * Use this for impulse calculation and augment building where
  * the follow-up might not actually be sent.
+ *
+ * Dedup: skips follow-ups whose topic keywords overlap with active
+ * prospective-memory triggers (PM already handles the reminder).
  */
 export function peekPendingFollowUps(): string[] {
   const now = Date.now()
   const due = innerState.followUps.filter(f => !f.asked && f.when <= now)
   if (due.length === 0) return []
-  return due.map(f => `对了，之前你提到"${f.topic}"，怎么样了？`)
+
+  // Lazy-load PM triggers to avoid circular import at module level
+  let pmTriggers: string[] = []
+  try {
+    const { getActivePMTriggers } = require('./prospective-memory.ts')
+    pmTriggers = getActivePMTriggers()
+  } catch { /* prospective-memory not loaded yet, skip dedup */ }
+
+  return due
+    .filter(f => {
+      if (pmTriggers.length === 0) return true
+      // Extract keywords from follow-up topic
+      const topicWords = (f.topic.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+      // If any topic keyword is also a PM trigger, PM already covers this → skip
+      const overlap = topicWords.some(w => pmTriggers.includes(w))
+      if (overlap) console.log(`[cc-soul][followup] dedup: "${f.topic}" covered by prospective-memory, skipping`)
+      return !overlap
+    })
+    .map(f => `对了，之前你提到"${f.topic}"，怎么样了？`)
 }
 
 /**

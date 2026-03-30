@@ -12,7 +12,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'fs'
 
 import type { Memory } from './types.ts'
 import { MEMORIES_PATH, HISTORY_PATH, DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
-import { spawnCLI } from './cli.ts'
+// spawnCLI import removed — AUDN gray zone now uses local multi-signal voting
 import { autoExtractFromMemory } from './fact-store.ts'
 import { getParam } from './auto-tune.ts'
 import {
@@ -24,6 +24,7 @@ import {
 } from './sqlite-store.ts'
 import { initEmbedder } from './embedder.ts'
 import { appendAudit } from './audit.ts'
+import { addRelation } from './graph.ts'
 
 // ── Imports from sub-modules ──
 import {
@@ -88,6 +89,54 @@ setTimeout(() => {
   import('./signals.ts').then(m => { _signalsMod = m }).catch(() => {})
   import('./distill.ts').then(m => { _distillMod = m }).catch(() => {})
 }, 1000)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BAYESIAN CONFIDENCE — Beta distribution posterior update
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BAYES_DEFAULT_ALPHA = 2
+const BAYES_DEFAULT_BETA = 1
+
+/** Compute confidence from Beta distribution: α / (α + β) */
+export function bayesConfidence(mem: Memory): number {
+  const a = mem.bayesAlpha ?? BAYES_DEFAULT_ALPHA
+  const b = mem.bayesBeta ?? BAYES_DEFAULT_BETA
+  return a / (a + b)
+}
+
+/** Ensure Bayes fields exist on a memory (backward-compatible init) */
+function ensureBayesFields(mem: Memory) {
+  if (mem.bayesAlpha == null) {
+    // Reverse-engineer from existing confidence if present
+    const c = mem.confidence ?? 0.67
+    // alpha / (alpha + beta) ≈ c, keep sum ≈ 3 for prior strength
+    const sum = BAYES_DEFAULT_ALPHA + BAYES_DEFAULT_BETA
+    mem.bayesAlpha = c * sum
+    mem.bayesBeta = (1 - c) * sum
+  }
+  if (mem.bayesBeta == null) mem.bayesBeta = BAYES_DEFAULT_BETA
+}
+
+/** Positive evidence: recall confirmed by user context */
+export function bayesBoost(mem: Memory, delta = 0.5) {
+  ensureBayesFields(mem)
+  mem.bayesAlpha! += delta
+  mem.confidence = bayesConfidence(mem)
+}
+
+/** Negative evidence: recall ignored by user */
+export function bayesPenalize(mem: Memory, delta = 0.5) {
+  ensureBayesFields(mem)
+  mem.bayesBeta! += delta
+  mem.confidence = bayesConfidence(mem)
+}
+
+/** Strong negative: user corrected this memory */
+export function bayesCorrect(mem: Memory, delta = 2) {
+  ensureBayesFields(mem)
+  mem.bayesBeta! += delta
+  mem.confidence = bayesConfidence(mem)
+}
 
 /**
  * Sync memory confidence/scope changes to SQLite.
@@ -634,7 +683,7 @@ export function decideMemoryAction(newContent: string, scope?: string): { action
   if (best.sim > 0.9) return { action: 'update', targetIndex: best.idx }
 
   // Fast path: low similarity → ADD (clearly new)
-  if (best.sim < 0.3) return { action: 'add', targetIndex: -1 }
+  if (best.sim < 0.5) return { action: 'add', targetIndex: -1 }
 
   // Medium path: moderate similarity — scope-aware decision
   const existingMem = memoryState.memories[best.idx]
@@ -644,98 +693,21 @@ export function decideMemoryAction(newContent: string, scope?: string): { action
     return { action: 'update', targetIndex: best.idx }
   }
 
-  // Gray zone (0.3-0.7): for fact/preference/correction, fire async LLM arbitration
-  const AUDN_SCOPES = ['fact', 'preference', 'correction', 'consolidated']
-  if (AUDN_SCOPES.includes(scope || '') || AUDN_SCOPES.includes(existingMem.scope)) {
-    // Fire-and-forget: LLM decides in background, result applied retroactively
-    fireAUDNArbitration(newContent, scope || 'fact', candidates.slice(0, 3).map(c => ({
-      content: memoryState.memories[c.idx].content,
-      ts: memoryState.memories[c.idx].ts,
-      sim: c.sim,
-    })))
+  // Gray zone (0.5-0.8): local multi-signal voting (replaces async LLM arbitration)
+  const existingLen = existingMem.content.length
+  const newLen = newContent.length
+  const lengthRatio = Math.min(existingLen, newLen) / Math.max(existingLen, newLen)
+  const scopeMatch = (scope === existingMem.scope) ? 1 : 0
+  const sameDay = Math.abs(Date.now() - existingMem.ts) < 86400000 ? 1 : 0
+
+  const dupScore = best.sim * 0.5 + scopeMatch * 0.2 + lengthRatio * 0.2 + sameDay * 0.1
+  if (dupScore > 0.75) {
+    return { action: 'skip', targetIndex: best.idx }  // high confidence duplicate
   }
-
-  // Default: ADD now, LLM may UPDATE/DELETE later
-  return { action: 'add', targetIndex: -1 }
-}
-
-/**
- * Async LLM arbitration for gray-zone memories.
- * Fires in background, applies ADD/UPDATE/DELETE/NOOP retroactively.
- */
-let _audnQueue = 0
-const MAX_AUDN_CONCURRENT = 3
-
-function fireAUDNArbitration(
-  newContent: string,
-  scope: string,
-  candidates: { content: string; ts: number; sim: number }[],
-) {
-  if (_audnQueue >= MAX_AUDN_CONCURRENT) return // throttle
-  _audnQueue++
-
-  const existingList = candidates.map((c, i) =>
-    `${i + 1}. [相似度${(c.sim * 100).toFixed(0)}%] ${c.content.slice(0, 120)}`
-  ).join('\n')
-
-  const prompt = [
-    '新记忆和已有记忆可能冲突或重复。决定操作：',
-    '',
-    `新记忆 [${scope}]: ${newContent.slice(0, 150)}`,
-    '',
-    '已有相似记忆:',
-    existingList,
-    '',
-    '回答格式（只回一行）:',
-    '  ADD — 新记忆是全新信息，保留',
-    '  UPDATE 序号 — 新记忆是对某条的更新/补充，合并内容',
-    '  DELETE 序号 — 新记忆与某条矛盾，删除旧的',
-    '  NOOP — 新记忆是冗余重复，丢弃',
-    '',
-    '如果 UPDATE，第二行写合并后的内容。',
-  ].join('\n')
-
-  spawnCLI(prompt, (output) => {
-    _audnQueue--
-    if (!output) return
-    const line = output.trim().split('\n')[0].toUpperCase()
-
-    if (line.startsWith('NOOP')) {
-      // Remove the just-added memory
-      const idx = memoryState.memories.findIndex(m => m.content === newContent && m.scope !== 'expired')
-      if (idx >= 0) {
-        memoryState.memories[idx].scope = 'expired'
-        console.log(`[cc-soul][AUDN] NOOP: "${newContent.slice(0, 50)}" (redundant)`)
-      }
-    } else if (line.startsWith('DELETE')) {
-      const num = parseInt(line.replace(/\D/g, ''))
-      if (num >= 1 && num <= candidates.length) {
-        const target = candidates[num - 1]
-        const found = memoryState.memories.find(m => m.content === target.content && m.ts === target.ts)
-        if (found) {
-          found.scope = 'expired'
-          console.log(`[cc-soul][AUDN] DELETE: "${found.content.slice(0, 50)}" (contradicted by new)`)
-          saveMemories()
-        }
-      }
-    } else if (line.startsWith('UPDATE')) {
-      const num = parseInt(line.replace(/\D/g, ''))
-      const mergedLine = output.trim().split('\n')[1]
-      if (num >= 1 && num <= candidates.length && mergedLine && mergedLine.length > 10) {
-        const target = candidates[num - 1]
-        // Remove the just-added duplicate
-        const newIdx = memoryState.memories.findIndex(m => m.content === newContent && m.scope !== 'expired')
-        if (newIdx >= 0) memoryState.memories[newIdx].scope = 'expired'
-        // Update the existing one with merged content (find by content+ts)
-        const foundIdx = memoryState.memories.findIndex(m => m.content === target.content && m.ts === target.ts)
-        if (foundIdx >= 0) {
-          updateMemory(foundIdx, mergedLine.trim().slice(0, 300))
-          console.log(`[cc-soul][AUDN] UPDATE #${num}: merged "${mergedLine.trim().slice(0, 50)}"`)
-        }
-      }
-    }
-    // ADD: no action needed (already added synchronously)
-  }, 30000)
+  if (dupScore > 0.55) {
+    return { action: 'update', targetIndex: best.idx }  // merge into existing
+  }
+  return { action: 'add', targetIndex: -1 }  // sufficiently different, add
 }
 
 /**
@@ -800,7 +772,7 @@ function suppressSimilarMemories(newMem: Memory) {
     const sim = trigramSimilarity(newTri, oldTri)
 
     if (sim > 0.6) {
-      old.confidence = Math.max(0, (old.confidence ?? 0.7) - 0.15)
+      bayesPenalize(old, 1.5)  // interference suppression: β += 1.5
       if (old.confidence < 0.2) {
         old.scope = 'expired'
         console.log(`[cc-soul][interference] expired: "${old.content.slice(0, 50)}" (suppressed by new memory)`)
@@ -1010,6 +982,32 @@ export function queryMemoryTimeline(keyword: string): { content: string; from: n
 
 // detectMemoryPoisoning → memory-utils.ts
 
+// ── #15 记忆图谱化：自动在新记忆和最近记忆之间建立关系边 ──
+function autoLinkMemories(newMem: Memory) {
+  const recent = memoryState.memories.slice(-6, -1) // 最近5条（不含自己）
+  if (recent.length === 0) return
+  const newTri = trigrams(newMem.content)
+  const newLabel = newMem.content.slice(0, 20)
+  for (const old of recent) {
+    const oldTri = trigrams(old.content)
+    const overlap = trigramSimilarity(newTri, oldTri)
+    // 因果关系：新记忆包含因果关键词 + 话题重叠
+    if (/因为|所以|导致|结果|于是|because|therefore/.test(newMem.content) && overlap > 0.15) {
+      addRelation(newLabel, old.content.slice(0, 20), 'caused_by')
+      continue // 一条旧记忆只建一种关系
+    }
+    // 矛盾关系：correction 覆盖 fact，内容高度相似
+    if (newMem.scope === 'correction' && old.scope === 'fact' && overlap > 0.3) {
+      addRelation(newLabel, old.content.slice(0, 20), 'contradicts')
+      continue
+    }
+    // 时序关系：同一话题、时间间隔 < 5分钟
+    if (Math.abs(newMem.ts - (old.ts || 0)) < 300000 && overlap > 0.2) {
+      addRelation(newLabel, old.content.slice(0, 20), 'follows')
+    }
+  }
+}
+
 export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx']) {
   // Check skip flag from session (inclusion/exclusion control)
   try {
@@ -1077,7 +1075,8 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     : 0.3  // default low intensity
   const newMem: Memory = {
     content, scope, ts: Date.now(), userId, visibility: resolvedVisibility, channelId,
-    confidence: 0.7,
+    bayesAlpha: BAYES_DEFAULT_ALPHA, bayesBeta: BAYES_DEFAULT_BETA,
+    confidence: BAYES_DEFAULT_ALPHA / (BAYES_DEFAULT_ALPHA + BAYES_DEFAULT_BETA), // ≈ 0.67
     lastAccessed: Date.now(),
     tier: 'short_term',
     recallCount: 0,
@@ -1094,6 +1093,9 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   memoryState.memories.push(newMem)
   updateRecallIndex(newMem)
 
+  // #15 记忆图谱化：自动建立记忆间关系边
+  try { autoLinkMemories(newMem) } catch {}
+
   // Auto-extract structured facts (Mem0-style key-value triples)
   try { autoExtractFromMemory(content, scope, autoSource) } catch {}
 
@@ -1107,7 +1109,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     suppressSimilarMemories(newMem)
   }
 
-  // Smart eviction: score-based instead of brute-force oldest-20%
+  // Smart eviction: dynamic threshold + topic protection
   if (memoryState.memories.length > MAX_MEMORIES) {
     // Score each memory: low score = eviction candidate
     const evictionScores = memoryState.memories.map((m, idx) => {
@@ -1117,16 +1119,37 @@ export function addMemory(content: string, scope: string, userId?: string, visib
       const scopeBoost = (m.scope === 'correction' || m.scope === 'reflexion' || m.scope === 'consolidated') ? 1.5 : 1.0
       const tagBoost = (m.tags && m.tags.length > 5) ? 1.3 : 1.0
       const score = decay * conf * emotionBoost * scopeBoost * tagBoost
-      return { idx, score }
+      return { idx, score, scope: m.scope }
     })
-    // Sort ascending — lowest scores get evicted
+    // Dynamic threshold: only evict memories scoring below median * 0.3
+    const scores = evictionScores.map(e => e.score).sort((a, b) => a - b)
+    const median = scores[Math.floor(scores.length / 2)] || 0.5
+    const evictionThreshold = median * 0.3
+
+    // Count memories per scope for topic protection
+    const scopeCounts = new Map<string, number>()
+    for (const m of memoryState.memories) {
+      scopeCounts.set(m.scope, (scopeCounts.get(m.scope) || 0) + 1)
+    }
+
+    const toEvict = new Set<number>()
+    // Sort ascending — lowest scores first
     evictionScores.sort((a, b) => a.score - b.score)
-    const toEvict = new Set(evictionScores.slice(0, Math.floor(MAX_MEMORIES * 0.2)).map(e => e.idx))
-    const filtered = memoryState.memories.filter((_, i) => !toEvict.has(i))
-    memoryState.memories.length = 0
-    memoryState.memories.push(...filtered)
-    rebuildScopeIndex() // full rebuild after eviction
-    rebuildRecallIndex(memoryState.memories)
+    for (const e of evictionScores) {
+      if (e.score >= evictionThreshold) break // dynamic: stop once above threshold
+      // Topic protection: if this scope has ≤2 remaining, don't evict
+      const remaining = (scopeCounts.get(e.scope) || 0) - [...toEvict].filter(i => memoryState.memories[i]?.scope === e.scope).length
+      if (remaining <= 2) continue
+      toEvict.add(e.idx)
+    }
+
+    if (toEvict.size > 0) {
+      const filtered = memoryState.memories.filter((_, i) => !toEvict.has(i))
+      memoryState.memories.length = 0
+      memoryState.memories.push(...filtered)
+      rebuildScopeIndex() // full rebuild after eviction
+      rebuildRecallIndex(memoryState.memories)
+    }
   } else {
     // Incremental index update
     const arr = scopeIndex.get(scope) || []

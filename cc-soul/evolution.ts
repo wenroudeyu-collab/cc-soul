@@ -283,9 +283,9 @@ function _verifyHypothesisInner(situation: string, wasCorrect: boolean) {
   for (const h of hypotheses) {
     if (h.status === 'rejected' || h.status === 'verified') continue
 
-    // Match hypothesis to current situation — lowered threshold for practical usage
+    // Match hypothesis to current situation — tightened to 0.2 to reduce false-positive token waste
     const sim = trigramSimilarity(trigrams(h.description), trigrams(situation))
-    if (sim < 0.3) continue
+    if (sim < 0.2) continue
 
     if (!h.verifyCount) h.verifyCount = 0
 

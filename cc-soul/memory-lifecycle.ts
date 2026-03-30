@@ -19,7 +19,7 @@ import {
   rebuildScopeIndex, getLazyModule, compressMemory,
 } from './memory.ts'
 import { trigrams, trigramSimilarity, shuffleArray } from './memory-utils.ts'
-import { recall, recallWithScores, invalidateIDF } from './memory-recall.ts'
+import { recall, recallWithScores, invalidateIDF, _memLookup } from './memory-recall.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Memory Consolidation (压缩合并)
@@ -33,30 +33,69 @@ let consolidating = false
  * Cluster memories by topic similarity using keyword overlap.
  * Only returns clusters of 3+ memories (worth consolidating).
  */
+/**
+ * TF-IDF vectorize a document and return term→weight map.
+ * IDF is computed from the provided corpus.
+ */
+function tfidfVector(doc: string, idfMap: Map<string, number>): Map<string, number> {
+  const words = (doc.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const tf = new Map<string, number>()
+  for (const w of words) tf.set(w, (tf.get(w) || 0) + 1)
+  const vec = new Map<string, number>()
+  for (const [term, count] of tf) {
+    vec.set(term, count * (idfMap.get(term) ?? 1.0))
+  }
+  return vec
+}
+
+/** Cosine similarity between two TF-IDF vectors. */
+function cosineSim(a: Map<string, number>, b: Map<string, number>): number {
+  let dot = 0, normA = 0, normB = 0
+  for (const [k, v] of a) { normA += v * v; if (b.has(k)) dot += v * b.get(k)! }
+  for (const [, v] of b) normB += v * v
+  if (normA === 0 || normB === 0) return 0
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB))
+}
+
 function clusterByTopic(mems: Memory[]): Memory[][] {
   // Cap input to most recent 100 to avoid O(n²) blowup on large batches
   const capped = mems.length > 100 ? mems.slice(-100) : mems
-  const clusters: Memory[][] = []
-  const used = new Set<number>()
+  if (capped.length < 3) return []
+
+  // Build IDF from this batch
+  const df = new Map<string, number>()
+  const N = capped.length
+  for (const m of capped) {
+    const words = new Set((m.content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+    for (const w of words) df.set(w, (df.get(w) || 0) + 1)
+  }
+  const idfMap = new Map<string, number>()
+  for (const [word, count] of df) idfMap.set(word, Math.log(N / (1 + count)))
+
+  // Pre-compute TF-IDF vectors
+  const vecs = capped.map(m => tfidfVector(m.content, idfMap))
+
+  // Greedy merge: union-find style clustering with cosine sim >= 0.25
+  const parent = Array.from({ length: capped.length }, (_, i) => i)
+  function find(x: number): number { return parent[x] === x ? x : (parent[x] = find(parent[x])) }
+  function unite(a: number, b: number) { parent[find(a)] = find(b) }
 
   for (let i = 0; i < capped.length; i++) {
-    if (used.has(i)) continue
-    const cluster = [capped[i]]
-    used.add(i)
-    const words1 = new Set((capped[i].content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
-
     for (let j = i + 1; j < capped.length; j++) {
-      if (used.has(j)) continue
-      const words2 = (capped[j].content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
-      const overlap = words2.filter(w => words1.has(w)).length
-      if (overlap >= 2) { // at least 2 shared keywords
-        cluster.push(capped[j])
-        used.add(j)
-      }
+      if (find(i) === find(j)) continue
+      if (cosineSim(vecs[i], vecs[j]) >= 0.25) unite(i, j)
     }
-    if (cluster.length >= 3) clusters.push(cluster) // only consolidate clusters of 3+
   }
-  return clusters
+
+  // Collect clusters
+  const clusterMap = new Map<number, Memory[]>()
+  for (let i = 0; i < capped.length; i++) {
+    const root = find(i)
+    if (!clusterMap.has(root)) clusterMap.set(root, [])
+    clusterMap.get(root)!.push(capped[i])
+  }
+
+  return [...clusterMap.values()].filter(c => c.length >= 3) // only consolidate clusters of 3+
 }
 
 export function consolidateMemories() {
@@ -118,7 +157,7 @@ export function consolidateMemories() {
             const summaries = output.split('\n').filter(l => l.trim().length > 5).slice(0, 3)
 
             // Collect removals and additions — don't splice yet
-            for (const o of cluster) allContentToRemove.add(o.content)
+            for (const o of cluster) allContentToRemove.add(`${o.content}\0${o.ts}`)
             for (const summary of summaries) {
               allSummariesToAdd.push({
                 content: compressMemory({ content: summary.trim() } as Memory),
@@ -129,9 +168,9 @@ export function consolidateMemories() {
 
             // When ALL callbacks complete, apply removals and additions in one batch
             if (pendingCLICalls <= 0) {
-              // Reverse-splice all collected removals at once
+              // Reverse-splice all collected removals at once (keyed by content+ts to avoid same-content collisions)
               for (let i = memoryState.memories.length - 1; i >= 0; i--) {
-                if (allContentToRemove.has(memoryState.memories[i].content)) {
+                if (allContentToRemove.has(`${memoryState.memories[i].content}\0${memoryState.memories[i].ts}`)) {
                   memoryState.memories.splice(i, 1)
                 }
               }
@@ -290,10 +329,9 @@ export function recallFeedbackLoop(userMsg: string, recalledContents: string[]) 
     const keywordHits = queryWords.filter(w => memLower.includes(w)).length
     if (sim < 0.12 && keywordHits === 0) continue // need either decent trigram or keyword hit
 
-    const memIdx = memoryState.memories.findIndex(m => m.content === mem.content && m.ts === mem.ts)
-    if (memIdx < 0) continue
-
-    const real = memoryState.memories[memIdx]
+    // O(1) lookup via _memLookup instead of O(n) findIndex
+    const real = _memLookup.get(`${mem.content}\0${mem.ts}`)
+    if (!real) continue
     if (!real.tags) real.tags = []
     for (const w of queryWords) {
       if (!real.tags.includes(w)) {
