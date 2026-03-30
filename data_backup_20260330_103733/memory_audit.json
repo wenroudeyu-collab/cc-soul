@@ -1,0 +1,14 @@
+{
+  "ts": 1774493075786,
+  "duplicates": [],
+  "tooShort": [
+    "跑步打卡，总计3次",
+    "主人住在北京朝阳区",
+    "用户称呼：wang"
+  ],
+  "untagged": 317,
+  "lowConfidence": 0,
+  "zombie": 0,
+  "staleExpiry": 0,
+  "suggestions": "建议清理 3 条过短记忆；317 条记忆缺少标签，建议批量打标"
+}

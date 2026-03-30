@@ -1,6 +1,22 @@
 {
+  "test": {
+    "lastSeen": 1774861718894,
+    "isAbsent": false,
+    "absentSince": 0,
+    "welcomeShown": false,
+    "totalAbsences": 0,
+    "avgAbsenceDuration": 0
+  },
   "ou_db9ed11831f16364610ed6eefcff963e": {
-    "lastSeen": 1774831155224,
+    "lastSeen": 1774861739534,
+    "isAbsent": false,
+    "absentSince": 0,
+    "welcomeShown": false,
+    "totalAbsences": 0,
+    "avgAbsenceDuration": 0
+  },
+  "default": {
+    "lastSeen": 1774861849907,
     "isAbsent": false,
     "absentSince": 0,
     "welcomeShown": false,

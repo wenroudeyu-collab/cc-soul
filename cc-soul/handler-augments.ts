@@ -335,46 +335,7 @@ export function generatePrebuiltTips(msg: string): string {
   return ''
 }
 
-// ── Behavior Prediction (行为预测) ──
-// Trigger keywords → what typically follows, matched against correction/event memories
-const BEHAVIOR_TRIGGERS: { keywords: RegExp; label: string; outcomeKeywords: string[] }[] = [
-  { keywords: /deadline|ddl|截止|交付|赶工|来不及/, label: '截止日压力', outcomeKeywords: ['熬夜', '通宵', '效率低', '加班', '赶工', '累', '困'] },
-  { keywords: /bug|报错|崩溃|crash|error|异常|挂了|白屏/, label: '调试困境', outcomeKeywords: ['熬夜', '卡住', '放弃', '重写', '绕过', 'workaround'] },
-  { keywords: /烦|焦虑|压力|崩溃|受不了|烦死|头疼|无语|暴躁/, label: '情绪波动', outcomeKeywords: ['摸鱼', '拖延', '暴饮暴食', '失眠', '冲动', '后悔'] },
-  { keywords: /重构|重写|推倒重来|从头开始|大改/, label: '重构冲动', outcomeKeywords: ['范围膨胀', '烂尾', '没时间', '半途而废', '越改越乱'] },
-  { keywords: /学|新技术|新框架|尝试|试试|研究一下/, label: '技术探索', outcomeKeywords: ['坑', '放弃', '回退', '浪费时间', '不兼容'] },
-  { keywords: /凌晨|深夜|半夜|夜里|晚上好晚|还没睡|熬夜/, label: '深夜工作', outcomeKeywords: ['效率低', '第二天', '困', '累', '头疼', '失误'] },
-  { keywords: /拖延|不想做|逃避|明天再|以后再|懒得/, label: '拖延', outcomeKeywords: ['焦虑', '赶工', '质量差', '熬夜', '后悔'] },
-]
-
-function buildBehaviorPrediction(userMsg: string, senderId?: string): string | null {
-  const msgLower = userMsg.toLowerCase()
-  // Find which triggers match current message
-  const matched = BEHAVIOR_TRIGGERS.filter(t => t.keywords.test(msgLower))
-  if (matched.length === 0) return null
-
-  // Search correction + event memories for outcome evidence
-  const searchScopes = new Set(['correction', 'event', 'reflexion', 'consolidated'])
-  const candidateMemories = memoryState.memories.filter(m =>
-    searchScopes.has(m.scope || '') && m.content.length > 10
-  ).slice(-200) // only recent 200 for performance
-
-  for (const trigger of matched) {
-    // Find memories where user experienced the outcome of this pattern
-    const outcomeMatches = candidateMemories.filter(mem => {
-      const c = mem.content.toLowerCase()
-      return trigger.outcomeKeywords.some(kw => c.includes(kw))
-    })
-    if (outcomeMatches.length === 0) continue
-
-    // Pick the most recent outcome memory
-    const best = outcomeMatches[outcomeMatches.length - 1]
-    const date = new Date(best.ts).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
-    const snippet = best.content.slice(0, 120)
-    return `上次类似情况(${date})：${snippet}——如果相关可以自然提一句`
-  }
-  return null
-}
+// BEHAVIOR_TRIGGERS removed — replaced by getBehaviorPrediction() in behavior-prediction.ts
 
 /**
  * Build all augments, select within budget, return selected strings + raw augment array.
@@ -1019,6 +980,32 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content: epistemic.hint, priority: 8, tokens: estimateTokens(epistemic.hint) })
   }
 
+  // ── Quality feedback loop (质量反馈闭环) ──
+  if (session.lastQualityScore >= 0 && session.lastQualityScore <= 3) {
+    const qHint = `[质量警告] 上轮回答质量评分 ${session.lastQualityScore}/10，这轮需要更认真：检查事实准确性，回答要更完整，不要敷衍。`
+    augments.push({ content: qHint, priority: 10, tokens: estimateTokens(qHint) })
+  } else if (session.lastQualityScore >= 9) {
+    const qHint = `[质量正反馈] 上轮回答质量 ${session.lastQualityScore}/10，保持这个水平。`
+    augments.push({ content: qHint, priority: 2, tokens: 30 })
+  }
+
+  // ── Cognition augment (认知分析注入) ──
+  if (cog && cog.attention !== 'general') {
+    const parts: string[] = []
+    if (cog.attention === 'technical') parts.push('技术问题，优先给代码/命令')
+    else if (cog.attention === 'emotional') parts.push('用户有情绪，先共情再解决')
+    else if (cog.attention === 'correction') parts.push('用户在纠正你，虚心接受，不要辩解')
+    else if (cog.attention === 'casual') parts.push('闲聊，轻松自然')
+    if (cog.intent === 'wants_action') parts.push('用户要你动手做')
+    else if (cog.intent === 'wants_explanation') parts.push('用户想理解原理')
+    else if (cog.intent === 'wants_opinion') parts.push('用户要你的判断，给明确观点')
+    if (cog.complexity === 'high') parts.push('问题复杂，先拆解再逐个分析')
+    if (parts.length > 0) {
+      const cogHint = `[认知] ${parts.join('；')}`
+      augments.push({ content: cogHint, priority: 7, tokens: estimateTokens(cogHint) })
+    }
+  }
+
   // ── Adaptive reply length (自适应回复长度) ──
   {
     const curDomain = detectDomain(userMsg)
@@ -1145,13 +1132,8 @@ export async function buildAndSelectAugments(params: {
     } catch (_) { /* sqlite not available */ }
   }
 
-  // ── #12 行为预测（Behavior Prediction）──
-  if (isEnabled('behavior_prediction') && userMsg.length >= 4) {
-    const bpHint = buildBehaviorPrediction(userMsg, senderId)
-    if (bpHint) {
-      augments.push({ content: bpHint, priority: 7, tokens: estimateTokens(bpHint) })
-    }
-  }
+  // ── #12 行为预测（Behavior Prediction）— uses getBehaviorPrediction() from behavior-prediction.ts
+  // (handled earlier in the function via brain module, removed duplicate call here)
 
   // Entity graph context
   const entityCtx = queryEntityContext(userMsg)

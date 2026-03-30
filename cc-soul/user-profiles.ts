@@ -253,9 +253,8 @@ function extractBio(profile: UserProfile, msg: string) {
     const m = msg.match(re)
     if (m && m[1]) {
       const newBio = m[1].trim()
-      if (newBio.length >= 4) {
+      if (newBio.length >= 4 && (!profile.bio || !profile.bio.includes(newBio))) {
         profile.bio = profile.bio ? `${profile.bio}; ${newBio}` : newBio
-        // Cap bio length
         if (profile.bio.length > 300) profile.bio = profile.bio.slice(-300)
         console.log(`[cc-soul][profiles] bio updated (explicit): ${newBio.slice(0, 40)}`)
         return
@@ -269,7 +268,7 @@ function extractBio(profile: UserProfile, msg: string) {
     const m = msg.match(re)
     if (m && m[1]) {
       const extracted = m[1].trim()
-      if (extracted.length >= 4) {
+      if (extracted.length >= 4 && (!profile.bio || !profile.bio.includes(extracted))) {
         profile.bio = profile.bio ? `${profile.bio}; ${extracted}` : extracted
         if (profile.bio.length > 300) profile.bio = profile.bio.slice(-300)
         console.log(`[cc-soul][profiles] bio updated (auto): ${extracted.slice(0, 40)}`)

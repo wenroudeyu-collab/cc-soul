@@ -12,6 +12,14 @@
     "ningyao-voice-launcher": {
       "version": "0.1.0",
       "installedAt": 1774824089289
+    },
+    "self-improving": {
+      "version": "1.2.16",
+      "installedAt": 1774861947084
+    },
+    "elite-longterm-memory": {
+      "version": "1.2.3",
+      "installedAt": 1774861948656
     }
   }
 }

@@ -118,5 +118,25 @@
     },
     "status": "running",
     "config": {}
+  },
+  {
+    "id": "exp_1774856326954",
+    "name": "测试记忆召回准确率",
+    "description": "测试记忆召回准确率",
+    "startedAt": 1774856326954,
+    "endsAt": 1775115526954,
+    "trafficPercent": 20,
+    "controlMetrics": {
+      "quality": 0,
+      "corrections": 0,
+      "messages": 0
+    },
+    "experimentMetrics": {
+      "quality": 0,
+      "corrections": 0,
+      "messages": 0
+    },
+    "status": "running",
+    "config": {}
   }
 ]

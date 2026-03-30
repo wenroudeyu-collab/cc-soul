@@ -69,31 +69,27 @@ cp "$HUB_SRC/dashboard.html" "$HUB_DIST/" 2>/dev/null || true
 cp "$HUB_SRC/package.json" "$HUB_DIST/" 2>/dev/null || true
 echo "   ✅ hub files copied"
 
-# ── Copy static files ──
+# ── Copy static files (only README, everything else is runtime-generated) ──
 echo ""
 echo "── Copying static files ──"
 cp "$ROOT/README.md" "$ROOT/dist/"
-cp "$ROOT/soul.json" "$ROOT/dist/"
-cp "$ROOT/IDENTITY.md" "$ROOT/dist/" 2>/dev/null || true
-cp "$ROOT/STYLE.md" "$ROOT/dist/" 2>/dev/null || true
-cp "$ROOT/HEARTBEAT.md" "$ROOT/dist/" 2>/dev/null || true
 cp "$ROOT/CHANGELOG.md" "$ROOT/dist/" 2>/dev/null || true
-echo "   ✅ soul.json + identity/style/heartbeat copied"
+echo "   ✅ README + CHANGELOG copied"
 
 # ── Generate package.json ──
 cat > "$ROOT/dist/package.json" << 'PKGJSON'
 {
   "name": "@cc-soul/openclaw",
   "version": "VERSION_PLACEHOLDER",
-  "description": "Give your AI a soul — cognitive architecture plugin for OpenClaw",
+  "description": "Your AI, but it actually knows you — persistent memory, adaptive personality, emotional awareness",
   "type": "module",
   "keywords": ["ai","soul","memory","personality","openclaw","cognitive","agent"],
   "author": "cc-soul",
   "license": "MIT",
-  "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul"},
+  "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul-docs"},
   "bin": {"cc-soul":"./scripts/cli.js"},
   "main": "cc-soul/plugin-entry.js",
-  "files": ["cc-soul/","hub/","scripts/","README.md","soul.json","IDENTITY.md","STYLE.md","HEARTBEAT.md","CHANGELOG.md"],
+  "files": ["cc-soul/","hub/","scripts/","README.md","CHANGELOG.md"],
   "openclaw": {"extensions":["./cc-soul/plugin-entry.js"]},
   "peerDependencies": {"openclaw":">=2026.3"},
   "scripts": {"postinstall":"node scripts/install.js"}

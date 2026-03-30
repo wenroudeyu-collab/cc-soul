@@ -1,20 +1,20 @@
 [
   {
     "name": "老板",
-    "mentions": 25,
-    "lastMentioned": 1774831039097,
-    "emotionSum": -15.78083348194625,
+    "mentions": 61,
+    "lastMentioned": 1774835606055,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 25,
-      "neutral": 0
+      "neutral": 36
     },
     "recentTopics": [
-      "完蛋了压",
       "难过",
       "今天被骂",
       "对话历史",
-      "又给我加"
+      "又给我加",
+      "哈哈太好"
     ]
   },
   {
@@ -48,17 +48,18 @@
   },
   {
     "name": "女朋友",
-    "mentions": 6,
-    "lastMentioned": 1774795163037,
-    "emotionSum": -1.8331347641054279,
+    "mentions": 30,
+    "lastMentioned": 1774835640706,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 5,
-      "neutral": 1
+      "neutral": 25
     },
     "recentTopics": [
       "哈哈",
-      "对话历史"
+      "对话历史",
+      "我今天真"
     ]
   },
   {
@@ -206,16 +207,19 @@
   },
   {
     "name": "大文",
-    "mentions": 5,
-    "lastMentioned": 1774822399860,
-    "emotionSum": -1.7563711398921857,
+    "mentions": 9,
+    "lastMentioned": 1774856141611,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 5,
-      "neutral": 0
+      "neutral": 4
     },
     "recentTopics": [
-      "对话历史"
+      "对话历史",
+      "里怎么处",
+      "不对",
+      "接着聊刚"
     ]
   },
   {
@@ -276,16 +280,18 @@
   },
   {
     "name": "同事",
-    "mentions": 25,
-    "lastMentioned": 1774829528487,
-    "emotionSum": -18.84733413672582,
+    "mentions": 27,
+    "lastMentioned": 1774856501080,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 25,
-      "neutral": 0
+      "neutral": 2
     },
     "recentTopics": [
-      "对话历史"
+      "对话历史",
+      "我王磊是",
+      "我阿昊说"
     ]
   },
   {
@@ -500,16 +506,18 @@
   },
   {
     "name": "老婆",
-    "mentions": 19,
-    "lastMentioned": 1774829637053,
-    "emotionSum": -16.859997610510188,
+    "mentions": 24,
+    "lastMentioned": 1774858149135,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 19,
-      "neutral": 0
+      "neutral": 5
     },
     "recentTopics": [
-      "对话历史"
+      "对话历史",
+      "我沈婉宁",
+      "我今天跟"
     ]
   },
   {
@@ -584,16 +592,17 @@
   },
   {
     "name": "小果",
-    "mentions": 14,
-    "lastMentioned": 1774831039097,
-    "emotionSum": -14,
+    "mentions": 18,
+    "lastMentioned": 1774834987336,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 14,
-      "neutral": 0
+      "neutral": 4
     },
     "recentTopics": [
-      "对话历史"
+      "对话历史",
+      "我老婆沈"
     ]
   },
   {
@@ -612,16 +621,18 @@
   },
   {
     "name": "爸",
-    "mentions": 8,
-    "lastMentioned": 1774831039097,
-    "emotionSum": -8,
+    "mentions": 10,
+    "lastMentioned": 1774858179942,
+    "emotionSum": null,
     "emotions": {
       "positive": 0,
       "negative": 8,
-      "neutral": 0
+      "neutral": 2
     },
     "recentTopics": [
-      "对话历史"
+      "对话历史",
+      "我刚接到",
+      "做人要对"
     ]
   },
   {
@@ -721,6 +732,20 @@
     },
     "recentTopics": [
       "对话历史"
+    ]
+  },
+  {
+    "name": "大忙",
+    "mentions": 1,
+    "lastMentioned": 1774857828319,
+    "emotionSum": null,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "阿昊今天"
     ]
   }
 ]

@@ -33,16 +33,16 @@
 <body>
 <div class="header">
   <h1><span>cc-soul</span> Dashboard</h1>
-  <div class="meta">Generated: 2026/3/27 06:54:49</div>
+  <div class="meta">Generated: 2026/3/30 15:37:12</div>
 </div>
 
 <div class="stats-grid">
-  <div class="stat-card"><div class="label">Total Memories</div><div class="value purple">0</div></div>
-  <div class="stat-card"><div class="label">Active</div><div class="value green">0</div></div>
+  <div class="stat-card"><div class="label">Total Memories</div><div class="value purple">5538</div></div>
+  <div class="stat-card"><div class="label">Active</div><div class="value green">492</div></div>
   <div class="stat-card"><div class="label">Entities</div><div class="value blue">0</div></div>
   <div class="stat-card"><div class="label">Relations</div><div class="value orange">0</div></div>
-  <div class="stat-card"><div class="label">Scopes</div><div class="value">0</div></div>
-  <div class="stat-card"><div class="label">Mood Snapshots</div><div class="value">1</div></div>
+  <div class="stat-card"><div class="label">Scopes</div><div class="value">25</div></div>
+  <div class="stat-card"><div class="label">Mood Snapshots</div><div class="value">3</div></div>
 </div>
 
 <div class="charts">
@@ -85,14 +85,14 @@
 
 <script>
 const COLORS = ['#7c6bf0','#4ade80','#60a5fa','#fb923c','#f87171','#fbbf24','#a78bfa','#34d399','#f472b6','#38bdf8','#818cf8','#facc15'];
-const scopeData = {};
-const moodLabels = ["03-26 22:46"];
-const moodValues = [-0.083];
-const energyValues = [1];
-const personaLabels = ["analyst","socratic"];
-const personaCounts = [5,1];
-const growthDays = [];
-const growthCounts = [];
+const scopeData = {"commitment":24,"mid_term":6,"fact":89,"event":9,"opinion":6,"preference":16,"wal":58,"expired":1,"correction":16,"deep_feeling":4,"wisdom":5,"task":4,"consolidated":5,"curiosity":1,"reflection":1,"reflexion":2,"archived":1,"discovery":157,"dream":29,"insight":20,"decayed":5045,"topic":5,"chat:oc_155ed38d406d3f2d08ff2d460605207a":26,"identity:cc":1,"global":7};
+const moodLabels = ["03-30 01:56","03-30 05:40","03-30 07:34"];
+const moodValues = [0.298,0.149,0.102];
+const energyValues = [0.004,0.456,0.831];
+const personaLabels = [];
+const personaCounts = [];
+const growthDays = ["2026-02-28","2026-03-01","2026-03-02","2026-03-03","2026-03-04","2026-03-05","2026-03-06","2026-03-07","2026-03-08","2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13","2026-03-14","2026-03-15","2026-03-16","2026-03-17","2026-03-18","2026-03-19","2026-03-20","2026-03-21","2026-03-22","2026-03-23","2026-03-24","2026-03-25","2026-03-26","2026-03-27","2026-03-28","2026-03-29","2026-03-30"];
+const growthCounts = [113,180,146,192,168,167,155,161,184,165,192,160,138,169,170,161,146,168,177,173,192,176,167,209,4,181,43,5,19,78,123];
 const gNodes = [];
 const gEdges = [];
 
@@ -130,7 +130,7 @@ new Chart(document.getElementById('moodChart'), {
 });
 
 // PADCN 雷达图
-const padcnData = {"P":0,"A":0.01,"D":0.19,"C":0.31,"N":0.01};
+const padcnData = {"P":0,"A":0,"D":0.3,"C":0.5,"N":0};
 new Chart(document.getElementById('padcnChart'), {
   type: 'radar',
   data: {

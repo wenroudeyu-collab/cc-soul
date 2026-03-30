@@ -1,0 +1,1872 @@
+[
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中python出现5次",
+    "domain": "python",
+    "createdAt": 1774655005212,
+    "expiresAt": 1775259805232,
+    "status": "hit",
+    "hitAt": 1774655023477,
+    "confidence": 0.7
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现4次python相关话题",
+    "domain": "python",
+    "createdAt": 1774825990346,
+    "expiresAt": 1775430790346,
+    "status": "hit",
+    "hitAt": 1774829104110,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现3次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774826322381,
+    "expiresAt": 1775431122381,
+    "status": "hit",
+    "hitAt": 1774826564330,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774826564331,
+    "expiresAt": 1775431364331,
+    "status": "hit",
+    "hitAt": 1774826700544,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论咨询，预计下次会问更深入的咨询问题",
+    "basis": "最近20条消息中出现3次咨询相关话题",
+    "domain": "咨询",
+    "createdAt": 1774826700545,
+    "expiresAt": 1775431500545,
+    "status": "hit",
+    "hitAt": 1774835110758,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现5次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774826700545,
+    "expiresAt": 1775431500545,
+    "status": "hit",
+    "hitAt": 1774826845103,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现6次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774826845103,
+    "expiresAt": 1775431645103,
+    "status": "hit",
+    "hitAt": 1774826971964,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现8次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774826971964,
+    "expiresAt": 1775431771964,
+    "status": "hit",
+    "hitAt": 1774826985616,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现8次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774826985617,
+    "expiresAt": 1775431785617,
+    "status": "hit",
+    "hitAt": 1774827011323,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现3次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774827011323,
+    "expiresAt": 1775431811323,
+    "status": "hit",
+    "hitAt": 1774827043677,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现9次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827011323,
+    "expiresAt": 1775431811323,
+    "status": "hit",
+    "hitAt": 1774827178307,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论图片识别，预计下次会问更深入的图片识别问题",
+    "basis": "最近20条消息中出现5次图片识别相关话题",
+    "domain": "图片识别",
+    "createdAt": 1774827043829,
+    "expiresAt": 1775431843829,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827178307,
+    "expiresAt": 1775431978307,
+    "status": "hit",
+    "hitAt": 1774827205665,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现3次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774827178307,
+    "expiresAt": 1775431978307,
+    "status": "hit",
+    "hitAt": 1774827276080,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827205665,
+    "expiresAt": 1775432005665,
+    "status": "hit",
+    "hitAt": 1774827229266,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现13次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827229266,
+    "expiresAt": 1775432029266,
+    "status": "hit",
+    "hitAt": 1774827251928,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现14次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827251928,
+    "expiresAt": 1775432051928,
+    "status": "hit",
+    "hitAt": 1774827291682,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现3次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774827276081,
+    "expiresAt": 1775432076081,
+    "status": "hit",
+    "hitAt": 1774830105640,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现15次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827291682,
+    "expiresAt": 1775432091682,
+    "status": "hit",
+    "hitAt": 1774827304749,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现16次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827304749,
+    "expiresAt": 1775432104749,
+    "status": "hit",
+    "hitAt": 1774827460655,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现14次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827460656,
+    "expiresAt": 1775432260656,
+    "status": "hit",
+    "hitAt": 1774827622626,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现15次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827622627,
+    "expiresAt": 1775432422627,
+    "status": "hit",
+    "hitAt": 1774827767752,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现15次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774827767753,
+    "expiresAt": 1775432567753,
+    "status": "hit",
+    "hitAt": 1774829103875,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现16次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774829103876,
+    "expiresAt": 1775433903876,
+    "status": "hit",
+    "hitAt": 1774829204306,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现16次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774829204307,
+    "expiresAt": 1775434004307,
+    "status": "hit",
+    "hitAt": 1774829351902,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现15次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774829351902,
+    "expiresAt": 1775434151902,
+    "status": "hit",
+    "hitAt": 1774829528067,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现16次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774829528067,
+    "expiresAt": 1775434328067,
+    "status": "hit",
+    "hitAt": 1774829634908,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现16次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774829634908,
+    "expiresAt": 1775434434908,
+    "status": "hit",
+    "hitAt": 1774829966420,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现14次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774829966420,
+    "expiresAt": 1775434766420,
+    "status": "hit",
+    "hitAt": 1774830117878,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现14次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774830117878,
+    "expiresAt": 1775434917878,
+    "status": "hit",
+    "hitAt": 1774833064579,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现4次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774830306536,
+    "expiresAt": 1775435106536,
+    "status": "hit",
+    "hitAt": 1774830359967,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现5次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774830359967,
+    "expiresAt": 1775435159967,
+    "status": "hit",
+    "hitAt": 1774830478308,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现6次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774830478309,
+    "expiresAt": 1775435278309,
+    "status": "hit",
+    "hitAt": 1774830725097,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现7次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774830725097,
+    "expiresAt": 1775435525097,
+    "status": "hit",
+    "hitAt": 1774830861031,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现8次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774830861032,
+    "expiresAt": 1775435661032,
+    "status": "hit",
+    "hitAt": 1774830937563,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现10次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774830937563,
+    "expiresAt": 1775435737563,
+    "status": "hit",
+    "hitAt": 1774831038820,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现11次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774831038820,
+    "expiresAt": 1775435838820,
+    "status": "hit",
+    "hitAt": 1774831053614,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现11次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774831053615,
+    "expiresAt": 1775435853615,
+    "status": "hit",
+    "hitAt": 1774831155257,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774831155258,
+    "expiresAt": 1775435955258,
+    "status": "hit",
+    "hitAt": 1774834152017,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774833064579,
+    "expiresAt": 1775437864579,
+    "status": "hit",
+    "hitAt": 1774834430444,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834152109,
+    "expiresAt": 1775438952109,
+    "status": "hit",
+    "hitAt": 1774834152133,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834152133,
+    "expiresAt": 1775438952133,
+    "status": "hit",
+    "hitAt": 1774834152156,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834152157,
+    "expiresAt": 1775438952157,
+    "status": "hit",
+    "hitAt": 1774834261391,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261391,
+    "expiresAt": 1775439061391,
+    "status": "hit",
+    "hitAt": 1774834261437,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261437,
+    "expiresAt": 1775439061437,
+    "status": "hit",
+    "hitAt": 1774834261486,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261486,
+    "expiresAt": 1775439061486,
+    "status": "hit",
+    "hitAt": 1774834261535,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261535,
+    "expiresAt": 1775439061535,
+    "status": "hit",
+    "hitAt": 1774834261584,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261585,
+    "expiresAt": 1775439061585,
+    "status": "hit",
+    "hitAt": 1774834261627,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261628,
+    "expiresAt": 1775439061628,
+    "status": "hit",
+    "hitAt": 1774834261674,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261675,
+    "expiresAt": 1775439061675,
+    "status": "hit",
+    "hitAt": 1774834261720,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261720,
+    "expiresAt": 1775439061720,
+    "status": "hit",
+    "hitAt": 1774834261767,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261767,
+    "expiresAt": 1775439061767,
+    "status": "hit",
+    "hitAt": 1774834261814,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261815,
+    "expiresAt": 1775439061815,
+    "status": "hit",
+    "hitAt": 1774834261862,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261863,
+    "expiresAt": 1775439061863,
+    "status": "hit",
+    "hitAt": 1774834261911,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现15次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834261911,
+    "expiresAt": 1775439061911,
+    "status": "hit",
+    "hitAt": 1774834594284,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现3次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834430444,
+    "expiresAt": 1775439230444,
+    "status": "hit",
+    "hitAt": 1774834430490,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现3次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834430490,
+    "expiresAt": 1775439230490,
+    "status": "hit",
+    "hitAt": 1774834430523,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现3次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834430523,
+    "expiresAt": 1775439230523,
+    "status": "hit",
+    "hitAt": 1774834430557,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现3次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834430558,
+    "expiresAt": 1775439230558,
+    "status": "hit",
+    "hitAt": 1774834745368,
+    "confidence": 0.8
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834594284,
+    "expiresAt": 1775439394284,
+    "status": "hit",
+    "hitAt": 1774834594358,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834594358,
+    "expiresAt": 1775439394358,
+    "status": "hit",
+    "hitAt": 1774834594403,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834594403,
+    "expiresAt": 1775439394403,
+    "status": "hit",
+    "hitAt": 1774834594447,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834594448,
+    "expiresAt": 1775439394448,
+    "status": "hit",
+    "hitAt": 1774834697852,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834697853,
+    "expiresAt": 1775439497853,
+    "status": "hit",
+    "hitAt": 1774834697896,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834697896,
+    "expiresAt": 1775439497896,
+    "status": "hit",
+    "hitAt": 1774834697932,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834697932,
+    "expiresAt": 1775439497932,
+    "status": "hit",
+    "hitAt": 1774834697970,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834697970,
+    "expiresAt": 1775439497970,
+    "status": "hit",
+    "hitAt": 1774834698008,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698008,
+    "expiresAt": 1775439498008,
+    "status": "hit",
+    "hitAt": 1774834698048,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698048,
+    "expiresAt": 1775439498048,
+    "status": "hit",
+    "hitAt": 1774834698083,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698083,
+    "expiresAt": 1775439498083,
+    "status": "hit",
+    "hitAt": 1774834698117,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698117,
+    "expiresAt": 1775439498117,
+    "status": "hit",
+    "hitAt": 1774834698152,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698152,
+    "expiresAt": 1775439498152,
+    "status": "hit",
+    "hitAt": 1774834698190,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698191,
+    "expiresAt": 1775439498191,
+    "status": "hit",
+    "hitAt": 1774834698225,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698226,
+    "expiresAt": 1775439498226,
+    "status": "hit",
+    "hitAt": 1774834698262,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774834698262,
+    "expiresAt": 1775439498262,
+    "status": "hit",
+    "hitAt": 1774835579774,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745368,
+    "expiresAt": 1775439545368,
+    "status": "hit",
+    "hitAt": 1774834745416,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745416,
+    "expiresAt": 1775439545416,
+    "status": "hit",
+    "hitAt": 1774834745461,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745462,
+    "expiresAt": 1775439545462,
+    "status": "hit",
+    "hitAt": 1774834745507,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745507,
+    "expiresAt": 1775439545507,
+    "status": "hit",
+    "hitAt": 1774834745551,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745551,
+    "expiresAt": 1775439545551,
+    "status": "hit",
+    "hitAt": 1774834745594,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745594,
+    "expiresAt": 1775439545594,
+    "status": "hit",
+    "hitAt": 1774834745643,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745643,
+    "expiresAt": 1775439545643,
+    "status": "hit",
+    "hitAt": 1774834745686,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745686,
+    "expiresAt": 1775439545686,
+    "status": "hit",
+    "hitAt": 1774834745728,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745729,
+    "expiresAt": 1775439545729,
+    "status": "hit",
+    "hitAt": 1774834745769,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745769,
+    "expiresAt": 1775439545769,
+    "status": "hit",
+    "hitAt": 1774834745814,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745814,
+    "expiresAt": 1775439545814,
+    "status": "hit",
+    "hitAt": 1774834745857,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745857,
+    "expiresAt": 1775439545857,
+    "status": "hit",
+    "hitAt": 1774834745901,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745902,
+    "expiresAt": 1775439545902,
+    "status": "hit",
+    "hitAt": 1774834745941,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745942,
+    "expiresAt": 1775439545942,
+    "status": "hit",
+    "hitAt": 1774834745986,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834745986,
+    "expiresAt": 1775439545986,
+    "status": "hit",
+    "hitAt": 1774834746030,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774834746030,
+    "expiresAt": 1775439546030,
+    "status": "hit",
+    "hitAt": 1774834987141,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现20次python相关话题",
+    "domain": "python",
+    "createdAt": 1774834884745,
+    "expiresAt": 1775439684745,
+    "status": "hit",
+    "hitAt": 1774836294711,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现20次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774834987142,
+    "expiresAt": 1775439787142,
+    "status": "hit",
+    "hitAt": 1774835054431,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054432,
+    "expiresAt": 1775439854432,
+    "status": "hit",
+    "hitAt": 1774835054486,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054486,
+    "expiresAt": 1775439854486,
+    "status": "hit",
+    "hitAt": 1774835054537,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054537,
+    "expiresAt": 1775439854537,
+    "status": "hit",
+    "hitAt": 1774835054590,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054590,
+    "expiresAt": 1775439854590,
+    "status": "hit",
+    "hitAt": 1774835054640,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054641,
+    "expiresAt": 1775439854641,
+    "status": "hit",
+    "hitAt": 1774835054692,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054692,
+    "expiresAt": 1775439854692,
+    "status": "hit",
+    "hitAt": 1774835054740,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054740,
+    "expiresAt": 1775439854740,
+    "status": "hit",
+    "hitAt": 1774835054789,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054790,
+    "expiresAt": 1775439854790,
+    "status": "hit",
+    "hitAt": 1774835054840,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054840,
+    "expiresAt": 1775439854840,
+    "status": "hit",
+    "hitAt": 1774835054890,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054890,
+    "expiresAt": 1775439854890,
+    "status": "hit",
+    "hitAt": 1774835054941,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054941,
+    "expiresAt": 1775439854941,
+    "status": "hit",
+    "hitAt": 1774835054990,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现16次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835054990,
+    "expiresAt": 1775439854990,
+    "status": "hit",
+    "hitAt": 1774835402081,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835110758,
+    "expiresAt": 1775439910758,
+    "status": "hit",
+    "hitAt": 1774835506481,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现4次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835402082,
+    "expiresAt": 1775440202082,
+    "status": "hit",
+    "hitAt": 1774835402176,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现4次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835402176,
+    "expiresAt": 1775440202176,
+    "status": "hit",
+    "hitAt": 1774835402226,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现4次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835402227,
+    "expiresAt": 1775440202227,
+    "status": "hit",
+    "hitAt": 1774835402276,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论ios-reverse，预计下次会问更深入的ios-reverse问题",
+    "basis": "最近20条消息中出现4次ios-reverse相关话题",
+    "domain": "ios-reverse",
+    "createdAt": 1774835402277,
+    "expiresAt": 1775440202277,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论咨询，预计下次会问更深入的咨询问题",
+    "basis": "最近20条消息中出现16次咨询相关话题",
+    "domain": "咨询",
+    "createdAt": 1774835506482,
+    "expiresAt": 1775440306482,
+    "status": "hit",
+    "hitAt": 1774856488010,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835579775,
+    "expiresAt": 1775440379775,
+    "status": "hit",
+    "hitAt": 1774835605327,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605328,
+    "expiresAt": 1775440405328,
+    "status": "hit",
+    "hitAt": 1774835605375,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605375,
+    "expiresAt": 1775440405375,
+    "status": "hit",
+    "hitAt": 1774835605414,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605415,
+    "expiresAt": 1775440405415,
+    "status": "hit",
+    "hitAt": 1774835605456,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605457,
+    "expiresAt": 1775440405457,
+    "status": "hit",
+    "hitAt": 1774835605495,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605496,
+    "expiresAt": 1775440405496,
+    "status": "hit",
+    "hitAt": 1774835605533,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605534,
+    "expiresAt": 1775440405534,
+    "status": "hit",
+    "hitAt": 1774835605573,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605574,
+    "expiresAt": 1775440405574,
+    "status": "hit",
+    "hitAt": 1774835605615,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605615,
+    "expiresAt": 1775440405615,
+    "status": "hit",
+    "hitAt": 1774835605647,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605648,
+    "expiresAt": 1775440405648,
+    "status": "hit",
+    "hitAt": 1774835605685,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605686,
+    "expiresAt": 1775440405686,
+    "status": "hit",
+    "hitAt": 1774835605721,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605721,
+    "expiresAt": 1775440405721,
+    "status": "hit",
+    "hitAt": 1774835605754,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605755,
+    "expiresAt": 1775440405755,
+    "status": "hit",
+    "hitAt": 1774835605792,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605792,
+    "expiresAt": 1775440405792,
+    "status": "hit",
+    "hitAt": 1774835605829,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605829,
+    "expiresAt": 1775440405829,
+    "status": "hit",
+    "hitAt": 1774835605865,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605866,
+    "expiresAt": 1775440405866,
+    "status": "hit",
+    "hitAt": 1774835605902,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605903,
+    "expiresAt": 1775440405903,
+    "status": "hit",
+    "hitAt": 1774835605942,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605942,
+    "expiresAt": 1775440405942,
+    "status": "hit",
+    "hitAt": 1774835605974,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835605975,
+    "expiresAt": 1775440405975,
+    "status": "hit",
+    "hitAt": 1774835606016,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835606017,
+    "expiresAt": 1775440406017,
+    "status": "hit",
+    "hitAt": 1774835606055,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现12次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835606055,
+    "expiresAt": 1775440406055,
+    "status": "hit",
+    "hitAt": 1774835639521,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639522,
+    "expiresAt": 1775440439522,
+    "status": "hit",
+    "hitAt": 1774835639566,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639566,
+    "expiresAt": 1775440439566,
+    "status": "hit",
+    "hitAt": 1774835639610,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639610,
+    "expiresAt": 1775440439610,
+    "status": "hit",
+    "hitAt": 1774835639654,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639655,
+    "expiresAt": 1775440439655,
+    "status": "hit",
+    "hitAt": 1774835639701,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639702,
+    "expiresAt": 1775440439702,
+    "status": "hit",
+    "hitAt": 1774835639747,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639747,
+    "expiresAt": 1775440439747,
+    "status": "hit",
+    "hitAt": 1774835639791,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639791,
+    "expiresAt": 1775440439791,
+    "status": "hit",
+    "hitAt": 1774835639837,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639837,
+    "expiresAt": 1775440439837,
+    "status": "hit",
+    "hitAt": 1774835639881,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639881,
+    "expiresAt": 1775440439881,
+    "status": "hit",
+    "hitAt": 1774835639924,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639925,
+    "expiresAt": 1775440439925,
+    "status": "hit",
+    "hitAt": 1774835639969,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835639969,
+    "expiresAt": 1775440439969,
+    "status": "hit",
+    "hitAt": 1774835640011,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640012,
+    "expiresAt": 1775440440012,
+    "status": "hit",
+    "hitAt": 1774835640055,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640056,
+    "expiresAt": 1775440440056,
+    "status": "hit",
+    "hitAt": 1774835640099,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640099,
+    "expiresAt": 1775440440099,
+    "status": "hit",
+    "hitAt": 1774835640142,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640142,
+    "expiresAt": 1775440440142,
+    "status": "hit",
+    "hitAt": 1774835640186,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640187,
+    "expiresAt": 1775440440187,
+    "status": "hit",
+    "hitAt": 1774835640229,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640230,
+    "expiresAt": 1775440440230,
+    "status": "hit",
+    "hitAt": 1774835640273,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640274,
+    "expiresAt": 1775440440274,
+    "status": "hit",
+    "hitAt": 1774835640321,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640321,
+    "expiresAt": 1775440440321,
+    "status": "hit",
+    "hitAt": 1774835640366,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640367,
+    "expiresAt": 1775440440367,
+    "status": "hit",
+    "hitAt": 1774835640414,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640415,
+    "expiresAt": 1775440440415,
+    "status": "hit",
+    "hitAt": 1774835640459,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640459,
+    "expiresAt": 1775440440459,
+    "status": "hit",
+    "hitAt": 1774835640512,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640513,
+    "expiresAt": 1775440440513,
+    "status": "hit",
+    "hitAt": 1774835640705,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现4次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774835640705,
+    "expiresAt": 1775440440705,
+    "status": "hit",
+    "hitAt": 1774836738496,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774836294712,
+    "expiresAt": 1775441094712,
+    "status": "hit",
+    "hitAt": 1774836469615,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现20次python相关话题",
+    "domain": "python",
+    "createdAt": 1774836469617,
+    "expiresAt": 1775441269617,
+    "status": "hit",
+    "hitAt": 1774849248305,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774836738496,
+    "expiresAt": 1775441538496,
+    "status": "hit",
+    "hitAt": 1774836918128,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现20次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774836918129,
+    "expiresAt": 1775441718129,
+    "status": "hit",
+    "hitAt": 1774849457254,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774849248306,
+    "expiresAt": 1775454048306,
+    "status": "hit",
+    "hitAt": 1774849360803,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现20次python相关话题",
+    "domain": "python",
+    "createdAt": 1774849360804,
+    "expiresAt": 1775454160804,
+    "status": "hit",
+    "hitAt": 1774849429278,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774849429279,
+    "expiresAt": 1775454229279,
+    "status": "hit",
+    "hitAt": 1774849496233,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现20次python相关话题",
+    "domain": "python",
+    "createdAt": 1774849496234,
+    "expiresAt": 1775454296234,
+    "status": "hit",
+    "hitAt": 1774856072642,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774849604581,
+    "expiresAt": 1775454404581,
+    "status": "hit",
+    "hitAt": 1774849668270,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现20次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774849668271,
+    "expiresAt": 1775454468271,
+    "status": "hit",
+    "hitAt": 1774850102369,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774850102369,
+    "expiresAt": 1775454902369,
+    "status": "hit",
+    "hitAt": 1774856115500,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现20次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774856072642,
+    "expiresAt": 1775460872642,
+    "status": "hit",
+    "hitAt": 1774856099379,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现20次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774856099380,
+    "expiresAt": 1775460899380,
+    "status": "hit",
+    "hitAt": 1774857710432,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现20次python相关话题",
+    "domain": "python",
+    "createdAt": 1774856141610,
+    "expiresAt": 1775460941610,
+    "status": "hit",
+    "hitAt": 1774856463942,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774856463942,
+    "expiresAt": 1775461263942,
+    "status": "hit",
+    "hitAt": 1774856501079,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774856501079,
+    "expiresAt": 1775461301079,
+    "status": "hit",
+    "hitAt": 1774856507430,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774856507431,
+    "expiresAt": 1775461307431,
+    "status": "hit",
+    "hitAt": 1774856533861,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论咨询，预计下次会问更深入的咨询问题",
+    "basis": "最近20条消息中出现20次咨询相关话题",
+    "domain": "咨询",
+    "createdAt": 1774856533862,
+    "expiresAt": 1775461333862,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857614809,
+    "expiresAt": 1775462414809,
+    "status": "hit",
+    "hitAt": 1774857825265,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857825266,
+    "expiresAt": 1775462625266,
+    "status": "hit",
+    "hitAt": 1774857828317,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857828318,
+    "expiresAt": 1775462628318,
+    "status": "hit",
+    "hitAt": 1774857831372,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857831372,
+    "expiresAt": 1775462631372,
+    "status": "hit",
+    "hitAt": 1774857854261,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857854262,
+    "expiresAt": 1775462654262,
+    "status": "hit",
+    "hitAt": 1774857857317,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857857317,
+    "expiresAt": 1775462657317,
+    "status": "hit",
+    "hitAt": 1774857860372,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857860373,
+    "expiresAt": 1775462660373,
+    "status": "hit",
+    "hitAt": 1774857863425,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857863426,
+    "expiresAt": 1775462663426,
+    "status": "hit",
+    "hitAt": 1774857866483,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857866484,
+    "expiresAt": 1775462666484,
+    "status": "hit",
+    "hitAt": 1774857869537,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774857869538,
+    "expiresAt": 1775462669538,
+    "status": "hit",
+    "hitAt": 1774858062620,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现20次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774858062621,
+    "expiresAt": 1775462862621,
+    "status": "hit",
+    "hitAt": 1774858149133,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现20次闲聊相关话题",
+    "domain": "闲聊",
+    "createdAt": 1774858127623,
+    "expiresAt": 1775462927623,
+    "status": "hit",
+    "hitAt": 1774858333555,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现20次通用相关话题",
+    "domain": "通用",
+    "createdAt": 1774858333556,
+    "expiresAt": 1775463133556,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  }
+]

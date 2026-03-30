@@ -22,7 +22,7 @@ import { existsSync, readFileSync, mkdirSync } from 'fs'
 import { resolve } from 'path'
 import { DATA_DIR, debouncedSave } from './persistence.ts'
 import { spawnCLI } from './cli.ts'
-import { body, emotionVector } from './body.ts'
+import { body, emotionVector, getEmotionVector } from './body.ts'
 import type { Memory } from './types.ts'
 
 // Lazy-loaded modules (to avoid circular imports at module level)
@@ -285,7 +285,12 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
       || userMsg.match(/我[\u4e00-\u9fff]{2,6}[\u4e00-\u9fff]{2,3}/)  // "我同事阿昊" pattern
     if (nameCandidate && !mentionedKnown && Object.keys(profile.social).length < 30) {
       spawnCLI(
-        `从这句话中提取人物关系。如果提到了某个人，输出 JSON: {"name":"名字","relation":"关系","context":"简要背景"}。没有人物关系就回答 "null"。\n\n"${userMsg.slice(0, 200)}"`,
+        `从这句话中提取人物关系。要求：
+1. name 必须是具体的人名（如"阿昊""沈婉宁""老孟"），不能是称呼词（如"老公""爸爸""老板""VP"）
+2. 如果只有称呼没有人名，回答 "null"
+3. 输出 JSON: {"name":"具体人名","relation":"关系","context":"简要背景"}
+
+"${userMsg.slice(0, 200)}"`,
         (output) => {
           if (!output || output.includes('null')) return
           try {
@@ -540,8 +545,8 @@ async function gatherSoulContext(userId: string, sender: string, message: string
     const energyLabel = e > 0.7 ? '精力充沛，愿意多聊' : e > 0.4 ? '状态还行'
       : e > 0.2 ? '有点累，不想说太多' : '极度疲惫，只想简短回复'
 
-    // 5-dimensional emotion vector (if available)
-    const ev2 = emotionVector
+    // 5-dimensional emotion vector (per-user)
+    const ev2 = getEmotionVector(userId)
     const dimensions: string[] = []
     if (ev2) {
       if (ev2.pleasure < -0.3) dimensions.push('不愉快')

@@ -21,8 +21,19 @@ export interface EmotionVector {
   novelty: number     // 新奇感 [-1, 1]
 }
 
-// Known limitation: emotionVector is global, not per-user. Acceptable for single-user deployments.
-export const emotionVector: EmotionVector = { pleasure: 0, arousal: 0, dominance: 0.3, certainty: 0.5, novelty: 0 }
+// Per-user emotion vectors for multi-user API mode
+const _emotionVectors = new Map<string, EmotionVector>()
+const _defaultVector = (): EmotionVector => ({ pleasure: 0, arousal: 0, dominance: 0.3, certainty: 0.5, novelty: 0 })
+
+/** Get emotion vector for a specific user. Creates one if not exists. */
+export function getEmotionVector(userId?: string): EmotionVector {
+  const key = userId || '_default'
+  if (!_emotionVectors.has(key)) _emotionVectors.set(key, _defaultVector())
+  return _emotionVectors.get(key)!
+}
+
+// Backward compatibility: global emotionVector points to default user
+export const emotionVector: EmotionVector = getEmotionVector('_default')
 
 export const body: BodyState = {
   energy: 1.0,
@@ -162,15 +173,18 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
   const detected = detectEmotionLabel(msg)
   lastDetectedEmotion = detected
 
-  // ── PADCN 向量更新：用检测到的情绪直接驱动 ──
+  // ── PADCN 向量更新：per-user，用检测到的情绪驱动 ──
   if (detected.confidence > 0.5) {
+    const ev = getEmotionVector(senderId)
     const delta = emotionLabelToPADCN(detected.label)
-    const weight = detected.confidence * 0.3 // 衰减系数
-    emotionVector.pleasure = emotionVector.pleasure * 0.8 + delta.pleasure * weight
-    emotionVector.arousal = emotionVector.arousal * 0.8 + delta.arousal * weight
-    emotionVector.dominance = emotionVector.dominance * 0.9 + delta.dominance * weight * 0.5
-    emotionVector.certainty = emotionVector.certainty * 0.9 + delta.certainty * weight * 0.5
-    emotionVector.novelty = emotionVector.novelty * 0.9 + delta.novelty * weight * 0.5
+    const weight = detected.confidence * 0.3
+    ev.pleasure = ev.pleasure * 0.8 + delta.pleasure * weight
+    ev.arousal = ev.arousal * 0.8 + delta.arousal * weight
+    ev.dominance = ev.dominance * 0.9 + delta.dominance * weight * 0.5
+    ev.certainty = ev.certainty * 0.9 + delta.certainty * weight * 0.5
+    ev.novelty = ev.novelty * 0.9 + delta.novelty * weight * 0.5
+    // Sync to global for backward compat
+    Object.assign(emotionVector, ev)
   }
 
   // ── Valence 计算（兼容旧系统）──

@@ -1,14 +1,23 @@
 {
-  "ts": 1774493075786,
-  "duplicates": [],
-  "tooShort": [
-    "跑步打卡，总计3次",
-    "主人住在北京朝阳区",
-    "用户称呼：wang"
+  "ts": 1774862146309,
+  "duplicates": [
+    {
+      "a": "decay_test_old_memory_for_unit_test",
+      "b": "decay_test_old_memory_for_unit_test",
+      "sim": 1
+    },
+    {
+      "a": "Docker清理无用镜像的常用命令：docker system df查看空间占用，docker image prune清",
+      "b": "Docker清理无用镜像的常用命令：docker system df查看空间，docker image prune清理悬",
+      "sim": 0.93
+    }
   ],
-  "untagged": 317,
+  "tooShort": [
+    "用户名为wang"
+  ],
+  "untagged": 58,
   "lowConfidence": 0,
   "zombie": 0,
   "staleExpiry": 0,
-  "suggestions": "建议清理 3 条过短记忆；317 条记忆缺少标签，建议批量打标"
+  "suggestions": "建议合并 2 组重复记忆；建议清理 1 条过短记忆；58 条记忆缺少标签，建议批量打标"
 }

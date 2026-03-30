@@ -429,26 +429,8 @@ export function routeCommand(
     }
   }
 
-  // Avatar (AI 分身) — soul injection reply
-  const avatarMatch = userMsg.match(/^\/cc_avatar\s+(.+?)[:：]\s*(.+)$/i)
-    || userMsg.match(/^\/分身\s+(.+?)[:：]\s*(.+)$/i)
-  if (avatarMatch) {
-    const senderName = avatarMatch[1].trim()
-    const senderMsg = avatarMatch[2].trim()
-    import('./avatar.ts').then(({ generateAvatarReply }) => {
-      generateAvatarReply(senderId, senderName, senderMsg, (reply: string, refused?: boolean) => {
-        if (refused) {
-          cmdReply(ctx, event, session, reply || `[分身拒绝回复此消息]`, userMsg)
-        } else {
-          cmdReply(ctx, event, session, `「${senderName}」→ ${reply}`, userMsg)
-        }
-      })
-    }).catch((e: any) => {
-      cmdReply(ctx, event, session, `分身失败: ${e.message}`, userMsg)
-    })
-    return true
-  }
-  // 分身状态
+  // /分身 命令已删除 — 灵魂回复统一通过 Soul API (/soul endpoint) 或灵魂模式
+  // 分身状态（查看数据）保留
   if (/^(\/分身状态|\/avatar.status)$/i.test(userMsg.trim())) {
     import('./avatar.ts').then(({ getAvatarStats }) => {
       const stats = getAvatarStats(senderId)
@@ -1402,7 +1384,7 @@ const CMD_PATTERNS = [
   /^(sync|同步)/i,
   /^(upgrade|更新)/i,
   /^(radar|竞品)/i,
-  /^(dashboard|仪表盘|记忆地图)/i,
+  /^(dashboard|仪表盘|记忆地图|stats|soul state|灵魂状态|晨报|周报|情绪周报|能力评分|metrics|cost)/i,
   /^(成长轨迹|growth)$/i,
   /^(我的技能|my skills)$/i,
   /^(时间旅行|time travel)\s+/i,

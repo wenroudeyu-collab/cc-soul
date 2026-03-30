@@ -1,5 +1,5 @@
 {
-  "memory.recall_top_n": 2,
+  "memory.recall_top_n": 3,
   "memory.age_decay_rate": 0.02,
   "memory.consolidation_cooldown_hours": 24,
   "memory.session_summary_cooldown_min": 30,
@@ -37,7 +37,7 @@
   "flow.frustration_repetition": 0.15,
   "flow.frustration_decay_per_turn": 0.05,
   "flow.stuck_threshold": 0.5,
-  "prompt.augment_budget": 2000,
+  "prompt.augment_budget": 3500,
   "evolution.hypothesis_verify_threshold": 5,
   "evolution.hypothesis_reject_threshold": 3,
   "evolution.max_rules": 50,
@@ -63,8 +63,5 @@
   "fingerprint.hedge_word_limit": 5,
   "graph.stale_days": 90,
   "persona.blend_gap_threshold": 0.3,
-  "persona.attention_trigger_bonus": 0.2,
-  "voice.proactive_cooldown_hours": 1,
-  "voice.impulse_threshold": 0.5,
-  "rover.roam_cooldown_hours": 1
+  "persona.attention_trigger_bonus": 0.2
 }

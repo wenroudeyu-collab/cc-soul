@@ -1,17 +1,17 @@
 {
-  "test_user": {
-    "userId": "test_user",
+  "test": {
+    "userId": "test",
     "displayName": "",
     "tier": "new",
     "messageCount": 1,
     "corrections": 0,
-    "lastSeen": 1774832663224,
-    "firstSeen": 1774832663224,
+    "lastSeen": 1774861718891,
+    "firstSeen": 1774861657264,
     "topics": [
-      "最近工作压力好大",
-      "老板天天催"
+      "帮我写一个",
+      "排序函数"
     ],
-    "style": "casual",
+    "style": "technical",
     "trust": 0.5,
     "familiarity": 0.02,
     "relationshipTrend": "stable",
@@ -19,16 +19,24 @@
     "sharedEpisodes": 0,
     "languageDna": {
       "topWords": {
-        "最近工作": 1,
-        "压力好大": 1,
-        "老板天天": 1
+        "帮我写一": 1,
+        "python": 1,
+        "排序函数": 1
       },
-      "avgLength": 14,
+      "avgLength": 15,
       "samples": 1
     },
     "language": "zh",
     "rhythm": {
       "activeHours": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -44,6 +52,62 @@
         0,
         0,
         0,
+        0
+      ],
+      "weekdayTopics": [
+        "帮我写一个",
+        "排序函数"
+      ],
+      "weekendTopics": [],
+      "avgResponseDelay": 0,
+      "lastMessageTs": 1774861718891
+    }
+  },
+  "ou_db9ed11831f16364610ed6eefcff963e": {
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "displayName": "",
+    "tier": "owner",
+    "messageCount": 1,
+    "corrections": 0,
+    "lastSeen": 1774861739530,
+    "firstSeen": 1774861718893,
+    "topics": [
+      "怎么优化",
+      "慢查询"
+    ],
+    "style": "casual",
+    "trust": 0.5,
+    "familiarity": 0.02,
+    "relationshipTrend": "stable",
+    "lastConflict": 0,
+    "sharedEpisodes": 0,
+    "languageDna": {
+      "topWords": {
+        "怎么优化": 1,
+        "mysql": 1,
+        "慢查询": 1
+      },
+      "avgLength": 15,
+      "samples": 1
+    },
+    "language": "zh",
+    "rhythm": {
+      "activeHours": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -55,12 +119,68 @@
         0
       ],
       "weekdayTopics": [
-        "最近工作压力好大",
-        "老板天天催"
+        "怎么优化",
+        "慢查询"
       ],
       "weekendTopics": [],
       "avgResponseDelay": 0,
-      "lastMessageTs": 1774832663225
+      "lastMessageTs": 1774861739530
+    }
+  },
+  "default": {
+    "userId": "default",
+    "displayName": "",
+    "tier": "new",
+    "messageCount": 1,
+    "corrections": 0,
+    "lastSeen": 1774861849900,
+    "firstSeen": 1774861849900,
+    "topics": [],
+    "style": "casual",
+    "trust": 0.5,
+    "familiarity": 0.02,
+    "relationshipTrend": "stable",
+    "lastConflict": 0,
+    "sharedEpisodes": 0,
+    "languageDna": {
+      "topWords": {
+        "你好": 1
+      },
+      "avgLength": 2,
+      "samples": 1
+    },
+    "language": "zh",
+    "rhythm": {
+      "activeHours": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "weekdayTopics": [],
+      "weekendTopics": [],
+      "avgResponseDelay": 0,
+      "lastMessageTs": 1774861849901
     }
   }
 }

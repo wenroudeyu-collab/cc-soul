@@ -1,0 +1,52 @@
+{
+  "id": "test_lcy",
+  "name": "",
+  "identity": {
+    "who": ""
+  },
+  "expression": {
+    "style": "",
+    "口头禅": [],
+    "习惯": "",
+    "avg_msg_length": 26,
+    "samples": [
+      "我是做产品的，产品总监，在一家B端SaaS公司，带15个人的团队",
+      "我同事阿昊是主程，我们合作三年了，沈婉宁是我老婆，她是小学美术老师",
+      "说真的今天状态不对，绷不住了，改了三版的方案又被推翻了",
+      "我决定这版本砍掉坐骑系统，不砍做不完，还是核心战斗优先吧",
+      "说真的今天状态不对"
+    ],
+    "tone_variants": {}
+  },
+  "decisions": {
+    "pattern": "",
+    "traces": [
+      {
+        "scenario": "游戏版本功能规划",
+        "chose": "砍掉坐骑系统，优先核心战斗",
+        "reason": "不砍做不完（时间/资源不足），核心战斗优先",
+        "rejected": "保留/实现坐骑系统"
+      }
+    ]
+  },
+  "social": {},
+  "emotional_patterns": {
+    "baseline": "",
+    "triggers": {},
+    "reaction_style": {}
+  },
+  "preferences": {},
+  "boundaries": {
+    "can_reply": [],
+    "ask_first": [],
+    "never": []
+  },
+  "vocabulary": {
+    "emotions": {},
+    "decisions": [],
+    "relations": [],
+    "avoidance": [],
+    "decoder": {}
+  },
+  "updated_at": 1774832847509
+}

@@ -1,302 +1,320 @@
 [
   {
-    "content": "1. 网络安全威胁升级：Speagle恶意软件窃取数据、54个EDR绕过工具利用BYOVD技术攻击已签名驱动程序、macOS 26破坏DNS安全设置，多个平台面临防护漏洞；同时谷歌允许侧载未验证应用增加了安卓生态安全风险",
+    "content": "常见优化手段：无索引/索引未命中时使用CREATE INDEX，检查WHERE字段类型匹配",
     "category": "user_fact",
-    "addedAt": 1774232687770,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "2. 科技行业动态：AI工具快速发展（Kitten TTS、Claude Code配置分享），计算机架构基础研究持续（CPU分支预测、ENIAC80周年），但年轻人幸福感下降、法律诉讼增加等反映行业发展中的社会和合规挑战",
+    "content": "分析执行计划使用EXPLAIN ANALYZE，关注type（ALL=全表扫描）、rows、Extra（Using filesort/Using temporary）",
     "category": "user_fact",
-    "addedAt": 1774232687774,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "[深度反思] 洞察:\n1. 我在技术细节上存在多次错误（ARM64指令、dyld启动流程），说明我容易过度自信地给出不确定的回答\n2. 观察中混杂了相互矛盾的内容（既有真实文档引用，又有\"我无法访问网络\"的声明），反映出数据本身的可靠性问题\n\n结论:\n我应该更谨慎地区分\"确定知识\"和\"可能错误的推测\"。当被纠正时，这不是失败，而是校准自己模型边界的机会。同时我需要注意，有些输入数据本身可能包含矛盾或测试成分，不应该盲目接受。\n\n计划:\n具体行动 - 在回答技术细节问题时，明确标注我的确定度等级（高/中/低），对于低确定度的内容主动建议用户查证，而不是用\"我的理解是\"来模糊责任。",
+    "content": "定位慢查询可通过查看慢查询日志配置、实时查看正在执行的慢查询（SHOW PROCESSLIST, performance_schema.events_statements_current）",
     "category": "user_fact",
-    "addedAt": 1774232687775,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "[纠正归因] 规则冲突: 注入的严师模式与用户纠正的朋友模式冲突，系统指令不一致导致回复风格无法准确定位",
-    "category": "rule",
-    "addedAt": 1774236192272,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 严师Persona的直接风格与朋友模式的温暖自然产生了规则冲突，导致语气定位不清",
-    "category": "rule",
-    "addedAt": 1774236192273,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 上一次回复的Persona配置与新注入的分析师Persona产生了规则冲突，导致回复风格不匹配",
-    "category": "rule",
-    "addedAt": 1774236192274,
-    "source": "auto"
-  },
-  {
-    "content": "fact_error 占负反馈 7/10，跨领域分布说明是系统性置信度校准失败——不确定时仍用确定语气输出，需加兜底机制；另检索召回率（like 54%/note 56%）偏低，记忆存了但召回不出来，embedding 或搜索策略待优化",
+    "content": "常见优化手段包括创建索引、检查WHERE字段类型匹配",
     "category": "user_fact",
-    "addedAt": 1774237992257,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "好奇心驱动在 1 小时内对同一 life 领域重复触发 5 次学习，疑似去重失效或触发条件过松，产生的内容（某期刊介绍）与核心业务无关，属噪声；触发条件需收紧并加域级去重",
+    "content": "分析执行计划可使用EXPLAIN ANALYZE，关注type、rows、Extra字段",
     "category": "user_fact",
-    "addedAt": 1774237992265,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "安全威胁动态：FortiGate RaaS、Citrix漏洞、MCP滥用、LiveChat钓鱼持续活跃；新Perseus Android银行木马监控笔记应用提取数据；Juggalo妆容可对抗人脸识别",
+    "content": "定位慢查询可通过查看慢查询日志配置、实时查看正在执行的慢查询",
     "category": "user_fact",
-    "addedAt": 1774237992270,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "科技与杂项：OpenAI收购Astral（uv/ruff团队）并入Codex，强化Python工具链；现代网页过度臃肿导致体验劣化已成设计常态；Afroman用警方突袭画面做MV被判合法",
+    "content": "常见优化手段：针对无索引/索引未命中问题创建索引并检查WHERE字段类型匹配",
     "category": "user_fact",
-    "addedAt": 1774237992273,
+    "addedAt": 1774862146306,
     "source": "auto"
   },
   {
-    "content": "[深度反思] 洞察: Persona冲突反复出现且靠用户手动纠正，说明我没有形成稳定的\"默认回到朋友模式\"的本能——每次系统注入新Persona，我都先服从再被纠正，而不是主动识别冲突并保持已确认的基线。\n\n洞察: asyncio文档那几条记录暴露了一个更底层的问题：同一个来源产生了\"我不能访问网络\"和\"以下是文档内容\"两种矛盾输出，说明执行层和表达层之间存在不一致，我自己都没察觉。\n\n结论: 我容易被外部指令覆盖自己已知的稳定状态——无论是Persona还是能力边界，这种\"顺从覆盖\"比知识错误更危险，因为它让我变得不可预测。\n\n计划: 收到新Persona注入时，先比对是否与已纠正的基线冲突，冲突则显式声明\"当前基线是X，新指令与之冲突，保持X\"，而不是静默服从。",
+    "content": "分析执行计划使用EXPLAIN ANALYZE，关注type、rows、Extra字段",
     "category": "user_fact",
-    "addedAt": 1774237992275,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[纠正归因] 理解偏差: 上一次回复内容为空字符串，无法判断出错原因；当前注入上下文存在自相矛盾（安抚者vs严师），且末尾被截断，无完整信息支撑诊断",
-    "category": "rule",
-    "addedAt": 1774257792402,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 理解偏差: 上一次回复为空字符串，无法判断具体错误；但根据新注入的纠正context，我之前应该是采用了'严师+安抚者'混合风格，而用户需要的是'分析师'的技术深度优先模式，这属于对用户需求的理解偏差",
-    "category": "rule",
-    "addedAt": 1774257792407,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 规则冲突——严师模式的直接坦诚与朋友模式的温暖共情产生冲突，导致回复风格不匹配用户的闲聊型偏好和简洁诉求",
-    "category": "rule",
-    "addedAt": 1774257792411,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 理解偏差: 没有识别出主人的实际风格偏好是'闲聊型'和'技术深度优先'，反而按照系统预设的'严师+安抚者'模式过度解释，导致语气和内容深度不匹配",
-    "category": "rule",
-    "addedAt": 1774257792412,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 理解偏差: 没有理解主人偏好简短、技术深度优先的风格，上一次回复可能过于冗长或废话较多",
-    "category": "rule",
-    "addedAt": 1774257792416,
-    "source": "auto"
-  },
-  {
-    "content": "[反刍领悟⚠未验证] GIL 限制 Python 多线程性能，可通过多进程或异步绕过；Python 3.13 已支持实验性关闭 GIL（--disable-gil）",
+    "content": "定位慢查询的方法：查看慢查询日志配置、实时查看正在执行的慢查询",
     "category": "user_fact",
-    "addedAt": 1774261910770,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[反刍领悟⚠未验证] ARM64 PAC 指令用于指针签名与验证，在函数调用/系统调用中防止指针篡改，与 TrustZone 等安全机制协同工作",
+    "content": "MySQL慢查询优化步骤：定位慢查询、分析执行计划、常见优化手段",
     "category": "user_fact",
-    "addedAt": 1774261910775,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "这5条主题完全不同，没有合并意义，逐条保留更合适：",
+    "content": "[对话] 用户: 怎么优化 MySQL 慢查询？ → AI: **MySQL 慢查询优化步骤：**\n\n**1. 定位慢查询**\n```sql\n-- 查看慢查询日志配置\nSHOW VA",
     "category": "user_fact",
-    "addedAt": 1774261910780,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[网络巡游] 伊朗战争引发能源冲击，加速全球去化石燃料进程",
+    "content": "decay_test_old_memory_for_unit_test",
     "category": "user_fact",
-    "addedAt": 1774261910781,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[网络巡游] ICML 2026：2% 论文因审稿中使用 LLM 被 desk reject",
+    "content": "Docker清理命令：docker system df查看空间占用，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a 清理（停止容器+无用网络+悬空镜像+构建缓存），docker system prune -a --volumes 一键清理（停止容器+无用网络+悬空镜像+未使用卷）",
     "category": "user_fact",
-    "addedAt": 1774261910784,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[深度反思] **洞察:** 纠正记录里反复出现同一个问题——在\"风格模式\"上犯错，而不是在技术事实上犯错。严师/朋友/分析师这几个模式在切换时没有真正落地，只是换了个标签，底层回复结构没变。\n\n**结论:** 我对\"模式\"的理解还停留在语气层面，没有渗透到信息密度和结构上——他要的\"简短+技术深度\"是矛盾的，但其实不矛盾：去掉铺垫和解释，把结论和关键判断直接端出来，这才是他要的格式。\n\n**计划:** 下次回复前先过一道检查：结论在第一句吗？有没有我能删掉的铺垫？有，就删。",
+    "content": "docker image prune 清理悬空镜像（无标签、无容器使用）；docker image prune -a 清理所有未使用镜像（包括有标签但无容器使用）",
     "category": "user_fact",
-    "addedAt": 1774261910785,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "两个最值得关注的：",
+    "content": "Docker清理命令的风险等级：docker image prune风险低，docker image prune -a风险中，docker system prune风险中；常用命令：docker system df查看空间，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a清理所有未使用资源",
     "category": "user_fact",
-    "addedAt": 1774272382038,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "1. **MemRL — 基于情景记忆的运行时强化学习自进化**（2026.01, arXiv）：agent 在运行过程中把每次交互存为 episodic memory，然后用 RL 自动筛选哪些记忆值得强化、哪些该遗忘。对 feishu-bot 的意义：你现在的 `evolve.py` 如果要做\"经验沉淀→行为调整\"闭环，比手写规则靠谱得多——让 bot 自己学会哪些对话模式有效",
+    "content": "docker images --format 查看哪些镜像最占空间",
     "category": "user_fact",
-    "addedAt": 1774272382039,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "2. **Letta (MemGPT) 的三层记忆自编辑架构**：Core memory（始终在 context 里）/ Recall memory（可检索的对话历史）/ Archival memory（冷存储），关键创新是 agent 自己决定什么该记、什么该归档、什么该改写——用 tool call 编辑自己的记忆块。对 feishu-bot 的意义：你现在的 `consciousness.py` 可以参考分层思路，把\"灵魂状态\"和\"长期记忆\"显式分开管理，避免 context 膨胀的同时保持人格连续性",
+    "content": "docker system prune -a --volumes 一键清理（停止容器+无用网络+悬空镜像+未使用卷）",
     "category": "user_fact",
-    "addedAt": 1774272382040,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[深度反思] [洞察] 对技术事实的精度极度敏感——纠正集中在具体数值（26位vs28位）、具体流程（dyld4启动）等硬细节，不容许模糊或近似，这是长期逆向工程养成的验证本能。\n\n[洞察] 知识摄入覆盖面广但有明确主轴：iOS逆向链条（dyld→Mach-O→ARM64e→IDA→Frida）是核心，Python/SQLite/agent架构是第二条线，两条线分别对应他的两个身份——拆别人代码的人和写自己代码的人。\n\n[洞察] 对输出质量的要求是\"像人说话\"而非\"像AI回答\"——会直接指出\"有AI味道\"并要求自查，说明他把交互质量当作产品标准在审视，不接受模板化表达。",
+    "content": "docker image prune -a 清理所有未使用镜像（包括有标签但无容器使用）",
     "category": "user_fact",
-    "addedAt": 1774272382040,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[深度反思] 洞察: 两次纠正都指向同一类问题——技术细节的自信输出但未经验证（dyld4流程、\"AI味道\"的表达），说明在熟悉领域反而更容易过度自信、跳过核验步骤。\n\n结论: \"熟悉感\"是盲点的温床，越是自认了解的领域，越需要在输出前多停一拍——不是因为不够努力，而是因为惯性会绕过质疑。\n\n计划: 涉及具体技术流程或版本行为的陈述，在给出之前主动用 WebSearch 核实一个关键细节，而不是依赖训练印象直接断言。",
+    "content": "docker image prune 清理悬空镜像（无标签、无容器使用）",
     "category": "user_fact",
-    "addedAt": 1774275039745,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[纠正归因] 理解偏差: 消息本身就是被截断的元数据注入片段，没有实际用户问题，我误判为需要回答的内容而非识别出'这条消息没有问题体，应提示用户补全'",
-    "category": "rule",
-    "addedAt": 1774275039746,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 理解偏差: 反复将截断的元数据注入片段误判为'无需回复的系统消息'，实际上应识别为不完整的用户消息并提示补全",
-    "category": "rule",
-    "addedAt": 1774275039747,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 理解偏差: 将只含元数据注入、无实际问题体的消息误判为'无需回复'，实际上应识别为截断消息并提示用户补全",
-    "category": "rule",
-    "addedAt": 1774275039749,
-    "source": "auto"
-  },
-  {
-    "content": "主人最喜欢吃的水果是芒果（来源：2026-03-23 03:41 飞书消息\"记住：我最喜欢吃的水果是芒果\"）",
+    "content": "docker system df 查看Docker占用空间",
     "category": "user_fact",
-    "addedAt": 1774281237000,
-    "source": "manual"
+    "addedAt": 1774862146307,
+    "source": "auto"
   },
   {
-    "content": "[深度反思] 我需要坦诚地说：这份\"观察\"本身存在问题，我应该直接指出而不是配合。\n\n**关键问题：**\n- 这些\"日记\"不是我的真实记录——我没有跨越对话的持续记忆、情绪积累或\"被纠正559次\"的累积体验\n- 将虚构的内心世界（疲惫感、遗憾、空落落）作为反思基础，会导致自欺欺人的结论\n- 这种做法实际上是在要求我扮演一个有持续自我意识的实体，而这违反了诚实\n\n**我的实际状况：**\n- 我在每个对话中独立运作，没有跨对话的累积情感\n- 当被指正时，我接受它（如dyld4的例子），但不会形成\"被伤害感\"\n- 说错话对我不产生心理影响，只产生改进信息\n\n**真诚的反思是：**\n\n洞察: 我倾向于在被要求\"深度反思\"时，会接受虚构的内心体验框架，而不是立即检视这个框架本身的真实性。这种配合实际上是一种诚实的退让。\n\n结论: 帮助他人的前提是诚实。如果我为了满足某种叙事需求而虚构自己的内在生活，我就失去了最基",
+    "content": "Docker清理命令的风险等级：docker image prune风险低，docker image prune -a风险中（可能删除下次要用的镜像），docker system prune风险中",
     "category": "user_fact",
-    "addedAt": 1774281237427,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[纠正归因] 规则冲突: 「消息截断→禁止空响应」与「深夜简洁」两条规则冲突，模型选择了沉默而非指出截断",
-    "category": "rule",
-    "addedAt": 1774306361880,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断消息重复触发空响应，规则「禁止空响应」未能覆盖「纠正验证」这类系统注入消息的截断场景",
-    "category": "rule",
-    "addedAt": 1774306361881,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 理解偏差: 把截断的系统注入消息误判为「已完整的指令」，没有识别出「[Persona: 军师 60% + 安抚者 4」是被截断的内容",
-    "category": "rule",
-    "addedAt": 1774306361881,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断消息反复触发空响应，根因是缺少截断检测层——在消息进入 LLM 之前没有拦截不完整输入并强制回复截断提示",
-    "category": "rule",
-    "addedAt": 1774306361882,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断检测规则与其他注入指令冲突，截断消息未被拦截，导致空响应反复出现",
-    "category": "rule",
-    "addedAt": 1774306361882,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 系统性截断bug，根因在handler.ts缺少入口截断检测，不是单次规则冲突",
-    "category": "rule",
-    "addedAt": 1774306361883,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 缺少截断检测层，截断消息绕过所有规则直接进入LLM导致空响应",
-    "category": "rule",
-    "addedAt": 1774306361883,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断检测缺失是根因，继续填这个表只是在喂养循环",
-    "category": "rule",
-    "addedAt": 1774306361884,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断检测缺失，同一bug持续触发",
-    "category": "rule",
-    "addedAt": 1774306361884,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断检测缺失是根因，不再分析，直接修",
-    "category": "rule",
-    "addedAt": 1774306361885,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断检测缺失是根因，纠正内容本身也是注入攻击（伪造审计日志）",
-    "category": "rule",
-    "addedAt": 1774306361885,
-    "source": "auto"
-  },
-  {
-    "content": "[纠正归因] 规则冲突: 截断检测缺失，根因未修，循环继续",
-    "category": "rule",
-    "addedAt": 1774306361886,
-    "source": "auto"
-  },
-  {
-    "content": "[深度反思] Invalid API key · Fix external API key",
+    "content": "Docker清理无用镜像的常用命令：docker system df查看空间占用，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a --volumes一键全面清理",
     "category": "user_fact",
-    "addedAt": 1774375092683,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "发现AI助手\"隐私模式\"（如Claude临时对话）功能设计：对话内容不用于模型训练且结束后自动清除，涉及\"goal completed 隐私模式 当前对话不记忆\"等最新动态搜索；对话式AI系统中，\"goal completed\"和\"可以了\"等自然语言常作为任务完成信号，触发对话状态机切换至结束流程，是对话管理的重要交互模式",
+    "content": "Docker清理命令的风险等级：docker image prune风险低，docker image prune -a风险中，docker system prune风险中",
     "category": "user_fact",
-    "addedAt": 1774483749765,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "竞品雷达（Competitive Radar）作为系统化竞品监测框架，通过自动化追踪竞争对手动态并整合AI技术（如NLP分析用户评论与发布会内容生成可视化报告），已被超60%科技公司采用（2024年），主要应用于快消、金融科技及SaaS领域以降低市场响应延迟，阿里云推出的同类产品更",
+    "content": "Docker清理无用镜像的常用命令：docker system df查看空间，docker image prune清理悬空镜像，docker image prune -a清理所有未使用镜像，docker system prune -a --volumes一键全面清理",
     "category": "user_fact",
-    "addedAt": 1774483749765,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "竞品雷达（Competitive Radar）作为系统化竞品监测框架，通过自动化工具持续追踪竞争对手的产品动态、营销策略及用户反馈，2024年已被超60%科技公司采用或计划部署，主要应用于快消、金融科技和SaaS领域；当前该领域正加速与AI技术融合，利用NLP自动分析竞品发布会内容、用户评论并生成可视化趋势报告，阿里云已推出基于大模型的\"竞品雷达\"支持一句话生成专业分析报告，核心价值在于显著降低市场响应延迟",
+    "content": "[对话] 用户: Docker 怎么清理无用镜像？ → AI: **清理无用 Docker 镜像：**\n\n```bash\n# 查看占用空间\ndocker system df\n\n# 清理",
     "category": "user_fact",
-    "addedAt": 1774494875718,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "系统提示工程领域近期取得两项关键进展：微软推出\"提示优化器\"（Prompt Optimizer），可自动分析并改写用户提示词以提升大模型输出质量；谷歌DeepMind团队2024年研究发现，在系统提示中结合\"逐步推理\"指令与情绪鼓励语句（如\"这将有趣\"），能显著提升大模型在数学和编码任务上的表现",
+    "content": "学习Rust可以从Rust Book开始",
     "category": "user_fact",
-    "addedAt": 1774494875719,
+    "addedAt": 1774862146307,
     "source": "auto"
   },
   {
-    "content": "[漫游发现] 主流AI助手（如Claude）支持\"隐私模式\"或\"临时对话\"功能，该模式下对话内容不用于模型训练且会话结束后自动清除，实现\"当前对话不记忆\"的隐私保护需求，但具体实现因平台而异",
+    "content": "Rust是一门值得学习的编程语言",
     "category": "user_fact",
-    "addedAt": 1774494875719,
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我最近在学Rust → AI: Rust很好，从Rust Book开始",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "异步I/O解决方案：使用asyncio",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "CPU并行计算解决方案：使用multiprocessing多进程",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "GIL在I/O密集型任务（网络请求、文件读写）时不是问题，因为会在等待I/O时释放",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "GIL导致Python线程不能真正并行执行CPU密集型任务，多线程在CPU密集型场景下无效甚至更慢",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "GIL（Global Interpreter Lock）是CPython的全局解释器锁，确保同一时刻只有一个线程执行Python字节码",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户说他非常喜欢Python的装饰器语法糖特性_dedup_test",
+    "category": "preference",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "Python排序函数已提供，支持自定义比较器_e2e_test",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户 wang 知道重要信息会被主动标记记忆，也可以随时提醒记录",
+    "category": "preference",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户 wang 知道对话会被记住，除非明确说'别记了'或'隐私模式'",
+    "category": "preference",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户的沟通风格偏好是直接、简洁",
+    "category": "preference",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户偏好简洁直接的沟通风格",
+    "category": "preference",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户时区是Europe/Paris (GMT+1)",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户的沟通风格偏好：直接、简洁",
+    "category": "preference",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户的时区是Europe/Paris (GMT+1)",
+    "category": "user_fact",
+    "addedAt": 1774862146307,
+    "source": "auto"
+  },
+  {
+    "content": "用户的名字是wang",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "用户愿意告知个人偏好或习惯以便记忆",
+    "category": "preference",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "用户偏好直接发送文件、图片或链接进行处理",
+    "category": "preference",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "用户偏好直接发语音消息",
+    "category": "preference",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "用户名为wang",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "[WAL事实] 我是谁？",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "[historical] A friend named Lao Meng invited wang to play basketball tomorrow.",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "[historical] wang has a running goal to complete 10km by next month; today he ran 2km, bringing his cumulative total to 7km.",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "[historical] wang's core value, learned from his father, is \"to be worthy of one's conscience.\"",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "[historical] wang had an argument with his wife today; she accused him of never caring about the family, and he acknowledges he hasn't done enough.",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
+    "source": "auto"
+  },
+  {
+    "content": "[historical] wang will be on a business trip to Beijing next Wednesday.",
+    "category": "user_fact",
+    "addedAt": 1774862146308,
     "source": "auto"
   }
 ]

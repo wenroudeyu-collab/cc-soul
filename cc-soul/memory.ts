@@ -45,6 +45,37 @@ import { findMentionedEntities, getRelatedEntities, graphWalkRecall } from './gr
 import { appendAudit } from './audit.ts'
 import { isEnabled } from './features.ts'
 
+// Lazy-loaded modules (avoid circular deps + ESM require issues)
+let _handlerState: any = null
+let _bodyMod: any = null
+let _signalsMod: any = null
+let _distillMod: any = null
+
+function getLazyModule(name: string) {
+  switch (name) {
+    case 'handler-state':
+      if (!_handlerState) try { _handlerState = require('./handler-state.ts') } catch { import('./handler-state.ts').then(m => { _handlerState = m }).catch(() => {}) }
+      return _handlerState
+    case 'body':
+      if (!_bodyMod) try { _bodyMod = require('./body.ts') } catch { import('./body.ts').then(m => { _bodyMod = m }).catch(() => {}) }
+      return _bodyMod
+    case 'signals':
+      if (!_signalsMod) try { _signalsMod = require('./signals.ts') } catch { import('./signals.ts').then(m => { _signalsMod = m }).catch(() => {}) }
+      return _signalsMod
+    case 'distill':
+      if (!_distillMod) try { _distillMod = require('./distill.ts') } catch { import('./distill.ts').then(m => { _distillMod = m }).catch(() => {}) }
+      return _distillMod
+    default: return null
+  }
+}
+// Pre-load lazily in background
+setTimeout(() => {
+  import('./handler-state.ts').then(m => { _handlerState = m }).catch(() => {})
+  import('./body.ts').then(m => { _bodyMod = m }).catch(() => {})
+  import('./signals.ts').then(m => { _signalsMod = m }).catch(() => {})
+  import('./distill.ts').then(m => { _distillMod = m }).catch(() => {})
+}, 1000)
+
 /**
  * Sync memory confidence/scope changes to SQLite.
  * Call this whenever you modify mem.confidence or mem.scope in-memory.
@@ -1160,7 +1191,7 @@ function detectMemoryPoisoning(content: string): boolean {
 export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx']) {
   // Check skip flag from session (inclusion/exclusion control)
   try {
-    const { getSessionState, getLastActiveSessionKey } = require('./handler-state.ts')
+    const mod = getLazyModule('handler-state'); const getSessionState = mod?.getSessionState; const getLastActiveSessionKey = mod?.getLastActiveSessionKey
     const sess = getSessionState(getLastActiveSessionKey())
     if (sess?._skipNextMemory) {
       sess._skipNextMemory = false
@@ -1200,7 +1231,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   let autoSituationCtx = situationCtx
   if (!autoSituationCtx) {
     try {
-      const { body } = require('./body.ts')
+      const bodyMod = getLazyModule('body'); const body = bodyMod?.body
       if (body && typeof body.mood === 'number') {
         autoSituationCtx = { mood: body.mood, energy: body.energy }
       }
@@ -1318,7 +1349,7 @@ export function addMemoryWithEmotion(content: string, scope: string, userId?: st
   } else if (content.length > 20) {
     // Use rule-based emotion detection (no LLM call needed)
     try {
-      const { detectEmotionLabel, emotionLabelToLegacy } = require('./signals.ts')
+      const sigMod = getLazyModule('signals'); const detectEmotionLabel = sigMod?.detectEmotionLabel; const emotionLabelToLegacy = sigMod?.emotionLabelToLegacy
       const detected = detectEmotionLabel(content)
       if (detected.confidence > 0.4) {
         target.emotion = emotionLabelToLegacy(detected.label)
@@ -1553,7 +1584,7 @@ function recallWithScores(msg: string, topN = 3, userId?: string, channelId?: st
       // Fine-grained emotion congruence: same emotion type → boost
       if (eLabel && moodCtx) {
         try {
-          const { lastDetectedEmotion } = require('./body.ts')
+          const bodyM = getLazyModule('body'); const lastDetectedEmotion = bodyM?.lastDetectedEmotion
           if (lastDetectedEmotion && eLabel === lastDetectedEmotion.label) {
             moodMatchBoost *= 1.4 // same emotion state → strong context match
           }
@@ -2292,7 +2323,7 @@ export function associateSync(userMsg: string, recalled: Memory[], userId?: stri
 
   // Source 2: Topic nodes — find matching topics from distilled knowledge
   try {
-    const { getRelevantTopics } = require('./distill.ts')
+    const distMod = getLazyModule('distill'); const getRelevantTopics = distMod?.getRelevantTopics
     const topics = getRelevantTopics(userMsg, userId, 3) as { topic: string; summary: string }[]
     for (const t of topics) {
       const words = ((t.topic + ' ' + t.summary).match(CJK_RE) || []).map((w: string) => w.toLowerCase())

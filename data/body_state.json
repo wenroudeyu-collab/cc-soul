@@ -1,14 +1,14 @@
 {
   "energy": 1,
-  "mood": 0.2994129639842041,
-  "load": 0,
+  "mood": null,
+  "load": 0.16336933333333337,
   "alertness": 0.5,
   "anomaly": 0,
   "emotionVector": {
     "pleasure": 0,
-    "arousal": 0,
-    "dominance": 0.294,
-    "certainty": 0.49,
-    "novelty": 0
+    "arousal": 0.08477643585599999,
+    "dominance": 0.2002823915265283,
+    "certainty": 0.3338039858775471,
+    "novelty": 0.056517623903999996
   }
 }

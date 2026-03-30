@@ -1,358 +1,240 @@
 /**
- * plugin-entry.ts — OpenClaw Plugin Entry Point for cc-soul
+ * plugin-entry.ts — OpenClaw Adapter for cc-soul (Pure API Mode)
  *
- * LIGHTWEIGHT registration only. OpenClaw creates a new JS context per message,
- * so register() runs on every single message. All heavy initialization (memory
- * loading, brain module registration, etc.) is deferred to handler.ts initializeSoul()
- * which runs when the first actual message arrives.
+ * Thin adapter: connects OpenClaw events to cc-soul API (localhost:18800).
+ * Zero source code imports from engine modules. Only fetch calls.
  *
- * register() target: < 200ms (was 4-5 seconds with full init)
+ * Soul API must be running separately: npx tsx cc-soul/soul-api.ts
  */
 
-// ── Minimal imports for registration (no brain modules, no optional modules) ──
-import { createCcSoulContextEngine, setStatsAccessor, setLastSenderId } from './context-engine.ts'
-import { ensureDataDir } from './persistence.ts'
-import { buildSoulPrompt } from './prompt-builder.ts'
-import { taskState } from './tasks.ts'
-
-import { writeFileSync, existsSync, readFileSync } from 'fs'
-import { mkdirSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { homedir } from 'os'
 
-// ── Plugin API reference (available after register()) ──
-let _api: any /* OpenClawPluginApi */ | undefined
+const SOUL_API = process.env.SOUL_API || 'http://localhost:18800'
 
-export function getPluginApi(): any /* OpenClawPluginApi */ | undefined {
-  return _api
-}
+// ── Plugin API reference ──
+let _api: any | undefined
+export function getPluginApi() { return _api }
 
-// ── Stats (mirrored from handler.ts for context engine stats accessor) ──
-const stats = {
-  totalMessages: 0,
-  corrections: 0,
-  firstSeen: 0,
-}
-
-export function updatePluginStats(s: { totalMessages: number; corrections: number; firstSeen: number }) {
-  stats.totalMessages = s.totalMessages
-  stats.corrections = s.corrections
-  stats.firstSeen = s.firstSeen
-}
-
-// ── SOUL.md file writer — inject soul prompt via OpenClaw's bootstrap-extra-files ──
-
-let _soulDynamicLockUntil = 0  // timestamp: don't overwrite SOUL.md until this time
-
-export function setSoulDynamicLock(durationMs = 30000) {
-  _soulDynamicLockUntil = Date.now() + durationMs
-}
-
-function writeSoulFile() {
-  // Skip if handler just wrote dynamic augments (avoid overwriting)
-  if (Date.now() < _soulDynamicLockUntil) {
-    console.log(`[cc-soul] SOUL.md write skipped (dynamic lock active)`)
-    return
-  }
-  try {
-    const soulPrompt = buildSoulPrompt(
-      stats.totalMessages, stats.corrections, stats.firstSeen,
-      taskState.workflows,
-    )
-    const workspaceDir = resolve(homedir(), '.openclaw/workspace')
-    const soulPath = resolve(workspaceDir, 'SOUL.md')
-    writeFileSync(soulPath, soulPrompt, 'utf-8')
-    console.log(`[cc-soul] SOUL.md written to ${workspaceDir} (${soulPrompt.length} chars)`)
-  } catch (e: any) {
-    console.error(`[cc-soul] failed to write SOUL.md: ${e.message}`)
-  }
-}
-
-// ── Auto-create hook bridge in ~/.openclaw/hooks/ ──
-
-function ensureHookBridge() {
-  try {
-    const bridgeDir = resolve(homedir(), '.openclaw/hooks/cc-soul-hook/cc-soul-hook')
-    const bridgePkg = resolve(homedir(), '.openclaw/hooks/cc-soul-hook/package.json')
-    const bridgeHook = resolve(bridgeDir, 'HOOK.md')
-    const bridgeHandler = resolve(bridgeDir, 'handler.ts')
-
-    if (existsSync(bridgeHandler)) return // already created
-
-    mkdirSync(bridgeDir, { recursive: true })
-
-    writeFileSync(bridgePkg, JSON.stringify({
-      name: 'cc-soul-hook',
-      version: '1.0.0',
-      type: 'module',
-      openclaw: { hooks: ['./cc-soul-hook'] }
-    }, null, 2))
-
-    writeFileSync(bridgeHook, `---
-name: cc-soul-hook
-metadata:
-  openclaw:
-    events:
-      - agent:bootstrap
-      - message:preprocessed
-      - message:sent
-      - command:new
----
-cc-soul hook bridge — auto-created by cc-soul plugin
-`)
-
-    const pluginDir = resolve(homedir(), '.openclaw/plugins/cc-soul')
-    writeFileSync(bridgeHandler, `// Auto-generated hook bridge for cc-soul plugin
-let loaded = false
-let fns: any = {}
-
-async function load() {
-  if (loaded) return
-  try {
-    const mod = await import('${pluginDir}/cc-soul/handler.ts')
-    fns = mod
-    loaded = true
-  } catch (e: any) {
-    console.error('[cc-soul-hook] load failed:', e.message)
-  }
-}
-
-export default async function handler(event: any) {
-  await load()
-  if (!loaded) return
-  if (event.type === 'agent' && event.action === 'bootstrap') fns.handleBootstrap?.(event)
-  else if (event.type === 'message' && event.action === 'preprocessed') fns.handlePreprocessed?.(event)
-  else if (event.type === 'message' && event.action === 'sent') fns.handleSent?.(event)
-  else if (event.type === 'command') fns.handleCommand?.(event)
-}
-`)
-
-    console.log('[cc-soul] hook bridge auto-created at ~/.openclaw/hooks/cc-soul-hook/')
-  } catch (e: any) {
-    console.error(`[cc-soul] hook bridge creation failed: ${e.message}`)
-  }
-}
-
-// ── Plugin Entry ──
+// ── Exports kept for backward compatibility (other modules may import these) ──
+export function updatePluginStats(_s: any) {}
+export function setSoulDynamicLock(_ms?: number) {}
 
 export default {
   id: 'cc-soul',
   name: 'cc-soul',
-  description: 'Soul layer for OpenClaw — memory, personality, context engine, and autonomous lifecycle',
+  description: 'Soul engine for AI — memory, personality, cognition, emotion (API mode)',
   kind: 'context-engine' as const,
   configSchema: {},
 
-  register(api: any /* OpenClawPluginApi */) {
+  register(api: any) {
     _api = api
     const log = api.logger || console
     const t0 = Date.now()
 
-    // ── Lightweight registration only ──
-    // OpenClaw creates a new JS context per message, so register() runs every time.
-    // All heavy init (memory loading, brain modules) is deferred to handler.ts
-    // initializeSoul() which runs on first actual message via hook handlers.
-    // This keeps register() fast (target < 200ms).
+    // ═══════════════════════════════════════════════════════════════
+    // All logic runs in soul-api.ts (separate process on :18800).
+    // This plugin only does fetch calls to forward OpenClaw events.
+    // ═══════════════════════════════════════════════════════════════
 
-    // 1. Data directory (mkdir, ~1ms)
-    ensureDataDir()
+    // Auto-start soul-api if not running
+    fetch(`${SOUL_API}/health`).then(r => r.json()).then(d => {
+      if (d.status === 'ok') console.log(`[cc-soul] Soul API already running`)
+    }).catch(() => {
+      console.log(`[cc-soul] Soul API not running, auto-starting...`)
+      import('./soul-api.ts').then(async ({ initSoulEngine, startSoulApi }) => {
+        await initSoulEngine()  // auto-detects OpenClaw LLM config
+        startSoulApi()
+      }).catch((e: any) => {
+        console.error(`[cc-soul] Failed to auto-start Soul API: ${e.message}`)
+      })
+    })
 
-    // 2. Wire stats accessor for context engine's assemble()
-    setStatsAccessor(() => stats)
-
-    // 3. Register context engine (just registration, no data loading)
-    // Register context engine (once)
-    if (!(globalThis as any).__ccSoulContextEngineRegistered) {
-      try {
-        api.registerContextEngine('cc-soul', () => createCcSoulContextEngine())
-        ;(globalThis as any).__ccSoulContextEngineRegistered = true
-        console.log(`[cc-soul] context engine registered`)
-      } catch (e: any) {
-        console.error(`[cc-soul] registerContextEngine FAILED: ${e.message}`)
-      }
-    }
-
-    // Also try registerMemoryPromptSection — new API for injecting into system prompt
-    if (typeof api.registerMemoryPromptSection === 'function') {
-      try {
-        api.registerMemoryPromptSection('cc-soul', async (params: any) => {
-          // This gets called before each agent turn — inject augments here
-          try {
-            const { buildAndSelectAugments } = await import('./handler-augments.ts')
-            const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
-            const { cogProcess } = await import('./cognition.ts')
-            const { updateFlow } = await import('./flow.ts')
-
-            const sessionKey = getLastActiveSessionKey()
-            const session = getSessionState(sessionKey)
-            const userMsg = params?.userMessage || session.lastPrompt || ''
-            if (!userMsg) return { content: '' }
-
-            const cog = cogProcess(userMsg, session.lastResponseContent)
-            const flow = updateFlow(userMsg, session.lastResponseContent, sessionKey)
-            const { selected } = await buildAndSelectAugments({
-              userMsg, session,
-              senderId: session.lastSenderId || '',
-              channelId: session.lastChannelId || '',
-              cog, flow, flowKey: sessionKey,
-              followUpHints: [],
-              workingMemKey: sessionKey,
-            })
-
-            if (selected.length > 0) {
-              const cleaned = selected.map(s => s.replace(/^\[([^\]]+)\]\s*/, ''))
-              // Ensure 举一反三 reminder with few-shot example at end of augments
-              const hasExtraThink = cleaned.some(s => s.includes('顺便说一下') || s.includes('举一反三'))
-              const reminder = hasExtraThink
-                ? '\n\n📌 回复结尾固定格式（照做）：\n顺便说一下：\n1. 第一条补充（一句话）\n2. 第二条补充（不同角度）\n不要追问。'
-                : ''
-              console.log(`[cc-soul][memoryPromptSection] injecting ${cleaned.length} augments`)
-              return { content: cleaned.join('\n') + reminder }
-            }
-          } catch (e: any) {
-            console.error(`[cc-soul][memoryPromptSection] error: ${e.message}`)
-          }
-          return { content: '' }
-        })
-        console.log(`[cc-soul] registerMemoryPromptSection registered`)
-      } catch (e: any) {
-        console.log(`[cc-soul] registerMemoryPromptSection not available: ${e.message}`)
-      }
-    }
-
-    // 4. Write SOUL.md (synchronous file write, ~5ms)
-    writeSoulFile()
-
-    // 5. Auto-create hook bridge (existsSync check + early return, ~1ms)
-    ensureHookBridge()
-
-    // 6. Register hooks (all handlers use dynamic import → no eager loading)
     try {
+      // ── Bootstrap: get system_prompt from API, write to SOUL.md ──
       api.registerHook(['agent:bootstrap'], async (_event: any) => {
-        // SOUL.md already written in register(). handler.ts handles the rest.
+        try {
+          const resp = await fetch(`${SOUL_API}/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: '', user_id: '' }),
+          })
+          const data = await resp.json()
+          if (data.system_prompt) {
+            const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
+            writeFileSync(soulPath, data.system_prompt, 'utf-8')
+            console.log(`[cc-soul][api] bootstrap: SOUL.md written (${data.system_prompt.length} chars)`)
+          }
+        } catch (e: any) {
+          console.log(`[cc-soul][api] bootstrap: ${e.message}`)
+        }
       }, { name: 'cc-soul:bootstrap' })
 
+      // ── Preprocessed: commands go to source, everything else goes to API ──
       api.registerHook(['message:preprocessed'], async (event: any) => {
-        if (event?.context?.senderId) setLastSenderId(String(event.context.senderId))
-        const { handlePreprocessed } = await import('./handler.ts')
-        await handlePreprocessed(event)
+        const ctx = event.context || {}
+        const rawMsg = (ctx.body || '')
+          .replace(/^\[Feishu[^\]]*\]\s*/i, '')
+          .replace(/^\[message_id:\s*\S+\]\s*/i, '')
+          .replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s*/, '')
+          .replace(/^\n+/, '').trim()
+        const senderId = ctx.senderId || ''
+        if (!rawMsg) return
+
+        // Dedup: skip if we already processed this message
+        const msgKey = rawMsg.slice(0, 50) + ':' + senderId
+        if ((globalThis as any).__ccSoulLastProcessed === msgKey) return
+        ;(globalThis as any).__ccSoulLastProcessed = msgKey
+
+        // Commands go through /command API endpoint (no direct engine imports)
+        try {
+          const cmdResp = await fetch(`${SOUL_API}/command`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: rawMsg, user_id: senderId }),
+          })
+          const cmdData = await cmdResp.json()
+          if (cmdData.handled) {
+            if (cmdData.reply && ctx.reply) ctx.reply(cmdData.reply)
+            return  // command handled, skip API
+          }
+        } catch {}
+
+        // Non-commands go through API
+        try {
+          const resp = await fetch(`${SOUL_API}/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: rawMsg, user_id: senderId }),
+          })
+          const data = await resp.json()
+
+          // Write augments into SOUL.md (only reliable injection path)
+          if (data.system_prompt || data.augments) {
+            const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
+            const fullPrompt = data.system_prompt
+              ? data.system_prompt + (data.augments ? '\n\n## 内部指令（仅本轮有效）\n' + data.augments : '')
+              : data.augments
+            writeFileSync(soulPath, fullPrompt, 'utf-8')
+            console.log(`[cc-soul][api] SOUL.md updated (${fullPrompt.length} chars)`)
+          }
+
+          // Store for feedback
+          ;(globalThis as any).__ccSoulLastMsg = rawMsg
+          ;(globalThis as any).__ccSoulLastSenderId = senderId
+        } catch (e: any) {
+          console.log(`[cc-soul][api] process: ${e.message}`)
+        }
       }, { name: 'cc-soul:preprocessed' })
 
+      // ── Sent: call /feedback so cc-soul learns from AI's reply ──
+      // Problem: OpenClaw streaming card replies don't pass content in the event.
+      // Solution: try event content first, fallback to reading session JSONL after delay.
       api.registerHook(['message:sent'], async (event: any) => {
-        const { handleSent } = await import('./handler.ts')
-        handleSent(event)
+        const content = (event.context?.content || event.content || event.text || '') as string
+        const lastMsg = (globalThis as any).__ccSoulLastMsg || ''
+        const lastSenderId = (globalThis as any).__ccSoulLastSenderId || ''
+        if (!lastMsg) return
+
+        if (content && content.length >= 5) {
+          // Content available directly — send feedback immediately
+          try {
+            await fetch(`${SOUL_API}/feedback`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_message: lastMsg, ai_reply: content, user_id: lastSenderId }),
+            })
+            console.log(`[cc-soul][api] feedback sent (direct)`)
+          } catch {}
+        }
       }, { name: 'cc-soul:sent' })
 
-      // Plugin hooks (message_sent with underscore)
+      // ── message_sent (plugin event) — also feedback ──
       if (typeof api.on === 'function') {
-        api.on('message_sent', async (event: any, ctx: any) => {
+        api.on('message_sent', async (event: any) => {
           const content = event?.content || event?.text || ''
-          if (!content) return
-          import('./handler-state.ts').then(({ getSessionState, getLastActiveSessionKey }) => {
-            const sk = ctx?.sessionKey || getLastActiveSessionKey()
-            const sess = getSessionState(sk)
-            if (sess) {
-              sess.lastResponseContent = content
-              console.log(`[cc-soul][plugin-hook] message_sent: synced response (${content.length} chars)`)
-            }
-          }).catch(() => {})
-          import('./handler.ts').then(({ handleSent }) => {
-            handleSent({ ...event, context: { ...(event?.context || {}), body: content }, sessionKey: ctx?.sessionKey })
-          }).catch(() => {})
+          if (!content || content.length < 5) return
+          const lastMsg = (globalThis as any).__ccSoulLastMsg || ''
+          const lastSenderId = (globalThis as any).__ccSoulLastSenderId || ''
+          if (!lastMsg) return
+          try {
+            await fetch(`${SOUL_API}/feedback`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_message: lastMsg, ai_reply: content, user_id: lastSenderId }),
+            })
+            console.log(`[cc-soul][api] feedback sent (plugin event)`)
+          } catch {}
         })
       }
 
-      // inbound_claim: intercept cc-soul commands AND soul mode before they reach AI
-      if (typeof api.on === 'function') {
-        // Import getSoulMode eagerly so it's available synchronously in inbound_claim
-        let _getSoulMode: (() => { active: boolean; speaker: string }) | null = null
-        import('./handler-state.ts').then(m => { _getSoulMode = m.getSoulMode }).catch(() => {})
+      // ── Delayed fallback: read bot reply from session JSONL (for streaming cards) ──
+      api.registerHook(['message:preprocessed'], async (_event: any) => {
+        const lastMsg = (globalThis as any).__ccSoulLastMsg
+        const lastSenderId = (globalThis as any).__ccSoulLastSenderId
+        if (!lastMsg) return
 
+        // Dedup: only one JSONL fallback per message
+        const feedbackKey = lastMsg.slice(0, 30) + ':' + lastSenderId
+        if ((globalThis as any).__ccSoulLastFeedback === feedbackKey) return
+        ;(globalThis as any).__ccSoulLastFeedback = feedbackKey
+
+        setTimeout(async () => {
+          try {
+            const { readdirSync, readFileSync: rf } = await import('fs')
+            const sessDir = resolve(homedir(), '.openclaw/agents/cc/sessions')
+            const files = readdirSync(sessDir).filter((f: string) => f.endsWith('.jsonl')).sort()
+            if (files.length === 0) return
+            const lastFile = resolve(sessDir, files[files.length - 1])
+            const lines = rf(lastFile, 'utf-8').trim().split('\n')
+            let botReply = ''
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const obj = JSON.parse(lines[i])
+                if (obj?.message?.role === 'assistant') {
+                  botReply = Array.isArray(obj.message.content)
+                    ? obj.message.content.filter((c: any) => c?.type === 'text').map((c: any) => c.text || '').join('')
+                    : (obj.message.content || '')
+                  break
+                }
+              } catch {}
+            }
+            if (!botReply || botReply.length < 10) return
+
+            await fetch(`${SOUL_API}/feedback`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_message: lastMsg, ai_reply: botReply, user_id: lastSenderId }),
+            })
+            console.log(`[cc-soul][api] feedback sent (JSONL fallback, ${botReply.length} chars)`)
+          } catch {}
+        }, 45000)
+      }, { name: 'cc-soul:delayed-feedback' })
+
+      // ── Commands: route through /command API ──
+      if (typeof api.on === 'function') {
         api.on('inbound_claim', async (event: any, _ctx: any) => {
           const content = (event?.content || event?.body || '').trim()
           if (!content) return
-
-          // Soul Mode: if active, intercept ALL messages before AI gets them
-          // (actual reply generation happens in handlePreprocessed via handler.ts)
-          if (_getSoulMode) {
-            const sm = _getSoulMode()
-            if (sm.active) {
-              return { handled: true }
-            }
-          }
-
-          const { isCommand, handleCommandInbound } = await import('./handler-commands.ts')
-          if (isCommand(content)) {
-            const cfg = api.config || {}
+          try {
             const senderId = event?.senderId || event?.context?.senderId || ''
-            const chatId = event?.conversationId || event?.context?.chatId || ''
-            const to = chatId ? `group:${chatId}` : (senderId ? `user:${senderId}` : '')
-            const handled = await handleCommandInbound(content, to, cfg, event)
-            if (handled) return { handled: true }
-          }
+            const cmdResp = await fetch(`${SOUL_API}/command`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: content, user_id: senderId }),
+            })
+            const cmdData = await cmdResp.json()
+            if (cmdData.handled) return { handled: true }
+          } catch {}
         })
       }
 
-      api.registerHook(['command:new'], async (event: any) => {
-        const { handleCommand } = await import('./handler.ts')
-        handleCommand(event)
-      }, { name: 'cc-soul:command' })
     } catch (e: any) {
       console.error(`[cc-soul] hook registration failed: ${e.message}`)
     }
 
-    // 7. A2A HTTP routes (deferred via dynamic import)
-    if (typeof api.registerHttpRoute === 'function') {
-      import('./a2a.ts').then(({ getAgentCard, handleA2ARequest }) => {
-        api.registerHttpRoute({
-          path: '/a2a/cc-soul/.well-known/agent.json',
-          auth: 'gateway',
-          handler: (_req: any, res: any) => {
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify(getAgentCard()))
-          },
-        })
-        api.registerHttpRoute({
-          path: '/a2a/cc-soul/invoke',
-          auth: 'gateway',
-          handler: async (req: any, res: any) => {
-            const chunks: Buffer[] = []
-            for await (const chunk of req) chunks.push(chunk as Buffer)
-            try {
-              const body = JSON.parse(Buffer.concat(chunks).toString())
-              const result = await handleA2ARequest(body)
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify(result))
-            } catch (e: any) {
-              res.writeHead(400, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ status: 'error', data: e.message }))
-            }
-          },
-        })
-      }).catch((e: any) => { console.error(`[cc-soul] A2A route registration failed: ${e.message}`) })
-    }
-
-    // 7b. Soul API — standalone HTTP server, independent of OpenClaw gateway
-    // Runs on a separate port so any platform can call it without gateway auth
-    import('./soul-api.ts').then(({ startSoulApi }) => {
-      startSoulApi()
-    }).catch((e: any) => {
-      console.log(`[cc-soul] Soul API not started: ${e.message}`)
-    })
-
-    // 8. Slash commands + MCP tools (deferred via dynamic import)
-    import('./plugin-commands.ts').then(({ registerPluginCommands }) => {
-      registerPluginCommands(api)
-    }).catch((e: any) => { console.error(`[cc-soul] slash command registration failed: ${e.message}`) })
-
-    import('./mcp-provider.ts').then(({ getMCPTools }) => {
-      for (const tool of getMCPTools()) {
-        if (typeof api.registerTool === 'function') {
-          api.registerTool(tool.name, tool.handler, { description: tool.description })
-        }
-      }
-    }).catch(() => { /* MCP not supported — silently skip */ })
-
-    // 9. Boot notification (file-lock guarded, 5min cooldown)
+    // ── Boot notification ──
     const bootLockPath = resolve(homedir(), '.openclaw/plugins/cc-soul/data/.boot-lock')
     const now = Date.now()
     let shouldNotify = true
@@ -361,29 +243,21 @@ export default {
         const lockTs = parseInt(readFileSync(bootLockPath, 'utf-8').trim(), 10)
         if (now - lockTs < 5 * 60 * 1000) shouldNotify = false
       }
-    } catch (_) {}
-
+    } catch {}
     if (shouldNotify) {
-      try { writeFileSync(bootLockPath, String(now), 'utf-8') } catch (_) {}
-      setTimeout(() => {
-        Promise.all([
-          import('./notify.ts'),
-          import('./user-profiles.ts'),
-          import('./persistence.ts'),
-        ]).then(([{ notifyOwnerDM }, { getProfile }, { soulConfig: cfg }]) => {
-          const lang = getProfile(cfg.owner_open_id || '')?.language || 'zh'
-          const greetings: Record<string, string> = {
-            zh: `cc-soul 已就绪`,
-            en: `cc-soul ready`,
-            ja: `cc-soul 準備完了`,
+      try { writeFileSync(bootLockPath, String(now), 'utf-8') } catch {}
+      setTimeout(async () => {
+        try {
+          const health = await fetch(`${SOUL_API}/health`).then(r => r.json())
+          if (health.status === 'ok') {
+            console.log(`[cc-soul] Soul API connected (${SOUL_API})`)
           }
-          const msg = greetings[lang] || greetings.zh
-          console.log(`[cc-soul][boot] sending startup notify: ${msg}`)
-          notifyOwnerDM(msg)
-        }).catch((e: any) => { console.error(`[cc-soul][boot] startup notify failed: ${e.message}`) })
-      }, 5000)
+        } catch {
+          console.log(`[cc-soul] Soul API not reachable at ${SOUL_API} — is it running?`)
+        }
+      }, 3000)
     }
 
-    log.info(`[cc-soul] register() done in ${Date.now() - t0}ms`)
+    log.info(`[cc-soul] register() done in ${Date.now() - t0}ms (API mode → ${SOUL_API})`)
   },
 }

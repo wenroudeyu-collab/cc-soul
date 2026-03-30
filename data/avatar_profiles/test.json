@@ -1,0 +1,52 @@
+{
+  "id": "test",
+  "name": "",
+  "identity": {
+    "who": ""
+  },
+  "expression": {
+    "style": "",
+    "口头禅": [
+      "帮我写",
+      "我写一",
+      "写一个",
+      "排序函",
+      "序函数"
+    ],
+    "习惯": "",
+    "avg_msg_length": 19,
+    "samples": [
+      "Rust 的所有权机制和 C++ 的智能指针有什么区别？",
+      "帮我写一个 Python 排序函数",
+      "帮我写一个 Python 排序函数",
+      "帮我写一个 Python 排序函数",
+      "帮我写一个 Python 排序函数",
+      "帮我写一个Python排序函数"
+    ],
+    "tone_variants": {}
+  },
+  "decisions": {
+    "pattern": "",
+    "traces": []
+  },
+  "social": {},
+  "emotional_patterns": {
+    "baseline": "",
+    "triggers": {},
+    "reaction_style": {}
+  },
+  "preferences": {},
+  "boundaries": {
+    "can_reply": [],
+    "ask_first": [],
+    "never": []
+  },
+  "vocabulary": {
+    "emotions": {},
+    "decisions": [],
+    "relations": [],
+    "avoidance": [],
+    "decoder": {}
+  },
+  "updated_at": 1774861718892
+}
