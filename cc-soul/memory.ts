@@ -69,26 +69,26 @@ let _distillMod: any = null
 export function getLazyModule(name: string) {
   switch (name) {
     case 'handler-state':
-      if (!_handlerState) { import('./handler-state.ts').then(m => { _handlerState = m }).catch(() => {}) }
+      if (!_handlerState) { import('./handler-state.ts').then(m => { _handlerState = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (handler-state): ${e.message}`) }) }
       return _handlerState
     case 'body':
-      if (!_bodyMod) { import('./body.ts').then(m => { _bodyMod = m }).catch(() => {}) }
+      if (!_bodyMod) { import('./body.ts').then(m => { _bodyMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (body): ${e.message}`) }) }
       return _bodyMod
     case 'signals':
-      if (!_signalsMod) { import('./signals.ts').then(m => { _signalsMod = m }).catch(() => {}) }
+      if (!_signalsMod) { import('./signals.ts').then(m => { _signalsMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (signals): ${e.message}`) }) }
       return _signalsMod
     case 'distill':
-      if (!_distillMod) { import('./distill.ts').then(m => { _distillMod = m }).catch(() => {}) }
+      if (!_distillMod) { import('./distill.ts').then(m => { _distillMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (distill): ${e.message}`) }) }
       return _distillMod
     default: return null
   }
 }
 // Pre-load lazily in background
 setTimeout(() => {
-  import('./handler-state.ts').then(m => { _handlerState = m }).catch(() => {})
-  import('./body.ts').then(m => { _bodyMod = m }).catch(() => {})
-  import('./signals.ts').then(m => { _signalsMod = m }).catch(() => {})
-  import('./distill.ts').then(m => { _distillMod = m }).catch(() => {})
+  import('./handler-state.ts').then(m => { _handlerState = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (handler-state): ${e.message}`) })
+  import('./body.ts').then(m => { _bodyMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (body): ${e.message}`) })
+  import('./signals.ts').then(m => { _signalsMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (signals): ${e.message}`) })
+  import('./distill.ts').then(m => { _distillMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (distill): ${e.message}`) })
 }, 1000)
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -886,9 +886,9 @@ export function loadMemories() {
       if (ready) {
         console.log(`[cc-soul][memory] embedder ready — vector search enabled`)
         // Backfill embeddings for existing memories in background
-        backfillEmbeddings(50).catch(() => {})
+        backfillEmbeddings(50).catch(() => {}) // intentionally silent — background task
       }
-    }).catch(() => {})
+    }).catch((e: any) => { console.error(`[cc-soul] embedder init failed: ${e.message}`) })
   } else {
     // JSON fallback
     const loaded = loadJson<Memory[]>(MEMORIES_PATH, [])
@@ -1196,125 +1196,127 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   memoryState.memories.push(newMem)
   updateRecallIndex(newMem)
 
-  // #15 记忆图谱化：自动建立记忆间关系边
-  try { autoLinkMemories(newMem) } catch {}
-
-  // Auto-extract structured facts (Mem0-style key-value triples)
-  try { autoExtractFromMemory(content, scope, autoSource) } catch {}
-
-  // AAM: feed into word association network (learns semantic relationships from user data)
-  try { require('./aam.ts').learnAssociation(content) } catch {}
-
-  // Write to SQLite if available
-  if (useSQLite) {
-    sqliteAddMemory(newMem)
-  }
-
-  // ── 即时冲突感知：检测新记忆是否和已有特征矛盾 ──
-  // 例："用户不运动了" vs 已有"运动型" → 冲突 → 更新旧记忆
   try {
-    const CONFLICT_PAIRS: [RegExp, RegExp][] = [
-      [/喜欢|偏好|爱/, /讨厌|不喜欢|不想|放弃/],
-      [/在.*工作|在.*上班/, /离职|辞职|被裁|不干了/],
-      [/住在|住/, /搬到|搬去|搬家/],
-      [/运动|跑步|健身/, /不运动|放弃运动|不跑了/],
-      [/学|在学/, /不学了|放弃了|学不动/],
-    ]
+    // #15 记忆图谱化：自动建立记忆间关系边
+    try { autoLinkMemories(newMem) } catch {}
 
-    for (const [patternA, patternB] of CONFLICT_PAIRS) {
-      const newMatchesB = patternB.test(content)
-      if (!newMatchesB) continue
+    // Auto-extract structured facts (Mem0-style key-value triples)
+    try { autoExtractFromMemory(content, scope, autoSource) } catch {}
 
-      // 新记忆匹配了 B 模式（否定面），搜索已有记忆中匹配 A 模式的
-      for (const existing of memoryState.memories) {
-        if (existing.scope === 'expired' || existing.scope === 'decayed') continue
-        if (!patternA.test(existing.content)) continue
+    // AAM: feed into word association network (learns semantic relationships from user data)
+    try {
+      import('./aam.ts').then(m => m.learnAssociation(content)).catch(() => {})
+    } catch {}
 
-        // 确认是同一主题（至少有 1 个共同关键词）
-        const existingWords = new Set((existing.content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
-        const newWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
-        const overlap = newWords.filter((w: string) => existingWords.has(w)).length
+    // Write to SQLite if available
+    if (useSQLite) {
+      sqliteAddMemory(newMem)
+    }
 
-        if (overlap >= 1) {
-          // 冲突！旧记忆降级
-          console.log(`[cc-soul][conflict] "${content.slice(0, 30)}" contradicts "${existing.content.slice(0, 30)}"`)
-          existing.confidence = Math.max(0.1, (existing.confidence ?? 0.7) * 0.5)
-          existing.scope = 'expired'
-          break
+    // ── 即时冲突感知：检测新记忆是否和已有特征矛盾 ──
+    // 例："用户不运动了" vs 已有"运动型" → 冲突 → 更新旧记忆
+    try {
+      const CONFLICT_PAIRS: [RegExp, RegExp][] = [
+        [/喜欢|偏好|爱/, /讨厌|不喜欢|不想|放弃/],
+        [/在.*工作|在.*上班/, /离职|辞职|被裁|不干了/],
+        [/住在|住/, /搬到|搬去|搬家/],
+        [/运动|跑步|健身/, /不运动|放弃运动|不跑了/],
+        [/学|在学/, /不学了|放弃了|学不动/],
+      ]
+
+      for (const [patternA, patternB] of CONFLICT_PAIRS) {
+        const newMatchesB = patternB.test(content)
+        if (!newMatchesB) continue
+
+        // 新记忆匹配了 B 模式（否定面），搜索已有记忆中匹配 A 模式的
+        for (const existing of memoryState.memories) {
+          if (existing.scope === 'expired' || existing.scope === 'decayed') continue
+          if (!patternA.test(existing.content)) continue
+
+          // 确认是同一主题（至少有 1 个共同关键词）
+          const existingWords = new Set((existing.content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+          const newWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+          const overlap = newWords.filter((w: string) => existingWords.has(w)).length
+
+          if (overlap >= 1) {
+            // 冲突！旧记忆降级
+            console.log(`[cc-soul][conflict] "${content.slice(0, 30)}" contradicts "${existing.content.slice(0, 30)}"`)
+            existing.confidence = Math.max(0.1, (existing.confidence ?? 0.7) * 0.5)
+            existing.scope = 'expired'
+            break
+          }
         }
       }
-    }
-  } catch {}
+    } catch {}
 
-  // ── Interference forgetting: new memory suppresses similar old memories ──
-  if (FACT_SCOPES.includes(scope)) {
-    suppressSimilarMemories(newMem)
-  }
-
-  // Smart eviction: dynamic threshold + topic protection
-  if (memoryState.memories.length > MAX_MEMORIES) {
-    // Score each memory: low score = eviction candidate
-    const evictionScores = memoryState.memories.map((m, idx) => {
-      const decay = timeDecay(m)
-      const conf = m.confidence ?? 0.7
-      const emotionBoost = m.emotion === 'important' ? 2.0 : m.emotion === 'painful' ? 1.5 : 1.0
-      const scopeBoost = (m.scope === 'correction' || m.scope === 'reflexion' || m.scope === 'consolidated') ? 1.5 : 1.0
-      const tagBoost = (m.tags && m.tags.length > 5) ? 1.3 : 1.0
-      const score = decay * conf * emotionBoost * scopeBoost * tagBoost
-      return { idx, score, scope: m.scope }
-    })
-    // Dynamic threshold: only evict memories scoring below median * 0.3
-    const scores = evictionScores.map(e => e.score).sort((a, b) => a - b)
-    const median = scores[Math.floor(scores.length / 2)] || 0.5
-    const evictionThreshold = median * 0.3
-
-    // Count memories per scope for topic protection
-    const scopeCounts = new Map<string, number>()
-    for (const m of memoryState.memories) {
-      scopeCounts.set(m.scope, (scopeCounts.get(m.scope) || 0) + 1)
+    // ── Interference forgetting: new memory suppresses similar old memories ──
+    if (FACT_SCOPES.includes(scope)) {
+      suppressSimilarMemories(newMem)
     }
 
-    const toEvict = new Set<number>()
-    // Sort ascending — lowest scores first
-    evictionScores.sort((a, b) => a.score - b.score)
-    for (const e of evictionScores) {
-      if (e.score >= evictionThreshold) break // dynamic: stop once above threshold
-      // Topic protection: if this scope has ≤2 remaining, don't evict
-      const remaining = (scopeCounts.get(e.scope) || 0) - [...toEvict].filter(i => memoryState.memories[i]?.scope === e.scope).length
-      if (remaining <= 2) continue
-      toEvict.add(e.idx)
-    }
+    // Smart eviction: dynamic threshold + topic protection
+    if (memoryState.memories.length > MAX_MEMORIES) {
+      // Score each memory: low score = eviction candidate
+      const evictionScores = memoryState.memories.map((m, idx) => {
+        const decay = timeDecay(m)
+        const conf = m.confidence ?? 0.7
+        const emotionBoost = m.emotion === 'important' ? 2.0 : m.emotion === 'painful' ? 1.5 : 1.0
+        const scopeBoost = (m.scope === 'correction' || m.scope === 'reflexion' || m.scope === 'consolidated') ? 1.5 : 1.0
+        const tagBoost = (m.tags && m.tags.length > 5) ? 1.3 : 1.0
+        const score = decay * conf * emotionBoost * scopeBoost * tagBoost
+        return { idx, score, scope: m.scope }
+      })
+      // Dynamic threshold: only evict memories scoring below median * 0.3
+      const scores = evictionScores.map(e => e.score).sort((a, b) => a - b)
+      const median = scores[Math.floor(scores.length / 2)] || 0.5
+      const evictionThreshold = median * 0.3
 
-    if (toEvict.size > 0) {
-      const filtered = memoryState.memories.filter((_, i) => !toEvict.has(i))
-      memoryState.memories.length = 0
-      memoryState.memories.push(...filtered)
-      rebuildScopeIndex() // full rebuild after eviction
-      rebuildRecallIndex(memoryState.memories)
-    }
-  } else {
-    // Incremental index update
-    const arr = scopeIndex.get(scope) || []
-    arr.push(memoryState.memories[memoryState.memories.length - 1])
-    scopeIndex.set(scope, arr)
-    // Incremental content index update
-    const ck = content.slice(0, 50).toLowerCase()
-    contentIndex.set(ck, content)
-  }
-  incrementalIDFUpdate(content)
-  saveMemories()
-  appendAudit('memory_add', `[${scope}] ${content.slice(0, 100)}`)
+      // Count memories per scope for topic protection
+      const scopeCounts = new Map<string, number>()
+      for (const m of memoryState.memories) {
+        scopeCounts.set(m.scope, (scopeCounts.get(m.scope) || 0) + 1)
+      }
 
-  // Async embedding store (fire-and-forget)
-  // (already handled by sqliteAddMemory → storeEmbedding)
+      const toEvict = new Set<number>()
+      // Sort ascending — lowest scores first
+      evictionScores.sort((a, b) => a.score - b.score)
+      for (const e of evictionScores) {
+        if (e.score >= evictionThreshold) break // dynamic: stop once above threshold
+        // Topic protection: if this scope has ≤2 remaining, don't evict
+        const remaining = Math.max(0, (scopeCounts.get(e.scope) || 0) - [...toEvict].filter(i => memoryState.memories[i]?.scope === e.scope).length)
+        if (remaining <= 2) continue
+        toEvict.add(e.idx)
+      }
 
-  // Async: queue semantic tag generation for the new memory (batched)
-  // Bug #8 fix: don't pass index — eviction may shift it; use content+ts for stable lookup
-  if (content.length > 10) {
-    const lastIdx = memoryState.memories.length - 1
-    if (lastIdx >= 0 && memoryState.memories[lastIdx].content === content && !memoryState.memories[lastIdx].tags) {
-      queueForTagging(content, memoryState.memories[lastIdx].ts)
+      if (toEvict.size > 0) {
+        const filtered = memoryState.memories.filter((_, i) => !toEvict.has(i))
+        memoryState.memories.length = 0
+        memoryState.memories.push(...filtered)
+        rebuildScopeIndex() // full rebuild after eviction
+        rebuildRecallIndex(memoryState.memories)
+      }
+    } else {
+      // Incremental index update
+      const arr = scopeIndex.get(scope) || []
+      arr.push(memoryState.memories[memoryState.memories.length - 1])
+      scopeIndex.set(scope, arr)
+      // Incremental content index update
+      const ck = content.slice(0, 50).toLowerCase()
+      contentIndex.set(ck, content)
     }
+    incrementalIDFUpdate(content)
+    appendAudit('memory_add', `[${scope}] ${content.slice(0, 100)}`)
+
+    // Async: queue semantic tag generation for the new memory (batched)
+    // Bug #8 fix: don't pass index — eviction may shift it; use content+ts for stable lookup
+    if (content.length > 10) {
+      const lastIdx = memoryState.memories.length - 1
+      if (lastIdx >= 0 && memoryState.memories[lastIdx].content === content && !memoryState.memories[lastIdx].tags) {
+        queueForTagging(content, memoryState.memories[lastIdx].ts)
+      }
+    }
+  } finally {
+    saveMemories()
   }
 }
 

@@ -1,4 +1,13 @@
 /**
+ * ╔═══════════════════════════════════════════════════════════════╗
+ * ║  ⚠️  DEPRECATED — 请勿在新代码中引用此文件                     ║
+ * ║  核心逻辑已拆分至:                                             ║
+ * ║    handler-state.ts / handler-heartbeat.ts / handler-commands.ts ║
+ * ║    handler-augments.ts / soul-process.ts / context-engine.ts    ║
+ * ║  仅保留 initializeSoul() + handler() 供 soul-process.ts 调用    ║
+ * ║  新功能一律加到对应子模块，不要改这个文件                        ║
+ * ╚═══════════════════════════════════════════════════════════════╝
+ *
  * cc-soul — OpenClaw HookHandler (Modular Orchestrator)
  *
  * Slim entry point that wires all modules together.
@@ -101,13 +110,13 @@ let getToMContext: () => string = () => ''
 let detectMisconception: (...args: any[]) => string | null = () => null
 
 let recordTurnUsage: (inputText: string, outputText: string, augmentTokenCount: number) => void = () => {}
-import('./cost-tracker.ts').then(m => { recordTurnUsage = m.recordTurnUsage }).catch(() => {})
-import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle; getPersonaDriftWarning = m.getPersonaDriftWarning; checkPersonaDrift = m.checkPersonaDrift; getPersonaDriftReinforcement = m.getPersonaDriftReinforcement; getDriftCount = m.getDriftCount }).catch(() => {})
-import('./smart-forget.ts').then(m => { smartForgetSweep = m.smartForgetSweep }).catch(() => {})
-import('./cron-agent.ts').then(m => { handleCronCommand = m.handleCronCommand; tickCron = m.tickCron }).catch(() => {})
-import('./context-compress.ts').then(m => { compressAugments = m.compressAugments }).catch(() => {})
+import('./cost-tracker.ts').then(m => { recordTurnUsage = m.recordTurnUsage }).catch((e: any) => { console.error(`[cc-soul] module load failed (cost-tracker): ${e.message}`) })
+import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle; getPersonaDriftWarning = m.getPersonaDriftWarning; checkPersonaDrift = m.checkPersonaDrift; getPersonaDriftReinforcement = m.getPersonaDriftReinforcement; getDriftCount = m.getDriftCount }).catch((e: any) => { console.error(`[cc-soul] module load failed (persona-drift): ${e.message}`) })
+import('./smart-forget.ts').then(m => { smartForgetSweep = m.smartForgetSweep }).catch((e: any) => { console.error(`[cc-soul] module load failed (smart-forget): ${e.message}`) })
+import('./cron-agent.ts').then(m => { handleCronCommand = m.handleCronCommand; tickCron = m.tickCron }).catch((e: any) => { console.error(`[cc-soul] module load failed (cron-agent): ${e.message}`) })
+import('./context-compress.ts').then(m => { compressAugments = m.compressAugments }).catch((e: any) => { console.error(`[cc-soul] module load failed (context-compress): ${e.message}`) })
 // debate.ts removed — multi-persona debate was too expensive (5x token per question)
-import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage; getToMContext = m.getToMContext; detectMisconception = m.detectMisconception }).catch(() => {})
+import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage; getToMContext = m.getToMContext; detectMisconception = m.detectMisconception }).catch((e: any) => { console.error(`[cc-soul] module load failed (theory-of-mind): ${e.message}`) })
 // ── End optional modules ──
 
 import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
@@ -165,7 +174,7 @@ export function initializeSoul(): void {
   // Initialize SQLite early — ensure db connection is ready for command handlers
   try { ensureSQLiteReady() } catch (e: any) { console.error('[cc-soul] SQLite early init failed:', e.message) }
   // Initialize embedder early (non-blocking)
-  import('./embedder.ts').then(m => m.initEmbedder()).catch(() => {})
+  import('./embedder.ts').then(m => m.initEmbedder()).catch((e: any) => { console.error(`[cc-soul] module load failed (embedder): ${e.message}`) })
 
   // All data loading deferred — recall() queries SQLite/JSON directly
   try { loadFeatures() } catch (_) {}
@@ -725,7 +734,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
     }
 
     writeFileSync(soulPath, baseSoul + augmentSection + tipsSection, 'utf-8')
-    import('./plugin-entry.ts').then(m => m.setSoulDynamicLock?.(30000)).catch(() => {})
+    import('./plugin-entry.ts').then(m => m.setSoulDynamicLock?.(30000)).catch((e: any) => { console.error(`[cc-soul] module load failed (plugin-entry): ${e.message}`) })
     console.log(`[cc-soul] SOUL.md updated: ${cleanedSelected.length} augments${tipsSection ? ' + 举一反三' : ''}`)
   } catch (e: any) {
     console.log(`[cc-soul] SOUL.md dynamic update failed: ${e.message}`)
@@ -768,6 +777,10 @@ export async function handlePreprocessed(event: any): Promise<void> {
   if (!_isCasual && userMsg.length >= 5) {
     setTimeout(async () => {
       try {
+        // Check if session has been superseded by a newer message
+        const currentSession = getSessionState(getLastActiveSessionKey())
+        if (currentSession.lastPrompt && currentSession.lastPrompt !== _snapPrompt) return // session overridden by newer message
+
         // Read bot response from session JSONL
         const sessionDir = resolve(homedir(), '.openclaw/agents/cc/sessions')
         const files = readdirSync(sessionDir).filter((f: string) => f.endsWith('.jsonl')).sort()
@@ -797,7 +810,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
           if (selfIssue) {
             const scScore = scoreResponse(_snapPrompt, botResponse)
             if (scScore <= 3) {
-              notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。评分 ${scScore}/10`).catch(() => {})
+              notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。评分 ${scScore}/10`).catch(() => {}) // intentionally silent
               console.log(`[cc-soul][delayed-post] self-correction: ${selfIssue} (score=${scScore})`)
             }
           }
@@ -927,7 +940,7 @@ export function handleSent(event: any): void {
         const scScore = scoreResponse(session.lastPrompt, content)
         if (scScore <= 3) {
           notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。补充：回复质量评分 ${scScore}/10，问题="${session.lastPrompt.slice(0, 60)}"`)
-            .catch(() => {})
+            .catch(() => {}) // intentionally silent
           console.log(`[cc-soul][self-correction] issue detected (score=${scScore}): ${selfIssue}`)
         }
       }

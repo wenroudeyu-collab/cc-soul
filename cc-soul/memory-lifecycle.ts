@@ -20,7 +20,7 @@ import {
   rebuildScopeIndex, getLazyModule, compressMemory,
 } from './memory.ts'
 import { trigrams, trigramSimilarity, shuffleArray } from './memory-utils.ts'
-import { recall, recallWithScores, invalidateIDF, _memLookup } from './memory-recall.ts'
+import { recall, recallWithScores, invalidateIDF, rebuildRecallIndex, _memLookup } from './memory-recall.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Memory Consolidation (压缩合并)
@@ -101,6 +101,7 @@ function simHashDistance(a: bigint, b: bigint, bits = SIMHASH_BITS): number {
   let xor = a ^ b
   let count = 0
   while (xor > 0n) { count += Number(xor & 1n); xor >>= 1n }
+  if (bits === 0) return 0
   return count / bits  // 0=identical, 1=completely different
 }
 
@@ -289,6 +290,7 @@ export function consolidateMemories() {
                 })
               }
               rebuildScopeIndex()
+              rebuildRecallIndex(memoryState.memories)
               saveMemories()
               invalidateIDF()
               consolidating = false
@@ -372,6 +374,7 @@ export function generateInsights() {
           }
         }
         rebuildScopeIndex()
+        rebuildRecallIndex(memoryState.memories)
         saveMemories()
       }
 
@@ -1281,6 +1284,7 @@ export function processMemoryDecay() {
 
   if (upgraded > 0 || decayed > 0 || compressed > 0 || archived > 0 || faded > 0 || gisted > 0 || absorbed > 0) {
     rebuildScopeIndex()
+    rebuildRecallIndex(memoryState.memories)
     saveMemories()
     console.log(`[cc-soul][memory-decay] upgraded=${upgraded} decayed=${decayed} compressed=${compressed} archived=${archived} faded=${faded} gisted=${gisted} absorbed=${absorbed}`)
   }
@@ -1322,6 +1326,7 @@ export function pruneExpiredMemories() {
   const removed = before - memoryState.memories.length
   if (removed > 0) {
     rebuildScopeIndex()
+    rebuildRecallIndex(memoryState.memories)
     saveMemories()
     console.log(`[cc-soul][prune] physically removed ${removed} dead memories (${before} → ${memoryState.memories.length})`)
   }

@@ -723,7 +723,7 @@ function auditModuleLogic(moduleName: string, callback: (bugs: string[]) => void
     const truncated = code.split('\n').slice(0, 300).join('\n')
 
     // Lazy import spawnCLI to avoid circular dependency
-    let _spCLI: any; import('./cli.ts').then(m => _spCLI = m.spawnCLI).catch(() => {}); const spawnCLI = (...a: any[]) => _spCLI?.(...a)
+    let _spCLI: any; import('./cli.ts').then(m => _spCLI = m.spawnCLI).catch((e: any) => { console.error(`[cc-soul] module load failed (cli): ${e.message}`) }); const spawnCLI = (...a: any[]) => _spCLI?.(...a)
 
     spawnCLI(
       `审查以下 TypeScript 代码的逻辑 bug（不是代码风格，是真正的逻辑错误）。\n` +

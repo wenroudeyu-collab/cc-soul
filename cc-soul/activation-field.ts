@@ -29,6 +29,13 @@ import { trigrams, trigramSimilarity } from './memory-utils.ts'
 
 const _activations = new Map<string, number>()  // memory content hash → activation value [0, 1]
 
+// ── Lazy-loaded fact-store module ──
+let _factStoreMod: any = null
+function getFactStoreMod() {
+  if (!_factStoreMod) try { _factStoreMod = require('./fact-store.ts') } catch {}
+  return _factStoreMod
+}
+
 function memKey(mem: Memory): string {
   return `${(mem.content || '').slice(0, 50)}\0${mem.ts || 0}`
 }
@@ -302,7 +309,7 @@ export function computeActivationField(
 // 每分钟 tick：自然衰减
 // ═══════════════════════════════════════════════════════════════
 
-export function decayAllActivations(factor: number = 0.95) {
+export function decayAllActivations(factor: number = 0.995) {
   for (const [key, val] of _activations) {
     const newVal = val * factor
     if (newVal < 0.01) {
@@ -362,7 +369,7 @@ export function activationRecall(
 
   // 快速路径：fact-store 精确匹配（System 1）
   try {
-    const factStore = require('./fact-store.ts')
+    const factStore = getFactStoreMod()
     // 检测查询是否适合 fact-store 直接命中
     const factPatterns: { test: RegExp; predicate?: string }[] = [
       { test: /叫什么|我是谁|名字/, predicate: undefined },

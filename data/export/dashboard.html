@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cc-soul Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'SF Pro', 'Helvetica Neue', sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 24px 32px; border-bottom: 1px solid #2a2a4a; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 24px; font-weight: 600; color: #fff; }
+  .header h1 span { color: #7c6bf0; }
+  .header .meta { color: #666; font-size: 13px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; padding: 24px 32px; }
+  .stat-card { background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }
+  .stat-card .label { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; color: #fff; margin-top: 6px; }
+  .stat-card .value.purple { color: #7c6bf0; }
+  .stat-card .value.green { color: #4ade80; }
+  .stat-card .value.blue { color: #60a5fa; }
+  .stat-card .value.orange { color: #fb923c; }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 0 32px 24px; }
+  .chart-box { background: #12121f; border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }
+  .chart-box h3 { font-size: 15px; color: #aaa; margin-bottom: 12px; font-weight: 500; }
+  .chart-box canvas { width: 100% !important; max-height: 280px; }
+  .full-width { grid-column: 1 / -1; }
+  #graph-container { width: 100%; height: 420px; border-radius: 8px; overflow: hidden; }
+  @media (max-width: 800px) { .charts { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>cc-soul</span> Dashboard</h1>
+  <div class="meta">Generated: 2026/3/31 06:28:12</div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="label">Total Memories</div><div class="value purple">347</div></div>
+  <div class="stat-card"><div class="label">Active</div><div class="value green">347</div></div>
+  <div class="stat-card"><div class="label">Entities</div><div class="value blue">0</div></div>
+  <div class="stat-card"><div class="label">Relations</div><div class="value orange">0</div></div>
+  <div class="stat-card"><div class="label">Scopes</div><div class="value">9</div></div>
+  <div class="stat-card"><div class="label">Mood Snapshots</div><div class="value">1</div></div>
+</div>
+
+<div class="charts">
+  <!-- 记忆 scope 分布饼图 -->
+  <div class="chart-box">
+    <h3>Memory Scope Distribution</h3>
+    <canvas id="scopeChart"></canvas>
+  </div>
+
+  <!-- 人格使用分布柱状图 -->
+  <div class="chart-box">
+    <h3>Persona Usage</h3>
+    <canvas id="personaChart"></canvas>
+  </div>
+
+  <!-- 情绪曲线 -->
+  <div class="chart-box">
+    <h3>Mood & Energy (7 Days)</h3>
+    <canvas id="moodChart"></canvas>
+  </div>
+
+  <!-- PADCN 雷达图 -->
+  <div class="chart-box">
+    <h3>PADCN Emotion Vector</h3>
+    <canvas id="padcnChart"></canvas>
+  </div>
+
+  <!-- 记忆成长曲线 -->
+  <div class="chart-box">
+    <h3>Memory Growth (30 Days)</h3>
+    <canvas id="growthChart"></canvas>
+  </div>
+
+  <!-- 知识图谱 -->
+  <div class="chart-box full-width">
+    <h3>Knowledge Graph (0 nodes, 0 edges)</h3>
+    <div id="graph-container"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = ['#7c6bf0','#4ade80','#60a5fa','#fb923c','#f87171','#fbbf24','#a78bfa','#34d399','#f472b6','#38bdf8','#818cf8','#facc15'];
+const scopeData = {"task":1,"fact":247,"preference":32,"wal":12,"event":22,"opinion":25,"wisdom":3,"commitment":4,"mid_term":1};
+const moodLabels = ["03-30 22:26"];
+const moodValues = [-0.194];
+const energyValues = [0.955];
+const personaLabels = [];
+const personaCounts = [];
+const growthDays = ["2026-03-30"];
+const growthCounts = [347];
+const gNodes = [];
+const gEdges = [];
+
+// Scope 饼图
+new Chart(document.getElementById('scopeChart'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(scopeData),
+    datasets: [{ data: Object.values(scopeData), backgroundColor: COLORS.slice(0, Object.keys(scopeData).length), borderWidth: 0 }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#aaa', font: { size: 12 } } } } }
+});
+
+// 人格柱状图
+new Chart(document.getElementById('personaChart'), {
+  type: 'bar',
+  data: {
+    labels: personaLabels,
+    datasets: [{ label: 'Usage', data: personaCounts, backgroundColor: COLORS.slice(0, personaLabels.length), borderWidth: 0, borderRadius: 4 }]
+  },
+  options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#888' }, grid: { color: '#1e1e35' } }, y: { ticks: { color: '#ccc', font: { size: 11 } }, grid: { display: false } } } }
+});
+
+// 情绪折线图
+new Chart(document.getElementById('moodChart'), {
+  type: 'line',
+  data: {
+    labels: moodLabels,
+    datasets: [
+      { label: 'Mood', data: moodValues, borderColor: '#7c6bf0', backgroundColor: 'rgba(124,107,240,0.1)', fill: true, tension: 0.3, pointRadius: 1 },
+      { label: 'Energy', data: energyValues, borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.05)', fill: true, tension: 0.3, pointRadius: 1 }
+    ]
+  },
+  options: { responsive: true, plugins: { legend: { labels: { color: '#aaa' } } }, scales: { x: { ticks: { color: '#666', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: '#1e1e35' } }, y: { min: -1, max: 1, ticks: { color: '#888' }, grid: { color: '#1e1e35' } } } }
+});
+
+// PADCN 雷达图
+const padcnData = {"P":0,"A":0,"D":0.3,"C":0.5,"N":0};
+new Chart(document.getElementById('padcnChart'), {
+  type: 'radar',
+  data: {
+    labels: ['Pleasure','Arousal','Dominance','Certainty','Novelty'],
+    datasets: [{
+      label: 'Current',
+      data: [padcnData.P, padcnData.A, padcnData.D, padcnData.C, padcnData.N],
+      borderColor: '#7c6bf0',
+      backgroundColor: 'rgba(124,107,240,0.2)',
+      pointBackgroundColor: '#7c6bf0'
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: { r: { min: -1, max: 1, ticks: { color: '#888', stepSize: 0.5 }, grid: { color: '#2a2a4a' }, pointLabels: { color: '#ccc' } } },
+    plugins: { legend: { display: false } }
+  }
+});
+
+// 记忆成长折线图
+new Chart(document.getElementById('growthChart'), {
+  type: 'line',
+  data: {
+    labels: growthDays.map(d => d.slice(5)),
+    datasets: [{ label: 'New Memories', data: growthCounts, borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.15)', fill: true, tension: 0.3, pointRadius: 2 }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#888', font: { size: 10 } }, grid: { color: '#1e1e35' } }, y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: '#1e1e35' } } } }
+});
+
+// 知识图谱 (vis.js)
+if (gNodes.length > 0) {
+  const groupColors = { person: '#7c6bf0', project: '#4ade80', tool: '#60a5fa', concept: '#fbbf24', relation: '#888', event: '#f87171' };
+  const visNodes = new vis.DataSet(gNodes.map(n => ({
+    id: n.id, label: n.label, size: n.size,
+    color: { background: groupColors[n.group] || '#888', border: 'transparent', highlight: { background: '#fff', border: groupColors[n.group] || '#888' } },
+    font: { color: '#ddd', size: 11 }
+  })));
+  const visEdges = new vis.DataSet(gEdges.map(e => ({ from: e.from, to: e.to, label: e.label, font: { size: 9, color: '#666' }, color: { color: '#333', highlight: '#7c6bf0' }, arrows: 'to' })));
+  new vis.Network(document.getElementById('graph-container'), { nodes: visNodes, edges: visEdges }, {
+    physics: { stabilization: { iterations: 150 }, barnesHut: { gravitationalConstant: -3000, springLength: 120 } },
+    interaction: { hover: true, tooltipDelay: 200 }
+  });
+} else {
+  document.getElementById('graph-container').innerHTML = '<div style="color:#555;text-align:center;padding:80px">No entities yet. Chat more to build the knowledge graph.</div>';
+}
+</script>
+</body>
+</html>

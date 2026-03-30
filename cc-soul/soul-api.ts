@@ -22,7 +22,7 @@ export function configureLLM(config: LLMConfig) {
       backend: 'openai-compatible' as any, cli_command: '', cli_args: [],
       api_base: config.api_base, api_key: config.api_key, api_model: config.model, max_concurrent: 8,
     })
-  }).catch(() => {})
+  }).catch((e: any) => { console.error(`[cc-soul] module load failed (cli): ${e.message}`) })
   console.log(`[cc-soul] LLM configured: ${config.model} @ ${config.api_base}`)
 }
 
@@ -31,6 +31,7 @@ export function configureLLM(config: LLMConfig) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+let _initDelayTimer: ReturnType<typeof setTimeout> | null = null
 
 export async function initSoulEngine() {
   try { (await import('./persistence.ts')).ensureDataDir() } catch {}
@@ -50,9 +51,14 @@ export async function initSoulEngine() {
     heartbeatTimer = setInterval(async () => {
       try { (await import('./handler-heartbeat.ts')).runHeartbeat() } catch {}
     }, 30 * 60 * 1000)
-    setTimeout(async () => { try { (await import('./handler-heartbeat.ts')).runHeartbeat() } catch {} }, 5 * 60 * 1000)
+    _initDelayTimer = setTimeout(async () => { try { (await import('./handler-heartbeat.ts')).runHeartbeat() } catch {} }, 5 * 60 * 1000)
     console.log(`[cc-soul] heartbeat scheduled`)
   }
+}
+
+export function stopSoulEngine() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+  if (_initDelayTimer) { clearTimeout(_initDelayTimer); _initDelayTimer = null }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

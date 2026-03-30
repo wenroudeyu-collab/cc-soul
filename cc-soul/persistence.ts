@@ -66,6 +66,7 @@ export const REMINDERS_PATH = resolve(DATA_DIR, 'reminders.json')
 const _pluginsCode = resolve(homedir(), '.openclaw/plugins/cc-soul/cc-soul')
 const _hooksCode = resolve(homedir(), '.openclaw/hooks/cc-soul/cc-soul')
 const _moduleDir = existsSync(_pluginsCode) ? _pluginsCode : _hooksCode
+/** @deprecated handler.ts is deprecated — use handler-state/handler-commands/handler-augments instead */
 export const HANDLER_PATH = resolve(_moduleDir, 'handler.ts')
 export const MODULE_DIR = _moduleDir
 export const HANDLER_BACKUP_DIR = resolve(DATA_DIR, 'backups')
@@ -154,7 +155,7 @@ export function flushAll() {
 
 let _lastSyncHash = ''
 let _cachedMemoryMod: any = null
-import('./memory.ts').then(m => { _cachedMemoryMod = m }).catch(() => {})
+import('./memory.ts').then(m => { _cachedMemoryMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
 
 function syncMemoriesToWorkspace() {
   try {

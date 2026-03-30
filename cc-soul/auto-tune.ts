@@ -36,7 +36,7 @@ const DEFAULT_PARAMS: Record<string, number> = {
   'body.alertness_decay_per_min': 0.008,
   'body.alertness_recovery_per_min': 0.005,
   'body.load_decay_per_min': 0.02,
-  'body.mood_decay_factor': 0.98,
+  'body.mood_decay_factor': 0.995,
   'body.correction_alertness_boost': 0.2,
   'body.correction_mood_penalty': 0.1,
   'body.positive_energy_boost': 0.05,
@@ -271,9 +271,11 @@ export function setUserParam(key: string, value: number, userId: string) {
   up.overrides[key] = value
   up.lastUpdated = Date.now()
   try {
-    const { mkdirSync } = require('fs')
-    mkdirSync(USER_PARAMS_DIR, { recursive: true })
-  } catch {}
+    const { existsSync, mkdirSync } = require('fs')
+    if (!existsSync(USER_PARAMS_DIR)) mkdirSync(USER_PARAMS_DIR, { recursive: true })
+  } catch (e: any) {
+    console.log(`[cc-soul][auto-tune] user params dir creation failed: ${e.message}`)
+  }
   debouncedSave(resolve(USER_PARAMS_DIR, `${userId}.json`), up)
 }
 
@@ -767,7 +769,7 @@ function evaluateLegacyExperiment(stats: InteractionStats) {
     setParam(exp.paramKey, exp.originalValue)
     notifyOwnerDM(
       `⏳ 调参实验数据不足（${windowMessages} 条消息），已恢复 ${exp.paramKey} = ${exp.originalValue}`
-    ).catch(() => {})
+    ).catch(() => {}) // intentionally silent — notification
   } else {
     const qualityDelta = currentEval.avgQuality - exp.preMetrics.avgQuality
     const correctionDelta = currentEval.correctionRate - exp.preMetrics.correctionRate
@@ -782,7 +784,7 @@ function evaluateLegacyExperiment(stats: InteractionStats) {
         `${exp.originalValue} → ${exp.testValue} (已采用)\n` +
         `质量: ${exp.preMetrics.avgQuality.toFixed(1)} → ${currentEval.avgQuality.toFixed(1)} (${qualityDelta >= 0 ? '+' : ''}${qualityDelta.toFixed(1)})\n` +
         `纠正率: ${exp.preMetrics.correctionRate.toFixed(1)}% → ${currentEval.correctionRate.toFixed(1)}%`
-      ).catch(() => {})
+      ).catch(() => {}) // intentionally silent — notification
     } else {
       exp.status = 'reverted'
       setParam(exp.paramKey, exp.originalValue)
@@ -790,7 +792,7 @@ function evaluateLegacyExperiment(stats: InteractionStats) {
         `↩️ 调参实验未改善，已恢复\n` +
         `参数: ${exp.paramKey} = ${exp.originalValue}\n` +
         `质量: ${qualityDelta >= 0 ? '+' : ''}${qualityDelta.toFixed(1)}, 纠正率: ${correctionDelta >= 0 ? '+' : ''}${correctionDelta.toFixed(1)}%`
-      ).catch(() => {})
+      ).catch(() => {}) // intentionally silent — notification
     }
   }
 
@@ -890,7 +892,7 @@ export function handleTuneCommand(msg: string): boolean {
     if (key in params && !isNaN(value)) {
       const old = params[key]
       setParam(key, value)
-      notifyOwnerDM(`🔧 手动调参: ${key} = ${old} → ${value}`).catch(() => {})
+      notifyOwnerDM(`🔧 手动调参: ${key} = ${old} → ${value}`).catch(() => {}) // intentionally silent — notification
       return true
     }
   }
@@ -899,7 +901,7 @@ export function handleTuneCommand(msg: string): boolean {
   const resetMatch = m.match(/^重置参数\s+([\w.]+)$/)
   if (resetMatch && resetMatch[1] in DEFAULT_PARAMS) {
     resetParam(resetMatch[1])
-    notifyOwnerDM(`🔄 已重置: ${resetMatch[1]} = ${DEFAULT_PARAMS[resetMatch[1]]}`).catch(() => {})
+    notifyOwnerDM(`🔄 已重置: ${resetMatch[1]} = ${DEFAULT_PARAMS[resetMatch[1]]}`).catch(() => {}) // intentionally silent — notification
     return true
   }
 

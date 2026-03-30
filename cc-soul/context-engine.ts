@@ -28,10 +28,10 @@ let trackPersonaStyle: (text: string, personaId: string) => void = () => {}
 let updateBeliefFromMessage: (user: string, bot: string) => void = () => {}
 let trackRecallImpact: (contents: string[], score: number) => void = () => {}
 let getActivePersona: () => { id: string } | null = () => null
-import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle }).catch(() => {})
-import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage }).catch(() => {})
-import('./memory.ts').then(m => { trackRecallImpact = m.trackRecallImpact }).catch(() => {})
-import('./persona.ts').then(m => { getActivePersona = m.getActivePersona }).catch(() => {})
+import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle }).catch((e: any) => { console.error(`[cc-soul] module load failed (persona-drift): ${e.message}`) })
+import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage }).catch((e: any) => { console.error(`[cc-soul] module load failed (theory-of-mind): ${e.message}`) })
+import('./memory.ts').then(m => { trackRecallImpact = m.trackRecallImpact }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
+import('./persona.ts').then(m => { getActivePersona = m.getActivePersona }).catch((e: any) => { console.error(`[cc-soul] module load failed (persona): ${e.message}`) })
 
 function syncResponseToSession(sessionKey: string | undefined, content: string) {
   try {
@@ -202,7 +202,7 @@ export function createCcSoulContextEngine() {
             const scScore = scoreResponse(userMsg, botResponse)
             if (scScore <= 3) {
               notifyOwnerDM(`⚠️ 刚才的回答可能有误：${selfIssue}。评分 ${scScore}/10`)
-                .catch(() => {})
+                .catch(() => {}) // intentionally silent — notification
               console.log(`[cc-soul][self-correction] issue: ${selfIssue} (score=${scScore})`)
             }
           }

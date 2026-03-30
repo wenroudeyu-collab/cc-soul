@@ -196,7 +196,7 @@ export function autoCreateSkill(description: string, example: string) {
     if (output) {
       addMemory(`[技能创建] ${description.slice(0, 60)} → ${output.slice(0, 100)}`, 'task')
       console.log(`[cc-soul][skill] created: ${description.slice(0, 40)}`)
-      notifySoulActivity(`🔧 自创技能: ${description.slice(0, 40)}`).catch(() => {})
+      notifySoulActivity(`🔧 自创技能: ${description.slice(0, 40)}`).catch(() => {}) // intentionally silent
     }
   }, 60000, `skill-create-${description.slice(0, 20)}`)
 }
@@ -255,7 +255,7 @@ export function createWorkflow(name: string, trigger: string, steps: string[]) {
   if (taskState.workflows.length > 30) taskState.workflows = taskState.workflows.slice(-25)
   debouncedSave(WORKFLOWS_PATH, taskState.workflows)
   console.log(`[cc-soul][workflow] created: ${name} (${steps.length} steps)`)
-  notifySoulActivity(`⚙️ 新工作流: ${name} (${steps.length}步)`).catch(() => {})
+  notifySoulActivity(`⚙️ 新工作流: ${name} (${steps.length}步)`).catch(() => {}) // intentionally silent
 }
 
 export function executeWorkflow(wf: Workflow) {
@@ -267,7 +267,7 @@ export function executeWorkflow(wf: Workflow) {
   function runNextStep() {
     if (stepIdx >= wf.steps.length) {
       console.log(`[cc-soul][workflow] ${wf.name} completed (${wf.steps.length} steps)`)
-      notifySoulActivity(`✅ 工作流完成: ${wf.name}`).catch(() => {})
+      notifySoulActivity(`✅ 工作流完成: ${wf.name}`).catch(() => {}) // intentionally silent
       addMemory(`[工作流完成] ${wf.name}`, 'task')
       return
     }

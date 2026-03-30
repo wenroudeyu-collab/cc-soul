@@ -1,58 +1,198 @@
 [
   {
-    "topic": "个人身份与偏好",
-    "summary": "张三是一位在字节工作的后端开发者，偏好Go语言和火锅，有一个5岁的女儿朵朵，讨厌PHP和寿司。",
-    "sourceCount": 8,
-    "lastUpdated": 1774903518234,
+    "topic": "[WAL事实] 我有",
+    "summary": "关键词: wal, 事实, 我喜欢用, 我有个很, 复杂的问 | 特征: 偏好:用 Go 写后端, 偏好:打篮球，讨厌跑步, 反感:跑步, 偏好:吃什么吗, 偏好:吃火锅，讨厌吃寿",
+    "sourceCount": 12,
+    "lastUpdated": 1774914634452,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "张三职业家庭",
-    "summary": "张三在美团担任Go语言后端工程师，妻子小红在银行工作，女儿朵朵5岁。",
-    "sourceCount": 7,
-    "lastUpdated": 1774903518236,
+    "topic": "[对话] 用户: 哈",
+    "summary": "关键词: 对话, 用户, 张三, 收到, 记下了 | 特征: 有规律性, 偏好:用 Go 写后端, 偏好:打篮球，讨厌跑步, 反感:跑步 → AI:",
+    "sourceCount": 12,
+    "lastUpdated": 1774914634454,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "小王职业信息",
-    "summary": "小王在腾讯从事前端开发工作，主要技术栈是Vue。此前AI曾错误记忆其工作单位为字节，后已修正。",
-    "sourceCount": 5,
-    "lastUpdated": 1774903518301,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
-  },
-  {
-    "topic": "用户身份与时区",
-    "summary": "用户要求被称为“大哥”，其身份偏好已确认；同时多次记录时区为欧洲/巴黎（GMT+1），表明地理位置信息稳定。",
-    "sourceCount": 6,
-    "lastUpdated": 1774903518306,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
-  },
-  {
-    "topic": "Docker清理",
-    "summary": "Docker清理命令包括查看空间占用（docker system df）和分级清理（prune），风险从低到中，需谨慎使用-a参数避免误删有用镜像。",
+    "topic": "Docker清理命令",
+    "summary": "关键词: docker, prune, image, system, 清理所有",
     "sourceCount": 11,
-    "lastUpdated": 1774903518322,
+    "lastUpdated": 1774914634454,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "Web服务器特性",
-    "summary": "Nginx以异步事件驱动架构实现高性能静态资源处理和低内存占用，配置简洁但不支持.htaccess；Apache通过模块化设计提供灵活的动态内容处理和.htaccess支持，但配置相对复杂。",
+    "topic": "Apache支持.h",
+    "summary": "关键词: apache, nginx, htaccess, 处理静态, 支持 | 特征: 效率导向",
     "sourceCount": 5,
-    "lastUpdated": 1774903518494,
+    "lastUpdated": 1774914634454,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "消息队列选型",
-    "summary": "Kafka 适合高吞吐、强持久化、需削峰与重放的场景（如订单系统）；RabbitMQ 适合低延迟、灵活路由的轻量级场景。两者在性能、有序性、堆积能力上差异显著。",
+    "topic": "CPU并行计算可用m",
+    "summary": "关键词: cpu, 可用, asyncio, 并行计算, multiprocessing",
     "sourceCount": 5,
-    "lastUpdated": 1774903518770,
+    "lastUpdated": 1774914634455,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "用户认知与压力",
-    "summary": "wang了解系统的记忆机制，包括主动标记和隐私控制，同时正面临项目延期的压力。",
-    "sourceCount": 5,
-    "lastUpdated": 1774903519911,
+    "topic": "[焦虑或恐惧] 对技",
+    "summary": "关键词: rdb, aof, bun, node, redis | 特征: 有压力, 效率导向",
+    "sourceCount": 4,
+    "lastUpdated": 1774914634455,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "AOF机制记录每个写",
+    "summary": "关键词: aof, 文件大随, 时间膨胀, 默认配置, 机制记录",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634456,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "用户关注Rust和T",
+    "summary": "关键词: rust, typescript, 用户关注, 用户在关, 或学习 | 特征: 学习型",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634456,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "GIL在I/O密集型",
+    "summary": "关键词: gil, 密集型任, 网络请求, 文件读写, 等待时会",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634457,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "TypeScript",
+    "summary": "关键词: interface, type, typescript, 支持声明, 合并",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634457,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "用户沟通风格偏好直接",
+    "summary": "关键词: 简洁, 直接, 用户的沟, 通风格偏, 用户沟通",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634458,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "常见优化手段：无索引",
+    "summary": "关键词: 常见优化, 检查, where, 字段类型, 匹配 | 特征: 效率导向",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634458,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "分析执行计划使用EX",
+    "summary": "关键词: 分析执行, explain, analyze, 关注, type",
+    "sourceCount": 3,
+    "lastUpdated": 1774914634458,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "go tool pp",
+    "summary": "关键词: pprof, goroutine, tool, 命令可以, 堆栈进行",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634459,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "[职业身份认同] 通",
+    "summary": "关键词: 职业身份, 认同, redis, nginx, 通过重复",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634459,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "Nginx负载均衡在",
+    "summary": "关键词: proxy, nginx, upstream, 负载均衡, server",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634460,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "[情绪表达习惯] 在",
+    "summary": "关键词: 情绪表达, 习惯, 倾向于重, 复陈述事, 而非直接 | 特征: 有规律性",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634460,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "RDB机制是定时快照",
+    "summary": "关键词: rdb, 机制是定, 时快照保, 存全量数, 文件紧凑 | 特征: 效率导向",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634461,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "Bun 在 2024",
+    "summary": "关键词: bun, npm, 年存在部, 包兼容问, 题和边缘 | 特征: 效率导向",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634461,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "[承诺] 五要做年度",
+    "summary": "关键词: 承诺, 五要做年, 度技术分, 得好好, 第一次养",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634462,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "用户喜欢用Pytho",
+    "summary": "关键词: 用户喜欢, python, 进行数据, 分析, 语言编写 | 特征: 偏好:用Python进, 偏好:用Go语言编写后",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634462,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "RESTful AP",
+    "summary": "关键词: get, users, restful, api, url",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634462,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "Redis是Key-",
+    "summary": "关键词: redis, key, value, 内存数据, 适合缓存",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634463,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "腰疼伴随发烧可能是感",
+    "summary": "关键词: 腰疼伴随, 需要立即, 就医, 发烧可能, 是感染",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634463,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "用户曾问过Go的HT",
+    "summary": "关键词: channel, mutex, 用户曾问, http, 服务器",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634464,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "定位慢查询可通过查看",
+    "summary": "关键词: 定位慢查, 询可通过, 查看慢查, 询日志配, 实时查看",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634464,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "Python处理大文",
+    "summary": "关键词: python, pandas, 分块读取, 处理大文, 件时可以",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634465,
+    "userId": "test"
+  },
+  {
+    "topic": "[承诺] 面试怎么比",
+    "summary": "关键词: 承诺, 面试怎么, 比较好, 三有个面, 有点紧张 | 特征: 有压力",
+    "sourceCount": 2,
+    "lastUpdated": 1774914634465,
+    "userId": "test"
   }
 ]

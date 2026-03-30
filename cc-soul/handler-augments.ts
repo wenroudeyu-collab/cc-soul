@@ -60,12 +60,20 @@ const _usedTopicNodes = new Set<string>()
  * quality 高 → topic node confidence 上升
  * quality 低 → confidence 下降，标记需要重新蒸馏
  */
+// ── Lazy-loaded distill module ──
+let _distillMod: any = null
+function getDistillMod() {
+  if (!_distillMod) try { _distillMod = require('./distill.ts') } catch {}
+  return _distillMod
+}
+
 export function feedbackDistillQuality(qualityScore: number) {
+  const mod = getDistillMod()
+  if (!mod) { _usedTopicNodes.clear(); return }
   for (const topic of _usedTopicNodes) {
     try {
-      const { adjustTopicConfidence } = require('./distill.ts')
-      if (qualityScore > 7) adjustTopicConfidence(topic, 0.05)
-      else if (qualityScore < 4) adjustTopicConfidence(topic, -0.1)
+      if (qualityScore > 7) mod.adjustTopicConfidence(topic, 0.05)
+      else if (qualityScore < 4) mod.adjustTopicConfidence(topic, -0.1)
     } catch {}
   }
   _usedTopicNodes.clear()
@@ -76,8 +84,16 @@ let _cachedRerankedMemories: Memory[] = []
 let _cachedRerankedQuery = ''
 import { trigrams, trigramSimilarity } from './memory.ts'
 // ── Lazy-loaded sqlite-store for context reminders ──
-let dbGetContextReminders: (userId?: string) => { id: number; keyword: string; content: string; userId: string }[] = () => []
-import('./sqlite-store.ts').then(m => { dbGetContextReminders = m.dbGetContextReminders }).catch(() => {})
+let _sqliteStoreMod: any = null
+function getSqliteStoreMod() {
+  if (!_sqliteStoreMod) try { _sqliteStoreMod = require('./sqlite-store.ts') } catch {}
+  return _sqliteStoreMod
+}
+function getContextReminders(userId?: string): { id: number; keyword: string; content: string; userId: string }[] {
+  const mod = getSqliteStoreMod()
+  if (!mod) return []
+  try { return mod.dbGetContextReminders(userId) } catch { return [] }
+}
 
 // ── Memory distillation: group recalled memories into narrative paragraphs to save tokens ──
 const SCOPE_LABELS: Record<string, string> = {
@@ -1130,6 +1146,18 @@ export async function buildAndSelectAugments(params: {
     if (isEnabled('skill_library')) autoCreateSkill(skillHint, userMsg)
   }
 
+  // CIN — Cognitive Interference Network (原创核心算法：理解层+预测层)
+  try {
+    const { getCINAugment, updateFieldIncremental } = await import('./cin.ts')
+    // 增量更新认知场
+    for (const mem of recalled.slice(0, 5)) updateFieldIncremental(mem)
+    // 获取认知预测 augment
+    const cinHint = getCINAugment(userMsg, recalled, body.mood)
+    if (cinHint) {
+      augments.push({ content: cinHint, priority: 9, tokens: estimateTokens(cinHint) })
+    }
+  } catch {}
+
   // Behavior engine — situational pattern matching (原创，竞品没有)
   // Priority arbitration: behavior engine's style hints override persona's tone hints
   // because behavior is context-specific (current situation), persona is identity-level.
@@ -1337,7 +1365,7 @@ export async function buildAndSelectAugments(params: {
   // ── #11 智能提醒（上下文触发）──
   if (isEnabled('context_reminder')) {
     try {
-      const ctxReminders = dbGetContextReminders(senderId)
+      const ctxReminders = getContextReminders(senderId)
       for (const r of ctxReminders) {
         if (r.keyword && userMsg.toLowerCase().includes(r.keyword.toLowerCase())) {
           const hint = `[提醒] 你之前设置了：当聊到 ${r.keyword} 时提醒你 ${r.content}`
@@ -1517,7 +1545,13 @@ export async function buildAndSelectAugments(params: {
         const last = _lastSoulMoments.get(key) || 0
         return now - last > cooldownMs
       }
-      const markFired = (key: string) => { _lastSoulMoments.set(key, now) }
+      const markFired = (key: string) => {
+        _lastSoulMoments.set(key, now)
+        if (_lastSoulMoments.size > 100) {
+          const entries = [..._lastSoulMoments.entries()].sort((a, b) => a[1] - b[1])
+          for (const [k] of entries.slice(0, 50)) _lastSoulMoments.delete(k)
+        }
+      }
 
       // 1. Relationship Milestone (认识周年) — priority: highest among soul moments
       if (!soulAugment && senderId && canFire('milestone', DAY)) {

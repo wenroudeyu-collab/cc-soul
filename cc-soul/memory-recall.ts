@@ -61,19 +61,28 @@ export function getRecallRate(): { total: number; successful: number; rate: numb
 
 // ── Recall impact tracking: which memories actually helped? ──
 export const recallImpact = new Map<string, { recalled: number; helpedQuality: number; avgImpact: number }>()
+let _lastImpactCleanup = 0
 
 // ── Lazy-loaded smart-forget for adaptive decay feedback ──
 let _smartForgetMod: any = null
-setTimeout(() => { import('./smart-forget.ts').then(m => { _smartForgetMod = m }).catch(() => {}) }, 2000)
+function getSmartForget() {
+  if (!_smartForgetMod) {
+    try { _smartForgetMod = require('./smart-forget.ts') } catch {
+      import('./smart-forget.ts').then(m => { _smartForgetMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (smart-forget): ${e.message}`) })
+    }
+  }
+  return _smartForgetMod
+}
 
 export function trackRecallImpact(recalledContents: string[], qualityScore: number) {
   // Adaptive decay feedback: track whether recalled memories were useful
-  if (_smartForgetMod) {
+  const sf = getSmartForget()
+  if (sf) {
     const n = recalledContents.length
     if (qualityScore >= 5) {
-      for (let i = 0; i < n; i++) _smartForgetMod.recordRecallHit()
+      for (let i = 0; i < n; i++) sf.recordRecallHit()
     } else {
-      for (let i = 0; i < n; i++) _smartForgetMod.recordRecallMiss()
+      for (let i = 0; i < n; i++) sf.recordRecallMiss()
     }
   }
 
@@ -112,8 +121,9 @@ export function trackRecallImpact(recalledContents: string[], qualityScore: numb
       }
     }
   }
-  // Cap map size
-  if (recallImpact.size > 500) {
+  // Cap map size (debounced: at most once per 60s)
+  if (recallImpact.size > 500 && Date.now() - _lastImpactCleanup > 60000) {
+    _lastImpactCleanup = Date.now()
     const sorted = [...recallImpact.entries()].sort((a, b) => a[1].recalled - b[1].recalled)
     const deleteCount = recallImpact.size - 300
     for (const [key] of sorted.slice(0, deleteCount)) recallImpact.delete(key)
@@ -171,8 +181,10 @@ function bm25Tokenize(text: string): string[] {
   return tokens
 }
 
+const IDF_CACHE_TTL = 300000 // 5 minutes
+
 function buildIDF(): Map<string, number> {
-  if (idfCache && idfCache.size > 0) return idfCache
+  if (idfCache && idfCache.size > 0 && Date.now() - lastIdfBuildTs < IDF_CACHE_TTL) return idfCache
   const df = new Map<string, number>()
   const N = memoryState.memories.length || 1
   let totalDocLen = 0

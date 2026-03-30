@@ -88,9 +88,9 @@ const FUTURE_PATTERNS: FuturePattern[] = [
     expiryDays: 60,
   },
   {
-    detect: /(?:下周|这周|明天|后天|周[一二三四五六日天]).*(?:开会|会议|review|评审|述职)/,
-    triggerKeywords: '会议|review|评审|述职|汇报|PPT|材料',
-    remindTemplate: (_m, msg) => `用户之前提到有会议安排：${msg.slice(0, 60)}`,
+    detect: /(?:下周|这周|明天|后天|周[一二三四五六日天]).*(?:开会|会议|review|评审|述职|分享|演讲|讲座|talk|汇报)/,
+    triggerKeywords: '会议|review|评审|述职|汇报|PPT|材料|分享|演讲|讲座|slides',
+    remindTemplate: (_m, msg) => `用户之前提到有会议/分享安排：${msg.slice(0, 60)}`,
     expiryDays: 7,
   },
   {

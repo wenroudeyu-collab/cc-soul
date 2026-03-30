@@ -258,7 +258,7 @@ export function formHypothesis(pattern: string, observation: string) {
 
   saveHypothesesSafe()
   console.log(`[cc-soul][evolve] 新假设: ${pattern.slice(0, 30)} → ${observation.slice(0, 40)}`)
-  notifySoulActivity(`🧬 新假设: ${pattern.slice(0, 30)} → ${observation.slice(0, 40)}`).catch(() => {})
+  notifySoulActivity(`🧬 新假设: ${pattern.slice(0, 30)} → ${observation.slice(0, 40)}`).catch(() => {}) // intentionally silent
 }
 
 function saveHypothesesSafe() {
@@ -305,7 +305,7 @@ function _verifyHypothesisInner(situation: string, wasCorrect: boolean) {
       addRule(h.description, 'hypothesis_solidified')
       appendAudit('rule_solidified', h.description.slice(0, 150))
       console.log(`[cc-soul][evolve] 规则固化: ${h.description.slice(0, 40)} (验证${h.verifyCount}次)`)
-      notifySoulActivity(`🔒 规则固化: ${h.description.slice(0, 40)}`).catch(() => {})
+      notifySoulActivity(`🔒 规则固化: ${h.description.slice(0, 40)}`).catch(() => {}) // intentionally silent
       continue
     }
 
@@ -314,7 +314,7 @@ function _verifyHypothesisInner(situation: string, wasCorrect: boolean) {
     if (h.status === 'active' && isSignificant(h.alpha, h.beta) && (1 - betaLowerBound(h.beta, h.alpha)) < getParam('evolution.hypothesis_reject_ci_ub')) {
       h.status = 'rejected'
       console.log(`[cc-soul][evolve] 假设被否定: ${h.description.slice(0, 40)} (mean=${mean.toFixed(3)})`)
-      notifySoulActivity(`❌ 假设否定: ${h.description.slice(0, 40)}`).catch(() => {})
+      notifySoulActivity(`❌ 假设否定: ${h.description.slice(0, 40)}`).catch(() => {}) // intentionally silent
     }
   }
   saveHypothesesSafe()

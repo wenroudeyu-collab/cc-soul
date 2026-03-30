@@ -1990,5 +1990,857 @@
     "action": "memory_add",
     "detail": "[preference] 作息时间：早上6点起床，晚上11点睡觉",
     "hash": "87fff0136467d916dbc2597a05c47e2c36e6b2cc5064f3d5b354e3e87462b44d"
+  },
+  {
+    "ts": 1774907540029,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你好 → AI: 我是 **cc**，不是 Claude 或其他模型。\n\n没有年龄，每次对话都是新的开始，只是会记住和你的聊天内容。\n\n有",
+    "hash": "72dc7188d540379fadc082428b4b1ddeb5a212049f540b14027b6f8a9e900189"
+  },
+  {
+    "ts": 1774907545316,
+    "action": "memory_add",
+    "detail": "[fact] 用户姓名为张三",
+    "hash": "8c329a909f2b51603432cb4eb28d5f0304e66b76d92aa0ba12e9793d35ca68cb"
+  },
+  {
+    "ts": 1774907569763,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你是什么模型 你今年多大了 → AI: 在。我记得：\n\n- 你是 **张三**\n- 美团后端，主要用 **Go**\n- 老婆 **小红**，在银行上班\n- 女儿",
+    "hash": "e8a925463accd1244e46bd9fc110473a26ae069cf5b0f51d40945e2518a9098f"
+  },
+  {
+    "ts": 1774907579374,
+    "action": "memory_add",
+    "detail": "[fact] 用户叫张三",
+    "hash": "3f6c250aa7ca73dc7d372ce9520659b59030a34194bfe5822b9f86f8c5dcad8f"
+  },
+  {
+    "ts": 1774907579378,
+    "action": "memory_add",
+    "detail": "[fact] 张三在美团做后端开发",
+    "hash": "93490f7f9602432f5884caeefabf0571d72c133e34936e9489c0ecad3cab9485"
+  },
+  {
+    "ts": 1774907579383,
+    "action": "memory_version",
+    "detail": "[fact] \"主要使用Go语言\" → \"张三主要使用Go语言\"",
+    "hash": "5c4603859ffb42daded57662b1b141d101d5958ac1fadb06eb6f939cbc00d7ba"
+  },
+  {
+    "ts": 1774907579389,
+    "action": "memory_add",
+    "detail": "[fact] 张三的妻子叫小红，在银行上班",
+    "hash": "3b39b689eaef1c9b725a073fb56c4e9aad8e0af552a6dcc406867ac11b78e7ee"
+  },
+  {
+    "ts": 1774907579395,
+    "action": "memory_add",
+    "detail": "[fact] 张三的女儿叫朵朵，5岁",
+    "hash": "8600d5ceb0cb6b8890e16b57e7b4a2e63b6a952f946fec5a5625fd92ea35f478"
+  },
+  {
+    "ts": 1774907601787,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: 你是什么模型 你今年多大了 → AI: 在。我记得：\n\n- 你是 **张三**\n-\" → \"[对话] 用户: 我们以前的记忆还在吗？ → AI: 在。我记得：\n\n- 你是 **张三**\n- 美\"",
+    "hash": "a4856f86d9e945eafc09710f30cbfccc0c29b1082a2e8d9269efbee1c9392baf"
+  },
+  {
+    "ts": 1774907614700,
+    "action": "memory_add",
+    "detail": "[fact] 用户是张三",
+    "hash": "bb9d3eb76a4a68395e1a87b5e55cba77522acd240a81a28574d152c49aa2145a"
+  },
+  {
+    "ts": 1774909073882,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 随便说点什么 → AI: 张三，凌晨一点多了，你还没睡？\n\n是项目的事还是别的？",
+    "hash": "d961e6e14ae91ad51558a8d0f34f7a7bd0acb1cc4ecec0de2336e9f65b10a535"
+  },
+  {
+    "ts": 1774909157533,
+    "action": "memory_add",
+    "detail": "[task] [goal completed] [系统命令结果，请原样转发给用户]\n\n已创建 A/B 实验 \"[系统命令结果，请原样转发给用户]\n\ncc-soul 命令指南\n\n━━ 自动运行（无需操作） ━━\n• ",
+    "hash": "90416b9a8e1b8a274c1c635e11f837560f29d6a57875f9703930dd2e63f6f335"
+  },
+  {
+    "ts": 1774909654333,
+    "action": "checkin",
+    "detail": "学习 连续1天 总计1次",
+    "hash": "a5a6570f28d79f9ad1663b01f8b51f581e056aad1e12f33bda225599012e39ac"
+  },
+  {
+    "ts": 1774909888228,
+    "action": "checkin",
+    "detail": "运动 连续1天 总计1次",
+    "hash": "ccda17932d0a3a344421c337a8f5194e16c628586c0730986edfcefc7f61f2b7"
+  },
+  {
+    "ts": 1774909902587,
+    "action": "checkin",
+    "detail": "运动 连续1天 总计1次",
+    "hash": "c0a62867ec89103b15d122676e9a118aa4d621ff2d8c30ecaca256fb6a66297a"
+  },
+  {
+    "ts": 1774910004869,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Python怎么处理大文件 → AI: 用pandas分块读取",
+    "hash": "33cd812a119363b6d585c53769614c37c2976122997b43e8aef1d2429d7fa6bf"
+  },
+  {
+    "ts": 1774910014166,
+    "action": "memory_add",
+    "detail": "[fact] Python处理大文件时可以使用pandas分块读取的方法",
+    "hash": "86bacbac04787c9fbfd27406b61c61429529d8f8e964990dbf094b5c0023f76d"
+  },
+  {
+    "ts": 1774910101949,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我最近在学 Rust，感觉所有权机制好难理解 → AI: Rust 的所有权确实是最难的一关，但一旦理解，其他都顺了。\n\n**核心就三条规则：**\n\n1. 每个值有且只有一个所有",
+    "hash": "4eb07e158fa7b6cfd4308658c74bacd1bb3a293d21200658f49fdad391bb0405"
+  },
+  {
+    "ts": 1774910111578,
+    "action": "memory_add",
+    "detail": "[fact] Rust 所有权机制的核心规则：每个值有且只有一个所有者；所有者离开作用域，值自动释放；要么一个可变引用，要么多个不可变引用（不能同时）",
+    "hash": "f2909563d5363993185217340990f2553296193d892bd91decba393a5d29c57e"
+  },
+  {
+    "ts": 1774910111586,
+    "action": "memory_add",
+    "detail": "[fact] 实现了 Copy trait 的类型直接复制，复杂类型（堆上数据）默认移动所有权",
+    "hash": "c218265bf1cb70ac8103e53975008f5dc9f89e06e0bfeac07400e5e1282a9297"
+  },
+  {
+    "ts": 1774910111589,
+    "action": "memory_add",
+    "detail": "[fact] &str 是借来的引用，String 是拥有的字符串类型",
+    "hash": "fb166fdf1aa62644df82bc9589f24a8f514b9df52211350bb37c333364d58e9d"
+  },
+  {
+    "ts": 1774910111591,
+    "action": "memory_add",
+    "detail": "[fact] 函数不能返回局部变量的引用，因为函数结束局部变量销毁会导致悬空引用",
+    "hash": "428ce20906819b8221684c7ca75c195d6a7352684876c5c09c1b26da89a182a3"
+  },
+  {
+    "ts": 1774910202596,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Docker Compose 和 Kubernetes 怎么选？小团队用 → AI: 小团队直接 **Docker Compose**，别碰 K8s。\n\n---\n\n**对比：**\n\n",
+    "hash": "afc702575281fe1880ddb257a81a070ca7551ebff912eb56b06282f9f6c3c70a"
+  },
+  {
+    "ts": 1774910213548,
+    "action": "memory_add",
+    "detail": "[fact] Docker Compose 适合小团队，学习成本低（1天上手），运维简单，适用于单机或少量机器",
+    "hash": "ee8debda5532b28d5a4753b1532d9fc8d668ed5efe4afe375ce01290f3793fb0"
+  },
+  {
+    "ts": 1774910213553,
+    "action": "memory_add",
+    "detail": "[fact] Kubernetes 学习成本高（1-3个月入门），需要专人或托管服务，适合大规模集群和自动扩缩容",
+    "hash": "3584e09a6e069d6252d6f35ef3b863920e4c8d227be5a3f97acb7388fc5c9daa"
+  },
+  {
+    "ts": 1774910213561,
+    "action": "memory_add",
+    "detail": "[opinion] 小团队（服务少于10个）建议使用 Docker Compose，流量不大时 compose + 反向代理足够",
+    "hash": "dc6d37fd338b836459f460e4f4b6e46f0254eb1f0e03722efa1746e8f14fcce8"
+  },
+  {
+    "ts": 1774910213566,
+    "action": "memory_add",
+    "detail": "[fact] 考虑上 Kubernetes 的信号：服务超过10个、需要自动扩缩容、多环境一致性要求高、有专职运维",
+    "hash": "fc630ea7fafa4dd2469e880f6dd18eabc528b155e25f814a1f9f891d176e503a"
+  },
+  {
+    "ts": 1774910235282,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢用 Go 写后端服务，Python 做数据分析",
+    "hash": "b5a684cd535f46cd0f90165169a62dd38e2394667976a9dcdda0320e5ecf54eb"
+  },
+  {
+    "ts": 1774910280317,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: I我喜欢用 Go 写后端服务，Python 做数据分析 → AI: 收到，张三。\n\n（记下了：Go 写后端，Python 做数据分析）\n\n这个组合很实用，Go 处理高并发服务，Pyt",
+    "hash": "8ae884b958f8d3b94ee921b20f30503edf03dcc6ff3adfd5c26a199b1b66b011"
+  },
+  {
+    "ts": 1774910290526,
+    "action": "memory_add",
+    "detail": "[preference] 用户喜欢用Go语言编写后端服务",
+    "hash": "198c15a11d466675c874200d5159a8f3eafa1a0e44a85648750e9600696c787f"
+  },
+  {
+    "ts": 1774910290531,
+    "action": "memory_add",
+    "detail": "[preference] 用户喜欢用Python进行数据分析",
+    "hash": "704fc4041cd4886ac2602932f1d78a0793f19bad91edbb2347a23877384f8d98"
+  },
+  {
+    "ts": 1774910290534,
+    "action": "memory_add",
+    "detail": "[fact] Go语言适合处理高并发服务",
+    "hash": "6b7ae8345aa1cc6538513d966c9e45e757e9a396dbfc55d265144bbf8507eca7"
+  },
+  {
+    "ts": 1774910290538,
+    "action": "memory_add",
+    "detail": "[fact] Python适合数据分析和脚本编写",
+    "hash": "f28db79417d37fd04dd8c7616f4350f83b06ae6ae61658bc36993a41e9484b59"
+  },
+  {
+    "ts": 1774910371332,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 最近加班太多了，每天都到12点才回家，身体有点吃不消 → AI: 张三，这样下去不行。身体垮了，项目再成功也没用。\n\n**先评估：**\n\n| 问题 | 你的情况 |\n|------|",
+    "hash": "8c0cb574e19b5f09d6ee02e89fc9a9cff8059c4c8cc175fd96caaf2d5aa33c28"
+  },
+  {
+    "ts": 1774910379938,
+    "action": "memory_add",
+    "detail": "[event] 张三最近加班严重，每天工作到12点，身体不适",
+    "hash": "b5a0bf0a46b3491fbaf11db709db9c035c86d2f3400ba5f109f95a57722a3cd5"
+  },
+  {
+    "ts": 1774910379941,
+    "action": "memory_add",
+    "detail": "[fact] 张三平时早上6点起床",
+    "hash": "eebb56997b820e78fb8bc07b124749bf726a610a6fe4a03e891bd9338f44d6b5"
+  },
+  {
+    "ts": 1774910379945,
+    "action": "memory_add",
+    "detail": "[fact] 美团有员工关怀或心理咨询服务",
+    "hash": "2266b8140c17e768e0fbb9caf3f55a757f82d033c52faa1650b5fbf24d451f64"
+  },
+  {
+    "ts": 1774911617356,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Redis 的持久化 RDB 和 AOF 怎么选？ → AI: **RDB 和 AOF 不是二选一，生产环境建议都开。**\n\n---\n\n**核心对比：**\n\n| | RDB | AO",
+    "hash": "8517492b30f6ceb8b9b0c887cd6e4396ebbebf0d8cdeee9b9cc31adaed543464"
+  },
+  {
+    "ts": 1774911629262,
+    "action": "memory_add",
+    "detail": "[fact] Redis持久化RDB和AOF不是二选一，生产环境建议都开",
+    "hash": "0e468435ff61785dad20b8f44b6f5a9108a5204c53806cb155a69421c11b2e4f"
+  },
+  {
+    "ts": 1774911629267,
+    "action": "memory_add",
+    "detail": "[fact] RDB机制是定时快照保存全量数据，文件紧凑压缩，恢复快但可能丢最后一次快照后的数据",
+    "hash": "093da8a508af9908835aafeb2cea3449add2466631a8367a037bf2e2b75e96c2"
+  },
+  {
+    "ts": 1774911629271,
+    "action": "memory_add",
+    "detail": "[fact] AOF机制是记录每个写操作类似日志，文件大随时间膨胀，恢复慢但最多丢1秒数据（默认配置）",
+    "hash": "2913a9f57966da36bbc688181f5eccd9104c0bc429246bc8be76fed962347b13"
+  },
+  {
+    "ts": 1774911629274,
+    "action": "memory_add",
+    "detail": "[opinion] 缓存为主可重建的场景建议只开RDB甚至不开；数据重要不能丢的场景建议RDB+AOF，AOF每秒刷盘",
+    "hash": "c466083154ba5c61a7f8a66411dd7952abd0855ca758de6fbeb55a58ead12da9"
+  },
+  {
+    "ts": 1774911629277,
+    "action": "memory_add",
+    "detail": "[fact] Redis 4.0+支持混合持久化模式，可以同时开启RDB和AOF",
+    "hash": "af6d073884413bd62f3f39eedea615ef5d765430e933fd8287239f01924bfd4e"
+  },
+  {
+    "ts": 1774911652728,
+    "action": "memory_add",
+    "detail": "[commitment] [承诺] 第一次养猫需要什么？",
+    "hash": "f7ec87fb40074fcb803867908f224323c860300daa1a4d122adc2d977deacc63"
+  },
+  {
+    "ts": 1774911697759,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 第一次养猫需要准备什么？ → AI: **新手养猫必备清单：**\n\n---\n\n**接猫前准备**\n\n| 物品 | 说明 |\n|------|------|\n|",
+    "hash": "457e8315343fa3c5474c23acf08089e5727afbb6371b5532306bae04694f7ba1"
+  },
+  {
+    "ts": 1774911709060,
+    "action": "memory_add",
+    "detail": "[fact] 新手养猫必备物品包括猫砂盆、猫砂、猫粮、食盆水盆、猫窝/猫抓板、航空箱",
+    "hash": "63a22f0f930991db60bc051785e74447674125dacb0258b15088735ecf611825"
+  },
+  {
+    "ts": 1774911709063,
+    "action": "memory_add",
+    "detail": "[fact] 接猫后需安排体检、疫苗（猫三联+狂犬）、驱虫（每月一次）、绝育（6-8月龄）",
+    "hash": "631a7f062a88821532e2264dcb32f7c1fd36317084612a274e0bd1f35c1cf4d5"
+  },
+  {
+    "ts": 1774911709066,
+    "action": "memory_add",
+    "detail": "[fact] 养猫环境需封窗，收好巧克力、百合、电线，使用带盖垃圾桶",
+    "hash": "036d63c6c525a906d39d90b6af6c899f429785b4ab62166b1703831cae171742"
+  },
+  {
+    "ts": 1774911709068,
+    "action": "memory_add",
+    "detail": "[fact] 新猫到家可能躲藏、不吃不喝，应给3-7天适应期，避免强行抱",
+    "hash": "e0b2cf41be5f2b558fc56e626dd01cd17aaf6ba47dbd58fd806752b086790c8f"
+  },
+  {
+    "ts": 1774911773785,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 今天被老板骂了一顿，心情很差 → AI: 张三，因为什么被骂？项目延期还是别的事？\n\n现在想聊聊，还是先缓缓？",
+    "hash": "5b5014e1a84a85ed6e5a51d62d0121ea988233b5d499f18d8952318a2259a3a9"
+  },
+  {
+    "ts": 1774911780914,
+    "action": "memory_add",
+    "detail": "[event] 用户今天被老板骂了一顿",
+    "hash": "18549b2237e94f89767cf92ce8bc4b8dab27d8dfe09ba8114f0cbfbcd782499f"
+  },
+  {
+    "ts": 1774911881651,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你还记得我用什么语言写后端吗？ → AI: 张三用 **Go** 写后端，**Python** 做数据分析。",
+    "hash": "1d5f6b37e3b86b85066c81bab1c6a33901f3cc97413826f7e6cc495ef3e3c0a0"
+  },
+  {
+    "ts": 1774911889365,
+    "action": "memory_add",
+    "detail": "[fact] 张三用Go写后端",
+    "hash": "f3d9943962449c584ef8c13c5374711754822a8f2e63de55fe130595d2ac3020"
+  },
+  {
+    "ts": 1774911889373,
+    "action": "memory_add",
+    "detail": "[fact] 张三用Python做数据分析",
+    "hash": "33f8e1f7d62af71390842f9484f1c41726e937390e4620e56708760090dc5495"
+  },
+  {
+    "ts": 1774911914251,
+    "action": "memory_add",
+    "detail": "[commitment] [承诺] 五要做年度技术分享，得好好",
+    "hash": "c043cfae534c2ab4d9bb091eee93dcd888e97c535ef8631081564bea07cfd142"
+  },
+  {
+    "ts": 1774911959271,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 下周五要做年度技术分享，得好好准备 → AI: 张三，技术分享主题定了没？多长时间？听众什么背景？\n\n（记下了：下周五年度技术分享）",
+    "hash": "958bb90588696b8b439702cafd8e10101b16499bd5053f269175e52e6e3b3e1e"
+  },
+  {
+    "ts": 1774912044552,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 哈哈今天天气真好 → AI: 张三，今天巴黎天气确实不错。\n\n心情好点了？还是转移话题？",
+    "hash": "8e81774a38fd60f268bfbdd4f650456d5c6c2af3294cb0874ba511e450b8bbb1"
+  },
+  {
+    "ts": 1774912052788,
+    "action": "memory_add",
+    "detail": "[preference] 用户可能心情不好",
+    "hash": "8bbe8114d508136e7aef2d5a1617f0400f9aca5e6e5ea9266b6d55658b911680"
+  },
+  {
+    "ts": 1774912205165,
+    "action": "memory_add",
+    "detail": "[event] 用户最近因项目延期和老板催促感到焦虑失眠",
+    "hash": "566d30d737de5afab37dd4735a792edffa65d5ddfafef9e21fb7e3ce7eb55fdf"
+  },
+  {
+    "ts": 1774912249329,
+    "action": "memory_add",
+    "detail": "[wisdom] [职业身份认同与自豪感] 反复强调使用Go语言写后端，暗示其将技术选择与专业身份深度绑定，可能认为Go代表高效、现代，并以此在技术社群中建立自我价值。",
+    "hash": "cadade3521ed313b60d985be563139ea755a2e9785414ff94c329431be3ec54a"
+  },
+  {
+    "ts": 1774912249336,
+    "action": "memory_add",
+    "detail": "[wisdom] [焦虑与身体耗竭] 多次重复加班至深夜的抱怨，表面是陈述事实，深层透露出对健康失控的恐惧，以及在高强度工作中逐渐丧失生活平衡的无力感。",
+    "hash": "94d33a28b2eeb92bb46285e2f61701abe9c63e5904bedf8e2a9889c9a264b6bb"
+  },
+  {
+    "ts": 1774912249340,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [对认可的隐秘渴望] 两次追问是否记得其使用的编程语言，暴露了在技术领域渴望被记住、被肯定的需求，可能隐含对自身专业形象是否被重视的不安。 (关于对话者)",
+    "hash": "5086d9d02c7997eff66e6fb1ab3a34ded4a9b6aacb6b9b866c7f003a0fe6dcb5"
+  },
+  {
+    "ts": 1774912283156,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 每天对着电脑十几个小时，眼睛干涩怎么缓解？ → AI: **程序员护眼实操：**\n\n---\n\n**环境调整**\n\n| 问题 | 解决 |\n|------|------|\n| 屏",
+    "hash": "13b83e7b7311b860bdd9e7a87a34e3f0759fca4de80f2837d45feedbee080ed9"
+  },
+  {
+    "ts": 1774912292930,
+    "action": "memory_add",
+    "detail": "[wisdom] [工作与健康的矛盾] 他反复强调加班导致身体不适，透露出对工作强度侵蚀健康的焦虑，但仍在持续这种状态，显示出一种无奈或对职业责任的妥协。",
+    "hash": "b4209f6120955821ea4bec8f6b08fb8b3a6218144d052fa31d3f00a4b36ae209"
+  },
+  {
+    "ts": 1774912292935,
+    "action": "memory_add",
+    "detail": "[wisdom] [未说出口的疲惫与孤独] 消息中重复提及加班和身体问题，可能隐含对生活失衡的失落感，或渴望被关心却以抱怨形式间接表达。",
+    "hash": "e085f97b04e90dcafcda6faf0e961f9ba1b4d7cc9954b4866e7a4dd2cb77be2f"
+  },
+  {
+    "ts": 1774912292939,
+    "action": "memory_add",
+    "detail": "[wisdom] [职业身份认同] 他两次询问你是否记得他的编程语言，暗示他对技术专业身份的重视，或担心在重复工作中失去独特性。",
+    "hash": "f2bb1ee8e36d2690918063d308fe05232f31ef49bcc306b7da17ba614c9fc066"
+  },
+  {
+    "ts": 1774912293536,
+    "action": "memory_add",
+    "detail": "[fact] 20-20-20法则：每20分钟看20英尺（6米）外20秒，缓解眼疲劳",
+    "hash": "395c572339e4183f499d43b8e45050696852930e4411b0fd0fdafe5e72473cba"
+  },
+  {
+    "ts": 1774912293544,
+    "action": "memory_add",
+    "detail": "[fact] 人工泪液选择：玻璃酸钠滴眼液适用于日常干涩，聚乙二醇用于重度干眼，避免使用去红血丝的眼药水",
+    "hash": "e47c045f928fc30ae20a33e30355c7b1441d9e099162397c4daa11c6e41d2d4b"
+  },
+  {
+    "ts": 1774912293549,
+    "action": "memory_add",
+    "detail": "[fact] 护眼环境调整：屏幕亮度匹配环境光、使用防蓝光措施、调整角度避免反光、保持40-60%湿度",
+    "hash": "ceb079a1cf46785e658afc38dc99649058b14511193fc5309405dd8f6c2eba0a"
+  },
+  {
+    "ts": 1774912293554,
+    "action": "memory_add",
+    "detail": "[fact] 长期护眼习惯：显示器距离50-70cm、位置略低于眼睛水平、有意识多眨眼、睡前热敷5分钟",
+    "hash": "c9dc05306da4aaedf06134e169be782db67aac896c414fab53d33f27075a7dc1"
+  },
+  {
+    "ts": 1774912293558,
+    "action": "memory_add",
+    "detail": "[fact] 需要立即就医的红线信号：视力突然下降、视物变形、持续眼痛或头痛",
+    "hash": "f20ff7f3af5b91f378528671df39161e5f329a044e73959a2ee26b4e065652a7"
+  },
+  {
+    "ts": 1774912375632,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 信用卡分期和花呗分期哪个划算？ → AI: **直接比数字：信用卡分期通常更便宜，但要看具体费率。**\n\n---\n\n**费率对比（年化）：**\n\n| | 信用卡分期",
+    "hash": "cbb9f480374783fa5d745052c4899ce7574b617be1461840c4d574b67209018a"
+  },
+  {
+    "ts": 1774912385492,
+    "action": "memory_add",
+    "detail": "[fact] 信用卡分期实际年化利率13%-18%，花呗分期实际年化利率15%-18%",
+    "hash": "55632557e024637252d4863d082d8ecce5bcd718d27d67b1a17cbc59ce8ef83a"
+  },
+  {
+    "ts": 1774912385503,
+    "action": "memory_add",
+    "detail": "[fact] 信用卡分期提前还款可能收违约金，花呗分期提前还款已收手续费不退",
+    "hash": "d316c1921ac0fd41ac87556d2638ab27b9660a2ddd027784817fc92f23d61511"
+  },
+  {
+    "ts": 1774912385508,
+    "action": "memory_add",
+    "detail": "[fact] 信用卡分期上征信且按时还款可加分，花呗分期2021年后也上征信",
+    "hash": "9556896a53147d26222c3da0cf0c0a937b50eb77d55e667af41cfa4ea131ffc3"
+  },
+  {
+    "ts": 1774912385512,
+    "action": "memory_add",
+    "detail": "[fact] 信用卡分期常有免息活动，花呗分期免息活动较少",
+    "hash": "94b0bd96dc6b4cbc93630d2e82d7f8789f5b8afdc914377c8f16afd68bc9b4fc"
+  },
+  {
+    "ts": 1774912385516,
+    "action": "memory_add",
+    "detail": "[opinion] 大额分期（>1万）建议优先选择信用卡",
+    "hash": "c725e8fd6c0ca071691044788005e1bfa3081e492df67d285ba1e35020e115c8"
+  },
+  {
+    "ts": 1774912513644,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 帮我分析一下微服务架构和单体架构的优劣，我在做技术选型 → AI: **技术选型核心：团队规模决定架构复杂度。**\n\n---\n\n**快速对比**\n\n| | 单体 | 微服务 |\n|-",
+    "hash": "f52d899449b7681f3f97f8c97750db438af67b788e9b29aab7b49446281ff93d"
+  },
+  {
+    "ts": 1774912525826,
+    "action": "memory_add",
+    "detail": "[fact] 微服务架构适合50人以上团队，单体架构适合10人以内团队",
+    "hash": "6247674585b3fdbd26f138de5b96295fd5b32f0e76040540d2bed70e12951309"
+  },
+  {
+    "ts": 1774912525834,
+    "action": "memory_add",
+    "detail": "[fact] 单体架构部署简单，微服务架构需要成熟的CI/CD和分布式追踪",
+    "hash": "a5e62177d2245d0f0d8c22c20fa534242618a83f60026e58dfd37af41653ae37"
+  },
+  {
+    "ts": 1774912525838,
+    "action": "memory_add",
+    "detail": "[opinion] 选单体的信号：团队<15人、产品方向未定、没有专职运维、上线周期<3个月",
+    "hash": "94eb58f9adafcf54a89acc2dcacc708ab48b672c3e3c50ee35ebb9b6bdc1e63d"
+  },
+  {
+    "ts": 1774912525843,
+    "action": "memory_add",
+    "detail": "[opinion] 选微服务的信号：团队按业务线划分、模块需独立扩容、有DevOps团队、能接受最终一致性",
+    "hash": "b9428bc1f4d46e5fc48034bde16001dfa6f6e47e3aa70eae77e94a643acb58ee"
+  },
+  {
+    "ts": 1774912525846,
+    "action": "memory_add",
+    "detail": "[example] 美团案例：外卖业务适合微服务（订单、配送、支付拆分），内部工具适合单体",
+    "hash": "1b21ddcfa1752844ac68086978c2a616cf9206f50e3140d6ee905fb205c0611f"
+  },
+  {
+    "ts": 1774912602286,
+    "action": "memory_version",
+    "detail": "[fact] \"AOF机制是记录每个写操作类似日志，文件大随时间膨胀，恢复慢但最多丢1秒数据（默认配置）\" → \"AOF机制记录每个写操作，文件大随时间膨胀，恢复慢但最多丢1秒数据（默认配置）\"",
+    "hash": "49943229bf196e007b7232a4ce2cc590c0c383414867cb41edae8d295ff4ba41"
+  },
+  {
+    "ts": 1774912602295,
+    "action": "memory_version",
+    "detail": "[opinion] \"缓存为主可重建的场景建议只开RDB甚至不开；数据重要不能丢的场景建议RDB+AOF，AOF每秒刷盘\" → \"缓存为主可重建的场景建议只开RDB或不开；数据重要不能丢的场景建议RDB+AOF，AOF每秒刷盘\"",
+    "hash": "f61916853ca76b0c528f174908c984193ee6543aa868e0c74a15a5cfc7d69d97"
+  },
+  {
+    "ts": 1774912602302,
+    "action": "memory_version",
+    "detail": "[fact] \"Redis 4.0+支持混合持久化模式，可以同时开启RDB和AOF\" → \"Redis 4.0+支持混合持久化模式，可同时开启RDB和AOF\"",
+    "hash": "012ca05a643071bb24593f6a6064a87585ab55c0859183917bb4844a1534bc4f"
+  },
+  {
+    "ts": 1774912766358,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 不对，我用的不是Go，是Java写后端的 → AI: 收到。\n\n（更正记忆：Go→Java）\n\n张三在美团用 **Java** 写后端，Python 做数据分析。还有什么需要",
+    "hash": "57a9ab41de6056878c2b26fa77023a0beaf11677fe0261e2dad572e87858fca0"
+  },
+  {
+    "ts": 1774912775583,
+    "action": "memory_add",
+    "detail": "[fact] 张三在美团用Java写后端",
+    "hash": "dffe80a1346988cfee13ec84a6399144aa7928f1f91f617e1a02d03a1491a1af"
+  },
+  {
+    "ts": 1774912850460,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 昨天和同事王磊一起调试了一个Nginx配置问题，搞了3个小时才搞定 → AI: 收到。\n\n（记下了：同事王磊，一起调试 Nginx 配置问题 3 小时）\n\n什么问题这么难搞？配置重写",
+    "hash": "f5e4e63983b279406ae5a46466cd14e8a00b6d26e8b7547ba020fe1ae5084ac6"
+  },
+  {
+    "ts": 1774912856774,
+    "action": "memory_add",
+    "detail": "[event] 用户曾与同事王磊一起调试Nginx配置问题3小时",
+    "hash": "b9cec625993a2ac8375d167d6d389c0369f728b68fcf34d3bcc1529ba4aa738f"
+  },
+  {
+    "ts": 1774912936736,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 线上服务报500了，Nginx日志怎么查？ → AI: **Nginx 500 错误排查路径：**\n\n---\n\n**第一步：确认错误来源**\n\n```bash\n# 看 Ngin",
+    "hash": "11561ddc4213d415a12b3122c616cbf907f32cffc1aa49d6fb6edd8f631a4104"
+  },
+  {
+    "ts": 1774912947577,
+    "action": "memory_add",
+    "detail": "[fact] Nginx 500错误排查需要区分是Nginx自身错误还是后端返回的错误",
+    "hash": "7b18e84bc03bb7ddcec7bc51099c6d04458cbe7273e204c24b6ac803e69faf5d"
+  },
+  {
+    "ts": 1774912947589,
+    "action": "memory_add",
+    "detail": "[fact] 查看Nginx错误日志的命令：tail -f /var/log/nginx/error.log",
+    "hash": "a00800d60f864690bb49b2fe7634997aa8bb07d6d1a622ddf1e87b922f764802"
+  },
+  {
+    "ts": 1774912947599,
+    "action": "memory_add",
+    "detail": "[fact] 查看Nginx访问日志中500状态码的命令：grep \" 500 \" /var/log/nginx/access.log",
+    "hash": "1ca162da8e80440f9b7a5f1f41f903869d644d6d99cf3021ed9d9960df3bc13a"
+  },
+  {
+    "ts": 1774912947604,
+    "action": "memory_add",
+    "detail": "[fact] Nginx自身错误在error.log中会有upstream或rewrite相关错误记录",
+    "hash": "61357eac84ce26055180fdc6101c3b37f2fe888622b84129a6c87931d3eb9a3c"
+  },
+  {
+    "ts": 1774912947609,
+    "action": "memory_add",
+    "detail": "[fact] 后端返回500时，access.log显示状态码500但Nginx运行正常",
+    "hash": "20915d0981498c96bbe400488b276a89003fc40ae9dfa79d94ab9c6603730957"
+  },
+  {
+    "ts": 1774913084047,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 有人推荐我试试 Bun 替代 Node.js，你觉得值得吗？ → AI: **Bun 值得试，但生产环境谨慎。**\n\n---\n\n**Bun 的优势**\n\n| 方面 | 表现 |\n|-",
+    "hash": "07644e6f53d798e5da70afa942be0d5226869cd99bf1b0576cb43d805b4c93f4"
+  },
+  {
+    "ts": 1774913097329,
+    "action": "memory_add",
+    "detail": "[fact] Bun 启动速度比 Node.js 快 3-4 倍",
+    "hash": "aabb553ef725f2db07a6bb4d8687afc1b6d592c73b604265c5fe613827e3c554"
+  },
+  {
+    "ts": 1774913097339,
+    "action": "memory_add",
+    "detail": "[fact] Bun 内置包管理工具安装速度比 npm 快 10-20 倍",
+    "hash": "fcb5a84874fe9eb3d47cfd820e376986e990e9dcd5022d1d8cc3d29a5b19490e"
+  },
+  {
+    "ts": 1774913097345,
+    "action": "memory_add",
+    "detail": "[fact] Bun 内置打包、测试、TypeScript 支持，零配置",
+    "hash": "fd685b1d3872e39c04d0ce17159c3afdec83b11a26ea43b915babd124e99e1c4"
+  },
+  {
+    "ts": 1774913097349,
+    "action": "memory_add",
+    "detail": "[fact] Bun 兼容 Express、Koa 等主流框架",
+    "hash": "8fab70d901f1dbe5f73ff026f60d04a4475db9ebe5ad26a7ad7f207fa7fa2e6b"
+  },
+  {
+    "ts": 1774913097353,
+    "action": "memory_add",
+    "detail": "[fact] Bun 在 2024 年存在部分 npm 包兼容问题和边缘 case",
+    "hash": "c5f53750b42203861a3fe48c0662dfa1eb305ca43fafee02107ad8c64dfee230"
+  },
+  {
+    "ts": 1774913180119,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我有个很复杂的问题需要你帮我分析。我们公司最近在做技术架构升级，目前用的是单体 Ja",
+    "hash": "988366b653274d51de8c2accb6e53ded9b0d2e6452d4d884d561ee6961acc7aa"
+  },
+  {
+    "ts": 1774913225260,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我有个很复杂的问题需要你帮我分析。我们公司最近在做技术架构升级，目前用的是单体 Java 应用加 MySQL，但是随着用 → AI: **核心判断：5人团队别拆微服务，先解决数据库瓶",
+    "hash": "8fa8ea8beb6c7ba8ec2eeb24f9f0daaee524972374ce31d94f3162fe33c976b5"
+  },
+  {
+    "ts": 1774913252262,
+    "action": "memory_add",
+    "detail": "[fact] 用户所在公司技术架构为单体Java应用加MySQL，用户量达百万级别",
+    "hash": "e75fb5a623ccc3cb0f1bdbea8a30d7c18f82630c411fbc05e8c82b3dfa5123ee"
+  },
+  {
+    "ts": 1774913252272,
+    "action": "memory_add",
+    "detail": "[fact] 用户团队规模为5人，负责系统维护",
+    "hash": "7c1c12b9f6f87d7fa916d7b569172cd270f25722493bd3685fa39bd7ad747455"
+  },
+  {
+    "ts": 1774913252280,
+    "action": "memory_add",
+    "detail": "[event] 用户面临系统响应变慢的问题，正在考虑微服务拆分、分库分表或换用NewSQL（如TiDB）等方案",
+    "hash": "c77421b012265f8e8b987d41677da029b32fda0f439a30b2c4179237551a62ee"
+  },
+  {
+    "ts": 1774913252285,
+    "action": "memory_add",
+    "detail": "[opinion] 回复者认为5人团队不适合拆微服务，应优先解决数据库瓶颈",
+    "hash": "772ab7aa1239c3f5a24ae3c6cc3c70c4e027f33af9c69de06767611e277cca5a"
+  },
+  {
+    "ts": 1774913252290,
+    "action": "memory_add",
+    "detail": "[fact] 数据库优化建议包括慢查询优化、读写分离、缓存层（Redis、Caffeine）、连接池调优",
+    "hash": "b3d7c47bac43443eb042b574eea09d3b49d6ce7af3ec378ec2730bdd875922f1"
+  },
+  {
+    "ts": 1774913306046,
+    "action": "memory_add",
+    "detail": "[task] [goal completed] 我有个很复杂的问题需要你帮我分析。我们公司最近在做技术架构升级，目前用的是单体 Java 应用加 MySQL，但是随着用户量增长到百万级别，系统响应变慢了。我在考虑是",
+    "hash": "4ac03669691cdd7e289f7ad26f1ebb188583a58ff4f35af4a265cc3df4adca2c"
+  },
+  {
+    "ts": 1774913372054,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 刚才说的那个 Nginx 问题后来查出原因了，是 upstream 超时设置太短 → AI: 收到。\n\n（记下了：Nginx 500 问题原因——upstream 超时设置太短）\n\n",
+    "hash": "ddfc77bb1ee967eb2cbf27280c28178be633f1c3f10881e6b2f27abb8c0f6a7d"
+  },
+  {
+    "ts": 1774913378871,
+    "action": "memory_add",
+    "detail": "[fact] Nginx 500 问题原因——upstream 超时设置太短",
+    "hash": "f03ecd94cd31ff1d0ac08e510e64ee59a2c1801174129de574d9d4fc0e010173"
+  },
+  {
+    "ts": 1774913615798,
+    "action": "memory_add",
+    "detail": "[wisdom] [职业身份认同] 反复强调自己使用Java而非Go，暗示对技术栈选择的坚持，可能隐含对专业身份的自我确认需求",
+    "hash": "376a76578a12a1c456a7b6b86f5f400dc1a07dd6ff9be24f2d6b29c26fd09af9"
+  },
+  {
+    "ts": 1774913615807,
+    "action": "memory_add",
+    "detail": "[wisdom] [工作焦虑] 两次重复线上服务报500的问题，透露出对系统稳定性的深层担忧，这种重复提问可能反映内心对故障的恐惧",
+    "hash": "c225795595f4c681480070cb21f505950185a58b6a87e24a768e33dcee033bd7"
+  },
+  {
+    "ts": 1774913615812,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [未表达的委屈情绪] 被老板当众批评后只说‘感觉特别委屈’，未展开具体细节，可能隐藏着更深的职业挫败感或对权威的复杂情绪 (关于老板)",
+    "hash": "0ed36e37363c5f60cfa23ed1eaa5365601a42a936c701b059451d29b6ae2495b"
+  },
+  {
+    "ts": 1774913652846,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 今天被老板当众批评了，感觉特别委屈 → AI: 确实不好受，当众批评换谁都难受。\n\n老板是因为什么事？项目延期还是别的问题？\n\n现在想聊聊，还是先缓缓？",
+    "hash": "23b64dd8a5956e78e3acf657ee8fda2d6004d50a5346aed36337367df5e272fb"
+  },
+  {
+    "ts": 1774913660603,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [情绪表达习惯] 在表达委屈时，倾向于重复陈述事实（如“今天被老板当众批评了，感觉特别委屈”重复两次），而非直接宣泄情绪或详细描述细节，可能习惯用克制的方式表达内心波动。 (关于老板)",
+    "hash": "dd653d5df67e2b2421b48cac48bc0b080d4f704a3db00c290035b37685ebf2a0"
+  },
+  {
+    "ts": 1774913660610,
+    "action": "memory_add",
+    "detail": "[wisdom] [深层焦虑] 对技术问题的执着（如反复讨论Nginx配置和日志排查）可能反映对工作失误的隐性恐惧，或通过技术专注掩盖对职场评价的担忧。",
+    "hash": "3456f5c319eacc9d6cb53f56b39443138e52d883c3f450198a65ad935b26609c"
+  },
+  {
+    "ts": 1774913660614,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [未说出口的话] 重复提及与同事王磊合作解决技术问题，可能隐含对团队协作的重视，或未言明的对同事能力的认可/依赖。 (关于王磊)",
+    "hash": "0f9d2b115f7f254daec935ca20ab3348f4a04f932d743fafbbf55d537cd12ecc"
+  },
+  {
+    "ts": 1774913665000,
+    "action": "memory_add",
+    "detail": "[event] 用户今天被老板当众批评，感到委屈",
+    "hash": "e02e38b3294547d93c785ea120a5ecb4eed74f33870943fcbf407452c0cd21db"
+  },
+  {
+    "ts": 1774913755636,
+    "action": "memory_version",
+    "detail": "[fact] \"RDB机制是定时快照保存全量数据，文件紧凑压缩，恢复快但可能丢最后一次快照后的数据\" → \"RDB机制是定时快照保存全量数据，文件紧凑压缩，恢复快，但可能丢失最后一次快照后的数据\"",
+    "hash": "20a45688fb2dc2f03f22dcadbd3bfa6b274670137091155baf1c9302bcdcf610"
+  },
+  {
+    "ts": 1774913755644,
+    "action": "memory_version",
+    "detail": "[fact] \"AOF机制是记录每个写操作类似日志，文件大随时间膨胀，恢复慢但最多丢1秒数据（默认配置）\" → \"AOF机制记录每个写操作类似日志，文件大随时间膨胀，恢复慢需重放命令，但数据安全最多丢1秒（默认配置\"",
+    "hash": "6d3a7ba3f1662d77b20a46de25282482f13807dabe716bb034aa6266437f9b16"
+  },
+  {
+    "ts": 1774913777184,
+    "action": "memory_add",
+    "detail": "[wisdom] [职业身份认同] 通过反复追问技术细节（Nginx、Bun、Redis），表现出对专业能力的执着追求，技术问题是他建立安全感和自我价值的重要领域。",
+    "hash": "01eeb17484fb19912a10d18e930261cb3a2d52f12ca791bab880468df3e213e7"
+  },
+  {
+    "ts": 1774913777193,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [未表达的脆弱与寻求认可] 在连续重复的技术提问中，突然插入被老板批评的委屈，暴露了在专业自信外表下对职场评价的敏感，渴望被理解但用技术话题掩饰情绪。 (关于老板)",
+    "hash": "6308ddbfa498543deb888f2fabab9f3ff30b3ff36e9e54921a8014051201563f"
+  },
+  {
+    "ts": 1774913777199,
+    "action": "memory_add",
+    "detail": "[wisdom] [焦虑的具象化] 所有技术问题都围绕‘稳定性’（服务报错、超时设置、持久化方案），映射出对失控的深层恐惧——无论是系统崩溃还是职场尊严崩塌。",
+    "hash": "2392033b9c4c24bfeb8bbd29845e7f812a275f4d7e5ecca168b7ff2108112a44"
+  },
+  {
+    "ts": 1774913934414,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [情绪表达习惯] 在表达负面情绪（如委屈）时，倾向于重复陈述事实，而非直接宣泄或详细描述感受，可能习惯内化情绪或寻求共情而非具体解决方案。 (关于老板)",
+    "hash": "47722d2f254762530313478fed20c578970ce44064fe3088cd07658312b565cb"
+  },
+  {
+    "ts": 1774913934421,
+    "action": "memory_add",
+    "detail": "[wisdom] [价值观] 重视技术问题的根本原因与解决方案，对于已解决的问题（如Nginx配置）会进行复盘和总结，体现出务实、注重细节的工程思维。",
+    "hash": "3b60cb50ca4b0a186236c9f6399aa2362ea8ba88fbe1f321839bd4816394c72d"
+  },
+  {
+    "ts": 1774913934425,
+    "action": "memory_add",
+    "detail": "[wisdom] [焦虑或恐惧] 对技术选型和决策（如Bun vs Node.js, RDB vs AOF）存在不确定性和选择焦虑，通过反复询问寻求权威或经验确认，反映出对技术决策失误可能带来后果的潜在担忧。",
+    "hash": "b623d0a0e9dd32dd6ecddfaca1d711febfe001a9d08f1424c384d440e180c84d"
+  },
+  {
+    "ts": 1774913970473,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Nginx 怎么配置负载均衡？ → AI: **Nginx 负载均衡配置：**\n\n---\n\n**基础配置**\n\n```nginx\nupstream backend ",
+    "hash": "dfaf0baa66137a07e6091421f19a3844e469fc36c7a2365e2191533388278caf"
+  },
+  {
+    "ts": 1774913978009,
+    "action": "memory_add",
+    "detail": "[fact] Nginx负载均衡配置使用upstream模块定义后端服务器组，支持weight参数设置权重，backup参数标记备用服务器，keepalive参数管理长连接",
+    "hash": "c40b5b3fe48c7e70ca4cf0b6ba7d1db09ed08a95f1a6b60b7728f755aee02793"
+  },
+  {
+    "ts": 1774913978016,
+    "action": "memory_add",
+    "detail": "[fact] Nginx负载均衡在server配置块中通过proxy_pass指令指向upstream名称实现流量转发，可配置proxy_set_header、proxy_connect_timeout等代理参数",
+    "hash": "cc63aa3012ced5cd96275cdac58b70c3e0824d822d5236770f64b94db6fda2e2"
+  },
+  {
+    "ts": 1774914165432,
+    "action": "memory_add",
+    "detail": "[wisdom] [职业身份认同] 通过重复提问技术问题（Redis持久化、Nginx负载均衡、Go协程泄漏）展现对专业能力的执着追求，可能将技术能力视为自我价值核心。",
+    "hash": "0b8ce883e48f0e779a052df8ccf47767f79574f24e2e941746e15718c38c86ac"
+  },
+  {
+    "ts": 1774914165440,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [未处理的情绪压抑] 在表达工作委屈后立即转向技术提问，用理性讨论覆盖情感需求，暴露回避脆弱面的防御机制。 (关于老板)",
+    "hash": "db2833291c6996621702a657735942f0ec8ee86516d528d5bfce58c750839b89"
+  },
+  {
+    "ts": 1774914165445,
+    "action": "memory_add",
+    "detail": "[deep_feeling] [焦虑的具象化] 重复提问相同技术问题（如3次Redis、3次Nginx配置）反映潜在的职场不安全感，可能通过技术掌控感缓解对工作表现的焦虑。 (关于工作环境)",
+    "hash": "ac079994cfba3895ec509cd7d93882b2bdd3cb68d20f9915fa793bd82653b5da"
+  },
+  {
+    "ts": 1774914202415,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Go 的 goroutine 泄漏怎么排查？ → AI: **Goroutine 泄漏排查步骤：**\n\n---\n\n**1. 确认泄漏**\n\n```go\nimport \"runti",
+    "hash": "7ac4358c1a0c74d3817d67606ca384142c906d64afd5d28bc3b8dc1469127a12"
+  },
+  {
+    "ts": 1774914212333,
+    "action": "memory_add",
+    "detail": "[fact] Goroutine 泄漏可通过 runtime.NumGoroutine() 在接口入口和出口打印数量对比来确认",
+    "hash": "f4005eb74e7e2014a475172b43d9aecdd7d8c84a2001c995d56db33e71fa1273"
+  },
+  {
+    "ts": 1774914212337,
+    "action": "memory_add",
+    "detail": "[fact] 使用 net/http/pprof 的 /debug/pprof/goroutine 端点可以获取 goroutine 堆栈信息用于定位泄漏",
+    "hash": "5eed2277a3b7a6913b59310b4764ff382bd05f8b04a6b8364dc619aa359ac2cf"
+  },
+  {
+    "ts": 1774914212340,
+    "action": "memory_add",
+    "detail": "[fact] go tool pprof 命令可以对 goroutine 堆栈进行可视化分析",
+    "hash": "98a4b84b97ebac8e9f0e0675e9f23cbc76becbd9f4bb14059c59f39d710859da"
+  },
+  {
+    "ts": 1774914402493,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpr\" → \"[对话] 用户: Python 的 GIL 是什么？ → AI: **GIL（Global Inte\"",
+    "hash": "326522cbccf1b8e13220e143663c20d7ca693577e45a4a742227e08df4a3171e"
+  },
+  {
+    "ts": 1774914468624,
+    "action": "memory_version",
+    "detail": "[fact] \"[对话] 用户: Python 的 GIL 是什么？ → AI: **GIL（Global Inte\" → \"[对话] 用户: 是Python 的 GIL 是什么 → AI: **GIL（Global Inte\"",
+    "hash": "8e3a45c8bce84383cd514234b683c671acfc8ac751a3b70e6ba079b5228cd0e6"
+  },
+  {
+    "ts": 1774914482766,
+    "action": "memory_version",
+    "detail": "[fact] \"GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此多线程对I/O密集型任务有效\" → \"GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此不是问题\"",
+    "hash": "05bd03840b0fc0729a49b578bf3f4df9bf04b894ab2b06fa1abf6d5b33a53918"
+  },
+  {
+    "ts": 1774914482774,
+    "action": "memory_version",
+    "detail": "[fact] \"CPU并行计算可使用multiprocessing多进程，异步I/O可使用asyncio，真并行线程\" → \"CPU并行计算可用multiprocessing多进程方案，异步I/O可用asyncio，真并行线程\"",
+    "hash": "18ab4b77c0cfdfc7838f6e1e7377e664640ca9c2350d911657d9671b6621fee9"
   }
 ]

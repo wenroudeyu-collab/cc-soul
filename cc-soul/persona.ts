@@ -16,8 +16,8 @@ import { getParam } from './auto-tune.ts'
 // Lazy module caches (avoid circular deps in ESM)
 let _cachedBodyMod: any = null
 let _cachedSignalsMod: any = null
-import('./body.ts').then(m => { _cachedBodyMod = m }).catch(() => {})
-import('./signals.ts').then(m => { _cachedSignalsMod = m }).catch(() => {})
+import('./body.ts').then(m => { _cachedBodyMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (body): ${e.message}`) })
+import('./signals.ts').then(m => { _cachedSignalsMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (signals): ${e.message}`) })
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STYLE VECTOR

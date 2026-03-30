@@ -123,21 +123,7 @@ export default {
         ;(globalThis as any).__ccSoulLastProcessed = msgKey
         ;(globalThis as any).__ccSoulLastProcessedTs = now
 
-        // Commands go through /command API endpoint (no direct engine imports)
-        try {
-          const cmdResp = await fetch(`${SOUL_API}/command`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: rawMsg, user_id: senderId }),
-          })
-          const cmdData = await cmdResp.json()
-          if (cmdData.handled) {
-            if (cmdData.reply && ctx.reply) ctx.reply(cmdData.reply)
-            return  // command handled, skip API
-          }
-        } catch {}
-
-        // Non-commands go through API
+        // Everything goes through /process — commands are detected there
         try {
           const resp = await fetch(`${SOUL_API}/process`, {
             method: 'POST',
@@ -146,7 +132,18 @@ export default {
           })
           const data = await resp.json()
 
-          // Write augments into SOUL.md (only reliable injection path)
+          // Command detected: inject result into SOUL.md for LLM to relay
+          if (data.command && data.command_reply) {
+            const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
+            const basePrompt = data.system_prompt || ''
+            const cmdBlock = `\n\n## 内部指令（仅本轮有效，最高优先级）\n用户输入了系统命令"${rawMsg}"。以下是命令执行结果，请原样转发给用户，保持全部格式，不要添加任何额外内容：\n\n${data.command_reply}`
+            writeFileSync(soulPath, basePrompt + cmdBlock, 'utf-8')
+            _soulMdLock = Date.now() + 120000
+            console.log(`[cc-soul][api] command → SOUL.md (${data.command_reply.length} chars)`)
+            return  // SOUL.md written, OpenClaw will read it for LLM
+          }
+
+          // Normal message: write augments into SOUL.md
           if (data.system_prompt || data.augments) {
             const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
             const fullPrompt = data.system_prompt
@@ -265,9 +262,12 @@ export default {
 
       // ── Commands: route through /command API ──
       if (typeof api.on === 'function') {
+        // Log available api methods once
+        console.log(`[cc-soul][api] api methods: ${Object.keys(api).filter(k => typeof api[k] === 'function').join(', ')}`)
         api.on('inbound_claim', async (event: any, _ctx: any) => {
           const content = (event?.content || event?.body || '').trim()
           if (!content) return
+          console.log(`[cc-soul][api] inbound_claim fired: "${content.slice(0,30)}" event_keys=${Object.keys(event||{}).join(',')}`)
           try {
             const senderId = event?.senderId || event?.context?.senderId || ''
             const cmdResp = await fetch(`${SOUL_API}/command`, {
@@ -276,6 +276,10 @@ export default {
               body: JSON.stringify({ message: content, user_id: senderId }),
             })
             const cmdData = await cmdResp.json()
+            if (cmdData.handled && cmdData.reply && cmdData.reply !== '(done)') {
+              console.log(`[cc-soul][api] inbound_claim: command handled, reply=${cmdData.reply.length}c`)
+              return { handled: true, reply: cmdData.reply }
+            }
             if (cmdData.handled) return { handled: true }
           } catch {}
         })

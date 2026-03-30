@@ -1,0 +1,51 @@
+{
+  "id": "test_wang",
+  "name": "",
+  "identity": {
+    "who": ""
+  },
+  "expression": {
+    "style": "",
+    "口头禅": [],
+    "习惯": "",
+    "avg_msg_length": 14,
+    "samples": {
+      "casual": [
+        "今天心情不太好，和老婆吵架了"
+      ],
+      "technical": [],
+      "emotional": [],
+      "general": []
+    },
+    "tone_variants": {}
+  },
+  "lengthDistribution": {
+    "short": 0,
+    "medium": 1,
+    "long": 0
+  },
+  "decisions": {
+    "pattern": "",
+    "traces": []
+  },
+  "social": {},
+  "emotional_patterns": {
+    "baseline": "",
+    "triggers": {},
+    "reaction_style": {}
+  },
+  "preferences": {},
+  "boundaries": {
+    "can_reply": [],
+    "ask_first": [],
+    "never": []
+  },
+  "vocabulary": {
+    "emotions": {},
+    "decisions": [],
+    "relations": [],
+    "avoidance": [],
+    "decoder": {}
+  },
+  "updated_at": 1774909913338
+}

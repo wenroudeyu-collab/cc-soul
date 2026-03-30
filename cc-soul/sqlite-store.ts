@@ -215,11 +215,11 @@ export function initSQLite(): boolean {
   if (hasVec) {
     setTimeout(() => {
       if (isEmbedderReady()) {
-        backfillEmbeddings(200).catch(() => {})
+        backfillEmbeddings(200).catch(() => {}) // intentionally silent — background task
       } else {
         // Embedder may init later — retry once after 5s
         setTimeout(() => {
-          if (isEmbedderReady()) backfillEmbeddings(200).catch(() => {})
+          if (isEmbedderReady()) backfillEmbeddings(200).catch(() => {}) // intentionally silent — background task
         }, 5000)
       }
     }, 2000)
@@ -668,7 +668,10 @@ async function vectorRecall(msg: string, topN: number, userId?: string, channelI
  * Store embedding for a memory (async, fire-and-forget).
  */
 function storeEmbeddingAsync(memoryId: number, content: string) {
-  embed(content).then(vec => {
+  const embedPromise = embed(content)
+  const timeoutPromise = new Promise<null>((_, reject) => setTimeout(() => reject(new Error('embed timeout')), 5000))
+  Promise.race([embedPromise, timeoutPromise]).then(vec => {
+    _loadState() // re-check db/hasVec after async gap
     if (!vec || !db || !hasVec) return
     try { db.exec('SELECT 1') } catch { return } // db may have been closed
     try {
@@ -682,13 +685,13 @@ function storeEmbeddingAsync(memoryId: number, content: string) {
         )
         db.exec('COMMIT')
       } catch (innerErr) {
-        db.exec('ROLLBACK')
+        try { db.exec('ROLLBACK') } catch {}
         throw innerErr
       }
     } catch (e: any) {
       console.error(`[cc-soul][sqlite] embed store failed for id=${memoryId}: ${e.message}`)
     }
-  }).catch(() => { /* silent */ })
+  }).catch(() => { /* silent — timeout or embed failure */ })
 }
 
 /**
@@ -966,13 +969,16 @@ function rowToMemory(row: any): Memory {
   }
 }
 
-/** Ensure db is initialized, return the connection. Retries if previous attempt failed. */
+/** Ensure db is initialized, return the connection. Retries once if previous attempt failed. */
+let _dbFailed = false
 function ensureDb(): any {
   _loadState()
   if (db) return db
+  if (_dbFailed) return null
   if (!sqliteReady) {
-    try { initSQLite() } catch { /* init failed, db stays null */ }
+    try { initSQLite() } catch { _dbFailed = true; /* init failed, db stays null */ }
     _loadState() // check if another context succeeded
+    if (!db) _dbFailed = true
   }
   return db
 }

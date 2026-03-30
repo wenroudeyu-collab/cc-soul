@@ -189,7 +189,7 @@ export function postReplyCleanup() {
   // Use killGatewayClaude from cli.ts — identifies gateway processes by CWD (.openclaw/hooks)
   // Safe: never touches user terminal claude processes
   try {
-    import('./cli.ts').then(m => m.killGatewayClaude?.()).catch(() => {}); return
+    import('./cli.ts').then(m => m.killGatewayClaude?.()).catch((e: any) => { console.error(`[cc-soul] module load failed (cli): ${e.message}`) }); return
     killGatewayClaude()
   } catch {
     // Fallback: direct implementation if import fails

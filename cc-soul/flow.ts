@@ -55,7 +55,12 @@ export function computeFrustrationDynamics(
 
   signal = Math.max(-0.2, Math.min(0.5, signal))
   history.push(signal)
-  if (history.length > 20) history.shift()
+  if (history.length > 50) history.splice(0, history.length - 50)
+  // Cap Map size to prevent unbounded growth across users/sessions
+  if (_frustrationHistory.size > 200) {
+    const keys = [..._frustrationHistory.keys()]
+    for (let i = 0; i < 100; i++) _frustrationHistory.delete(keys[i])
+  }
 
   // 计算当前值：指数加权移动平均
   let current = 0

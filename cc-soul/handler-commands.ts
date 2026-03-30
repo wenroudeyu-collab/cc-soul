@@ -34,7 +34,7 @@ import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } 
 // ── Optional modules (absent in public build) ──
 let _exportEvolutionAssets: ((stats: any) => { data: any; path: string }) | null = null
 let _importEvolutionAssets: ((filePath: string) => { rulesAdded: number; hypothesesAdded: number }) | null = null
-import('./evolution.ts').then(m => { _exportEvolutionAssets = m.exportEvolutionAssets; _importEvolutionAssets = m.importEvolutionAssets }).catch(() => {})
+import('./evolution.ts').then(m => { _exportEvolutionAssets = m.exportEvolutionAssets; _importEvolutionAssets = m.importEvolutionAssets }).catch((e: any) => { console.error(`[cc-soul] module load failed (evolution): ${e.message}`) })
 // ── End optional modules ──
 import { startExperiment } from './experiment.ts'
 import { handleTuneCommand } from './auto-tune.ts'
@@ -47,7 +47,7 @@ import { replySender } from './notify.ts'
 import { executeSearch, executeMyMemories, executeStats, executeHealth, executeFeatures, executeTimeline } from './command-core.ts'
 // ── Optional modules ──
 let getCostSummary: () => string = () => '成本追踪模块未加载'
-import('./cost-tracker.ts').then(m => { getCostSummary = m.getCostSummary }).catch(() => {})
+import('./cost-tracker.ts').then(m => { getCostSummary = m.getCostSummary }).catch((e: any) => { console.error(`[cc-soul] module load failed (cost-tracker): ${e.message}`) })
 
 // ── Command dedup: prevent double replies from inbound_claim + hooks ──
 let _lastDirectCmd = { content: '', ts: 0 }
@@ -137,6 +137,8 @@ export function setReplyCfg(cfg: any) { _replyCfg = cfg }
 function cmdReply(ctx: any, event: any, session: SessionState, text: string, userMsg: string) {
   session.lastPrompt = userMsg
   console.log(`[cc-soul][cmdReply] sending reply (${text.length} chars): ${text.slice(0, 50)}...`)
+  // Store reply text in ctx so API callers can retrieve it
+  if (typeof ctx.reply === 'function') ctx.reply(text)
   // Determine recipient address
   const evCtx = event?.context || {}
   const to = event?._replyTo || evCtx.conversationId || evCtx.chatId || ''
@@ -459,7 +461,7 @@ export function routeCommand(
       cmdReply(ctx, event, session, '📦 开始安装向量搜索，请稍候（约 2 分钟）...', userMsg)
       const messages: string[] = []
       installVectorSearch((msg: string) => messages.push(msg)).then(() => {
-        import('./notify.ts').then(({ notifyOwnerDM }: any) => notifyOwnerDM(messages.join('\n'))).catch(() => {})
+        import('./notify.ts').then(({ notifyOwnerDM }: any) => notifyOwnerDM(messages.join('\n'))).catch((e: any) => { console.error(`[cc-soul] module load failed (notify): ${e.message}`) })
       })
     } catch (e: any) { cmdReply(ctx, event, session, `向量安装失败: ${e.message}`, userMsg) }
     return true
@@ -1147,7 +1149,7 @@ export function routeCommand(
         markHandledByDirect(userMsg)
         console.log(`[cc-soul][routeCommand] fallback to routeCommandDirect: handled`)
       }
-    }).catch(() => {})
+    }).catch(() => {}) // intentionally silent — async command fallback
     ctx.bodyForAgent = '[系统] 命令已处理，结果已发送。'
     return true
   }
@@ -1165,7 +1167,11 @@ export async function routeCommandDirect(userMsg: string, params: any): Promise<
   if (!userMsg) return false
   const _to = params?.to || ''
   const _cfg = params?.cfg || _replyCfg
-  const reply = (text: string) => replySender(_to, text, _cfg).catch(() => {})
+  const _replyCallback = params?.replyCallback
+  const reply = (text: string) => {
+    if (typeof _replyCallback === 'function') _replyCallback(text)
+    return replySender(_to, text, _cfg).catch(() => {}) // intentionally silent — reply delivery
+  }
 
   // Only handle read-only commands (no state mutations)
   // Write commands (delete, pin, goal create, etc.) are only handled by routeCommand

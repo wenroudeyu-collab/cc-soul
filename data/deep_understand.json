@@ -1,12 +1,12 @@
 {
   "temporal": {
     "peakHours": [
-      10,
+      1,
       20,
       14
     ],
-    "stressDay": "周一",
-    "lateNightFrequency": 0
+    "stressDay": "周二",
+    "lateNightFrequency": 0.32
   },
   "sayDo": {
     "gaps": []
@@ -19,13 +19,23 @@
     "needs": [
       {
         "domain": "职场",
+        "confidence": 1,
+        "evidence": "本周12次"
+      },
+      {
+        "domain": "编程",
         "confidence": 0.7,
         "evidence": "本周7次"
       },
       {
-        "domain": "编程",
-        "confidence": 0.6,
-        "evidence": "本周6次"
+        "domain": "情感",
+        "confidence": 0.5,
+        "evidence": "本周5次"
+      },
+      {
+        "domain": "学习",
+        "confidence": 0.3,
+        "evidence": "本周3次"
       }
     ]
   },
@@ -34,9 +44,11 @@
     "indicator": ""
   },
   "stress": {
-    "stressLevel": 0,
-    "signals": []
+    "stressLevel": 0.2,
+    "signals": [
+      "深夜"
+    ]
   },
-  "dynamicProfile": "活跃10/20/14时；快速成长期，保持节奏；潜在需求:职场；我渴望掌控与效率，追求以最小的认知成本获得最优解。这驱使我偏爱文档完善、生态成熟的技术（如Go），并厌恶混乱与低效（如P",
-  "updatedAt": 1774906811595
+  "dynamicProfile": "活跃1/20/14时；夜猫子；平台期，可能需要新挑战；潜在需求:职场；我的核心驱动力是对“可控的优雅”的追求。我痴迷于Python装饰器这类语法糖，因为它用简洁的规则封装了复杂逻辑，这映射了",
+  "updatedAt": 1774914634476
 }

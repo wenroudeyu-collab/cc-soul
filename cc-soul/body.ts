@@ -143,13 +143,13 @@ export function bodyTick() {
 
   // ── WASABI: 反射层每 tick 衰减到 0，情绪层缓慢衰减 ──
   emotionLayers.reflex *= 0.1  // 快速衰减
-  emotionLayers.emotion *= Math.pow(0.98, minutes)  // 5min tau
+  emotionLayers.emotion *= Math.pow(0.995, minutes)  // slower decay — ~2.3h tau
   emotionLayers.mood = body.mood  // 同步 OU 心境
 
   // #6 情绪向量自然衰减（向中性漂移）— 遍历所有 per-user vectors (#11)
   for (const ev of _emotionVectors.values()) {
     for (const k of Object.keys(ev) as (keyof EmotionVector)[]) {
-      ev[k] *= 0.98
+      ev[k] *= 0.995
     }
   }
 
@@ -174,7 +174,7 @@ export function bodyOnMessage(complexity: number, _userId?: string) {
 
 export function bodyOnCorrection(userId?: string) {
   body.alertness = Math.min(1.0, body.alertness + getParam('body.correction_alertness_boost'))
-  body.mood = Math.max(-1, body.mood - getParam('body.correction_mood_penalty'))
+  body.mood = Math.max(-1, Math.min(1, body.mood - getParam('body.correction_mood_penalty')))
   body.anomaly = Math.min(1.0, body.anomaly + (getParam('body.correction_anomaly_boost') || 0.15))
   // #6 情绪向量：被纠正 → certainty↓ dominance↓ pleasure↓ (#11: per-user)
   const ev = getEmotionVector(userId)
@@ -381,7 +381,7 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
 
   // If user trend is improving, cc's mood recovers faster
   if (userEmotion.trend > 0.1) {
-    body.mood = Math.min(1, body.mood + 0.03)
+    body.mood = Math.max(-1, Math.min(1, body.mood + 0.03))
   }
 }
 

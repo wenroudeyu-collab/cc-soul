@@ -84,7 +84,7 @@ export function runHeartbeat() {
       safe('reviveDecayed', () => reviveDecayedMemories())
       safe('memoryAudit', () => auditMemoryHealth())
       safe('compressOld', () => compressOldMemories())
-      safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) })
+      safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) }) // intentionally silent — maintenance
 
       // ── 蒸馏 + 图谱（核心，有条件调 LLM）──
       safeCLI('distill', () => runDistillPipeline(), safe)
@@ -113,6 +113,16 @@ export function runHeartbeat() {
             autoDetectFromMemories(memoryState.memories)
           }
         } catch {}
+      })
+
+      // ── CIN 认知场更新 + 因果链发现 ──
+      safe('cinField', async () => {
+        const { rebuildField, discoverCausalChains } = await import('./cin.ts')
+        const { memoryState } = await import('./memory.ts')
+        if (memoryState.memories.length >= 20) {
+          rebuildField(memoryState.memories)
+          discoverCausalChains(memoryState.memories)
+        }
       })
 
       // ── 轻量维护 ──

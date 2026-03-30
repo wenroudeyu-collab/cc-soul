@@ -792,6 +792,7 @@ function main() {
   // 退出码: 综合通过率 < 50% 则失败
   const totalPassed = results.reduce((s, r) => s + r.passed, 0)
   const totalCases = results.reduce((s, r) => s + r.total, 0)
+  if (totalCases === 0) { console.log('No test cases'); process.exit(0) }
   process.exit(totalPassed / totalCases < 0.5 ? 1 : 0)
 }
 

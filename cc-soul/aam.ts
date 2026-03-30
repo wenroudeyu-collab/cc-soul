@@ -954,6 +954,34 @@ const RECALL_KEYS: RecallKey[] = [
       return 0.2
     },
   },
+
+  // K9: Cognitive Field — CIN personality match (原创)
+  {
+    type: 'cognitive' as any,
+    match: (_query, mem, ctx) => {
+      try {
+        // Lazy load CIN field
+        const cin = require('./cin.ts')
+        const field = cin.getFieldSummary()
+        if (!field || !field.risk) return 0.3
+
+        // Memory matches personality direction → higher recall probability
+        // E.g., if user is "保守" and memory is about choosing stable tech → boost
+        let score = 0.3
+        const c = mem.content.toLowerCase()
+
+        // Risk dimension
+        if (field.risk.direction === '保守' && /稳定|成熟|可靠|传统/.test(c)) score += 0.2
+        if (field.risk.direction === '冒险' && /新的|尝试|创新|突破/.test(c)) score += 0.2
+
+        // Communication dimension
+        if (field.communication.direction === '直接' && /直说|明确|简单/.test(c)) score += 0.1
+        if (field.communication.direction === '委婉' && /可能|也许|大概/.test(c)) score += 0.1
+
+        return Math.min(1, score)
+      } catch { return 0.3 }
+    },
+  },
 ]
 
 /**
@@ -1011,7 +1039,7 @@ interface KeyWeights {
 let keyWeights: KeyWeights = loadJson<KeyWeights>(KEY_WEIGHTS_PATH, {
   weights: {
     lexical: 1.0, temporal: 1.0, emotional: 1.0, entity: 1.0,
-    behavioral: 1.0, factual: 1.0, causal: 1.0, sequence: 1.0,
+    behavioral: 1.0, factual: 1.0, causal: 1.0, sequence: 1.0, cognitive: 1.0,
   },
   feedbackCount: 0,
   lastUpdated: Date.now(),

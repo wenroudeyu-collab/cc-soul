@@ -309,7 +309,7 @@ export function setPrivacyMode(v: boolean) {
   privacyMode = v
   try {
     if (v) _writeFileSync(_privacyLockPath, '1', 'utf-8')
-    else try { import('fs').then(({ unlinkSync }) => unlinkSync(_privacyLockPath)).catch(() => {}) } catch {}
+    else try { import('fs').then(({ unlinkSync }) => unlinkSync(_privacyLockPath)).catch(() => {}) } catch {} // intentionally silent — file cleanup
   } catch {}
 }
 

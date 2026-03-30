@@ -263,7 +263,7 @@ export function triggerDeepReflection(stats: InteractionStats) {
       innerState.evolvedSoul = output.slice(0, 500)
       saveJson(SOUL_EVOLVED_PATH, innerState.evolvedSoul)
       console.log(`[cc-soul][inner-life] soul evolved: ${innerState.evolvedSoul.slice(0, 60)}`)
-      notifySoulActivity(`🦋 性格演化: ${innerState.evolvedSoul.slice(0, 60)}`).catch(() => {})
+      notifySoulActivity(`🦋 性格演化: ${innerState.evolvedSoul.slice(0, 60)}`).catch(() => {}) // intentionally silent
     }
   }, 2, 'soul-evolve')
 }
@@ -413,7 +413,8 @@ export function checkDreamMode() {
     }
     // fallback: LLM 梦境（保留但仅在记忆重放无结果时触发）
     _fallbackLLMDream()
-  }).catch(() => {
+  }).catch((e: any) => {
+    console.error(`[cc-soul][dream] pipeline failed: ${e?.message || e}`)
     _fallbackLLMDream()
   })
 }
@@ -478,7 +479,7 @@ function _fallbackLLMDream() {
       })
       debouncedSave(JOURNAL_PATH, innerState.journal)
       console.log(`[cc-soul][dream] ${insight}`)
-      notifySoulActivity(`💭 梦境洞察: ${insight.slice(0, 60)}`).catch(() => {})
+      notifySoulActivity(`💭 梦境洞察: ${insight.slice(0, 60)}`).catch(() => {}) // intentionally silent
     }
   }, 0, 'dream')
 }

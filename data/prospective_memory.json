@@ -58,7 +58,8 @@
     "remind": "用户近期多次提到\"问题\"（3次），可能是持续关注的话题",
     "createdAt": 1774874875925,
     "expiresAt": 1776084475925,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774909106926
   },
   {
     "id": "pm_1774878444125_0",
@@ -66,7 +67,8 @@
     "remind": "用户近期多次提到\"对话\"（3次），可能是持续关注的话题",
     "createdAt": 1774878444125,
     "expiresAt": 1776088044125,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774909106926
   },
   {
     "id": "pm_1774878444125_1",
@@ -139,7 +141,8 @@
     "remind": "用户近期多次提到\"rust\"（6次），可能是持续关注的话题",
     "createdAt": 1774895234575,
     "expiresAt": 1776104834575,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774908222021
   },
   {
     "id": "pm_1774895234576_2",
@@ -155,7 +158,8 @@
     "remind": "用户近期多次提到\"python\"（5次），可能是持续关注的话题",
     "createdAt": 1774895234577,
     "expiresAt": 1776104834577,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774910004841
   },
   {
     "id": "pm_1774895234578_4",
@@ -163,7 +167,8 @@
     "remind": "用户近期多次提到\"怎么选\"（3次），可能是持续关注的话题",
     "createdAt": 1774895234578,
     "expiresAt": 1776104834578,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774910157578
   },
   {
     "id": "pm_1774895234579_5",
@@ -171,7 +176,8 @@
     "remind": "用户近期多次提到\"redis\"（3次），可能是持续关注的话题",
     "createdAt": 1774895234579,
     "expiresAt": 1776104834579,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774911572334
   },
   {
     "id": "pm_1774895234580_6",
@@ -187,7 +193,8 @@
     "remind": "用户近期多次提到\"nginx\"（6次），可能是持续关注的话题",
     "createdAt": 1774896425512,
     "expiresAt": 1776106025512,
-    "source": "auto"
+    "source": "auto",
+    "firedAt": 1774912805443
   },
   {
     "id": "pm_1774896425512_1",
@@ -211,6 +218,120 @@
     "remind": "用户近期多次提到\"小王喜欢\"（3次），可能是持续关注的话题",
     "createdAt": 1774899908274,
     "expiresAt": 1776109508274,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774907763637_0",
+    "trigger": "在银行上",
+    "remind": "用户近期多次提到\"在银行上\"（3次），可能是持续关注的话题",
+    "createdAt": 1774907763637,
+    "expiresAt": 1776117363637,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774910323027_0",
+    "trigger": "对话",
+    "remind": "用户近期多次提到\"对话\"（3次），可能是持续关注的话题",
+    "createdAt": 1774910323027,
+    "expiresAt": 1776119923027,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774910323027_1",
+    "trigger": "docker",
+    "remind": "用户近期多次提到\"docker\"（3次），可能是持续关注的话题",
+    "createdAt": 1774910323027,
+    "expiresAt": 1776119923027,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774910323028_2",
+    "trigger": "compose",
+    "remind": "用户近期多次提到\"compose\"（3次），可能是持续关注的话题",
+    "createdAt": 1774910323028,
+    "expiresAt": 1776119923028,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774910323028_3",
+    "trigger": "kubernetes",
+    "remind": "用户近期多次提到\"kubernetes\"（3次），可能是持续关注的话题",
+    "createdAt": 1774910323028,
+    "expiresAt": 1776119923028,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774910323028_4",
+    "trigger": "python",
+    "remind": "用户近期多次提到\"python\"（4次），可能是持续关注的话题",
+    "createdAt": 1774910323028,
+    "expiresAt": 1776119923028,
+    "source": "auto",
+    "firedAt": 1774914357455
+  },
+  {
+    "id": "pm_1774911840001_0",
+    "trigger": "redis",
+    "remind": "用户近期多次提到\"redis\"（3次），可能是持续关注的话题",
+    "createdAt": 1774911840001,
+    "expiresAt": 1776121440001,
+    "source": "auto",
+    "firedAt": 1774912546281
+  },
+  {
+    "id": "pm_1774912739114_0",
+    "trigger": "单体架构",
+    "remind": "用户近期多次提到\"单体架构\"（3次），可能是持续关注的话题",
+    "createdAt": 1774912739114,
+    "expiresAt": 1776122339114,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774913460039_0",
+    "trigger": "java",
+    "remind": "用户近期多次提到\"java\"（3次），可能是持续关注的话题",
+    "createdAt": 1774913460039,
+    "expiresAt": 1776123060039,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774913460039_1",
+    "trigger": "应用加",
+    "remind": "用户近期多次提到\"应用加\"（3次），可能是持续关注的话题",
+    "createdAt": 1774913460039,
+    "expiresAt": 1776123060039,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774913460040_2",
+    "trigger": "mysql",
+    "remind": "用户近期多次提到\"mysql\"（3次），可能是持续关注的话题",
+    "createdAt": 1774913460040,
+    "expiresAt": 1776123060040,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774913884950_0",
+    "trigger": "感觉特别",
+    "remind": "用户近期多次提到\"感觉特别\"（3次），可能是持续关注的话题",
+    "createdAt": 1774913884950,
+    "expiresAt": 1776123484950,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774913884953_1",
+    "trigger": "委屈",
+    "remind": "用户近期多次提到\"委屈\"（3次），可能是持续关注的话题",
+    "createdAt": 1774913884953,
+    "expiresAt": 1776123484953,
+    "source": "auto"
+  },
+  {
+    "id": "pm_1774913884955_2",
+    "trigger": "关于老板",
+    "remind": "用户近期多次提到\"关于老板\"（3次），可能是持续关注的话题",
+    "createdAt": 1774913884955,
+    "expiresAt": 1776123484955,
     "source": "auto"
   }
 ]

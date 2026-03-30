@@ -219,13 +219,13 @@ export function getLivingProfileVersion(): number { return livingProfile.version
 let _bodyMod: any = null
 let _memMod: any = null
 let _cliMod: any = null
-function lazyBody() { if (!_bodyMod) { import('./body.ts').then(m => { _bodyMod = m }).catch(() => {}) }; return _bodyMod }
-function lazyMem() { if (!_memMod) { import('./memory.ts').then(m => { _memMod = m }).catch(() => {}) }; return _memMod }
-function lazyCli() { if (!_cliMod) { import('./cli.ts').then(m => { _cliMod = m }).catch(() => {}) }; return _cliMod }
+function lazyBody() { if (!_bodyMod) { import('./body.ts').then(m => { _bodyMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (body): ${e.message}`) }) }; return _bodyMod }
+function lazyMem() { if (!_memMod) { import('./memory.ts').then(m => { _memMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) }) }; return _memMod }
+function lazyCli() { if (!_cliMod) { import('./cli.ts').then(m => { _cliMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (cli): ${e.message}`) }) }; return _cliMod }
 setTimeout(() => {
-  import('./body.ts').then(m => { _bodyMod = m }).catch(() => {})
-  import('./memory.ts').then(m => { _memMod = m }).catch(() => {})
-  import('./cli.ts').then(m => { _cliMod = m }).catch(() => {})
+  import('./body.ts').then(m => { _bodyMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (body): ${e.message}`) })
+  import('./memory.ts').then(m => { _memMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
+  import('./cli.ts').then(m => { _cliMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (cli): ${e.message}`) })
 }, 500)
 
 const PERSON_MODEL_PATH = resolve(DATA_DIR, 'person_model.json')

@@ -38,6 +38,30 @@ async function handleProcess(body: any): Promise<any> {
     return { system_prompt: customPrompt ? customPrompt + '\n\n' + soulPrompt : soulPrompt, augments: [] }
   }
 
+  // ── Command detection: check before full pipeline ──
+  try {
+    const { routeCommand, routeCommandDirect } = await import('./handler-commands.ts')
+    const { getSessionState } = await import('./handler-state.ts')
+    const session = getSessionState(userId)
+    let cmdReply = ''
+    const replyFn = (t: string) => { cmdReply = t }
+    const cmdCtx = { bodyForAgent: '', reply: replyFn }
+
+    // Try routeCommand first (sync, handles write commands)
+    const handled = routeCommand(message, cmdCtx, session, userId, '', { context: { senderId: userId } })
+    if (handled && cmdReply) {
+      return { command: true, command_reply: cmdReply }
+    }
+
+    // Try routeCommandDirect (async, handles read-only commands like 价值观/审计 etc.)
+    if (!cmdReply) {
+      const directHandled = await routeCommandDirect(message, { replyCallback: replyFn })
+      if (directHandled && cmdReply) {
+        return { command: true, command_reply: cmdReply }
+      }
+    }
+  } catch {}
+
   // Initialize (lazy)
   try {
     (await import('./persistence.ts')).ensureDataDir()
@@ -113,25 +137,29 @@ async function handleProcess(body: any): Promise<any> {
     }
   } catch {}
 
-  // ── 7b. Duplicate message detection ──
+  // ── 7b. Duplicate message detection (read fresh from disk, not cached) ──
   let dupHint = ''
   try {
     const { resolve } = await import('path')
-    const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
+    const { readFileSync, writeFileSync, existsSync } = await import('fs')
+    const { DATA_DIR } = await import('./persistence.ts')
     const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
-    const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
+    let dedup: Record<string, { reply: string; ts: number }> = {}
+    try { if (existsSync(DEDUP_PATH)) dedup = JSON.parse(readFileSync(DEDUP_PATH, 'utf-8')) } catch {}
     const dedupKey = message.slice(0, 100).toLowerCase().trim()
     const prev = dedup[dedupKey]
     if (prev && Date.now() - prev.ts < 3600000) {
-      dupHint = `[重要] 用户刚才发了和之前一样的消息："${message.slice(0, 50)}"。上次的回复摘要："${prev.reply.slice(0, 100)}"。不要重复上次的回答，换个角度回答或说"这个刚说过"。`
+      const replyHint = prev.reply ? `上次的回复摘要："${prev.reply.slice(0, 100)}"。` : ''
+      dupHint = `[重要] 用户发了和之前一样的消息："${message.slice(0, 50)}"。${replyHint}不要重复上次的回答，换个角度或说"这个刚说过，还有什么不清楚的？"。`
     }
-    // 记录这次的 key（回复内容在 /feedback 中更新）
-    dedup[dedupKey] = { reply: '', ts: Date.now() }
-    // 清理过期
-    for (const [k, v] of Object.entries(dedup)) {
-      if (Date.now() - v.ts > 3600000) delete dedup[k]
+    // Only write if no existing entry (don't overwrite reply from feedback)
+    if (!dedup[dedupKey]) {
+      dedup[dedupKey] = { reply: '', ts: Date.now() }
+    } else {
+      dedup[dedupKey].ts = Date.now()  // update timestamp but preserve reply
     }
-    debouncedSave(DEDUP_PATH, dedup)
+    for (const [k, v] of Object.entries(dedup)) { if (Date.now() - v.ts > 3600000) delete dedup[k] }
+    writeFileSync(DEDUP_PATH, JSON.stringify(dedup, null, 2), 'utf-8')
   } catch {}
 
   // ── 8. Build augments ──
@@ -153,7 +181,7 @@ async function handleProcess(body: any): Promise<any> {
       flowKey: userId, followUpHints: [], workingMemKey: userId,
     })
     selected = result.selected || []
-    // 注入重复消息检测提醒（最高优先级）
+    // 注入重复消息检测提醒
     if (dupHint) selected.unshift(`[重复消息检测] ${dupHint}`)
     augmentObjects = (result.augments || []).map((a: any) => ({
       content: a.content || '', priority: a.priority || 0, tokens: a.tokens || 0,
@@ -181,9 +209,10 @@ async function handleProcess(body: any): Promise<any> {
     const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
     const dedupKey = message.slice(0, 100).toLowerCase().trim()
     const prev = dedup[dedupKey]
-    if (prev && prev.reply && Date.now() - prev.ts < 3600000) {
+    if (prev && Date.now() - prev.ts < 3600000) {
       // 重复消息：强制在 system_prompt 开头加指令
-      soulPrompt = `⚠️ 重要：用户重复发了同一条消息。上次你的回复是："${prev.reply.slice(0, 150)}"。\n你必须换一种完全不同的方式回答。可以说"这个刚回答过，还有什么不清楚的？"或从另一个角度展开。绝对不能重复上次的内容。\n\n` + soulPrompt
+      const prevReplyHint = prev.reply ? `上次你的回复是："${prev.reply.slice(0, 150)}"。` : ''
+      soulPrompt = `⚠️ 重要：用户重复发了同一条消息。${prevReplyHint}\n你必须换一种完全不同的方式回答。可以说"这个刚回答过，还有什么不清楚的？"或从另一个角度展开。绝对不能重复上次的内容。\n\n` + soulPrompt
     }
   } catch {}
 
@@ -216,15 +245,21 @@ async function handleFeedback(body: any): Promise<any> {
 
   if (!userMessage || !aiReply) return { error: 'user_message and ai_reply required' }
 
-  // Update dedup cache with actual reply content
+  // Update dedup cache with actual reply content (read fresh from disk to avoid stale cache)
   try {
     const { resolve } = await import('path')
-    const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
+    const { readFileSync, writeFileSync, existsSync } = await import('fs')
+    const { DATA_DIR } = await import('./persistence.ts')
     const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
-    const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
+    // Read fresh from disk (not cached) to avoid cross-process stale data
+    let dedup: Record<string, { reply: string; ts: number }> = {}
+    try { if (existsSync(DEDUP_PATH)) dedup = JSON.parse(readFileSync(DEDUP_PATH, 'utf-8')) } catch {}
     const dedupKey = userMessage.slice(0, 100).toLowerCase().trim()
     dedup[dedupKey] = { reply: aiReply.slice(0, 200), ts: Date.now() }
-    debouncedSave(DEDUP_PATH, dedup)
+    // Clean expired
+    const now = Date.now()
+    for (const [k, v] of Object.entries(dedup)) { if (now - v.ts > 3600000) delete dedup[k] }
+    writeFileSync(DEDUP_PATH, JSON.stringify(dedup, null, 2), 'utf-8')
   } catch {}
 
   // History
@@ -289,14 +324,14 @@ async function handleFeedback(body: any): Promise<any> {
           if (result.memoryOps?.length > 0) {
             import('./memory.ts').then(({ executeMemoryCommands }) => {
               executeMemoryCommands(result.memoryOps.slice(0, 3), userId, '')
-            }).catch(() => {})
+            }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
           }
           console.log(`[cc-soul][api] feedback: ${(result.memories||[]).length} memories`)
         } catch {}
         resolve()
       })
     })
-    analysisPromise.catch(() => {})
+    analysisPromise.catch(() => {}) // intentionally silent — background analysis
   } catch (e: any) {
     console.log(`[cc-soul][api] feedback error: ${e.message}`)
   }
@@ -306,7 +341,7 @@ async function handleFeedback(body: any): Promise<any> {
     const { hebbianUpdate } = await import('./aam.ts')
     const { decayAllActivations } = await import('./activation-field.ts')
     // 每次 feedback 触发一次小衰减
-    decayAllActivations(0.98)
+    decayAllActivations(0.995)
     // quality 高 → 强化刚才用到的 key weights；quality 低 → 削弱
     if (qualityScore > 6) {
       hebbianUpdate({ lexical: 0.5, temporal: 0.3, emotional: 0.3, entity: 0.3, behavioral: 0.2, factual: 0.4, causal: 0.2, sequence: 0.2 }, true)

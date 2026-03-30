@@ -503,7 +503,7 @@ export function trackGratitude(userMsg: string, lastResponse: string, senderId: 
   import('./memory.ts').then(({ addMemory }) => {
     addMemory(`[用户感谢] ${topic}`, 'gratitude', senderId, 'private')
     console.log(`[cc-soul][gratitude] tracked: ${topic.slice(0, 40)} from ${senderId || 'unknown'}`)
-  }).catch(() => {})
+  }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
