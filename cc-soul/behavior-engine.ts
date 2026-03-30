@@ -205,14 +205,16 @@ export function matchPatterns(situation: SituationCondition): BehaviorPattern[] 
     .map(p => ({ pattern: p, score: matchScore(p.condition, situation) }))
     .filter(c => c.score >= 0.5)  // at least half the conditions match
     .filter(c => {
-      // Confidence filter: hits / (hits + misses) > 0.4
-      const total = c.pattern.hits + c.pattern.misses
-      return total < 3 || (c.pattern.hits / total) > 0.4
+      // Confidence filter: Beta-Bernoulli posterior mean > 0.4
+      const alpha = c.pattern.hits + 1  // Beta(1,1) uniform prior
+      const beta = c.pattern.misses + 1
+      const conf = alpha / (alpha + beta)
+      return conf > 0.4
     })
     .sort((a, b) => {
-      // Sort by: match score * confidence
-      const confA = a.pattern.hits / Math.max(1, a.pattern.hits + a.pattern.misses)
-      const confB = b.pattern.hits / Math.max(1, b.pattern.hits + b.pattern.misses)
+      // Sort by: match score * Beta-Bernoulli confidence
+      const confA = (a.pattern.hits + 1) / (a.pattern.hits + a.pattern.misses + 2)
+      const confB = (b.pattern.hits + 1) / (b.pattern.hits + b.pattern.misses + 2)
       return (b.score * confB) - (a.score * confA)
     })
   return candidates.slice(0, 3).map(c => c.pattern)
@@ -228,7 +230,8 @@ export function getBehaviorEngineHint(userMsg: string, mood: number, session?: a
   if (matched.length === 0) return null
 
   const hints = matched.map(p => p.action.hint).join('；')
-  const confidence = matched[0].hits / Math.max(1, matched[0].hits + matched[0].misses)
+  // Beta-Bernoulli confidence: 0 hits / 0 misses → 0.5（中性），不是硬编码 0.3
+  const confidence = (matched[0].hits + 1) / (matched[0].hits + matched[0].misses + 2)
   const confLabel = confidence > 0.8 ? '高' : confidence > 0.5 ? '中' : '低'
 
   return `[行为模式·${confLabel}置信] ${hints}`
@@ -294,10 +297,10 @@ export function learnFromObservations() {
     groups.get(key)!.push(obs)
   }
 
-  // Extract patterns from groups with 3+ observations
+  // Extract patterns — 冷启动：不限制最小样本数，但低样本标记低置信度
   let newPatterns = 0
   for (const [key, observations] of groups) {
-    if (observations.length < 3) continue
+    if (observations.length < 1) continue  // 至少 1 条观察
 
     // Check if a pattern for this key already exists
     const existing = state.patterns.find(p => {
@@ -348,13 +351,12 @@ export function learnFromObservations() {
     newPatterns++
   }
 
-  // Prune dead patterns (confidence < 0.3 and old)
+  // Prune dead patterns (Beta-Bernoulli confidence < 0.3 and old)
   state.patterns = state.patterns.filter(p => {
-    const total = p.hits + p.misses
-    const conf = total > 0 ? p.hits / total : 0.5
+    const conf = (p.hits + 1) / (p.hits + p.misses + 2)  // Beta-Bernoulli
     const ageMs = now - p.lastHit
-    // Keep if: young (<30 days) or confident (>0.3) or few samples (<5)
-    return ageMs < 30 * 86400000 || conf > 0.3 || total < 5
+    // Keep if: young (<30 days) or confident (>0.3)
+    return ageMs < 30 * 86400000 || conf > 0.3
   })
 
   if (newPatterns > 0) {

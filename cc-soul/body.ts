@@ -43,6 +43,34 @@ export const body: BodyState = {
   anomaly: 0.0,
 }
 
+// ── WASABI 三层情绪时间尺度 ──
+// reflex: 反射层（即时，每条消息重置）
+// emotion: 情绪层（tau=5min EMA）
+// mood: 心境层（tau=2h，现有 OU 过程控制 body.mood）
+export interface EmotionLayers {
+  reflex: number    // 反射层：即时反应，tau=1（每条消息衰减到0）
+  emotion: number   // 情绪层：当前情绪，tau=5min
+  mood: number      // 心境层：基础心境，tau=2h（= body.mood，由 OU 过程驱动）
+}
+
+export const emotionLayers: EmotionLayers = { reflex: 0, emotion: 0, mood: 0.3 }
+
+/** 三层加权叠加输出 */
+export function combinedEmotion(layers: EmotionLayers = emotionLayers): number {
+  return layers.reflex * 0.4 + layers.emotion * 0.35 + layers.mood * 0.25
+}
+
+/** 每条消息更新三层 */
+function updateEmotionLayers(userValence: number, dt: number) {
+  // 反射层：直接等于用户情绪（下一条消息时被覆盖）
+  emotionLayers.reflex = userValence
+  // 情绪层：EMA，tau=5min (300s)
+  const alphaEmotion = 1 - Math.exp(-dt / 300)
+  emotionLayers.emotion = emotionLayers.emotion * (1 - alphaEmotion) + userValence * alphaEmotion
+  // 心境层：跟随 body.mood（由 OU 过程控制）
+  emotionLayers.mood = body.mood
+}
+
 let lastTickTime = Date.now()
 
 // ── #7 双振荡器昼夜节律 ──
@@ -112,6 +140,11 @@ export function bodyTick() {
   body.mood = Math.max(-1, Math.min(1, body.mood + circadian.moodMod * 0.01 * minutes))
   // Anomaly decay
   body.anomaly = Math.max(0, body.anomaly - (getParam('body.anomaly_decay_per_min') || 0.01) * minutes)
+
+  // ── WASABI: 反射层每 tick 衰减到 0，情绪层缓慢衰减 ──
+  emotionLayers.reflex *= 0.1  // 快速衰减
+  emotionLayers.emotion *= Math.pow(0.98, minutes)  // 5min tau
+  emotionLayers.mood = body.mood  // 同步 OU 心境
 
   // #6 情绪向量自然衰减（向中性漂移）— 遍历所有 per-user vectors (#11)
   for (const ev of _emotionVectors.values()) {
@@ -337,6 +370,10 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
 
   body.mood = Math.max(-1, Math.min(1, body.mood + meanReversion + externalForce + noise))
 
+  // ── WASABI: 更新三层情绪 ──
+  const dtSeconds = (Date.now() - (userEmotion.lastUpdate || Date.now())) / 1000
+  updateEmotionLayers(valence, Math.max(1, dtSeconds))
+
   // If cc's mood drops too low, activate "cooldown" — extra alertness
   if (body.mood < -0.5) {
     body.alertness = Math.min(1.0, body.alertness + 0.1)
@@ -555,7 +592,9 @@ export function bodyStateString(): string {
   const params = bodyGetParams()
   // #10: Only expose 4 useful dimensions to prompt (energy, mood, alertness, emotion).
   // load/anomaly retained internally but not injected — reduces prompt noise.
-  return `精力:${body.energy.toFixed(2)} 心情:${params.soulTone} 警觉:${body.alertness.toFixed(2)} 情绪:${getEmotionSummary()} → 风格:${params.responseStyle}`
+  // WASABI: combinedEmotion 融合三层时间尺度
+  const ce = combinedEmotion()
+  return `精力:${body.energy.toFixed(2)} 心情:${params.soulTone}(${ce.toFixed(2)}) 警觉:${body.alertness.toFixed(2)} 情绪:${getEmotionSummary()} → 风格:${params.responseStyle}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -570,6 +609,7 @@ export function saveBodyState() {
     alertness: body.alertness,
     anomaly: body.anomaly,
     emotionVector,
+    emotionLayers,
   })
 }
 
@@ -586,6 +626,12 @@ export function loadBodyState() {
       for (const k of Object.keys(emotionVector) as (keyof EmotionVector)[]) {
         emotionVector[k] = saved.emotionVector[k] ?? emotionVector[k]
       }
+    }
+    // WASABI: 恢复三层情绪（兼容旧数据）
+    if (saved.emotionLayers) {
+      emotionLayers.reflex = saved.emotionLayers.reflex ?? 0
+      emotionLayers.emotion = saved.emotionLayers.emotion ?? 0
+      emotionLayers.mood = saved.emotionLayers.mood ?? body.mood
     }
     console.log(`[cc-soul][body] loaded state: e=${body.energy.toFixed(2)} m=${body.mood.toFixed(2)} emotion=${getEmotionSummary()}`)
   }

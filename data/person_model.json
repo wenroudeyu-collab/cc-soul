@@ -2,15 +2,15 @@
   "identity": "我渴望掌控与效率，追求以最小的认知成本获得最优解。这驱使我偏爱文档完善、生态成熟的技术（如Go），并厌恶混乱与低效（如PHP）。但我的灵魂深处藏着对“落后”的恐惧——我一边依赖Python的舒适区，一边焦虑地学习Rust和TS，生怕错过更优解。这种矛盾源于：我将技术选择等同于自我价值，用工具理性武装自己，却难以忍受任何“不够好”的可能性。我的灵魂像一座精密的钟表，齿轮由逻辑驱动，但每一次嘀嗒都敲打着“必须正确”的焦虑。",
   "thinkingStyle": "这个人的思维方式是跳跃且直觉驱动的，关注点随兴趣和情绪快速转移。",
   "values": [
-    "用户沟通风格偏好直接、简洁",
-    "用户说他非常喜欢Python的装饰器语法糖特性_dedup_test",
+    "用户 wang 知道对话会被记住，除非明确说'别记了'或'隐私模式'",
     "用户的沟通风格偏好：直接、简洁",
     "用户愿意告知个人偏好或习惯以便记忆",
     "用户偏好直接发送文件、图片或链接进行处理",
-    "I chose option B because it has better documentation and com",
-    "我选了方案A，因为性能更好而且成本更低",
-    "用户 wang 知道重要信息会被主动标记记忆，也可以随时提醒记录",
-    "用户 wang 知道对话会被记住，除非明确说'别记了'或'隐私模式'",
+    "作息时间：早上6点起床，晚上11点睡觉",
+    "用户关注或学习Rust和TypeScript",
+    "用户主要使用Python和Go编程语言",
+    "用户沟通风格偏好直接、简洁",
+    "用户说他非常喜欢Python的装饰器语法糖特性_dedup_test",
     "用户偏好直接发语音消息"
   ],
   "beliefs": [],
@@ -27,23 +27,23 @@
     "golang": "beginner",
     "javascript": "beginner"
   },
-  "updatedAt": 1774897925399,
-  "distillCount": 27,
+  "updatedAt": 1774905011576,
+  "distillCount": 33,
   "reasoningProfile": {
     "style": "unknown",
     "evidence": "data",
     "certainty": "unknown",
-    "disagreement": "unknown",
+    "disagreement": "question",
     "_counts": {
       "style": {},
       "evidence": {
-        "data": 23
+        "data": 33
       },
       "certainty": {},
       "disagreement": {
-        "question": 4
+        "question": 10
       },
-      "total": 366
+      "total": 468
     }
   }
 }

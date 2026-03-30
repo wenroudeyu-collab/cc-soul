@@ -665,6 +665,226 @@
     "domain": "闲聊",
     "createdAt": 1774895971691,
     "expiresAt": 1775500771691,
+    "status": "hit",
+    "hitAt": 1774899076312,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现1次通用相关话题（贝叶斯概率: 67%）",
+    "domain": "通用",
+    "createdAt": 1774899076312,
+    "expiresAt": 1775503876312,
+    "status": "hit",
+    "hitAt": 1774900869292,
+    "confidence": 0.7666666666666666
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现11次闲聊相关话题（贝叶斯概率: 92%）",
+    "domain": "闲聊",
+    "createdAt": 1774899076312,
+    "expiresAt": 1775503876312,
+    "status": "hit",
+    "hitAt": 1774899408014,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论rust，预计下次会问更深入的rust问题",
+    "basis": "最近20条消息中出现1次rust相关话题（贝叶斯概率: 67%）",
+    "domain": "rust",
+    "createdAt": 1774899076312,
+    "expiresAt": 1775503876312,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.7666666666666666
+  },
+  {
+    "prediction": "用户近期频繁讨论javascript，预计下次会问更深入的javascript问题",
+    "basis": "最近20条消息中出现1次javascript相关话题（贝叶斯概率: 67%）",
+    "domain": "javascript",
+    "createdAt": 1774899076312,
+    "expiresAt": 1775503876312,
+    "status": "hit",
+    "hitAt": 1774899499793,
+    "confidence": 0.7666666666666666
+  },
+  {
+    "prediction": "用户近期频繁讨论python，预计下次会问更深入的python问题",
+    "basis": "最近20条消息中出现1次python相关话题（贝叶斯概率: 67%）",
+    "domain": "python",
+    "createdAt": 1774899076312,
+    "expiresAt": 1775503876312,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.7666666666666666
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 93%）",
+    "domain": "闲聊",
+    "createdAt": 1774899408015,
+    "expiresAt": 1775504208015,
+    "status": "hit",
+    "hitAt": 1774899620485,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论javascript，预计下次会问更深入的javascript问题",
+    "basis": "最近20条消息中出现1次javascript相关话题（贝叶斯概率: 75%）",
+    "domain": "javascript",
+    "createdAt": 1774899499793,
+    "expiresAt": 1775504299793,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.85
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现11次闲聊相关话题（贝叶斯概率: 92%）",
+    "domain": "闲聊",
+    "createdAt": 1774899620485,
+    "expiresAt": 1775504420485,
+    "status": "hit",
+    "hitAt": 1774899694739,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现11次闲聊相关话题（贝叶斯概率: 96%）",
+    "domain": "闲聊",
+    "createdAt": 1774899694740,
+    "expiresAt": 1775504494740,
+    "status": "hit",
+    "hitAt": 1774899738516,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现11次闲聊相关话题（贝叶斯概率: 97%）",
+    "domain": "闲聊",
+    "createdAt": 1774899738516,
+    "expiresAt": 1775504538516,
+    "status": "hit",
+    "hitAt": 1774899794395,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 98%）",
+    "domain": "闲聊",
+    "createdAt": 1774899794396,
+    "expiresAt": 1775504594396,
+    "status": "hit",
+    "hitAt": 1774899847610,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 98%）",
+    "domain": "闲聊",
+    "createdAt": 1774899847610,
+    "expiresAt": 1775504647610,
+    "status": "hit",
+    "hitAt": 1774899882868,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 99%）",
+    "domain": "闲聊",
+    "createdAt": 1774899882868,
+    "expiresAt": 1775504682868,
+    "status": "hit",
+    "hitAt": 1774900922566,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论database，预计下次会问更深入的database问题",
+    "basis": "最近20条消息中出现1次database相关话题（贝叶斯概率: 67%）",
+    "domain": "database",
+    "createdAt": 1774900869292,
+    "expiresAt": 1775505669292,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.7666666666666666
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 96%）",
+    "domain": "闲聊",
+    "createdAt": 1774900922566,
+    "expiresAt": 1775505722566,
+    "status": "hit",
+    "hitAt": 1774900970632,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 97%）",
+    "domain": "闲聊",
+    "createdAt": 1774900970632,
+    "expiresAt": 1775505770632,
+    "status": "hit",
+    "hitAt": 1774901580928,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 93%）",
+    "domain": "闲聊",
+    "createdAt": 1774901580928,
+    "expiresAt": 1775506380928,
+    "status": "hit",
+    "hitAt": 1774901628866,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 96%）",
+    "domain": "闲聊",
+    "createdAt": 1774901628866,
+    "expiresAt": 1775506428866,
+    "status": "hit",
+    "hitAt": 1774901681655,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现12次闲聊相关话题（贝叶斯概率: 97%）",
+    "domain": "闲聊",
+    "createdAt": 1774901681656,
+    "expiresAt": 1775506481656,
+    "status": "hit",
+    "hitAt": 1774903074815,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现13次闲聊相关话题（贝叶斯概率: 93%）",
+    "domain": "闲聊",
+    "createdAt": 1774903074815,
+    "expiresAt": 1775507874815,
+    "status": "hit",
+    "hitAt": 1774903128639,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现14次闲聊相关话题（贝叶斯概率: 97%）",
+    "domain": "闲聊",
+    "createdAt": 1774903128640,
+    "expiresAt": 1775507928640,
+    "status": "hit",
+    "hitAt": 1774903232496,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论devops，预计下次会问更深入的devops问题",
+    "basis": "最近20条消息中出现3次devops相关话题（贝叶斯概率: 80%）",
+    "domain": "devops",
+    "createdAt": 1774903232496,
+    "expiresAt": 1775508032496,
     "status": "pending",
     "hitAt": null,
     "confidence": 0.9

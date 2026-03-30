@@ -6,7 +6,7 @@
  */
 
 export const EMOTION_POSITIVE = ['开心', '哈哈', '牛逼', '太棒', '感谢', '谢谢', '厉害', '完美', '爽', '赞', '舒服', '终于']
-export const EMOTION_NEGATIVE = ['烦', '累', '难过', '崩溃', '压力大', '焦虑', '郁闷', '烦死', '受不了', '头疼', '无语', '吐了']
+export const EMOTION_NEGATIVE = ['烦', '累', '难过', '崩溃', '压力大', '压力好大', '焦虑', '郁闷', '烦死', '受不了', '头疼', '无语', '吐了', '不想干', '不想说', '心情差', '心情很差', '不想活', '难受']
 export const EMOTION_ALL = [...EMOTION_NEGATIVE, ...EMOTION_POSITIVE]
 
 // ── 细粒度情绪分类（12 种） ──
@@ -36,28 +36,29 @@ export function detectEmotionLabel(msg: string): { label: EmotionLabel; confiden
   if (['气死', '生气', '怒了', '操', '妈的', '什么玩意', '脑残', '智障'].some(w => m.includes(w))) return { label: 'anger', confidence: 0.9 }
 
   // 焦虑：担心/紧张类
-  if (['焦虑', '担心', '紧张', '害怕', '慌', '着急', '来不及', '怎么办', '完蛋', '压力大', '压力好大', '撑不住'].some(w => m.includes(w))) return { label: 'anxiety', confidence: 0.85 }
+  if (['焦虑', '担心', '紧张', '害怕', '慌', '着急', '来不及', '怎么办', '完蛋', '压力大', '压力好大', '撑不住', '被裁', '要被裁'].some(w => m.includes(w))) return { label: 'anxiety', confidence: 0.85 }
   if (/deadline|ddl|来不及|赶不上/.test(m)) return { label: 'anxiety', confidence: 0.8 }
 
   // 沮丧/受挫：反复失败类
-  if (['烦死', '受不了', '无语', '服了', '废了', '头疼', '搞不定', '又出问题', '又挂了', '又崩了'].some(w => m.includes(w))) return { label: 'frustration', confidence: 0.85 }
-  if (/又.*了|还是不行|试了.*次/.test(m)) return { label: 'frustration', confidence: 0.7 }
+  if (['烦死', '受不了', '无语', '服了', '废了', '头疼', '搞不定', '又出问题', '又挂了', '又崩了', '不适合', '放弃了', '没救了'].some(w => m.includes(w))) return { label: 'frustration', confidence: 0.85 }
+  if (/又.*了|还是不行|试了.*[次遍]|改了.*天|搞了.*还|都不行|还是不对/.test(m)) return { label: 'frustration', confidence: 0.7 }
+  if (/是不是不适合/.test(m)) return { label: 'frustration', confidence: 0.65 }
 
   // 失望
   if (['失望', '白费', '白忙', '没想到', '原来是这样', '早知道'].some(w => m.includes(w))) return { label: 'disappointment', confidence: 0.8 }
 
   // 悲伤
-  if (['难过', '伤心', '心疼', '想哭', '哭了', '好难', '太难了', '心累', '无力'].some(w => m.includes(w))) return { label: 'sadness', confidence: 0.85 }
+  if (['难过', '伤心', '心疼', '想哭', '哭了', '好难', '太难了', '心累', '无力', '分手', '离职', '住院', '去世', '走了'].some(w => m.includes(w))) return { label: 'sadness', confidence: 0.85 }
 
   // 困惑
-  if (['困惑', '不明白', '搞不懂', '什么意思', '为什么会', '怎么回事', '看不懂', '迷茫'].some(w => m.includes(w))) return { label: 'confusion', confidence: 0.8 }
+  if (['困惑', '不明白', '搞不懂', '什么意思', '为什么会', '怎么回事', '看不懂', '迷茫', '怎么理解', '帮我解释', '到底怎么'].some(w => m.includes(w))) return { label: 'confusion', confidence: 0.8 }
   if (/[？?]{2,}/.test(msg)) return { label: 'confusion', confidence: 0.6 }
 
   // 释然
-  if (['终于', '搞定了', '解决了', '原来如此', '恍然大悟', '明白了', '通了'].some(w => m.includes(w))) return { label: 'relief', confidence: 0.8 }
+  if (['终于', '搞定了', '解决了', '原来如此', '恍然大悟', '明白了', '通了', '总算', '不容易'].some(w => m.includes(w))) return { label: 'relief', confidence: 0.8 }
 
   // 骄傲/成就感
-  if (['搞定', '成功', '做到了', '完成了', '上线了', '过了', '拿到了'].some(w => m.includes(w)) && /[！!]|太/.test(msg)) return { label: 'pride', confidence: 0.75 }
+  if (['搞定', '成功', '做到了', '完成了', '上线了', '过了', '拿到了', '通过了', '夸了我', 'star'].some(w => m.includes(w))) return { label: 'pride', confidence: 0.75 }
 
   // 期待
   if (['期待', '好想', '等不及', '希望', '打算', '准备', '要开始'].some(w => m.includes(w))) return { label: 'anticipation', confidence: 0.7 }
@@ -66,7 +67,7 @@ export function detectEmotionLabel(msg: string): { label: EmotionLabel; confiden
   if (['感谢', '谢谢', '多亏', '幸好', '还好有你', '帮了大忙'].some(w => m.includes(w))) return { label: 'gratitude', confidence: 0.85 }
 
   // 开心（通用正面）
-  if (['开心', '哈哈', '太棒', '牛逼', '厉害', '完美', '爽', '舒服', '赞', '嘿嘿'].some(w => m.includes(w))) return { label: 'joy', confidence: 0.8 }
+  if (['开心', '哈哈', '太棒', '牛逼', '厉害', '完美', '爽', '舒服', '赞', '嘿嘿', '心情好', '心情超好', '高兴', '太好了', '好开心'].some(w => m.includes(w))) return { label: 'joy', confidence: 0.8 }
   if (/[哈嘻]{3,}/.test(msg)) return { label: 'joy', confidence: 0.7 }
 
   // ── 低置信度兜底 ──
@@ -103,36 +104,39 @@ export function computeEmotionSpectrum(msg: string): EmotionSpectrum {
   }
 
   // 愤怒信号
-  const angerSignals = (m.match(/生气|愤怒|气死|混蛋|什么鬼|太过分|凭什么|受够/g) || []).length
+  const angerSignals = (m.match(/生气|愤怒|气死|混蛋|什么鬼|太过分|凭什么|受够|垃圾|什么垃圾/g) || []).length
   if (/[！!]{2,}/.test(msg) && angerSignals > 0) spectrum.anger = Math.min(1, 0.5 + angerSignals * 0.2)
   else spectrum.anger = Math.min(1, angerSignals * 0.3)
 
   // 焦虑信号
-  const anxietySignals = (m.match(/焦虑|担心|害怕|紧张|不安|怎么办|来不及|deadline|ddl|赶不上/g) || []).length
+  const anxietySignals = (m.match(/焦虑|担心|害怕|紧张|不安|怎么办|来不及|deadline|ddl|赶不上|被裁|一堆bug|上线.*bug/g) || []).length
   spectrum.anxiety = Math.min(1, anxietySignals * 0.3)
 
   // 挫败信号
-  const frustSignals = (m.match(/又.*了|还是不行|试了.*次|搞不定|放弃|算了|不想|太难/g) || []).length
+  const frustSignals = (m.match(/又.*了|还是不行|试了.*次|搞不定|放弃|算了|不想|太难|不适合|改了.*天|都不行|还是不对/g) || []).length
   spectrum.frustration = Math.min(1, frustSignals * 0.3)
 
   // 悲伤信号
-  const sadSignals = (m.match(/难过|伤心|失望|遗憾|可惜|唉|哭|委屈|孤独|想念/g) || []).length
+  const sadSignals = (m.match(/难过|伤心|失望|遗憾|可惜|唉|哭|委屈|孤独|想念|分手|离职|住院|去世|走了|担心/g) || []).length
   spectrum.sadness = Math.min(1, sadSignals * 0.35)
 
   // 开心信号
-  const joySignals = (m.match(/开心|高兴|太好了|哈哈|[🎉😊😄🥳]|棒|赞|厉害|成功/g) || []).length
+  const joySignals = (m.match(/开心|高兴|太好了|哈哈|[🎉😊😄🥳]|棒|赞|厉害|成功|心情好|心情超好|迪士尼|太棒|年终奖|太爽|好开心/g) || []).length
   spectrum.joy = Math.min(1, joySignals * 0.3)
+  // "太好了""跑通了"是强 joy 信号，额外加分（在基础分之后叠加）
+  if (/太好了|跑通了/.test(m)) spectrum.joy = Math.min(1, spectrum.joy + 0.2)
 
   // 自豪信号
-  const prideSignals = (m.match(/搞定|做到了|完成|上线了|通过了|拿到了|终于/g) || []).length
+  // pride: 需要完成时态——"成功上线了"算，"要上线了还有bug"不算
+  const prideSignals = (m.match(/搞定|做到了|完成了|(?<!要|即将|准备|快要)上线了|通过了|拿到了|star|夸了|零故障|认证/g) || []).length
   spectrum.pride = Math.min(1, prideSignals * 0.35)
 
   // 释然信号
-  const reliefSignals = (m.match(/终于|解决了|松了口气|还好|幸好|好在|没事了/g) || []).length
+  const reliefSignals = (m.match(/终于|解决了|松了口气|还好|幸好|好在|没事了|总算|不容易/g) || []).length
   spectrum.relief = Math.min(1, reliefSignals * 0.35)
 
   // 好奇信号
-  const curSignals = (m.match(/怎么.*的|为什么|好奇|想知道|有意思|原来|没想到|居然/g) || []).length
+  const curSignals = (m.match(/怎么.*的|为什么|好奇|想知道|有意思|原来|没想到|居然|怎么理解|帮我解释|到底怎么|生命周期|共识算法/g) || []).length
   spectrum.curiosity = Math.min(1, curSignals * 0.25)
 
   // 归一化：确保不超过 1
@@ -181,11 +185,31 @@ export function emotionLabelToPADCN(label: EmotionLabel): { pleasure: number; ar
   }
 }
 
-export const CORRECTION_WORDS = ['不对', '错了', '搞错', '理解错', '不是这样', '说反了', '别瞎说', 'wrong', '重来']
+export const CORRECTION_WORDS = ['不对', '错了', '搞错', '理解错', '不是这样', '说反了', '别瞎说', 'wrong', '重来', '有问题', '搞混', '弄错', '你说的不', '实际上']
 export const CORRECTION_EXCLUDE = ['没错', '不错', '对不对', '错了吗', '是不是错', '不对称', '不对劲', '错了错了我的', '你说得对', '没有错']
 
-export const TECH_WORDS = ['代码', '函数', '报错', 'error', 'bug', 'crash', '编译', '调试', 'debug', '实现', '怎么写', 'hook', 'frida', 'ida']
-export const CASUAL_WORDS = ['嗯', '好', '哦', '行', '可以', 'ok', '明白']
+export const TECH_WORDS = [
+  // 通用编程
+  '代码', '函数', '报错', 'error', 'bug', 'crash', '编译', '调试', 'debug', '实现', '怎么写',
+  '算法', '接口', 'api', '变量', '循环', '递归', '排序', '数据结构', '泛型', '类型',
+  // 语言
+  'python', 'javascript', 'typescript', 'go', 'golang', 'rust', 'java', 'swift', 'c++', 'php',
+  'vue', 'react', 'angular', 'node', 'deno', 'bun',
+  // 基础设施
+  'docker', 'kubernetes', 'k8s', 'nginx', 'apache', 'linux', 'git', 'ci/cd', 'jenkins',
+  'redis', 'mysql', 'mongodb', 'postgresql', 'kafka', 'rabbitmq', 'elasticsearch',
+  // 云/部署
+  '服务器', '部署', 'deploy', '容器', '集群', '负载均衡', '微服务', 'grpc', 'rest',
+  '阿里云', 'aws', 'gcp', '云服务',
+  // 安全/逆向
+  'hook', 'frida', 'ida', '逆向', '加密', '签名', '证书',
+  // 性能
+  '性能', '优化', '内存', '泄漏', 'leak', '慢查询', '索引', '缓存',
+  // 概念
+  'raft', '共识', '分布式', '并发', '线程', '协程', 'goroutine', 'channel', 'async', 'await',
+  'hpa', 'rebase', '多阶段构建', '反向代理', '数据分片',
+]
+export const CASUAL_WORDS = ['嗯', '好', '哦', '行', '可以', 'ok', '明白', '在吗', '你好', '吃了', '无聊', '哈哈', '哈哈哈', '周末', '嘿嘿', '呵呵']
 
 // patterns.ts classification lists (superset of above for some categories)
 export const TECH_CLASSIFY = ['代码', 'code', '函数', 'bug', 'error', '实现', '怎么写', 'function', 'class', '报错']

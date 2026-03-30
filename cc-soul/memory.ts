@@ -1080,10 +1080,14 @@ function computeSurprise(content: string, scope: string, _userId?: string): numb
   if (/[！!]{2,}|卧槽|崩溃|太开心|难受|焦虑/.test(content)) score += 2
   // 时效性信息 → 降级（"今天""刚才"这类信息过期快）
   if (/今天|刚才|现在|刚刚/.test(content)) score -= 2
-  // 常见寒暄 → 极低
-  if (/^(你好|嗯|好的|谢谢|哈哈|ok|行|收到)$/i.test(content.trim())) score = 1
+  // 常见寒暄/无信息量回复 → 极低
+  if (/^(你好|嗯+|好的?|谢谢|哈哈+|ok|行吧?|收到|了解|明白|可以|没问题|好吧|哦+|是的?|嗯嗯|对的?|没事|算了|随便|都行|无所谓|不用了?|知道了)$/i.test(content.trim())) score = 1
+  // 日常闲聊/无决策价值 → 降级
+  if (/^.{0,15}(天气|堵车|迟到|周[一二三四五六日末]|终于.*休息|几点了|现在几点|路上)/.test(content) && content.length < 25) score = Math.min(score, 2)
   // 短内容 → 降级
   if (content.length < 10) score -= 1
+  // 极短且无实质内容 → 直接最低
+  if (content.length <= 4 && !/[a-zA-Z]{3,}/.test(content)) score = 1
 
   return Math.max(1, Math.min(10, score))
 }
@@ -1161,10 +1165,20 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     : scope === 'correction' ? 0.7  // corrections are emotionally significant
     : scope === 'gratitude' ? 0.6
     : 0.3  // default low intensity
+  // ── 生成效应 (Generation Effect, Slamecka 1978) ──
+  // 用户主动说出的 → 更高初始 confidence
+  // AI 推断的 → 标准 confidence
+  // 系统自动生成的 → 较低 confidence
+  const generationBoost =
+    (autoSource === 'user_said' || scope === 'preference' || scope === 'correction') ? 0.85  // 用户主动表达
+    : (autoSource === 'ai_observed' || scope === 'fact') ? 0.7                                // AI 观察到的
+    : (scope === 'reflexion' || scope === 'insight' || scope === 'consolidated') ? 0.6        // 系统生成的
+    : 0.7  // 默认
+
   const newMem: Memory = {
     content, scope, ts: Date.now(), userId, visibility: resolvedVisibility, channelId,
     bayesAlpha: BAYES_DEFAULT_ALPHA, bayesBeta: BAYES_DEFAULT_BETA,
-    confidence: BAYES_DEFAULT_ALPHA / (BAYES_DEFAULT_ALPHA + BAYES_DEFAULT_BETA), // ≈ 0.67
+    confidence: generationBoost,
     lastAccessed: Date.now(),
     tier: 'short_term',
     recallCount: 0,
@@ -1188,10 +1202,49 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   // Auto-extract structured facts (Mem0-style key-value triples)
   try { autoExtractFromMemory(content, scope, autoSource) } catch {}
 
+  // AAM: feed into word association network (learns semantic relationships from user data)
+  try { require('./aam.ts').learnAssociation(content) } catch {}
+
   // Write to SQLite if available
   if (useSQLite) {
     sqliteAddMemory(newMem)
   }
+
+  // ── 即时冲突感知：检测新记忆是否和已有特征矛盾 ──
+  // 例："用户不运动了" vs 已有"运动型" → 冲突 → 更新旧记忆
+  try {
+    const CONFLICT_PAIRS: [RegExp, RegExp][] = [
+      [/喜欢|偏好|爱/, /讨厌|不喜欢|不想|放弃/],
+      [/在.*工作|在.*上班/, /离职|辞职|被裁|不干了/],
+      [/住在|住/, /搬到|搬去|搬家/],
+      [/运动|跑步|健身/, /不运动|放弃运动|不跑了/],
+      [/学|在学/, /不学了|放弃了|学不动/],
+    ]
+
+    for (const [patternA, patternB] of CONFLICT_PAIRS) {
+      const newMatchesB = patternB.test(content)
+      if (!newMatchesB) continue
+
+      // 新记忆匹配了 B 模式（否定面），搜索已有记忆中匹配 A 模式的
+      for (const existing of memoryState.memories) {
+        if (existing.scope === 'expired' || existing.scope === 'decayed') continue
+        if (!patternA.test(existing.content)) continue
+
+        // 确认是同一主题（至少有 1 个共同关键词）
+        const existingWords = new Set((existing.content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+        const newWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+        const overlap = newWords.filter((w: string) => existingWords.has(w)).length
+
+        if (overlap >= 1) {
+          // 冲突！旧记忆降级
+          console.log(`[cc-soul][conflict] "${content.slice(0, 30)}" contradicts "${existing.content.slice(0, 30)}"`)
+          existing.confidence = Math.max(0.1, (existing.confidence ?? 0.7) * 0.5)
+          existing.scope = 'expired'
+          break
+        }
+      }
+    }
+  } catch {}
 
   // ── Interference forgetting: new memory suppresses similar old memories ──
   if (FACT_SCOPES.includes(scope)) {

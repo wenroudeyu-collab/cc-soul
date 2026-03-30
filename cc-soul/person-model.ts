@@ -10,6 +10,211 @@ import { memoryState, ensureMemoriesLoaded } from './memory.ts'
 import { detectDomain } from './epistemic.ts'
 import { buildMentalModelAugment, buildTopicAugment } from './distill.ts'
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// LIVING PROFILE — 活画像：用户画像不是定期生成的文档，是随每条消息呼吸的有机体
+// 每条重要消息 → 精准修改一个字段（不全量重写）
+// 画像有版本号和时间线，能看到用户怎么变过来的
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const LIVING_PROFILE_PATH = resolve(DATA_DIR, 'living_profile.json')
+
+interface ProfileTrait {
+  trait: string
+  confidence: number
+  evidence: number
+  firstSeen: number
+  lastSeen: number
+}
+
+interface ProfileChange {
+  ts: number
+  field: string
+  oldValue: string
+  newValue: string
+  trigger: string  // 触发变化的消息
+}
+
+interface LivingProfile {
+  identity: {
+    name: string
+    company: string
+    role: string
+    techStack: string[]
+    location: string
+    family: { name: string; relation: string; detail?: string }[]
+    habits: string[]
+  }
+  traits: ProfileTrait[]
+  timeline: ProfileChange[]
+  predictions: { topic: string; basis: string; confidence: number }[]
+  version: number
+  lastUpdated: number
+}
+
+let livingProfile: LivingProfile = loadJson<LivingProfile>(LIVING_PROFILE_PATH, {
+  identity: { name: '', company: '', role: '', techStack: [], location: '', family: [], habits: [] },
+  traits: [],
+  timeline: [],
+  predictions: [],
+  version: 0,
+  lastUpdated: 0,
+})
+
+function saveLivingProfile() { debouncedSave(LIVING_PROFILE_PATH, livingProfile) }
+
+/**
+ * 每条消息后调用：检测是否有画像更新
+ * 只在 importance >= 7（重要信息）时触发
+ */
+export function updateLivingProfile(content: string, scope: string, importance: number) {
+  if (importance < 7) return  // 不够重要，不更新画像
+
+  const p = livingProfile
+  let changed = false
+
+  // 名字检测
+  const nameMatch = content.match(/(?:叫我|我叫|我是)\s*([^\s，。！？]{1,6})/)
+  if (nameMatch && nameMatch[1] !== p.identity.name) {
+    recordProfileChange('identity.name', p.identity.name, nameMatch[1], content)
+    p.identity.name = nameMatch[1]
+    changed = true
+  }
+
+  // 公司检测
+  const companyMatch = content.match(/(?:在|去了?)\s*([^\s，。！？做]{2,8})(?:工作|上班|做|任职)/)
+  if (companyMatch && companyMatch[1] !== p.identity.company) {
+    recordProfileChange('identity.company', p.identity.company, companyMatch[1], content)
+    p.identity.company = companyMatch[1]
+    changed = true
+  }
+
+  // 职位检测
+  const roleMatch = content.match(/做\s*(前端|后端|全栈|测试|设计|产品|运维|运营|开发|架构|数据|算法|管理)/)
+  if (roleMatch && roleMatch[1] !== p.identity.role) {
+    recordProfileChange('identity.role', p.identity.role, roleMatch[1], content)
+    p.identity.role = roleMatch[1]
+    changed = true
+  }
+
+  // 技术栈检测
+  const techMatch = content.match(/(?:用|学|写|喜欢)\s*(Python|Go|Rust|Java|TypeScript|Vue|React|Docker|K8s|Swift|C\+\+)/gi)
+  if (techMatch) {
+    for (const t of techMatch) {
+      const tech = t.replace(/^(?:用|学|写|喜欢)\s*/i, '').trim()
+      if (tech && !p.identity.techStack.includes(tech)) {
+        p.identity.techStack.push(tech)
+        changed = true
+      }
+    }
+  }
+
+  // 家庭成员检测
+  const familyMatch = content.match(/(?:我)?(女儿|儿子|孩子|老婆|老公|爸|妈|哥|姐|弟|妹)(?:叫\s*([^\s，。！？]{1,6}))?/)
+  if (familyMatch) {
+    const relation = familyMatch[1]
+    const name = familyMatch[2] || ''
+    const existing = p.identity.family.find(f => f.relation === relation)
+    if (!existing) {
+      p.identity.family.push({ relation, name, detail: content.slice(0, 40) })
+      changed = true
+    } else if (name && existing.name !== name) {
+      existing.name = name
+      changed = true
+    }
+  }
+
+  // 居住地检测
+  const locationMatch = content.match(/(?:住在?|在)\s*([^\s，。！？做工上]{2,6})(?:住|生活|定居)/)
+  if (locationMatch && locationMatch[1] !== p.identity.location) {
+    recordProfileChange('identity.location', p.identity.location, locationMatch[1], content)
+    p.identity.location = locationMatch[1]
+    changed = true
+  }
+
+  // 习惯检测
+  const habitMatch = content.match(/(?:每天|习惯|经常|总是)\s*([^\s，。！？]{3,15})/)
+  if (habitMatch) {
+    const habit = habitMatch[1]
+    if (!p.identity.habits.some(h => h.includes(habit.slice(0, 4)))) {
+      p.identity.habits.push(habit)
+      if (p.identity.habits.length > 10) p.identity.habits.shift()
+      changed = true
+    }
+  }
+
+  // 特征提取（从内容模式推断用户特征）
+  const traitPatterns: [RegExp, string][] = [
+    [/每天|坚持|一直/, '有规律性'],
+    [/喜欢.*简洁|直接|不废话/, '效率导向'],
+    [/学|研究|好奇|探索/, '学习型'],
+    [/焦虑|压力|紧张|deadline/, '有压力'],
+    [/开心|哈哈|太好了/, '乐观'],
+    [/不喜欢|讨厌|受不了/, '有明确偏好'],
+  ]
+  for (const [pattern, trait] of traitPatterns) {
+    if (pattern.test(content)) {
+      const existing = p.traits.find(t => t.trait === trait)
+      if (existing) {
+        existing.evidence++
+        existing.confidence = Math.min(0.95, existing.confidence + 0.05)
+        existing.lastSeen = Date.now()
+      } else {
+        p.traits.push({ trait, confidence: 0.4, evidence: 1, firstSeen: Date.now(), lastSeen: Date.now() })
+      }
+      changed = true
+    }
+  }
+
+  if (changed) {
+    p.version++
+    p.lastUpdated = Date.now()
+    saveLivingProfile()
+  }
+}
+
+function recordProfileChange(field: string, oldValue: string, newValue: string, trigger: string) {
+  livingProfile.timeline.push({
+    ts: Date.now(),
+    field,
+    oldValue: oldValue || '(空)',
+    newValue,
+    trigger: trigger.slice(0, 60),
+  })
+  // 保留最近 50 条变更
+  if (livingProfile.timeline.length > 50) livingProfile.timeline = livingProfile.timeline.slice(-50)
+}
+
+/** 获取活画像的文本摘要（注入 prompt） */
+export function getLivingProfileSummary(): string {
+  const p = livingProfile
+  if (p.version === 0) return ''
+
+  const parts: string[] = []
+  const id = p.identity
+  if (id.name) parts.push(`名字: ${id.name}`)
+  if (id.company && id.role) parts.push(`工作: ${id.company} ${id.role}`)
+  else if (id.company) parts.push(`公司: ${id.company}`)
+  if (id.techStack.length > 0) parts.push(`技术: ${id.techStack.join(', ')}`)
+  if (id.family.length > 0) parts.push(`家庭: ${id.family.map(f => `${f.relation}${f.name ? '(' + f.name + ')' : ''}`).join(', ')}`)
+  if (id.location) parts.push(`住: ${id.location}`)
+  if (id.habits.length > 0) parts.push(`习惯: ${id.habits.slice(-3).join('; ')}`)
+
+  // 高置信度特征
+  const strongTraits = p.traits.filter(t => t.confidence > 0.5).map(t => t.trait)
+  if (strongTraits.length > 0) parts.push(`特征: ${strongTraits.join(', ')}`)
+
+  // 最近变化
+  const recentChanges = p.timeline.slice(-2)
+  if (recentChanges.length > 0) {
+    parts.push(`近期变化: ${recentChanges.map(c => `${c.field}: ${c.oldValue}→${c.newValue}`).join('; ')}`)
+  }
+
+  return parts.join(' | ')
+}
+
+export function getLivingProfile(): LivingProfile { return livingProfile }
+export function getLivingProfileVersion(): number { return livingProfile.version }
+
 // Lazy modules (avoid circular deps + ESM require)
 let _bodyMod: any = null
 let _memMod: any = null
@@ -63,6 +268,21 @@ export function getPersonModel(): PersonModel { return personModel }
 ;(globalThis as any).__ccSoulPersonModel = personModel
 
 /**
+ * 分阶段人格蒸馏：
+ * 5 条消息 → 粗粒度（基本偏好）
+ * 15 条消息 → 中粒度（价值观 + 思维风格）
+ * 30 条消息 → 细粒度（矛盾面 + 沟通密码 + 推理风格）
+ *
+ * 不再等 20 条才开始，5 条就给用户一个初步画像
+ */
+function getDistillPhase(messageCount: number): 'none' | 'coarse' | 'medium' | 'fine' {
+  if (messageCount < 5) return 'none'
+  if (messageCount < 15) return 'coarse'
+  if (messageCount < 30) return 'medium'
+  return 'fine'
+}
+
+/**
  * Distill person model from accumulated data.
  * Called from heartbeat (not every message — expensive).
  * Uses rule-based extraction, no LLM calls.
@@ -70,7 +290,8 @@ export function getPersonModel(): PersonModel { return personModel }
 export function distillPersonModel() {
   ensureMemoriesLoaded()
   const memories = memoryState.memories
-  if (memories.length < 20) return // not enough data
+  const phase = getDistillPhase(memories.length)
+  if (phase === 'none') return // not enough data (< 5)
 
   // ── Values extraction: from preference + correction patterns ──
   const prefs = memories.filter(m => m.scope === 'preference' && m.scope !== 'expired')
@@ -89,32 +310,38 @@ export function distillPersonModel() {
 
   // ── Belief extraction: from repeated patterns in corrections ──
   // If user corrects the same type of thing 3+ times, it's a belief
+  // (medium + fine phase)
   const correctionDomains = new Map<string, number>()
-  for (const c of corrections) {
-    const d = detectDomain(c.content)
-    correctionDomains.set(d, (correctionDomains.get(d) || 0) + 1)
-  }
-  for (const [domain, count] of correctionDomains) {
-    if (count >= 3 && !personModel.beliefs.some(b => b.includes(domain))) {
-      personModel.beliefs.push(`在${domain}领域有强烈的观点（被纠正${count}次仍坚持）`)
-      if (personModel.beliefs.length > 10) personModel.beliefs.shift()
+  if (phase === 'medium' || phase === 'fine') {
+    for (const c of corrections) {
+      const d = detectDomain(c.content)
+      correctionDomains.set(d, (correctionDomains.get(d) || 0) + 1)
+    }
+    for (const [domain, count] of correctionDomains) {
+      if (count >= 3 && !personModel.beliefs.some(b => b.includes(domain))) {
+        personModel.beliefs.push(`在${domain}领域有强烈的观点（被纠正${count}次仍坚持）`)
+        if (personModel.beliefs.length > 10) personModel.beliefs.shift()
+      }
     }
   }
 
   // ── Contradiction archive: find conflicting preferences ──
-  const prefContents = prefs.map(p => p.content.toLowerCase())
-  const negators = ['不', '没', '别', '反对', '讨厌', '不喜欢']
-  for (let i = 0; i < prefContents.length; i++) {
-    for (let j = i + 1; j < prefContents.length; j++) {
-      // Check if two preferences contradict (one has negator of the other's keyword)
-      const words1 = prefContents[i].match(/[\u4e00-\u9fff]{2,4}/g) || []
-      const words2 = prefContents[j].match(/[\u4e00-\u9fff]{2,4}/g) || []
-      for (const w of words1) {
-        if (words2.some(w2 => negators.some(n => w2 === n + w || w2 === w + n))) {
-          const contradiction = `说过"${prefs[i].content.slice(0, 30)}"但也说过"${prefs[j].content.slice(0, 30)}"`
-          if (!personModel.contradictions.includes(contradiction)) {
-            personModel.contradictions.push(contradiction)
-            if (personModel.contradictions.length > 5) personModel.contradictions.shift()
+  // (fine phase only — needs enough data to detect real contradictions)
+  if (phase === 'fine') {
+    const prefContents = prefs.map(p => p.content.toLowerCase())
+    const negators = ['不', '没', '别', '反对', '讨厌', '不喜欢']
+    for (let i = 0; i < prefContents.length; i++) {
+      for (let j = i + 1; j < prefContents.length; j++) {
+        // Check if two preferences contradict (one has negator of the other's keyword)
+        const words1 = prefContents[i].match(/[\u4e00-\u9fff]{2,4}/g) || []
+        const words2 = prefContents[j].match(/[\u4e00-\u9fff]{2,4}/g) || []
+        for (const w of words1) {
+          if (words2.some(w2 => negators.some(n => w2 === n + w || w2 === w + n))) {
+            const contradiction = `说过"${prefs[i].content.slice(0, 30)}"但也说过"${prefs[j].content.slice(0, 30)}"`
+            if (!personModel.contradictions.includes(contradiction)) {
+              personModel.contradictions.push(contradiction)
+              if (personModel.contradictions.length > 5) personModel.contradictions.shift()
+            }
           }
         }
       }
@@ -122,72 +349,82 @@ export function distillPersonModel() {
   }
 
   // ── Domain expertise: from chatHistory topic frequency + correction rate ──
+  // (medium + fine phase)
   const history = memoryState.chatHistory
-  const domainCounts = new Map<string, number>()
-  for (const h of history.slice(-100)) {
-    const d = detectDomain(h.user)
-    if (d !== '闲聊' && d !== '通用') domainCounts.set(d, (domainCounts.get(d) || 0) + 1)
-  }
-  for (const [domain, count] of domainCounts) {
-    const corrCount = correctionDomains.get(domain) || 0
-    const corrRate = count > 0 ? corrCount / count : 0
-    personModel.domainExpertise[domain] =
-      count >= 10 && corrRate < 0.1 ? 'expert' :
-      count >= 5 ? 'intermediate' : 'beginner'
+  if (phase === 'medium' || phase === 'fine') {
+    const domainCounts = new Map<string, number>()
+    for (const h of history.slice(-100)) {
+      const d = detectDomain(h.user)
+      if (d !== '闲聊' && d !== '通用') domainCounts.set(d, (domainCounts.get(d) || 0) + 1)
+    }
+    for (const [domain, count] of domainCounts) {
+      const corrCount = correctionDomains.get(domain) || 0
+      const corrRate = count > 0 ? corrCount / count : 0
+      personModel.domainExpertise[domain] =
+        count >= 10 && corrRate < 0.1 ? 'expert' :
+        count >= 5 ? 'intermediate' : 'beginner'
+    }
   }
 
   // ── Communication decoder: from short messages that got follow-ups ──
-  for (let i = 0; i < history.length - 1; i++) {
-    const msg = history[i].user
-    if (msg.length <= 4 && msg.length >= 1) {
-      // Short message patterns
-      if (msg === '算了' || msg === '好吧') {
-        personModel.communicationDecoder[msg] = personModel.communicationDecoder[msg] || '可能需要换个角度'
-      }
-      if (msg === '随便' || msg === '都行') {
-        personModel.communicationDecoder[msg] = personModel.communicationDecoder[msg] || '希望你来做决定'
+  // (fine phase only — needs enough conversational context)
+  if (phase === 'fine') {
+    for (let i = 0; i < history.length - 1; i++) {
+      const msg = history[i].user
+      if (msg.length <= 4 && msg.length >= 1) {
+        // Short message patterns
+        if (msg === '算了' || msg === '好吧') {
+          personModel.communicationDecoder[msg] = personModel.communicationDecoder[msg] || '可能需要换个角度'
+        }
+        if (msg === '随便' || msg === '都行') {
+          personModel.communicationDecoder[msg] = personModel.communicationDecoder[msg] || '希望你来做决定'
+        }
       }
     }
   }
 
   // ── Emotional pattern extraction: via unified getMoodState() ──
-  {
-    const bm = lazyBody(); const getMoodState = bm?.getMoodState
-    const moodState = getMoodState()
-    if (moodState.moodRatio) {
-      if (moodState.moodRatio.positive > moodState.moodRatio.negative * 2) {
-        if (!personModel.values.includes('整体情绪积极')) personModel.values.push('整体情绪积极')
-      } else if (moodState.moodRatio.negative > moodState.moodRatio.positive * 2) {
-        if (!personModel.values.includes('近期情绪压力大')) personModel.values.push('近期情绪压力大')
+  // (medium + fine phase)
+  if (phase === 'medium' || phase === 'fine') {
+    {
+      const bm = lazyBody(); const getMoodState = bm?.getMoodState
+      const moodState = getMoodState()
+      if (moodState.moodRatio) {
+        if (moodState.moodRatio.positive > moodState.moodRatio.negative * 2) {
+          if (!personModel.values.includes('整体情绪积极')) personModel.values.push('整体情绪积极')
+        } else if (moodState.moodRatio.negative > moodState.moodRatio.positive * 2) {
+          if (!personModel.values.includes('近期情绪压力大')) personModel.values.push('近期情绪压力大')
+        }
       }
     }
+
+    // ── Emotion pattern tracking: which emotions does user experience most ──
+    try {
+      const memories = memoryState.memories.filter(m => (m as any).emotionLabel && m.scope !== 'expired')
+      const emotionCounts = new Map<string, number>()
+      for (const m of memories) {
+        const label = (m as any).emotionLabel
+        if (label && label !== 'neutral') {
+          emotionCounts.set(label, (emotionCounts.get(label) || 0) + 1)
+        }
+      }
+      if (emotionCounts.size >= 2) {
+        const sorted = [...emotionCounts.entries()].sort((a, b) => b[1] - a[1])
+        const topEmotions = sorted.slice(0, 3).map(([label, count]) => `${label}(${count}次)`)
+        const pattern = `常见情绪: ${topEmotions.join('、')}`
+        if (!personModel.values.includes(pattern) && !personModel.values.some(v => v.startsWith('常见情绪'))) {
+          // Replace existing emotion pattern or add new
+          const existingIdx = personModel.values.findIndex(v => v.startsWith('常见情绪'))
+          if (existingIdx >= 0) personModel.values[existingIdx] = pattern
+          else personModel.values.push(pattern)
+        }
+      }
+    } catch {}
   }
 
-  // ── Emotion pattern tracking: which emotions does user experience most ──
-  try {
-    const memories = memoryState.memories.filter(m => (m as any).emotionLabel && m.scope !== 'expired')
-    const emotionCounts = new Map<string, number>()
-    for (const m of memories) {
-      const label = (m as any).emotionLabel
-      if (label && label !== 'neutral') {
-        emotionCounts.set(label, (emotionCounts.get(label) || 0) + 1)
-      }
-    }
-    if (emotionCounts.size >= 2) {
-      const sorted = [...emotionCounts.entries()].sort((a, b) => b[1] - a[1])
-      const topEmotions = sorted.slice(0, 3).map(([label, count]) => `${label}(${count}次)`)
-      const pattern = `常见情绪: ${topEmotions.join('、')}`
-      if (!personModel.values.includes(pattern) && !personModel.values.some(v => v.startsWith('常见情绪'))) {
-        // Replace existing emotion pattern or add new
-        const existingIdx = personModel.values.findIndex(v => v.startsWith('常见情绪'))
-        if (existingIdx >= 0) personModel.values[existingIdx] = pattern
-        else personModel.values.push(pattern)
-      }
-    }
-  } catch {}
-
   // ── Reasoning profile: detect argument style, evidence, certainty, disagreement ──
-  {
+  // (fine phase only — needs substantial conversation data)
+  if (phase === 'fine') {
     if (!personModel.reasoningProfile?._counts) {
       personModel.reasoningProfile = { style: 'unknown', evidence: 'unknown', certainty: 'unknown', disagreement: 'unknown', _counts: { style: {}, evidence: {}, certainty: {}, disagreement: {}, total: 0 } }
     }
@@ -222,12 +459,12 @@ export function distillPersonModel() {
   personModel.updatedAt = Date.now()
   personModel.distillCount++
   debouncedSave(PERSON_MODEL_PATH, personModel)
-  console.log(`[cc-soul][person-model] distilled #${personModel.distillCount}: ${personModel.values.length} values, ${personModel.beliefs.length} beliefs, ${personModel.contradictions.length} contradictions`)
+  console.log(`[cc-soul][person-model] distilled #${personModel.distillCount} (phase=${phase}): ${personModel.values.length} values, ${personModel.beliefs.length} beliefs, ${personModel.contradictions.length} contradictions`)
 
-  // ── LLM deep synthesis (every 5th distill, not every time — expensive) ──
+  // ── LLM deep synthesis (every 5th distill, fine phase only — expensive) ──
   // This is the REAL understanding layer: WHY, not just WHAT.
   // The regex above catches surface patterns; the LLM below synthesizes meaning.
-  if (personModel.distillCount % 5 === 0 && history.length >= 20) {
+  if (phase === 'fine' && personModel.distillCount % 5 === 0 && history.length >= 20) {
     const cm = lazyCli(); const spawnCLI = cm?.spawnCLI
 
     // Gather all available data for synthesis

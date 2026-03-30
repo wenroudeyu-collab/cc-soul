@@ -20,16 +20,11 @@ npm install -g @cc-soul/openclaw
 
 LLM configuration is **automatic** — cc-soul reads your OpenClaw config if available. Most features (memory, recall, persona, emotion) work without any LLM. Only `/soul` endpoint and background tasks need LLM access.
 
-If not using OpenClaw, configure LLM via environment variables or API:
+If not using OpenClaw, configure LLM via API after install:
 
 ```bash
-# Option 1: environment variables (before install)
-export LLM_API_BASE=https://api.openai.com/v1
-export LLM_API_KEY=sk-xxx
-export LLM_MODEL=gpt-4o
-
-# Option 2: runtime config (after install)
 curl -X POST localhost:18800/config \
+  -H "Content-Type: application/json" \
   -d '{"api_base":"https://api.openai.com/v1","api_key":"sk-xxx","model":"gpt-4o"}'
 ```
 
@@ -116,7 +111,7 @@ curl -X POST http://localhost:18800/features \
 
 ### POST /soul
 
-Soul mode — cc-soul calls LLM and replies as the user's avatar. Requires LLM configured via `/config` or env vars.
+Soul mode — cc-soul calls LLM and replies as the user's avatar. Requires LLM configured via `POST /config`.
 
 ```bash
 curl -X POST http://localhost:18800/soul \
@@ -367,34 +362,26 @@ Every message is analyzed for memory extraction, entity recognition, emotional s
 
 ---
 
-## Vector Search (Optional)
+## NAM — Neural Activation Memory
 
-cc-soul works out of the box with keyword matching (TF-IDF + trigram). For semantic search ("that deployment thing" also finds "set up server on AWS"), download a local embedding model:
+cc-soul's original memory engine. Memories aren't "searched" — they surface automatically, like the human brain. 6 signals computed simultaneously:
 
-| You ask | Keyword mode (default) | Vector mode |
-|---------|----------------------|-------------|
-| "that deployment thing" | Matches "deployment" only | Also finds "set up server on AWS, SSH port 22" |
-| "the bug from last week" | Matches "bug" | Also finds "TypeError crash in auth module" |
-| "database stuff" | Matches "database" | Also finds "PostgreSQL connection pool", "Redis cache TTL" |
-
-### Setup (2 minutes)
-
-```bash
-mkdir -p ~/.openclaw/plugins/cc-soul/data/models/minilm
-cd ~/.openclaw/plugins/cc-soul/data/models/minilm
-curl -L -o model.onnx "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx"
-curl -L -o vocab.json "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+```
+① Base activation     — frequency + recency (ACT-R model)
+② Context match       — AAM word expansion + BM25 + trigram fusion
+③ Emotional resonance — current mood × memory emotion (PADCN cosine)
+④ Spreading activation — related memories boost each other
+⑤ Interference        — similar memories compete, strongest wins
+⑥ Temporal context    — time-of-day encoding specificity
 ```
 
-Or just say `安装向量` / `install vector` — cc-soul downloads everything automatically.
-
-~90MB on disk, ~120MB RAM, ~5ms per query. CPU only, no GPU needed. Restart to activate. Without it, everything works the same — just keyword matching instead of semantic.
+One system, no layers, no degradation, no external models. NAM learns your personal semantic connections from usage — gets smarter the more you talk.
 
 ---
 
 ## Privacy & Security
 
-All data stored locally in `~/.openclaw/plugins/cc-soul/data/`. Nothing ever leaves your machine. No telemetry.
+All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data/` if using OpenClaw). Auto-detected, auto-created. Nothing ever leaves your machine. No telemetry.
 
 - **Privacy mode** — say `隐私模式` to pause all memory storage
 - **PII filtering** — auto-strips emails, phone numbers, API keys, IPs

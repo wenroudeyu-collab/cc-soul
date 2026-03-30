@@ -63,5 +63,27 @@
         "count": 1
       }
     ]
+  },
+  {
+    "trigger": "urged",
+    "reactions": [
+      {
+        "text": "烦死了！！项目又延期了 老板还",
+        "count": 1
+      },
+      {
+        "text": "你能帮我总结一下你对我的了解吗",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "greeting",
+    "reactions": [
+      {
+        "text": "我每天早上6点起床，晚上11点",
+        "count": 1
+      }
+    ]
   }
 ]

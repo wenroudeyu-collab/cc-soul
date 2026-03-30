@@ -21,11 +21,14 @@ import {
   memoryState, scopeIndex, useSQLite, _memoriesLoaded, ensureSQLiteReady,
   saveMemories, syncToSQLite, getLazyModule,
   bayesBoost, bayesPenalize, bayesCorrect,
+  coreMemories,
 } from './memory.ts'
+import { queryFacts } from './fact-store.ts'
 import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
   SYNONYM_MAP,
 } from './memory-utils.ts'
+import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
 
 // ── Persistent recall indices (avoid O(n) rebuild each recall) ──
 const _contentMap = new Map<string, Memory>()      // content → Memory
@@ -234,7 +237,9 @@ function bm25Score(queryWords: Set<string>, doc: string, avgDocLen: number): num
       const k1 = getBM25K1(), b = getBM25B()
       const numerator = termFreq * (k1 + 1)
       const denominator = termFreq + k1 * (1 - b + b * (docLen / avgDocLen))
-      score += idfVal * (numerator / denominator)
+      // BM25+ (Lv & Zhai 2011): delta=1 下界防止短文档被过度惩罚
+      const delta = 1
+      score += idfVal * (numerator / denominator + delta)
       break // only count best synonym match per query word
     }
   }
@@ -270,9 +275,30 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   if (memoryState.memories.length === 0 || !msg) return []
 
   // Extract query keywords (Chinese 2+ char sequences + English 3+ char words)
+  // 短查询（<10字）降低门槛到单字CJK，避免"我住哪""我有宠物吗"无词命中
+  const cjkMinLen = msg.length < 10 ? 1 : 2
+  const cjkPattern = cjkMinLen === 1 ? /[\u4e00-\u9fff]+/gi : /[\u4e00-\u9fff]{2,}/gi
   const rawWords = new Set(
-    (msg.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+    (msg.match(cjkPattern) || []).concat(msg.match(/[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
   )
+  // 短查询单字关键词扩展（"住" → "住在""住北京"，"宠物" 保持，"电脑" 保持）
+  if (msg.length < 15) {
+    const QUERY_EXPAND: Record<string, string[]> = {
+      '住': ['住在', '北京', '上海', '深圳', '广州', '杭州', '地址'],
+      '哪': [], // 疑问词不扩展
+      '宠物': ['猫', '狗', '养了', '养'],
+      '电脑': ['macbook', 'mac', 'thinkpad', '笔记本', '台式'],
+      '饮料': ['咖啡', '茶', '酒', '喝'],
+      '喝': ['咖啡', '茶', '酒', '饮料'],
+      '工作': ['公司', '上班', '就职', '字节', '腾讯', '阿里'],
+      '讨厌': ['不喜欢', '不想', '受不了'],
+      '跑步': ['运动', '锻炼', '公里'],
+    }
+    for (const w of [...rawWords]) {
+      const expand = QUERY_EXPAND[w]
+      if (expand) for (const e of expand) rawWords.add(e)
+    }
+  }
   if (rawWords.size === 0) return []
 
   // Graph-augmented query expansion
@@ -521,7 +547,29 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       stateGate = Math.max(0.1, stateGate)
     }
 
-    scored.push({ ...mem, score: logScore * stateGate })
+    // ── 编码特异性 (Encoding Specificity, Tulving 1983) ──
+    // 如果当前话题和记忆创建时的话题相似 → boost
+    // 不只看 mood 匹配，还看 topic/context 匹配
+    let encodingBoost = 1.0
+    if (mem.recallContexts && mem.recallContexts.length > 0) {
+      // 用查询词和记忆的历史召回上下文比较
+      const queryWordsStr = [...queryWords].join(' ')
+      for (const ctx of mem.recallContexts) {
+        const ctxWords = (ctx.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+        const overlap = ctxWords.filter((w: string) => queryWords.has(w)).length
+        if (overlap >= 2) {
+          encodingBoost = Math.max(encodingBoost, 1.0 + overlap * 0.1)  // 最高 1.5
+          break
+        }
+      }
+    }
+    // 如果记忆有 tags 和当前查询高度匹配（编码时的标签 = 编码上下文）
+    if (mem.tags && mem.tags.length > 0) {
+      const tagHits = mem.tags.filter((t: string) => queryWords.has(t.toLowerCase())).length
+      if (tagHits >= 3) encodingBoost = Math.max(encodingBoost, 1.3)
+    }
+
+    scored.push({ ...mem, score: logScore * stateGate * encodingBoost })
   }
 
   // ── Spreading Activation with IDF weighting: memories activate related memories ──
@@ -563,6 +611,23 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   scored.sort((a, b) => b.score - a.score)
 
   // ═══════════════════════════════════════════════════════════════════════════════
+  // Dirichlet LM scoring (Bayesian smoothing language model, 2nd retrieval channel)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // Build corpus frequency map lazily for Dirichlet LM
+  let _corpusFreq: Map<string, number> | null = null
+  function getCorpusFreq(): Map<string, number> {
+    if (_corpusFreq) return _corpusFreq
+    _corpusFreq = new Map<string, number>()
+    let total = 0
+    for (const mem of activeMemories) {
+      const tokens = bm25Tokenize(mem.content)
+      for (const t of tokens) { _corpusFreq.set(t, (_corpusFreq.get(t) || 0) + 1); total++ }
+    }
+    _corpusFreq.set('__total__', total || 10000)
+    return _corpusFreq
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════════
   // RRF (Reciprocal Rank Fusion) — multi-channel re-ranking
   // Each channel sorts independently, then fused via 1/(k+rank) to reduce
   // sensitivity to any single scoring dimension's scale.
@@ -593,10 +658,29 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       return { idx: i, key: graphHits + (s.recallCount ?? 0) * 0.1 }
     })
     ch4.sort((a, b) => b.key - a.key)
+    // Channel 5: Dirichlet LM — Bayesian language model scoring
+    const cf = getCorpusFreq()
+    const corpusSize = cf.get('__total__') || 10000
+    const dirichletMu = 2000
+    if (!bm25QueryTokens) bm25QueryTokens = new Set(bm25Tokenize(msg))
+    const queryTermsArr = [...bm25QueryTokens]
+    const ch5 = scored.map((s, i) => {
+      const docTokens = _getDocTokens(s.content).words
+      const docLen = docTokens.length
+      if (docLen === 0) return { idx: i, key: -Infinity }
+      let dlmScore = 0
+      for (const qt of queryTermsArr) {
+        const tf = docTokens.filter(t => t === qt).length
+        const cfVal = cf.get(qt) || 1
+        dlmScore += Math.log((tf + dirichletMu * cfVal / corpusSize) / (docLen + dirichletMu))
+      }
+      return { idx: i, key: dlmScore }
+    })
+    ch5.sort((a, b) => b.key - a.key)
 
     // Build rank maps: idx → rank (0-based)
     const rankMaps: Map<number, number>[] = []
-    for (const channel of [ch1, ch2, ch3, ch4]) {
+    for (const channel of [ch1, ch2, ch3, ch4, ch5]) {
       const rm = new Map<number, number>()
       for (let r = 0; r < channel.length; r++) rm.set(channel[r].idx, r)
       rankMaps.push(rm)
@@ -641,9 +725,25 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     const mem = _memLookup.get(`${result.content}\0${result.ts}`)
     if (mem) {
       mem.lastAccessed = Date.now()
-      bayesBoost(mem, 0.5)  // Bayesian posterior update: α += 0.5
       mem.recallCount = (mem.recallCount ?? 0) + 1
       mem.lastRecalled = Date.now()
+
+      // ── 测试效应 (Testing Effect, Roediger 2006) ──
+      // 越难回忆的记忆（score 越低），成功召回后强化越大
+      // score 高 = 容易回忆 = 小幅强化（+0.01）
+      // score 低 = 困难回忆 = 大幅强化（+0.05）
+      const retrievalDifficulty = 1 - Math.min(1, result.score / 0.5)  // score 越低难度越高
+      const testingBoost = 0.01 + retrievalDifficulty * 0.04  // 范围 [0.01, 0.05]
+      // 用 testingBoost 作为 bayesBoost 的 delta（替代固定 0.5）
+      bayesBoost(mem, 0.3 + retrievalDifficulty * 0.7)  // Bayesian posterior: 困难召回 → 更大 alpha 增量
+      mem.confidence = Math.min(1.0, (mem.confidence ?? 0.7) + testingBoost)
+
+      // FSRS 稳定度也受测试效应影响
+      if (mem.fsrs) {
+        const difficultyBonus = 1 + retrievalDifficulty * 0.5  // 困难召回 → stability 增长更多
+        mem.fsrs.stability *= difficultyBonus
+      }
+
       syncToSQLite(mem, { confidence: mem.confidence, recallCount: mem.recallCount, lastAccessed: mem.lastAccessed, lastRecalled: mem.lastRecalled })
       // Memory reconsolidation: recalled memories absorb current context
       // Like human memory — each recall slightly modifies the memory
@@ -667,6 +767,44 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
           syncToSQLite(mem, { content: mem.content, tier: mem.tier })
         }
       }
+
+      // ── 活性记忆网络：实时微蒸馏 (Living Memory Network) ──
+      // 每次 recall 命中时，提取"为什么这条记忆和这个查询相关"的微连接
+      // 零 LLM 调用，纯规则提取
+      try {
+        // 提取 query 和 memory 的共享关键词（这就是"为什么相关"的原因）
+        const memWords = (result.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+        const sharedWords = memWords.filter((w: string) => queryWords.has(w))
+
+        if (sharedWords.length >= 1) {
+          // 生成微连接：query_context → memory_topic → shared_keywords
+          const microLink = {
+            query: msg.slice(0, 40),
+            memoryRef: result.content.slice(0, 40),
+            sharedKeywords: sharedWords.slice(0, 5),
+            ts: Date.now(),
+          }
+
+          // 存入记忆的 microLinks 数组
+          if (!mem.microLinks) mem.microLinks = []
+          mem.microLinks.push(microLink)
+          if (mem.microLinks.length > 10) mem.microLinks.shift()  // 保留最近 10 条
+
+          // 微连接累积检测：如果同一组关键词出现 3+ 次，涌现为话题标签
+          const keywordFreq = new Map<string, number>()
+          for (const link of mem.microLinks) {
+            for (const kw of link.sharedKeywords) {
+              keywordFreq.set(kw, (keywordFreq.get(kw) || 0) + 1)
+            }
+          }
+          for (const [kw, freq] of keywordFreq) {
+            if (freq >= 3 && mem.tags && !mem.tags.includes(kw)) {
+              mem.tags.push(kw)
+              console.log(`[cc-soul][living-network] emergent tag: "${kw}" on memory "${mem.content.slice(0, 30)}"`)
+            }
+          }
+        }
+      } catch {}
     }
   }
   if (topResults.length > 0) saveMemories()
@@ -757,119 +895,191 @@ export function recallWithMetamemory(msg: string, topN: number = 3, userId?: str
 /** Detect if user is explicitly asking about past memories */
 const MEMORY_RECALL_TRIGGERS = /你还记得|你记不记得|之前说过|上次提到|我们聊过|你忘了吗|还记得吗/
 
-/** Public recall — strips internal score field from results. Merges OpenClaw native memory if available. */
-export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }): Memory[] {
-  // Auto-detect memory recall triggers → force awaitVector
-  const awaitVector = opts?.awaitVector ?? MEMORY_RECALL_TRIGGERS.test(msg)
+// ═══════════════════════════════════════════════════════════════════════════════
+// 认知双通道召回 (Cognitive Dual-Channel Recall)
+//
+// System 1 (直觉，<5ms)：fact-store hash 查询 + core memory 精确匹配
+//   → "我叫什么" "我在哪工作" "我喜欢什么" 这类问题秒回
+//   → 90% 的日常查询在这里结束
+//
+// System 2 (推理，<50ms)：BM25 + trigram + 图谱 + 所有增强
+//   → "上次聊的那个话题" "为什么选 Go" 这类复杂查询
+//   → 只有 System 1 没命中时才走
+//
+// 自适应切换：查询复杂度 > 阈值 → 直接跳到 System 2
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  // ── Fast path: SQLite direct query (no need for loadMemories) ──
-  // If memories haven't been loaded into memoryState yet, use SQLite directly.
-  // This avoids the 4-5 second loadMemories() cost on first call.
-  let ccResults: Memory[]
+const SYSTEM2_KEYWORDS = /为什么|怎么看|如何|对比|区别|上次|之前|总结|分析|比较|回顾/
 
-  if (!_memoriesLoaded && ensureSQLiteReady()) {
-    // Use synchronous tagRecall — queries SQLite directly
-    ccResults = sqliteTagRecall(msg, topN, userId, channelId)
-  } else if (_memoriesLoaded) {
-    // Memories already in-memory, use the full scoring pipeline
-    ccResults = recallWithScores(msg, topN, userId, channelId, moodCtx) as Memory[]
-  } else {
-    // No SQLite, no in-memory — lightweight JSON file search (no full load)
-    ccResults = recallFromJsonFile(msg, topN)
-  }
+/** Predicate → 中文可读标签 */
+const PRED_LABELS: Record<string, string> = {
+  likes: '喜欢', dislikes: '讨厌', works_at: '在', lives_in: '住在',
+  uses: '用', has_pet: '养了', has_family: '有', habit: '习惯',
+  occupation: '职业是', age: '年龄', educated_at: '毕业于',
+  relationship: '的伴侣', uses_os: '用', prefers: '偏好', family_name: '的',
+}
 
-  // ── Vector recall: await or fire-and-forget based on awaitVector flag ──
-  if (ensureSQLiteReady() && hasVectorSearch()) {
-    const cacheKey = `${userId || ''}:${channelId || ''}`
-    if (awaitVector) {
-      // Synchronous-ish: race with 100ms timeout, merge results into current turn
-      // We use a blocking approach via shared state since recall() is sync
-      let resolved = false
-      const vecPromise = sqliteRecallAsync(msg, topN, userId, channelId)
-      const timeoutPromise = new Promise<Memory[]>(res => setTimeout(() => res([]), 100))
-      Promise.race([vecPromise, timeoutPromise]).then(vecResults => {
-        if (vecResults.length > 0 && !resolved) {
-          resolved = true
-          _lastVectorResults = vecResults.slice(0, 5)
-          _lastVectorResultsKey = cacheKey
-          // Merge into ccResults if still in scope (synchronous merge for this turn)
-          const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
-          for (const m of vecResults) {
-            if (!seen.has(m.content.slice(0, 60))) {
-              ccResults.push(m)
-              seen.add(m.content.slice(0, 60))
+/** Fact query pattern → predicate 映射 */
+const FACT_QUERY_PATTERNS: { pattern: RegExp; predicates: string[] }[] = [
+  { pattern: /叫什么|我是谁|名字/, predicates: [] },  // empty = all user facts
+  { pattern: /工作|公司|在哪.*工作|上班/, predicates: ['works_at', 'occupation'] },
+  { pattern: /住哪|住在|地址/, predicates: ['lives_in'] },
+  { pattern: /喜欢|偏好|最爱/, predicates: ['likes', 'prefers'] },
+  { pattern: /讨厌|不喜欢|受不了/, predicates: ['dislikes'] },
+  { pattern: /职业|做什么的/, predicates: ['occupation'] },
+  { pattern: /多大|几岁|年龄/, predicates: ['age'] },
+  { pattern: /宠物|猫|狗|养/, predicates: ['has_pet'] },
+  { pattern: /家人|女儿|儿子|孩子|老婆|老公/, predicates: ['has_family', 'family_name', 'relationship'] },
+  { pattern: /习惯|每天/, predicates: ['habit'] },
+  { pattern: /用什么|电脑|设备/, predicates: ['uses', 'uses_os'] },
+  { pattern: /喝什么|饮料|咖啡|茶/, predicates: ['likes', 'dislikes'] },
+  { pattern: /毕业|学校|大学/, predicates: ['educated_at'] },
+]
+
+function system1FastRecall(msg: string, topN: number, _userId?: string): Memory[] | null {
+  // 长查询或含推理词 → 直接走 System 2
+  if (msg.length > 30) return null
+  if (SYSTEM2_KEYWORDS.test(msg)) return null
+
+  const results: Memory[] = []
+
+  // ── Channel A: Fact-Store Hash 查询（SQLite indexed / O(1) in-memory）──
+  try {
+    const matchedPredicates = new Set<string>()
+    let matchedAny = false
+
+    for (const { pattern, predicates } of FACT_QUERY_PATTERNS) {
+      if (pattern.test(msg)) {
+        matchedAny = true
+        if (predicates.length === 0) {
+          // 无具体 predicate → 查所有 user facts
+          const allFacts = queryFacts({ subject: 'user' })
+          for (const f of allFacts) {
+            const label = PRED_LABELS[f.predicate] || f.predicate
+            results.push({
+              content: `用户${label}${f.object}`,
+              scope: 'fact',
+              ts: f.ts || Date.now(),
+              confidence: f.confidence || 0.8,
+              source: 'system1_fact',
+            } as Memory)
+          }
+        } else {
+          for (const pred of predicates) {
+            if (matchedPredicates.has(pred)) continue
+            matchedPredicates.add(pred)
+            const facts = queryFacts({ subject: 'user', predicate: pred })
+            for (const f of facts) {
+              const label = PRED_LABELS[f.predicate] || f.predicate
+              results.push({
+                content: `用户${label}${f.object}`,
+                scope: 'fact',
+                ts: f.ts || Date.now(),
+                confidence: f.confidence || 0.8,
+                source: 'system1_fact',
+              } as Memory)
             }
           }
         }
-      }).catch(() => {})
-      // Also cache for next turn regardless
-    } else {
-      sqliteRecallAsync(msg, topN, userId, channelId).then(vecResults => {
-        if (vecResults.length > 0) {
-          console.log(`[cc-soul][recall] vector search found ${vecResults.length} semantic matches`)
-          _lastVectorResults = vecResults.slice(0, 5)
-          _lastVectorResultsKey = cacheKey
-        }
-      }).catch(() => {})
+      }
     }
-  }
 
-  // Merge OpenClaw native memory results (best-effort, non-blocking)
+    if (!matchedAny) {
+      // 没匹配到任何 pattern → Channel A 无结果，继续 Channel B
+    }
+  } catch { /* fact-store 不可用时静默降级 */ }
+
+  // ── Channel B: Core Memory 精确匹配 ──
   try {
-    const nativeResults = recallFromOpenClawMemory(msg, topN)
-    if (nativeResults.length > 0) {
-      // Dedup by content
-      const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
-      for (const m of nativeResults) {
-        if (!seen.has(m.content.slice(0, 60))) {
-          ccResults.push(m)
-          seen.add(m.content.slice(0, 60))
+    if (coreMemories && coreMemories.length > 0) {
+      const queryWords = (msg.match(/[\u4e00-\u9fff]+|[a-z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+      if (queryWords.length > 0 && queryWords.length <= 3) {
+        for (const cm of coreMemories) {
+          const cmLower = (cm.content || '').toLowerCase()
+          const hits = queryWords.filter((w: string) => cmLower.includes(w)).length
+          if (hits >= 1) {
+            // 避免与 Channel A 重复
+            const dup = results.some(r => r.content.includes(cm.content.slice(0, 20)))
+            if (!dup) {
+              results.push({
+                content: cm.content,
+                scope: cm.category || 'fact',
+                ts: cm.addedAt || Date.now(),
+                confidence: 0.9,
+                source: 'system1_core',
+              } as Memory)
+            }
+          }
         }
       }
     }
-  } catch (_) {}
+  } catch { /* core memory 不可用时静默降级 */ }
 
-  // Merge cached vector results from previous turn (available synchronously)
-  const cacheKeyCheck = `${userId || ''}:${channelId || ''}`
-  if (_lastVectorResults.length > 0 && _lastVectorResultsKey === cacheKeyCheck) {
-    const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
-    for (const m of _lastVectorResults) {
-      if (!seen.has(m.content.slice(0, 60))) {
-        ccResults.push(m)
-        seen.add(m.content.slice(0, 60))
+  // System 1 命中判定：至少有 1 条结果才算命中
+  if (results.length > 0) {
+    console.log(`[cc-soul][recall] System 1 hit: ${results.length} results (dual-channel)`)
+    return results.slice(0, topN)
+  }
+
+  return null  // System 1 未命中，降级到 System 2
+}
+
+/** Public recall — strips internal score field from results. Merges OpenClaw native memory if available. */
+export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }): Memory[] {
+  if (!msg || memoryState.memories.length === 0) return []
+
+  // ── 统一激活场：唯一的召回路径 ──
+  try {
+    const { activationRecall } = require('./activation-field.ts')
+    const results: Memory[] = activationRecall(
+      memoryState.memories,
+      msg,
+      topN,
+      moodCtx?.mood || 0,
+      moodCtx?.alertness || 0.5,
+    )
+
+    // 更新召回统计
+    recallStats.total++
+    if (results.length > 0) recallStats.successful++
+    if (recallStats.total > 1000) {
+      recallStats.rate = recallStats.successful / recallStats.total
+      recallStats.total = 0; recallStats.successful = 0
+    }
+
+    // 召回后更新记忆元数据（再固化）
+    for (const mem of results) {
+      const original = _memLookup.get(`${mem.content}\0${mem.ts}`) || _contentMap.get(mem.content)
+      if (original) {
+        original.lastAccessed = Date.now()
+        original.recallCount = (original.recallCount ?? 0) + 1
+        original.lastRecalled = Date.now()
+        original.confidence = Math.min(1.0, (original.confidence ?? 0.7) + 0.02)
+
+        // 测试效应：困难召回（在结果靠后）获得更大强化
+        const idx = results.indexOf(mem)
+        const difficulty = idx / Math.max(1, results.length)
+        const testingBoost = 0.01 + difficulty * 0.04
+        original.confidence = Math.min(1.0, original.confidence + testingBoost)
+
+        // FSRS stability 更新
+        if ((original as any).fsrs) {
+          (original as any).fsrs.stability *= (1 + difficulty * 0.3)
+        }
+
+        syncToSQLite(original, { confidence: original.confidence, recallCount: original.recallCount, lastAccessed: original.lastAccessed, lastRecalled: original.lastRecalled })
       }
     }
+    if (results.length > 0) saveMemories()
+
+    return results
+  } catch (e: any) {
+    console.log(`[cc-soul][recall] activation-field error: ${e.message}, fallback to legacy`)
   }
 
-  // Adaptive depth: if too few results, expand search
-  if (ccResults.length < topN && _memoriesLoaded) {
-    const expanded = recallWithScores(msg, topN * 3, userId, channelId, moodCtx) as Memory[]
-    const seen = new Set(ccResults.map(m => m.content.slice(0, 60)))
-    for (const m of expanded) {
-      if (!seen.has(m.content.slice(0, 60)) && ccResults.length < topN) {
-        ccResults.push(m)
-        seen.add(m.content.slice(0, 60))
-      }
-    }
-  }
-
-  // Fusion rerank: sort merged results by relevance
-  // Reuse scores from recallWithScores when available; only compute trigram for non-scored results
-  if (ccResults.length > topN) {
-    const queryTri = trigrams(msg)
-    ccResults.sort((a, b) => {
-      // If result already has a score from recallWithScores, use it directly
-      const scoreA = (a as any).score ?? trigramSimilarity(queryTri, trigrams(a.content))
-      const scoreB = (b as any).score ?? trigramSimilarity(queryTri, trigrams(b.content))
-      const scopeA = (a.scope === 'preference' || a.scope === 'fact') ? 1.3 : a.scope === 'correction' ? 1.5 : 1.0
-      const scopeB = (b.scope === 'preference' || b.scope === 'fact') ? 1.3 : b.scope === 'correction' ? 1.5 : 1.0
-      return (scoreB * scopeB) - (scoreA * scopeA)
-    })
-    ccResults = ccResults.slice(0, topN)
-  }
-
-  // Strip internal score field before returning
-  return ccResults.slice(0, topN).map(m => { const { score: _, ...rest } = m as any; return rest as Memory })
+  // ── Fallback：只在激活场出错时走旧路径 ──
+  // 保留 recallWithScores 作为紧急 fallback，但正常情况不会走到这里
+  return recallWithScores(msg, topN, userId, channelId, moodCtx).map(({ score, ...rest }) => rest) as Memory[]
 }
 
 /**

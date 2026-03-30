@@ -404,17 +404,54 @@ export function personalizedPageRank(seeds: string[], alpha = 0.15, maxIter = 20
   return ranks
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Spreading Activation — replaces PPR as default graph scoring in graphWalkRecallScored
+// Iteratively propagates activation from seed entities along weighted edges.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function spreadingActivation(
+  seeds: string[],
+  graphStateRef: { relations: Relation[] },
+  maxIter = 3,
+  decayFactor = 0.5
+): Map<string, number> {
+  const activation = new Map<string, number>()
+  // 初始激活
+  for (const s of seeds) activation.set(s, 1.0)
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    const newActivation = new Map<string, number>()
+    for (const [node, act] of activation) {
+      if (act < 0.01) continue  // prune negligible activations
+      // 沿出边传播
+      const edges = graphStateRef.relations.filter(r =>
+        (r.source === node || r.target === node) && !r.invalid_at
+      )
+      for (const e of edges) {
+        const neighbor = e.source === node ? e.target : e.source
+        const edgeWeight = (e.weight || 1) * (RELATION_WEIGHTS[e.type] || 0.7)
+        const spread = act * decayFactor * edgeWeight
+        newActivation.set(neighbor, (newActivation.get(neighbor) || 0) + spread)
+      }
+    }
+    // 合并到主激活图
+    for (const [k, v] of newActivation) {
+      activation.set(k, (activation.get(k) || 0) + v)
+    }
+  }
+  return activation
+}
+
 export function graphWalkRecallScored(
   startEntities: string[],
   memories: { content: string; scope?: string }[],
   maxDepth = 2,
   maxResults = 8,
 ): { content: string; graphScore: number }[] {
-  // ── Personalized PageRank: query-biased entity scoring ──
-  const pprRanks = personalizedPageRank(startEntities, 0.15, 15)
+  // ── Spreading Activation: replaces PPR for query-biased entity scoring ──
+  const saRanks = spreadingActivation(startEntities, graphState, 3, 0.5)
 
-  // Weighted BFS still useful for depth-limited exploration (PPR may spread too thin)
-  // Combine PPR rank with BFS distance score
+  // Weighted BFS for depth-limited exploration, blended with spreading activation
   const entityScores = new Map<string, number>()
   for (const start of startEntities) entityScores.set(start, 1.0)
   let frontier = [...startEntities]
@@ -440,9 +477,9 @@ export function graphWalkRecallScored(
         const relWeight = (r.weight ?? 1.0) * (r.confidence ?? 0.7) * relTypeWeight
 
         const bfsScore = hopDecay * freshness * mentionBoost * activationBoost * relWeight
-        // PPR contribution: blend BFS score with personalized PageRank
-        const pprScore = pprRanks.get(neighbor) ?? 0
-        const combinedScore = bfsScore * 0.5 + pprScore * 5000 * 0.5  // scale PPR to comparable range
+        // Spreading Activation contribution: blend BFS score with SA ranks
+        const saScore = saRanks.get(neighbor) ?? 0
+        const combinedScore = bfsScore * 0.5 + saScore * 0.5  // SA already in comparable range
         entityScores.set(neighbor, combinedScore)
         next.push(neighbor)
         if (entityScores.size >= maxResults * 3) break
@@ -540,9 +577,9 @@ export function queryEntityContext(msg: string): string[] {
     if (msg.includes(entity.name)) mentionedNames.push(entity.name)
   }
 
-  // Use Personalized PageRank with mentioned entities as seeds (query-biased)
+  // Use Spreading Activation with mentioned entities as seeds (query-biased)
   const pprRanks = mentionedNames.length > 0
-    ? personalizedPageRank(mentionedNames, 0.15, 10)
+    ? spreadingActivation(mentionedNames, graphState, 3, 0.5)
     : graphState.ranks  // fallback to global PageRank if no entities mentioned
 
   for (const entity of graphState.entities) {

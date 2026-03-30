@@ -57,10 +57,13 @@ function attentionGate(msg: string): { type: string; priority: number } {
     hypotheses[1].score += 1 // boost emotional even when technical words present
   }
 
-  // Pick winner
+  // Pick winner via softmax — 分数差距大时高优先级，差距小时中性
   hypotheses.sort((a, b) => b.score - a.score)
   const winner = hypotheses[0]
-  const priority = Math.min(10, Math.round(winner.score * 2 + 3))
+  const expScores = hypotheses.map(h => Math.exp(h.score * 2))
+  const sumExp = expScores.reduce((s, e) => s + e, 0)
+  const winnerProb = expScores[0] / sumExp
+  const priority = Math.min(10, Math.max(1, Math.round(winnerProb * 10)))
   return { type: winner.type, priority }
 }
 
@@ -395,12 +398,111 @@ function nbCorrectAttention(baseType: string, msg: string): string {
   return baseType
 }
 
+// ── Online Passive-Aggressive Classifier (PA-I) ──
+// 替代硬编码意图权重，只在犯错时更新，比 NB 更节约计算
+
+interface PAClassifier {
+  weights: Record<string, Record<string, number>>  // class → feature → weight
+  C: number  // aggressiveness parameter
+  samples: number  // total update count
+}
+
+const PA_PATH = resolve(DATA_DIR, 'pa_classifier.json')
+let paClassifier: PAClassifier = loadJson<PAClassifier>(PA_PATH, { weights: {}, C: 0.5, samples: 0 })
+
+function paPredict(pa: PAClassifier, features: Record<string, number>): string {
+  let bestClass = 'general'
+  let bestScore = -Infinity
+  for (const [cls, w] of Object.entries(pa.weights)) {
+    let score = 0
+    for (const [feat, val] of Object.entries(features)) {
+      score += (w[feat] || 0) * val
+    }
+    if (score > bestScore) { bestScore = score; bestClass = cls }
+  }
+  return bestClass
+}
+
+function paUpdate(pa: PAClassifier, features: Record<string, number>, trueClass: string, predictedClass: string) {
+  if (trueClass === predictedClass) return  // 正确，不更新
+  // PA-I update
+  const featureNorm = Object.values(features).reduce((s, v) => s + v * v, 0)
+  if (featureNorm === 0) return
+
+  // 计算 hinge loss
+  let trueScore = 0, predScore = 0
+  const wTrue = pa.weights[trueClass] || {}
+  const wPred = pa.weights[predictedClass] || {}
+  for (const [f, v] of Object.entries(features)) {
+    trueScore += (wTrue[f] || 0) * v
+    predScore += (wPred[f] || 0) * v
+  }
+  const loss = Math.max(0, 1 - (trueScore - predScore))
+  const tau = Math.min(pa.C, loss / (2 * featureNorm))
+
+  // 更新权重
+  if (!pa.weights[trueClass]) pa.weights[trueClass] = {}
+  if (!pa.weights[predictedClass]) pa.weights[predictedClass] = {}
+  for (const [f, v] of Object.entries(features)) {
+    pa.weights[trueClass][f] = (pa.weights[trueClass][f] || 0) + tau * v
+    pa.weights[predictedClass][f] = (pa.weights[predictedClass][f] || 0) - tau * v
+  }
+  pa.samples++
+  debouncedSave(PA_PATH, pa)
+}
+
+/** Extract feature vector from message for PA classifier */
+function extractPAFeatures(msg: string): Record<string, number> {
+  const m = msg.toLowerCase()
+  const correctionHits = CORRECTION_WORDS.filter(w => m.includes(w)).length
+  const emotionHits = EMOTION_ALL.filter(w => m.includes(w)).length
+  const negEmotionHits = EMOTION_NEGATIVE.filter(w => m.includes(w)).length
+  const techHits = TECH_WORDS.filter(w => m.includes(w)).length
+  const casualHits = CASUAL_WORDS.filter(w => m === w || m === w + '的').length
+  const len = msg.length
+  return {
+    correctionHits,
+    emotionHits,
+    negEmotionHits,
+    techHits,
+    casualHits,
+    lenShort: len < 15 ? 1 : 0,
+    lenMedium: len >= 15 && len <= 100 ? 1 : 0,
+    lenLong: len > 100 ? 1 : 0,
+    lenVeryShort: len < 8 ? 1 : 0,
+  }
+}
+
+/** PA-corrected attention type: weighted fusion with Bayesian gate */
+function paCorrectAttention(baseType: string, msg: string): string {
+  const features = extractPAFeatures(msg)
+  const paPrediction = paPredict(paClassifier, features)
+
+  // 加权融合：PA 积累够样本后权重升高
+  // PA < 50 samples: PA 0.4 + Bayesian 0.6
+  // PA >= 50 samples: PA 0.6 + Bayesian 0.4
+  const paWeight = paClassifier.samples >= 50 ? 0.6 : 0.4
+
+  // 如果 PA 和 Bayesian 一致，直接用
+  if (paPrediction === baseType) return baseType
+
+  // PA 权重足够高且有足够样本时覆盖 Bayesian
+  if (paWeight >= 0.6 && paClassifier.samples >= 50) return paPrediction
+
+  // 否则保持 Bayesian 结果
+  return baseType
+}
+
 // ── Main Entry ──
 
 export function cogProcess(msg: string, lastResponseContent: string, lastPrompt: string, senderId?: string): CogResult {
   const attention = attentionGate(msg)
   // NB correction: refine attention type using online-learned classifier
   attention.type = nbCorrectAttention(attention.type, msg)
+  // PA correction: weighted fusion with Bayesian gate
+  const paFeatures = extractPAFeatures(msg)
+  const paPredicted = paPredict(paClassifier, paFeatures)
+  attention.type = paCorrectAttention(attention.type, msg)
   const intent = detectIntent(msg)
   const intentSpectrum = computeIntentSpectrum(msg)
   const complexity = Math.min(1, msg.length / 500)
@@ -417,6 +519,10 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
   } else if (attention.type === 'casual') {
     updateNBClassifier(msg, 'casual')
   }
+
+  // PA online learning: update PA classifier when Bayesian gate gives a confident label
+  // PA only updates on mistakes, so feed it the Bayesian-determined label as ground truth
+  paUpdate(paClassifier, paFeatures, attention.type, paPredicted)
 
   // Correction handling — weighted by user tier
   if (attention.type === 'correction') {

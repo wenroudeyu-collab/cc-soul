@@ -118,6 +118,8 @@ export interface Memory {
   bayesBeta?: number         // Beta β (default 1), incremented on negative evidence
   // ── FSRS-4.5 spaced repetition state (replaces Weibull for new memories) ──
   fsrs?: { stability: number; difficulty: number; reps: number; lapses: number }
+  // ── Living Memory Network: micro-links accumulated from recall co-occurrences ──
+  microLinks?: { query: string; memoryRef: string; sharedKeywords: string[]; ts: number }[]
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

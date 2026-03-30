@@ -277,6 +277,17 @@ export function buildSoulPrompt(
     }
   }
 
+  // 活画像注入（实时版，比 mentalModel 更新更快）
+  try {
+    const { getLivingProfileSummary } = require('./person-model.ts')
+    const profileSummary = getLivingProfileSummary()
+    if (profileSummary) {
+      sections.push('')
+      sections.push('## 用户实时画像')
+      sections.push(profileSummary)
+    }
+  } catch {}
+
   // Speaking style
   sections.push('')
   sections.push('## 说话风格')

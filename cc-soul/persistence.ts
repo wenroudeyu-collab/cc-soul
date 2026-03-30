@@ -13,11 +13,14 @@ import type { SoulConfig } from './types.ts'
 // PATH CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Data directory: env override for standalone mode, otherwise auto-detect OpenClaw paths
-const _envData = process.env.SOUL_DATA_DIR
+// Data directory: auto-detect, no configuration needed
+// OpenClaw users → existing path; everyone else → ~/.cc-soul/data (auto-created)
 const _pluginsData = resolve(homedir(), '.openclaw/plugins/cc-soul/data')
 const _hooksData = resolve(homedir(), '.openclaw/hooks/cc-soul/data')
-export const DATA_DIR = _envData || (existsSync(_pluginsData) ? _pluginsData : _hooksData)
+const _standaloneData = resolve(homedir(), '.cc-soul/data')
+export const DATA_DIR = existsSync(_pluginsData) ? _pluginsData
+  : existsSync(_hooksData) ? _hooksData
+  : _standaloneData
 
 // ── Multi-agent isolation: each agent gets its own data subdirectory ──
 let _activeAgentId = 'default'

@@ -29,20 +29,94 @@
   },
   {
     "name": "老板",
-    "mentions": 2,
-    "lastMentioned": 1774874936034,
-    "emotionSum": 0.2408472817810971,
+    "mentions": 4,
+    "lastMentioned": 1774900869296,
+    "emotionSum": -0.27135804126941554,
     "emotions": {
       "positive": 0,
-      "negative": 0,
+      "negative": 2,
       "neutral": 2
     },
     "recentTopics": [
       "项目又延",
-      "以后叫我"
+      "以后叫我",
+      "烦死了",
+      "我最近压"
     ],
     "style": {
       "tone": "formal",
+      "typical_mood": "焦虑"
+    }
+  },
+  {
+    "name": "小王",
+    "mentions": 1,
+    "lastMentioned": 1774899408018,
+    "emotionSum": 0.0301324042613128,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "我叫"
+    ],
+    "style": {
+      "tone": "mixed",
+      "typical_mood": "平稳"
+    }
+  },
+  {
+    "name": "老王",
+    "mentions": 1,
+    "lastMentioned": 1774901580934,
+    "emotionSum": 0.02827622892968961,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "以后叫我"
+    ],
+    "style": {
+      "tone": "mixed",
+      "typical_mood": "平稳"
+    }
+  },
+  {
+    "name": "老婆",
+    "mentions": 1,
+    "lastMentioned": 1774903287670,
+    "emotionSum": -0.10904459367856106,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "我在银行"
+    ],
+    "style": {
+      "tone": "mixed",
+      "typical_mood": "平稳"
+    }
+  },
+  {
+    "name": "小红",
+    "mentions": 1,
+    "lastMentioned": 1774903287670,
+    "emotionSum": -0.10904459367856106,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "我老婆在"
+    ],
+    "style": {
+      "tone": "mixed",
       "typical_mood": "平稳"
     }
   }

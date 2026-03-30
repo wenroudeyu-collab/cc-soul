@@ -270,91 +270,142 @@ export function getBehaviorPrediction(userMsg: string, memories: Memory[]): stri
   return null
 }
 
-// ── Variable-Order Markov Chain (PPM) for Topic Sequence Prediction ──
+// ── PPM (Prediction by Partial Matching) Trie for Topic Sequence Prediction ──
 
-interface MarkovState {
-  transitions: Record<string, Record<string, number>>  // "A→B" → { "C": 3, "D": 1 }
-  maxOrder: number  // current max order to try
+interface PPMTrieNode {
+  children: Record<string, PPMTrieNode>
+  counts: Record<string, number>  // next → count
+  total: number
+  escape: number  // times we needed to escape to shorter context
+}
+
+interface PPMState {
+  root: PPMTrieNode
+  maxOrder: number
   totalUpdates: number
 }
 
-const MARKOV_PATH = resolve(DATA_DIR, 'markov_state.json')
-let markovState: MarkovState = { transitions: {}, maxOrder: 3, totalUpdates: 0 }
+const PPM_PATH = resolve(DATA_DIR, 'ppm_state.json')
+let ppmState: PPMState = { root: { children: {}, counts: {}, total: 0, escape: 0 }, maxOrder: 3, totalUpdates: 0 }
 
-function loadMarkovState() {
+function createPPMNode(): PPMTrieNode {
+  return { children: {}, counts: {}, total: 0, escape: 0 }
+}
+
+function loadPPMState() {
   try {
-    if (existsSync(MARKOV_PATH)) {
-      markovState = JSON.parse(readFileSync(MARKOV_PATH, 'utf-8'))
+    if (existsSync(PPM_PATH)) {
+      const raw = JSON.parse(readFileSync(PPM_PATH, 'utf-8'))
+      if (raw && raw.root) {
+        ppmState = raw
+      }
+    }
+    // Migrate from old Markov format if PPM doesn't exist yet
+    const MARKOV_PATH = resolve(DATA_DIR, 'markov_state.json')
+    if (ppmState.totalUpdates === 0 && existsSync(MARKOV_PATH)) {
+      try {
+        const old = JSON.parse(readFileSync(MARKOV_PATH, 'utf-8'))
+        if (old && old.transitions) {
+          // Convert old transitions to PPM trie
+          for (const [key, nexts] of Object.entries(old.transitions)) {
+            const ctx = key.split('\u2192')
+            for (const [next, count] of Object.entries(nexts as Record<string, number>)) {
+              for (let i = 0; i < count; i++) ppmUpdate(ctx, next)
+            }
+          }
+          ppmState.totalUpdates = old.totalUpdates || ppmState.totalUpdates
+          savePPMState()
+        }
+      } catch { /* migration is best-effort */ }
     }
   } catch { /* keep default */ }
 }
 
-function saveMarkovState() {
-  writeFileSync(MARKOV_PATH, JSON.stringify(markovState, null, 2))
+function savePPMState() {
+  writeFileSync(PPM_PATH, JSON.stringify(ppmState, null, 2))
 }
 
-// Lazy-load on first use
-let _markovLoaded = false
-function ensureMarkovLoaded() {
-  if (!_markovLoaded) { loadMarkovState(); _markovLoaded = true }
+let _ppmLoaded = false
+function ensurePPMLoaded() {
+  if (!_ppmLoaded) { loadPPMState(); _ppmLoaded = true }
 }
 
-/** Record a topic transition: updates all orders (1 to maxOrder) */
-export function updateMarkov(topicSequence: string[]) {
-  ensureMarkovLoaded()
-  if (topicSequence.length < 2) return
-  const last = topicSequence[topicSequence.length - 1]
-
-  // Update all relevant orders
-  for (let order = 1; order <= Math.min(markovState.maxOrder, topicSequence.length - 1); order++) {
-    const key = topicSequence.slice(-(order + 1), -1).join('\u2192')  // → separator
-    if (!markovState.transitions[key]) markovState.transitions[key] = {}
-    markovState.transitions[key][last] = (markovState.transitions[key][last] || 0) + 1
-  }
-
-  markovState.totalUpdates++
-
-  // Prune: cap total transition keys at 500
-  const keys = Object.keys(markovState.transitions)
-  if (keys.length > 500) {
-    // Remove lowest-count entries
-    const entries = keys.map(k => ({
-      key: k,
-      total: Object.values(markovState.transitions[k]).reduce((s, c) => s + c, 0)
-    })).sort((a, b) => a.total - b.total)
-    for (let i = 0; i < 100 && i < entries.length; i++) {
-      delete markovState.transitions[entries[i].key]
+/** PPM update: record a transition across all context orders */
+function ppmUpdate(context: string[], next: string, maxOrder = 3) {
+  for (let order = 0; order <= Math.min(maxOrder, context.length); order++) {
+    const ctx = context.slice(-order)
+    let node = ppmState.root
+    for (const t of ctx) {
+      if (!node.children[t]) node.children[t] = createPPMNode()
+      node = node.children[t]
     }
+    node.counts[next] = (node.counts[next] || 0) + 1
+    node.total++
   }
-
-  saveMarkovState()
 }
 
-/**
- * PPM (Prediction by Partial Matching): try highest order first, fall back.
- * Returns predicted next topic + confidence, or null.
- */
-export function predictNextTopic(recentTopics: string[]): { topic: string; confidence: number } | null {
-  ensureMarkovLoaded()
-  if (recentTopics.length === 0 || markovState.totalUpdates < 5) return null
+/** PPM predict: try longest context first, escape to shorter on miss */
+function ppmPredict(context: string[], maxOrder = 3): { topic: string; confidence: number } | null {
+  for (let order = Math.min(maxOrder, context.length); order >= 0; order--) {
+    const ctx = context.slice(-order)
+    let node = ppmState.root
+    let found = true
+    for (const t of ctx) {
+      if (!node.children[t]) { found = false; break }
+      node = node.children[t]
+    }
+    if (!found || node.total < 3) continue  // 需要至少3个样本
 
-  for (let order = Math.min(markovState.maxOrder, recentTopics.length); order >= 1; order--) {
-    const key = recentTopics.slice(-order).join('\u2192')
-    const nexts = markovState.transitions[key]
-    if (nexts) {
-      const total = Object.values(nexts).reduce((s, c) => s + c, 0)
-      if (total >= 2) {  // lowered from 3: Bayesian beliefs handle uncertainty
-        const sorted = Object.entries(nexts).sort((a, b) => b[1] - a[1])
-        const best = sorted[0]
-        // 结合贝叶斯概率调整置信度
-        const bayesProb = predictDomainProbability(best[0])
-        const rawConfidence = best[1] / total
-        const adjustedConfidence = rawConfidence * 0.7 + bayesProb * 0.3  // 混合 Markov + Bayes
-        return { topic: best[0], confidence: adjustedConfidence }
-      }
+    // 找最可能的下一个
+    let bestTopic = ''
+    let bestCount = 0
+    for (const [topic, count] of Object.entries(node.counts)) {
+      if (count > bestCount) { bestCount = count; bestTopic = topic }
+    }
+    if (bestTopic) {
+      const rawConfidence = bestCount / node.total
+      // 结合贝叶斯概率调整置信度
+      const bayesProb = predictDomainProbability(bestTopic)
+      const adjustedConfidence = rawConfidence * 0.7 + bayesProb * 0.3
+      return { topic: bestTopic, confidence: adjustedConfidence }
     }
   }
   return null
+}
+
+/** Record a topic transition: updates PPM trie at all orders */
+export function updateMarkov(topicSequence: string[]) {
+  ensurePPMLoaded()
+  if (topicSequence.length < 2) return
+  const last = topicSequence[topicSequence.length - 1]
+  const context = topicSequence.slice(0, -1)
+
+  ppmUpdate(context, last, ppmState.maxOrder)
+  ppmState.totalUpdates++
+
+  // Prune: cap trie depth nodes (approximate — count root's direct children)
+  const rootChildCount = Object.keys(ppmState.root.children).length
+  if (rootChildCount > 200) {
+    // Remove least-used root children
+    const sorted = Object.entries(ppmState.root.children)
+      .map(([k, v]) => ({ key: k, total: v.total }))
+      .sort((a, b) => a.total - b.total)
+    for (let i = 0; i < 50 && i < sorted.length; i++) {
+      delete ppmState.root.children[sorted[i].key]
+    }
+  }
+
+  savePPMState()
+}
+
+/**
+ * PPM (Prediction by Partial Matching): try highest order first, escape to shorter.
+ * Returns predicted next topic + confidence, or null.
+ */
+export function predictNextTopic(recentTopics: string[]): { topic: string; confidence: number } | null {
+  ensurePPMLoaded()
+  if (recentTopics.length === 0 || ppmState.totalUpdates < 5) return null
+  return ppmPredict(recentTopics, ppmState.maxOrder)
 }
 
 /** Format Markov prediction as augment string */

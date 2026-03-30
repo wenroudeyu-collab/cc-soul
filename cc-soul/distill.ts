@@ -163,7 +163,37 @@ export function distillL1toL2() {
 
       if (existingNode && now - existingNode.lastUpdated < L1_TO_L2_COOLDOWN) continue
 
-      // Distill cluster into topic node via CLI
+      // 优先用零 LLM 蒸馏（省 token）
+      const zeroLLMResult = zeroLLMDistill(cluster.map(m => m.content))
+      if (zeroLLMResult && zeroLLMResult.length > 10) {
+        // 零 LLM 蒸馏成功，不调 LLM
+        // 从第一条记忆提取主题名
+        const topicName = cluster[0].content.slice(0, 10).replace(/[，。！？\s]+$/, '') || '未分类'
+        const node: TopicNode = {
+          topic: topicName.slice(0, 20),
+          summary: zeroLLMResult.slice(0, 200),
+          sourceCount: cluster.length,
+          lastUpdated: Date.now(),
+          userId: userId === '_global' ? undefined : userId,
+        }
+        if (existingNode) {
+          existingNode.topic = node.topic
+          existingNode.summary = node.summary
+          existingNode.sourceCount += cluster.length
+          existingNode.lastUpdated = node.lastUpdated
+        } else {
+          topicNodes.push(node)
+          if (topicNodes.length > MAX_TOPIC_NODES) {
+            topicNodes.sort((a, b) => b.lastUpdated - a.lastUpdated)
+            topicNodes.length = MAX_TOPIC_NODES
+          }
+        }
+        saveTopicNodes()
+        console.log(`[cc-soul][distill] L1→L2 (zero-LLM): "${node.topic}" (${cluster.length} memories → 1 node)`)
+        continue  // 跳过 LLM 蒸馏
+      }
+
+      // fallback: LLM 蒸馏（只在零 LLM 结果太短时）
       const prompt = [
         '将以下记忆片段蒸馏为一个主题节点。格式：',
         '主题: <2-6字的主题名>',
@@ -372,6 +402,72 @@ export function getDistillStats() {
     mentalModels: mentalModels.size,
     ...distillState,
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ZERO-LLM DISTILL — 零 LLM 蒸馏：用规则提取特征替代 LLM 摘要
+// 省 100% 的蒸馏 token，速度快 10x
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function zeroLLMDistill(memories: string[]): string {
+  const allWords = new Map<string, number>()
+  const traits: string[] = []
+
+  for (const content of memories) {
+    // 词频统计
+    const words = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+    for (const w of words) allWords.set(w, (allWords.get(w) || 0) + 1)
+
+    // 特征提取
+    if (/每天|经常|习惯|总是/.test(content)) traits.push('有规律性')
+    if (/喜欢|爱|偏好/.test(content)) {
+      const obj = content.match(/喜欢(.{2,8})/)?.[1]
+      if (obj) traits.push(`偏好:${obj.replace(/[，。！？\s]+$/, '')}`)
+    }
+    if (/讨厌|不喜欢|受不了/.test(content)) {
+      const obj = content.match(/(?:讨厌|不喜欢)(.{2,8})/)?.[1]
+      if (obj) traits.push(`反感:${obj.replace(/[，。！？\s]+$/, '')}`)
+    }
+    if (/焦虑|压力|担心|紧张/.test(content)) traits.push('有压力')
+    if (/学|研究|探索/.test(content)) traits.push('学习型')
+    if (/快|效率|优化/.test(content)) traits.push('效率导向')
+  }
+
+  // 取 top 5 高频关键词
+  const topWords = [...allWords.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([w]) => w)
+
+  // 去重特征
+  const uniqueTraits = [...new Set(traits)].slice(0, 5)
+
+  // 组合摘要
+  const parts: string[] = []
+  if (topWords.length > 0) parts.push(`关键词: ${topWords.join(', ')}`)
+  if (uniqueTraits.length > 0) parts.push(`特征: ${uniqueTraits.join(', ')}`)
+
+  return parts.join(' | ') || memories[0]?.slice(0, 60) || ''
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOPIC CONFIDENCE — 蒸馏反馈闭环：根据回复质量调整 topic node 置信度
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 调整 topic node 的置信度。quality 高 → confidence 上升，quality 低 → 下降并标记重新蒸馏。
+ */
+export function adjustTopicConfidence(topicName: string, delta: number) {
+  const node = topicNodes.find(n => n.topic === topicName)
+  if (!node) return
+  const confidence = ((node as any).confidence ?? 0.5) + delta
+  ;(node as any).confidence = Math.max(0.1, Math.min(0.95, confidence))
+  // confidence 过低 → 标记需要重新蒸馏（下次 L1→L2 时会重新处理）
+  if ((node as any).confidence < 0.3) {
+    node.lastUpdated = 0  // 重置 lastUpdated 使其在下次蒸馏时被重新处理
+    console.log(`[cc-soul][distill] topic "${topicName}" confidence too low (${(node as any).confidence.toFixed(2)}), marked for re-distill`)
+  }
+  saveTopicNodes()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

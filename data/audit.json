@@ -1606,5 +1606,389 @@
     "action": "memory_add",
     "detail": "[fact] Apache支持.htaccess和模块动态加载，Nginx不支持.htaccess且模块热加载需重编译",
     "hash": "a5ba0172980b7a2b970d8889361db3641082afebd433e47423ab09940a045e28"
+  },
+  {
+    "ts": 1774899076165,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢什么编程语言吗",
+    "hash": "c4dc515b42f987d9be83541bd80014f407712722c09f7669c94c2bf981114d25"
+  },
+  {
+    "ts": 1774899134277,
+    "action": "memory_add",
+    "detail": "[fact] 用户常用Python",
+    "hash": "bcfd77eea544aaee7eb820be9bb8b16ca6166dc4022876d4786b805020b410d0"
+  },
+  {
+    "ts": 1774899134281,
+    "action": "memory_version",
+    "detail": "[fact] \"用户在关注Rust和TypeScript\" → \"用户关注Rust和TypeScript\"",
+    "hash": "426f34a9af5f7b0d130761abd3704c8e38435b2229b6668b226b145114879154"
+  },
+  {
+    "ts": 1774899453093,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我叫小王，在腾讯做前端开发 → AI: 收到。\n\n（更正记忆：名字 wang→小王；工作字节→腾讯；职位后端→前端）\n\n小王在腾讯做前端，技术栈是什么？Vue ",
+    "hash": "daefb9c10fde4ac4852a8f6c4dd6c50131dacfc860f343997e9ec6bb26adbafe"
+  },
+  {
+    "ts": 1774899468208,
+    "action": "memory_add",
+    "detail": "[fact] 用户叫小王",
+    "hash": "00292b3dd9443246293e3d33341216e1221f384b9465495cd6279003f1e4d55b"
+  },
+  {
+    "ts": 1774899468210,
+    "action": "memory_add",
+    "detail": "[fact] 小王在腾讯工作",
+    "hash": "385193ce36f84a7cc641ae9610884735508da147e1ccd202b619f0e1a01c3373"
+  },
+  {
+    "ts": 1774899468211,
+    "action": "memory_add",
+    "detail": "[fact] 小王从事前端开发",
+    "hash": "b82ec8725f977e4195d48d0917518818e28e0eaabf12af7425b28d4569765bd5"
+  },
+  {
+    "ts": 1774899544840,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我最喜欢用 Vue，讨厌 Angular → AI: 收到。\n\n（记下了：喜欢 Vue，讨厌 Angular）\n\n小王在腾讯做前端，Vue 技术栈。有什么想聊的？项目、技术还",
+    "hash": "cdcf794de7f3c5d11206c567c72059b3885909196176496b8435ef397c44798f"
+  },
+  {
+    "ts": 1774899554902,
+    "action": "memory_add",
+    "detail": "[preference] 喜欢 Vue",
+    "hash": "a8ca3d934e30e450a5011372ff7918ed6168d16590f49eb8ee578460ba02ad12"
+  },
+  {
+    "ts": 1774899554904,
+    "action": "memory_add",
+    "detail": "[preference] 讨厌 Angular",
+    "hash": "c0a1a292a1fdf34a847797165d20e08233eaab33e0d288bdd43c702a5063121a"
+  },
+  {
+    "ts": 1774899620459,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我特别喜欢吃火锅，讨厌吃寿司",
+    "hash": "a7c1ad579baf91d3beb04ab6c5b19dd86ac340b20763a2e0d64bbb1b8c953846"
+  },
+  {
+    "ts": 1774899665591,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我特别喜欢吃火锅，讨厌吃寿司 → AI: 收到。\n\n（记下了：喜欢吃火锅，讨厌吃寿司）\n\n小王还有什么想聊的？",
+    "hash": "531251e3e9e3f9fe794fe5d56c1eb917a6528d47b8527e8e0a05ac472f14c29d"
+  },
+  {
+    "ts": 1774899672464,
+    "action": "memory_add",
+    "detail": "[preference] 喜欢吃火锅",
+    "hash": "97fc3d710ea889404acb6ec205550a1caa8d13a15f9bbe2a7e71f9c5590bcbf9"
+  },
+  {
+    "ts": 1774899672468,
+    "action": "memory_add",
+    "detail": "[preference] 讨厌吃寿司",
+    "hash": "20822a61876ce96d6bfb2e58f71db168bc56df07800b6c048a9c064157a2977d"
+  },
+  {
+    "ts": 1774899694696,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢吃什么吗",
+    "hash": "3e87f001afc5d1acbbd00474370848b1f7bb773b7bf75537f5a6da26bc5ba292"
+  },
+  {
+    "ts": 1774899739773,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你还记得我喜欢吃什么吗 → AI: 小王喜欢吃 **火锅**，讨厌吃 **寿司**。",
+    "hash": "2f93be64e8eb495a684ce9401f18f907b7213f43e88033ee686c5b0e2ec7a42b"
+  },
+  {
+    "ts": 1774899747277,
+    "action": "memory_version",
+    "detail": "[preference] \"喜欢吃火锅\" → \"小王喜欢吃火锅\"",
+    "hash": "4d6052ebe52d02d2affdd5cb61ccec71df218b39ec542d04f43adb6e4dff4ed0"
+  },
+  {
+    "ts": 1774899747280,
+    "action": "memory_version",
+    "detail": "[preference] \"讨厌吃寿司\" → \"小王讨厌吃寿司\"",
+    "hash": "26ca8b020543badd1c6b78f401502dc1b8e72b78f7423388283d69ae053dc30a"
+  },
+  {
+    "ts": 1774899783559,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 烦死了！！项目又延期了 老板还在催 → AI: 小王，项目延期到什么程度？还有救吗？\n\n先理清楚：\n- 延期多久？原定什么时候上线？\n- 卡在技术问题还是需求变更？\n-",
+    "hash": "925b7a305a30a25ec0d3fb91f4076633bdbb6c6244bb74a4c762188eaec44bc4"
+  },
+  {
+    "ts": 1774899792860,
+    "action": "memory_add",
+    "detail": "[event] 用户对项目延期感到烦躁，老板在催促",
+    "hash": "04b524b3c3056f4cefe5eaa81dc099104608b0458cbafd556b4610b1e7457bc8"
+  },
+  {
+    "ts": 1774899892657,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我之前跟你说过我在哪工作吗 → AI: 小王说过在 **腾讯** 做前端开发。",
+    "hash": "dda0f7bfb3c5560198452d8cad239f7931d7c1ebfaa5bcb409dba70d3a3e3749"
+  },
+  {
+    "ts": 1774899900166,
+    "action": "memory_add",
+    "detail": "[fact] 小王在腾讯做前端开发",
+    "hash": "c7dd99f815f9a90d2276f024680c5893f6cdb992afe1846a29ddc353d2dbf700"
+  },
+  {
+    "ts": 1774899927907,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我适合学什么新技术 → AI: 小王是腾讯前端，用 Vue。基于这个背景，建议方向：\n\n---\n\n**深耕前端（稳扎稳打）**\n\n| 技术 | 为什么 ",
+    "hash": "4ba395349bebe898ca730b5a22883541e2b946176b1f677ed1debaa41833045d"
+  },
+  {
+    "ts": 1774899951493,
+    "action": "memory_add",
+    "detail": "[fact] 小王是腾讯前端，使用Vue技术栈",
+    "hash": "31a62fa186212dbc2b21fa02f7ea33fce47456cbe5ed975a098857d945c0e688"
+  },
+  {
+    "ts": 1774899951499,
+    "action": "memory_add",
+    "detail": "[opinion] TypeScript是大型项目标配，腾讯肯定用",
+    "hash": "0ec6b917c0e3d5da4786c2d0b3cd44ad74026b9ecab599e81421321ae2fd1849"
+  },
+  {
+    "ts": 1774899951505,
+    "action": "memory_add",
+    "detail": "[fact] Vue 3源码学习可理解响应式、编译优化，面试加分",
+    "hash": "3d7f0a3de98cf6d0e4d017e68985eb730dadcf4b93fd4d64a324ff806a915560"
+  },
+  {
+    "ts": 1774899951510,
+    "action": "memory_add",
+    "detail": "[fact] 前端性能优化包括Core Web Vitals、懒加载、代码分割",
+    "hash": "90a935ca21f2608031e01f6e456492d9a3695c6551f8061ddfe54fa5aaf775f5"
+  },
+  {
+    "ts": 1774899951517,
+    "action": "memory_add",
+    "detail": "[fact] Node.js全栈方向可学习BFF层、工具链开发，技术栈包括Nest.js/Egg.js + 数据库",
+    "hash": "87917d9d49d274fd6a327e0a4190b85780658714be935fa68b3eab8b1b31b33e"
+  },
+  {
+    "ts": 1774900923135,
+    "action": "memory_add",
+    "detail": "[event] 用户最近压力特别大",
+    "hash": "ea75453dbfb98ee6058657cac824619678d06fe10da86b50c9cfac25fe1be69f"
+  },
+  {
+    "ts": 1774900923139,
+    "action": "memory_add",
+    "detail": "[event] 用户的项目延期了",
+    "hash": "e394dfafd7e8f8f2f0032e7db940bc130674c90abb3ef12b1917c6c9b9d0cf20"
+  },
+  {
+    "ts": 1774900923141,
+    "action": "memory_add",
+    "detail": "[event] 用户的老板天天催项目进度",
+    "hash": "a7e968e86458a455cef474cb9b6b75ce958c09effcde2688db5caf7262dc2627"
+  },
+  {
+    "ts": 1774900967607,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你能帮我总结一下你对我的了解吗 → AI: 好的，小王：\n\n---\n\n**基本信息**\n- 名字：小王\n- 工作：腾讯，前端开发\n- 技术栈：Vue（最喜欢），讨厌",
+    "hash": "2feaf9cd65deffccbbddf497107eac8cd7bde9dcd10b5e424ad75939a32b6954"
+  },
+  {
+    "ts": 1774900985548,
+    "action": "memory_add",
+    "detail": "[preference] 小王最喜欢Vue，讨厌Angular",
+    "hash": "e8912db7ed16e00d2b8da5658c287c4196f3ec971e31e513fcda71398ad5e8af"
+  },
+  {
+    "ts": 1774900985553,
+    "action": "memory_add",
+    "detail": "[preference] 小王喜欢吃火锅，讨厌吃寿司",
+    "hash": "6547c4cc007eddef8b2881a5f145b40cf0a3212b50425f7b020d0cc43ab5e0db"
+  },
+  {
+    "ts": 1774900985558,
+    "action": "memory_add",
+    "detail": "[event] 小王当前项目延期，压力大，老板天天催",
+    "hash": "416dd08d84d54ff456c16678c87ac2fe151c52ff03c264f705d9dac64f54801d"
+  },
+  {
+    "ts": 1774900985561,
+    "action": "memory_add",
+    "detail": "[event] 小王之前提过睡眠不好（凌晨三点醒）",
+    "hash": "fd2f5ef5182c5237da605802cfa039c12621f405a200d646f6c43b398baa70a6"
+  },
+  {
+    "ts": 1774901015665,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 好的 → AI: 好的，小王。有事儿随时说。",
+    "hash": "b03a654952eab2cc2b377dc60c2056bb3920a88f4c90f0e6aad7378a9dfe2ed7"
+  },
+  {
+    "ts": 1774901673899,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我是谁 → AI: 你是 **老王**。\n\n- 腾讯前端开发，Vue 技术栈\n- 喜欢吃火锅，讨厌吃寿司和 Angular\n- 最近项目延期",
+    "hash": "8ecfe0b0a00dbf10a1f9bbffb93ca0da2e3b3b68d09453d56fa354d831113e22"
+  },
+  {
+    "ts": 1774901681641,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我有个女儿，今年5岁了，叫朵朵",
+    "hash": "8c5d940f2b971e4906e4822b9d4696bc38d8f5eeb6b7fbacf47ef9e7d997977f"
+  },
+  {
+    "ts": 1774901683515,
+    "action": "memory_add",
+    "detail": "[fact] 用户是老王",
+    "hash": "2aff6b678e261106cabf164afec46ec417e04ea5f77a391b5413c30a9e6e3490"
+  },
+  {
+    "ts": 1774901683520,
+    "action": "memory_add",
+    "detail": "[fact] 腾讯前端开发",
+    "hash": "a0a5687b39e867f57f2dcc32f9266b6c918e8c353a10db3fe9c4e54caf9211db"
+  },
+  {
+    "ts": 1774901683523,
+    "action": "memory_add",
+    "detail": "[fact] Vue 技术栈",
+    "hash": "ee950bbc8113629190eb5d17b4a804aed6534411a2f41a78eac5bf7ceb07d0ee"
+  },
+  {
+    "ts": 1774901726684,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我有个女儿，今年5岁了，叫朵朵 → AI: 收到，老王。\n\n（记下了：有个女儿叫朵朵，5岁）\n\n朵朵最近怎么样？之前聊过孩子写作业和玩手机的问题，是朵朵吗？",
+    "hash": "262f552830dd58f6ece093038787b9593781974a9197f4661deaf76c8313aa92"
+  },
+  {
+    "ts": 1774901731636,
+    "action": "memory_add",
+    "detail": "[fact] 用户有个女儿叫朵朵，5岁",
+    "hash": "66d5c1a83aef1da7d8845032b0cb4dbd73704f709fae78bfa4098d9dc956944a"
+  },
+  {
+    "ts": 1774903074784,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我叫张三",
+    "hash": "bc26741c792a13b80095f9fb8f800c14f0de2ddd92f3cb38e8c264e8d2854a7b"
+  },
+  {
+    "ts": 1774903119913,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你好，我叫张三 → AI: 收到。\n\n（更正记忆：老王→张三；身份更新）\n\n张三在腾讯做前端吗？还是其他工作？",
+    "hash": "cfe241ebc7cc0e012bfa6afa84bba739ee15377ebf6a6f9566ec8aac3df6ee04"
+  },
+  {
+    "ts": 1774903126097,
+    "action": "memory_add",
+    "detail": "[fact] 用户名叫张三",
+    "hash": "ead13c8e9e9eed7c4e23d61e207e052c3cdf204a3f35310b48f1e00a2f427126"
+  },
+  {
+    "ts": 1774903128587,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我在美团做后端，主要用 Go",
+    "hash": "b1e934565fdfe8212a9fc1864f12b075864ad3d98858260544b7a488715d9f80"
+  },
+  {
+    "ts": 1774903173690,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我在美团做后端，主要用 Go → AI: 收到，张三。\n\n（更正记忆：工作腾讯→美团；职位前端→后端；技术栈 Vue→Go）\n\n在美团做 Go 后端，女儿朵朵5岁",
+    "hash": "60f6f2a91d1b379b2eb4c840142c5b8385ef130a6e768631dc4bfa13f8a577fa"
+  },
+  {
+    "ts": 1774903184555,
+    "action": "memory_add",
+    "detail": "[fact] 在美团工作",
+    "hash": "d0520f7257462156ba76c843e38452777586ba526298c3c3984b02a31610e354"
+  },
+  {
+    "ts": 1774903184567,
+    "action": "memory_add",
+    "detail": "[fact] 担任后端开发职位",
+    "hash": "9d1f7d87d72ada1a28afe830e9b84fbd938b68fdf7e27184301cdc919f3cdad9"
+  },
+  {
+    "ts": 1774903184572,
+    "action": "memory_add",
+    "detail": "[fact] 主要使用Go语言",
+    "hash": "bea3454b5025357837c98257cede1c63d4c40dcb4dbf6a483bc2a3e0ffc30c06"
+  },
+  {
+    "ts": 1774903184577,
+    "action": "memory_add",
+    "detail": "[fact] 女儿名叫朵朵，5岁",
+    "hash": "d33bd2bc7379a349c085b4b4bd49728fc4f0bc5fa88ca691446c2379c3ed70b0"
+  },
+  {
+    "ts": 1774903232473,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我喜欢打篮球，讨厌跑步",
+    "hash": "8e7f84d83c76c544ef66229a9d61720ba441820615c01eaae8ccd822fefafb5e"
+  },
+  {
+    "ts": 1774903277597,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我喜欢打篮球，讨厌跑步 → AI: 收到，张三。\n\n（记下了：喜欢打篮球，讨厌跑步）\n\n美团后端，Go 技术栈，女儿朵朵5岁，爱打篮球。还有什么想让我记住的",
+    "hash": "f98958161b0a5e0eaa12c2be894f6d5ee33a65f343113946059a23f8d61b87f0"
+  },
+  {
+    "ts": 1774903287017,
+    "action": "memory_add",
+    "detail": "[preference] 喜欢打篮球",
+    "hash": "1e33c49b625f6be4811d6a16bbb0bf0ad6b4996f73ba20ac441ece6c1e0dd13e"
+  },
+  {
+    "ts": 1774903287024,
+    "action": "memory_add",
+    "detail": "[preference] 讨厌跑步",
+    "hash": "dce8bbc8ca2a87e78bbb45cd0e3293eb1b197b3ab32e47f8a542268884ccb8d1"
+  },
+  {
+    "ts": 1774903287028,
+    "action": "memory_add",
+    "detail": "[fact] 美团后端，Go 技术栈",
+    "hash": "f989fa43c9add4e7a4ea33f015cd05d590308bb0c1a4480f5700054383ad09d7"
+  },
+  {
+    "ts": 1774903287031,
+    "action": "memory_add",
+    "detail": "[fact] 女儿朵朵5岁",
+    "hash": "089a6b05f9e363e24cae241696f930dc3ff7a7b366975f6c3caf8772bd624daf"
+  },
+  {
+    "ts": 1774903332685,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我老婆在银行上班，叫小红 → AI: 收到，张三。\n\n（记下了：老婆小红，在银行上班）\n\n还有什么想让我记住的？",
+    "hash": "c2698fe78dd109bf50359fc0c36209998a6d3bf91ad9206ecbb6fab631eb7703"
+  },
+  {
+    "ts": 1774903338731,
+    "action": "memory_add",
+    "detail": "[fact] 用户的老婆叫小红",
+    "hash": "4f1ec6c9da71dd42c8dad7516b38acd860965d4532a0289f06ae139b4a4b9c5b"
+  },
+  {
+    "ts": 1774903338735,
+    "action": "memory_add",
+    "detail": "[fact] 用户的老婆在银行上班",
+    "hash": "ee46d34335789c9a6cc27a1dbc684269a66880fd57623ea7ea831f0803c84601"
+  },
+  {
+    "ts": 1774903376060,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我每天早上6点起床，晚上11点睡 → AI: 收到，张三。\n\n（记下了：作息 早6晚11）\n\n还有什么想让我记住的？",
+    "hash": "82ad540fba9bd20a8b0b4d2785d72ef595a8b41c64db7a9716906a1d29be13b8"
+  },
+  {
+    "ts": 1774903382980,
+    "action": "memory_add",
+    "detail": "[preference] 作息时间：早上6点起床，晚上11点睡觉",
+    "hash": "87fff0136467d916dbc2597a05c47e2c36e6b2cc5064f3d5b354e3e87462b44d"
   }
 ]

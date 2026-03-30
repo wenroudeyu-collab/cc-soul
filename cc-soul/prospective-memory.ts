@@ -204,6 +204,118 @@ export function getActivePMTriggers(): string[] {
  * If the same keyword appears 3+ times in the last 20 memories, it's likely an
  * ongoing concern — create a prospective memory so we can proactively bring it up.
  */
+// ═══════════════════════════════════════════════════════════════════════════════
+// FFT 周期学习：分析关键词在历史记忆中的时间周期性
+// 原创算法——从"用户每周一问部署"这样的规律中学习
+//
+// 不用真正的 FFT（太重），用简化版：统计每个关键词在一周中各天的出现频率
+// 如果某天的频率显著高于其他天 → 检测到周期
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface KeywordCycle {
+  keyword: string
+  peakDay: number        // 0=周日 1=周一 ... 6=周六
+  peakHour: number       // 0-23
+  frequency: number      // 在 peak 时段出现的频率
+  confidence: number     // 0-1
+  lastSeen: number
+}
+
+const CYCLES_PATH = resolve(DATA_DIR, 'keyword_cycles.json')
+let keywordCycles: KeywordCycle[] = loadJson<KeywordCycle[]>(CYCLES_PATH, [])
+function saveCycles() { debouncedSave(CYCLES_PATH, keywordCycles) }
+
+/**
+ * 从记忆历史中学习关键词周期
+ * 每次 heartbeat 调用（不是每条消息）
+ */
+export function learnKeywordCycles(memories: { content: string; ts: number }[]) {
+  if (memories.length < 50) return  // 需要足够数据
+
+  // 提取关键词 → 按星期几/小时统计
+  const weekdayFreq = new Map<string, number[]>()  // keyword → [周日, 周一, ..., 周六]
+  const hourFreq = new Map<string, number[]>()     // keyword → [0时, 1时, ..., 23时]
+
+  for (const mem of memories) {
+    const words = (mem.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+      .map(w => w.toLowerCase())
+    const d = new Date(mem.ts)
+    const day = d.getDay()
+    const hour = d.getHours()
+
+    for (const w of new Set(words)) {
+      if (!weekdayFreq.has(w)) weekdayFreq.set(w, new Array(7).fill(0))
+      if (!hourFreq.has(w)) hourFreq.set(w, new Array(24).fill(0))
+      weekdayFreq.get(w)![day]++
+      hourFreq.get(w)![hour]++
+    }
+  }
+
+  // 检测周期：某天频率 > 平均值 × 2 且 ≥ 3 次 → 有周期
+  const newCycles: KeywordCycle[] = []
+  for (const [keyword, days] of weekdayFreq) {
+    const total = days.reduce((s, v) => s + v, 0)
+    if (total < 5) continue  // 总出现次数太少
+    const avg = total / 7
+
+    let peakDay = 0, peakCount = 0
+    for (let i = 0; i < 7; i++) {
+      if (days[i] > peakCount) { peakCount = days[i]; peakDay = i }
+    }
+
+    if (peakCount >= 3 && peakCount > avg * 2) {
+      // 检测到周期！找峰值小时
+      const hours = hourFreq.get(keyword) || new Array(24).fill(0)
+      let peakHour = 0, peakHourCount = 0
+      for (let i = 0; i < 24; i++) {
+        if (hours[i] > peakHourCount) { peakHourCount = hours[i]; peakHour = i }
+      }
+
+      const confidence = Math.min(0.9, (peakCount / total - 1 / 7) * 3)
+
+      newCycles.push({
+        keyword,
+        peakDay,
+        peakHour,
+        frequency: peakCount / total,
+        confidence,
+        lastSeen: Date.now(),
+      })
+    }
+  }
+
+  // 更新（保留 top 20 最高置信度的周期）
+  if (newCycles.length > 0) {
+    keywordCycles = newCycles.sort((a, b) => b.confidence - a.confidence).slice(0, 20)
+    saveCycles()
+    console.log(`[cc-soul][fft-cycles] learned ${keywordCycles.length} keyword cycles`)
+  }
+}
+
+/**
+ * 检查今天是否有周期性话题即将出现
+ * 返回该主动提起的关键词
+ */
+export function getCyclicReminders(): string[] {
+  const now = new Date()
+  const today = now.getDay()
+  const hour = now.getHours()
+
+  const reminders: string[] = []
+  for (const cycle of keywordCycles) {
+    if (cycle.peakDay === today && Math.abs(cycle.peakHour - hour) <= 2 && cycle.confidence > 0.3) {
+      reminders.push(cycle.keyword)
+    }
+  }
+  return reminders
+}
+
+export function getKeywordCycleCount(): number { return keywordCycles.length }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Auto-detect recurring themes
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export function autoDetectFromMemories(memories: Memory[]) {
   // Take last 20 non-expired memories
   const recent = memories

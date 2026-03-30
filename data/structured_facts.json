@@ -26,7 +26,87 @@
     "confidence": 0.85,
     "source": "system",
     "ts": 1774877938647,
-    "validUntil": 0,
+    "validUntil": 1774899076163,
     "memoryRef": "[WAL事实] 我喜欢用Go写后端，讨厌PHP，目前在字节工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "什么编程语言吗",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774899076162,
+    "validUntil": 1774899620458,
+    "memoryRef": "[WAL事实] 我喜欢什么编程语言吗"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃火锅",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774899620457,
+    "validUntil": 1774899694693,
+    "memoryRef": "[WAL事实] 我特别喜欢吃火锅，讨厌吃寿司"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃什么吗",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774899694693,
+    "validUntil": 1774899739770,
+    "memoryRef": "[WAL事实] 我喜欢吃什么吗"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃什么吗 → AI: 小王喜欢",
+    "confidence": 0.85,
+    "source": "ai_observed",
+    "ts": 1774899739770,
+    "validUntil": 1774899739774,
+    "memoryRef": "[对话] 用户: 你还记得我喜欢吃什么吗 → AI: 小王喜欢吃 **火锅**，讨厌吃 **寿司**。"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃什么吗",
+    "confidence": 0.85,
+    "source": "user_said",
+    "ts": 1774899739774,
+    "validUntil": 1774903232470,
+    "memoryRef": "你还记得我喜欢吃什么吗"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "打篮球",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774903232470,
+    "validUntil": 0,
+    "memoryRef": "[WAL事实] 我喜欢打篮球，讨厌跑步"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "老婆：在银行上班",
+    "confidence": 0.85,
+    "source": "ai_observed",
+    "ts": 1774903332682,
+    "validUntil": 0,
+    "memoryRef": "[对话] 用户: 我老婆在银行上班，叫小红 → AI: 收到，张三。\n\n（记下了：老婆小红，在银行上班）\n\n还有什么想让"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "早上6点起床",
+    "confidence": 0.75,
+    "source": "ai_observed",
+    "ts": 1774903376055,
+    "validUntil": 0,
+    "memoryRef": "[对话] 用户: 我每天早上6点起床，晚上11点睡 → AI: 收到，张三。\n\n（记下了：作息 早6晚11）\n\n还有什么"
   }
 ]

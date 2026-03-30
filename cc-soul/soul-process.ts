@@ -91,7 +91,7 @@ async function handleProcess(body: any): Promise<any> {
     if (isEnabled('wal_protocol')) {
       const { addMemory } = await import('./memory.ts')
       const walEntries: string[] = []
-      const prefMatch = message.match(/我(?:喜欢|不喜欢|讨厌|住在?|是|养了?|有|擅长|从事)(.{2,40})/g)
+      const prefMatch = message.match(/我(?:最|特别|超|很|比较)?(?:喜欢|不喜欢|讨厌|爱|偏好|住在?|是|养了?|有|擅长|从事|叫|在.{1,10}(?:工作|上班|做))(.{2,40})/g)
       if (prefMatch) for (const p of prefMatch.slice(0, 3)) walEntries.push(p.slice(0, 60))
       const rememberMatch = message.match(/(?:记住|帮我记|你要知道)[：:，,\s]*(.{4,60})/g)
       if (rememberMatch) for (const r of rememberMatch.slice(0, 3)) walEntries.push(r.slice(0, 60))
@@ -135,6 +135,7 @@ async function handleProcess(body: any): Promise<any> {
   } catch {}
 
   // ── 8. Build augments ──
+  // 注：激活场召回已内置于 recall()，buildAndSelectAugments 会自动调用，无需在此单独调用
   let selected: string[] = []
   let augmentObjects: any[] = []
   let recalled: any[] = []
@@ -257,6 +258,17 @@ async function handleFeedback(body: any): Promise<any> {
   try {
     const { addMemory } = await import('./memory.ts')
     addMemory(`[对话] 用户: ${userMessage.slice(0, 60)} → AI: ${aiReply.slice(0, 60)}`, 'fact', userId, 'private')
+    // 用原始用户消息单独做 fact 提取（对话对格式会污染正则匹配）
+    const { autoExtractFromMemory } = await import('./fact-store.ts')
+    autoExtractFromMemory(userMessage, 'fact', 'user_said')
+  } catch {}
+
+  // 活画像微更新
+  try {
+    const { updateLivingProfile } = await import('./person-model.ts')
+    // importance 从消息内容关键词判断
+    const importance = /名字|叫我|工作|公司|住|女儿|儿子|老婆|喜欢|讨厌|每天|习惯/.test(userMessage) ? 8 : 5
+    updateLivingProfile(userMessage, 'fact', importance)
   } catch {}
 
   // LLM deep analysis (async, with timeout)
@@ -288,6 +300,26 @@ async function handleFeedback(body: any): Promise<any> {
   } catch (e: any) {
     console.log(`[cc-soul][api] feedback error: ${e.message}`)
   }
+
+  // ── Activation field Hebbian feedback ──
+  try {
+    const { hebbianUpdate } = await import('./aam.ts')
+    const { decayAllActivations } = await import('./activation-field.ts')
+    // 每次 feedback 触发一次小衰减
+    decayAllActivations(0.98)
+    // quality 高 → 强化刚才用到的 key weights；quality 低 → 削弱
+    if (qualityScore > 6) {
+      hebbianUpdate({ lexical: 0.5, temporal: 0.3, emotional: 0.3, entity: 0.3, behavioral: 0.2, factual: 0.4, causal: 0.2, sequence: 0.2 }, true)
+    } else if (qualityScore >= 0 && qualityScore < 4) {
+      hebbianUpdate({ lexical: 0.5, temporal: 0.3, emotional: 0.3, entity: 0.3, behavioral: 0.2, factual: 0.4, causal: 0.2, sequence: 0.2 }, false)
+    }
+  } catch {}
+
+  // ── 蒸馏反馈闭环：根据质量反馈 topic node 置信度 ──
+  try {
+    const { feedbackDistillQuality } = await import('./handler-augments.ts')
+    if (qualityScore >= 0) feedbackDistillQuality(qualityScore)
+  } catch {}
 
   // Record observation for behavior engine learning
   try {

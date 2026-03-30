@@ -131,6 +131,30 @@ export function trigramSimilarity(a: Set<string>, b: Set<string>, idf?: Map<stri
   return union > 0 ? intersection / union : 0
 }
 
+/**
+ * 词级语义匹配：专门处理短文本去重（三角字对短文本不灵）
+ * "用户住北京" vs "用户住在北京朝阳" → 词级重叠 = {"住":1, "北京":1} / total = 高
+ * 补充 trigramSimilarity 对短文本的不足
+ */
+export function wordOverlapSimilarity(textA: string, textB: string): number {
+  const wordsA = new Set((textA.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+  const wordsB = new Set((textB.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+  if (wordsA.size === 0 || wordsB.size === 0) return 0
+  let overlap = 0
+  for (const w of wordsA) {
+    if (wordsB.has(w)) overlap++
+  }
+  // Dice coefficient: 2*|A∩B| / (|A| + |B|) — 比 Jaccard 对短文本更友好
+  return (2 * overlap) / (wordsA.size + wordsB.size)
+}
+
+/** 混合相似度：三角字 + 词级匹配取 max（短文本自动切换到词级） */
+export function hybridSimilarity(textA: string, textB: string): number {
+  const triSim = trigramSimilarity(trigrams(textA), trigrams(textB))
+  const wordSim = wordOverlapSimilarity(textA, textB)
+  return Math.max(triSim, wordSim)
+}
+
 /** Build IDF map from a trigram corpus: trigram → log(N / (1 + df)) */
 export function buildTrigramIDF(allTrigrams: Set<string>[]): Map<string, number> {
   const df = new Map<string, number>()

@@ -59,101 +59,68 @@ function cosineSim(a: Map<string, number>, b: Map<string, number>): number {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MinHash LSH — O(n) candidate generation replacing O(n²) all-pairs cosine
+// SimHash — IDF-weighted locality-sensitive hashing (replaces MinHash)
+// Estimates cosine distance instead of Jaccard; better for weighted TF-IDF vectors.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Simple deterministic hash with seed (FNV-1a variant) */
-function simpleHash(token: string, seed: number): number {
-  let h = 2166136261 ^ seed
+const SIMHASH_BITS = 64
+
+/** FNV-1a 64-bit hash (BigInt) */
+function fnv1a64(token: string): bigint {
+  let h = 14695981039346656037n  // FNV offset basis
   for (let i = 0; i < token.length; i++) {
-    h ^= token.charCodeAt(i)
-    h = (h * 16777619) | 0
+    h ^= BigInt(token.charCodeAt(i))
+    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn  // FNV prime, mask to 64 bits
   }
-  return h >>> 0  // unsigned 32-bit
+  return h
 }
 
-/** Generate MinHash signature for a token set */
-function minHash(tokens: Set<string>, numPerm = 64): number[] {
-  const sigs: number[] = new Array(numPerm)
-  for (let i = 0; i < numPerm; i++) {
-    let minVal = 0xFFFFFFFF
-    for (const token of tokens) {
-      const h = simpleHash(token, i * 31 + 7)
-      if (h < minVal) minVal = h
-    }
-    sigs[i] = minVal
-  }
-  return sigs
-}
-
-/** LSH banding: group signatures into bands, return bucket → memory indices */
-function lshBuckets(sigs: number[][], bands = 8, rows = 8): Map<string, number[]> {
-  const buckets = new Map<string, number[]>()
-  for (let docIdx = 0; docIdx < sigs.length; docIdx++) {
-    const sig = sigs[docIdx]
-    for (let b = 0; b < bands; b++) {
-      // Hash the band's rows into a bucket key
-      let bandHash = 0
-      for (let r = 0; r < rows; r++) {
-        const idx = b * rows + r
-        if (idx < sig.length) bandHash = (bandHash * 31 + sig[idx]) | 0
-      }
-      const key = `${b}:${bandHash}`
-      if (!buckets.has(key)) buckets.set(key, [])
-      buckets.get(key)!.push(docIdx)
+/** SimHash: IDF-weighted fingerprint producing a 64-bit signature */
+function simHash(tokens: string[], idf: Map<string, number>, bits = SIMHASH_BITS): bigint {
+  const v = new Float64Array(bits)
+  for (const token of tokens) {
+    const weight = idf.get(token) ?? 0.01  // 未知词给最小权重（停用词 IDF≈0，不能 fallback 给 1.0）
+    const hash = fnv1a64(token)
+    for (let i = 0; i < bits; i++) {
+      if ((hash >> BigInt(i)) & 1n) v[i] += weight
+      else v[i] -= weight
     }
   }
-  return buckets
+  let sig = 0n
+  // 用中位数而非 0 作为阈值——IDF 权重分布偏斜时，0 阈值导致高位全偏正
+  const sorted = [...v].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  for (let i = 0; i < bits; i++) {
+    if (v[i] > median) sig |= (1n << BigInt(i))
+  }
+  return sig
 }
 
-/** Estimate Jaccard similarity from MinHash signatures */
-function estimatedJaccard(sig1: number[], sig2: number[]): number {
-  let match = 0
-  for (let i = 0; i < sig1.length; i++) if (sig1[i] === sig2[i]) match++
-  return match / sig1.length
+/** Hamming distance between two SimHash signatures, normalized to [0, 1] */
+function simHashDistance(a: bigint, b: bigint, bits = SIMHASH_BITS): number {
+  let xor = a ^ b
+  let count = 0
+  while (xor > 0n) { count += Number(xor & 1n); xor >>= 1n }
+  return count / bits  // 0=identical, 1=completely different
 }
 
-/** Tokenize text into word-level shingles for MinHash */
-function tokenize(text: string): Set<string> {
+/** Tokenize text into word-level shingles for SimHash */
+function tokenize(text: string): string[] {
   const words = (text.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
-  const tokens = new Set<string>()
-  // Use word-level 2-shingles for better discrimination
+  const tokens: string[] = []
   for (let i = 0; i < words.length; i++) {
-    tokens.add(words[i])
-    if (i < words.length - 1) tokens.add(`${words[i]}_${words[i + 1]}`)
+    tokens.push(words[i])
+    if (i < words.length - 1) tokens.push(`${words[i]}_${words[i + 1]}`)
   }
   return tokens
 }
 
 function clusterByTopic(mems: Memory[]): Memory[][] {
-  // Cap input to most recent 200 (LSH handles more than old O(n²) could)
+  // Cap input to most recent 200
   const capped = mems.length > 200 ? mems.slice(-200) : mems
   if (capped.length < 3) return []
 
-  const NUM_PERM = 64
-  const BANDS = 8
-  const ROWS = NUM_PERM / BANDS  // 8
-
-  // Step 1: Tokenize and generate MinHash signatures
-  const tokenSets = capped.map(m => tokenize(m.content))
-  const sigs = tokenSets.map(ts => ts.size > 0 ? minHash(ts, NUM_PERM) : new Array(NUM_PERM).fill(0))
-
-  // Step 2: LSH banding to find candidate pairs (O(n) amortized)
-  const buckets = lshBuckets(sigs, BANDS, ROWS)
-
-  // Step 3: Collect candidate pairs from shared buckets
-  const candidatePairs = new Set<string>()
-  for (const [, indices] of buckets) {
-    if (indices.length < 2 || indices.length > 50) continue  // skip singleton/huge buckets
-    for (let a = 0; a < indices.length; a++) {
-      for (let b = a + 1; b < indices.length; b++) {
-        const key = indices[a] < indices[b] ? `${indices[a]}:${indices[b]}` : `${indices[b]}:${indices[a]}`
-        candidatePairs.add(key)
-      }
-    }
-  }
-
-  // Step 4: Verify candidates with precise TF-IDF cosine (only for LSH candidate pairs)
+  // Step 1: Build IDF from corpus
   const df = new Map<string, number>()
   const N = capped.length
   for (const m of capped) {
@@ -162,6 +129,48 @@ function clusterByTopic(mems: Memory[]): Memory[][] {
   }
   const idfMap = new Map<string, number>()
   for (const [word, count] of df) idfMap.set(word, Math.log(N / (1 + count)))
+
+  // Step 2: Tokenize and generate SimHash signatures (IDF-weighted)
+  const tokenLists = capped.map(m => tokenize(m.content))
+  const sigs = tokenLists.map(ts => ts.length > 0 ? simHash(ts, idfMap) : 0n)
+
+  // Step 3: Find candidate pairs — SimHash distance < 0.35 (≈ cosine similarity > 0.3)
+  // Use bucket-based grouping on upper 8 bits for O(n) amortized candidate generation
+  const BUCKET_BITS = 8
+  const buckets = new Map<number, number[]>()
+  for (let i = 0; i < sigs.length; i++) {
+    const bucketKey = Number((sigs[i] >> BigInt(SIMHASH_BITS - BUCKET_BITS)) & BigInt((1 << BUCKET_BITS) - 1))
+    if (!buckets.has(bucketKey)) buckets.set(bucketKey, [])
+    buckets.get(bucketKey)!.push(i)
+  }
+
+  const candidatePairs = new Set<string>()
+  for (const [, indices] of buckets) {
+    if (indices.length < 2 || indices.length > 50) continue
+    for (let a = 0; a < indices.length; a++) {
+      for (let b = a + 1; b < indices.length; b++) {
+        const key = indices[a] < indices[b] ? `${indices[a]}:${indices[b]}` : `${indices[b]}:${indices[a]}`
+        candidatePairs.add(key)
+      }
+    }
+  }
+  // Also check neighboring buckets (1-bit hamming distance on bucket key)
+  for (const [bk, indices] of buckets) {
+    for (let bit = 0; bit < BUCKET_BITS; bit++) {
+      const neighbor = bk ^ (1 << bit)
+      const nIndices = buckets.get(neighbor)
+      if (!nIndices) continue
+      for (const a of indices) {
+        for (const b of nIndices) {
+          if (a === b) continue
+          const key = a < b ? `${a}:${b}` : `${b}:${a}`
+          candidatePairs.add(key)
+        }
+      }
+    }
+  }
+
+  // Step 4: Verify candidates with SimHash distance, then precise TF-IDF cosine
   const vecs = capped.map(m => tfidfVector(m.content, idfMap))
 
   // Union-Find for merging verified pairs
@@ -172,9 +181,9 @@ function clusterByTopic(mems: Memory[]): Memory[][] {
   for (const pair of candidatePairs) {
     const [ai, bi] = pair.split(':').map(Number)
     if (find(ai) === find(bi)) continue
-    // Fast check: MinHash Jaccard estimate
-    const jaccard = estimatedJaccard(sigs[ai], sigs[bi])
-    if (jaccard < 0.15) continue  // too dissimilar
+    // Fast check: SimHash distance (cosine proxy)
+    const dist = simHashDistance(sigs[ai], sigs[bi])
+    if (dist > 0.4) continue  // too dissimilar
     // Precise verification: TF-IDF cosine
     if (cosineSim(vecs[ai], vecs[bi]) >= 0.25) unite(ai, bi)
   }
@@ -1127,13 +1136,38 @@ function creativeForget(mem: Memory, ageDays: number): { action: 'keep' | 'fade'
   }
 
   if (ageDays < 180) {
-    // Stage 3: 只保留 gist（提取核心动词+名词）
+    // Stage 3: 抽象升维压缩 — 从事实升维到特征理解
+    // "用户每天跑步5公里但膝盖疼还坚持" → "运动型+意志力强+有损伤风险"
     const content = mem.content
-    // 提取关键短语（CJK 2-4字词 + 英文3+字母词）
-    const keywords = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/g) || []).slice(0, 5)
-    if (keywords.length === 0) return { action: 'keep' }
-    const gist = keywords.join('、')
-    return { action: 'gist', content: `[模糊记忆] ${gist}` }
+    const traits: string[] = []
+
+    // 行为特征提取规则（不是正则匹配具体内容，而是提取模式）
+    if (/每天|经常|总是|习惯|一直/.test(content)) traits.push('有规律性')
+    if (/坚持|还是|虽然.*但|即使.*也/.test(content)) traits.push('意志力强')
+    if (/喜欢|最爱|偏好|热爱/.test(content)) {
+      const obj = content.match(/喜欢(.{2,8})/)?.[1] || ''
+      if (obj) traits.push(`偏好:${obj.replace(/[，。！？\s]+$/, '')}`)
+    }
+    if (/讨厌|不喜欢|受不了|反感/.test(content)) {
+      const obj = content.match(/(?:讨厌|不喜欢)(.{2,8})/)?.[1] || ''
+      if (obj) traits.push(`反感:${obj.replace(/[，。！？\s]+$/, '')}`)
+    }
+    if (/焦虑|压力|紧张|担心/.test(content)) traits.push('有压力')
+    if (/学|研究|探索|尝试/.test(content)) traits.push('学习型')
+    if (/帮|支持|关心|照顾/.test(content)) traits.push('关怀型')
+    if (/快|效率|优化|性能/.test(content)) traits.push('效率导向')
+    if (/疼|不舒服|生病|失眠/.test(content)) traits.push('健康问题')
+    if (/开心|高兴|兴奋|满足/.test(content)) traits.push('正面体验')
+    if (/难过|伤心|失望|沮丧/.test(content)) traits.push('负面体验')
+
+    if (traits.length === 0) {
+      // 无法升维，降级为关键词提取（原逻辑）
+      const keywords = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/g) || []).slice(0, 5)
+      if (keywords.length === 0) return { action: 'keep' }
+      return { action: 'gist', content: `[模糊记忆] ${keywords.join('、')}` }
+    }
+
+    return { action: 'gist', content: `[特征理解] ${traits.join('、')}` }
   }
 
   // Stage 4: 超过180天，应该被吸收进 person-model
@@ -1580,3 +1614,130 @@ export function auditMemoryHealth() {
   debouncedSave(AUDIT_PATH, audit)
   console.log(`[cc-soul][memory-audit] duplicates=${duplicates.length} short=${tooShort.length} untagged=${untagged} lowConf=${lowConfidence} zombie=${zombie} staleExpiry=${staleExpiry}`)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 因果推论框架：从"用户说X → AI回Y → 用户反应Z"推导因果链
+// 原创算法——不只记录事件，还推导事件之间的因果关系
+//
+// 例：
+// 用户说"部署出问题了" → AI说"检查日志" → 用户说"找到了，是配置错了"
+// → 因果链：部署问题 → 检查日志 → 发现配置错误
+//
+// 记录这些链，下次类似问题直接推荐完整解决路径
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface CausalChain {
+  trigger: string       // 触发事件（用户的问题）
+  steps: string[]       // 解决步骤
+  outcome: 'resolved' | 'unresolved' | 'unknown'
+  confidence: number    // 0-1
+  ts: number
+  hitCount: number      // 被使用次数
+}
+
+const CAUSAL_PATH = resolve(DATA_DIR, 'causal_chains.json')
+let causalChains: CausalChain[] = loadJson<CausalChain[]>(CAUSAL_PATH, [])
+function saveCausalChains() { debouncedSave(CAUSAL_PATH, causalChains) }
+
+/**
+ * 从对话历史中提取因果链
+ * 输入：最近 N 轮对话 [{user, ai, ts}]
+ */
+export function extractCausalChain(
+  history: { user: string; ai: string; ts: number }[]
+): CausalChain | null {
+  if (history.length < 3) return null
+
+  // 检测"问题→尝试→解决"模式
+  const first = history[0]
+  const last = history[history.length - 1]
+
+  // 触发：第一条消息含问题信号
+  const isProblem = /问题|报错|出错|不行|怎么办|bug|error|crash|失败|异常/.test(first.user)
+  if (!isProblem) return null
+
+  // 结果：最后一条消息含解决信号
+  const isResolved = /解决|搞定|好了|找到|原来|明白了|谢谢|可以了/.test(last.user)
+  const isUnresolved = /还是不行|放弃|算了|不管了/.test(last.user)
+
+  if (!isResolved && !isUnresolved) return null
+
+  // 提取步骤：中间的 AI 回复作为步骤
+  const steps = history.slice(0, -1).map(h => {
+    // 提取 AI 回复中的关键动作
+    const actions = h.ai.match(/(?:检查|试试|确认|查看|运行|执行|修改|更新|重启|清除|添加|删除).{2,20}/g)
+    return actions ? actions[0] : h.ai.slice(0, 30)
+  }).filter(Boolean)
+
+  if (steps.length === 0) return null
+
+  const chain: CausalChain = {
+    trigger: first.user.slice(0, 60),
+    steps,
+    outcome: isResolved ? 'resolved' : 'unresolved',
+    confidence: isResolved ? 0.7 : 0.3,
+    ts: Date.now(),
+    hitCount: 0,
+  }
+
+  // 去重：如果已有类似 trigger 的链，更新而非新增
+  const existing = causalChains.find(c => {
+    const cWords = new Set((c.trigger.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+    const newWords = (chain.trigger.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+    const overlap = newWords.filter(w => cWords.has(w)).length
+    return overlap >= 2
+  })
+
+  if (existing) {
+    // 更新已有链
+    if (chain.outcome === 'resolved') {
+      existing.steps = chain.steps  // 用最新的解决步骤
+      existing.outcome = 'resolved'
+      existing.confidence = Math.min(0.95, existing.confidence + 0.1)
+      existing.ts = Date.now()
+    }
+    saveCausalChains()
+    return null  // 已更新，不返回新链
+  }
+
+  // 新增
+  causalChains.push(chain)
+  if (causalChains.length > 50) {
+    // 淘汰最旧的未使用链
+    causalChains.sort((a, b) => (b.hitCount * 10 + b.ts / 1e10) - (a.hitCount * 10 + a.ts / 1e10))
+    causalChains = causalChains.slice(0, 50)
+  }
+  saveCausalChains()
+  console.log(`[cc-soul][causal] new chain: "${chain.trigger.slice(0, 30)}" → ${chain.steps.length} steps → ${chain.outcome}`)
+  return chain
+}
+
+/**
+ * 查询因果链：给定一个问题，找到之前解决过的类似问题的步骤
+ */
+export function queryCausalChain(problem: string): CausalChain | null {
+  const problemWords = new Set((problem.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
+  if (problemWords.size === 0) return null
+
+  let bestChain: CausalChain | null = null
+  let bestScore = 0
+
+  for (const chain of causalChains) {
+    if (chain.outcome !== 'resolved') continue
+    const chainWords = (chain.trigger.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
+    const overlap = chainWords.filter(w => problemWords.has(w)).length
+    const score = overlap / Math.max(1, problemWords.size) * chain.confidence
+    if (score > bestScore && score > 0.3) {
+      bestScore = score
+      bestChain = chain
+    }
+  }
+
+  if (bestChain) {
+    bestChain.hitCount++
+    saveCausalChains()
+  }
+  return bestChain
+}
+
+export function getCausalChainCount(): number { return causalChains.filter(c => c.outcome === 'resolved').length }

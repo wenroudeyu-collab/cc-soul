@@ -421,6 +421,16 @@ function updateCtxBanditReward(paramKey: string, armIdx: number, reward: number,
   if (armIdx < matching.length) {
     matching[armIdx].alpha += reward
     matching[armIdx].beta += (1 - reward)
+
+    // Discount old observations to adapt to non-stationary preferences
+    const DISCOUNT_FACTOR = 0.995
+    const ctxArm = matching[armIdx]
+    ctxArm.alpha *= DISCOUNT_FACTOR
+    ctxArm.beta *= DISCOUNT_FACTOR
+    if (ctxArm.alpha + ctxArm.beta < 2) {
+      ctxArm.alpha = Math.max(ctxArm.alpha, 1)
+      ctxArm.beta = Math.max(ctxArm.beta, 1)
+    }
   }
 
   // Prune: keep max 200 context entries per param to bound memory
@@ -712,6 +722,17 @@ export function updateBanditReward(qualityScore: number, wasCorrection: boolean)
     // Continuous Beta update
     state.arms[armIdx].alpha += reward
     state.arms[armIdx].beta += (1 - reward)
+
+    // Discount old observations to adapt to non-stationary preferences
+    const DISCOUNT_FACTOR = 0.995
+    const arm = state.arms[armIdx]
+    arm.alpha *= DISCOUNT_FACTOR
+    arm.beta *= DISCOUNT_FACTOR
+    // 防止 alpha+beta 缩到太小（保持至少 prior=1）
+    if (arm.alpha + arm.beta < 2) {
+      arm.alpha = Math.max(arm.alpha, 1)
+      arm.beta = Math.max(arm.beta, 1)
+    }
 
     // Contextual update
     updateCtxBanditReward(key, armIdx, reward, _currentCtxKey)

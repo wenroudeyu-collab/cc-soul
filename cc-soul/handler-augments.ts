@@ -52,6 +52,25 @@ import { getDeepUnderstandContext } from './deep-understand.ts'
 // ── Soul Presence Moments cooldown tracker (in-memory, lost on restart is OK) ──
 const _lastSoulMoments = new Map<string, number>()
 
+// ── 蒸馏反馈追踪：记录哪些 topic node 被使用了 ──
+const _usedTopicNodes = new Set<string>()
+
+/**
+ * 蒸馏反馈闭环：根据回复质量反馈 topic node 的准确性
+ * quality 高 → topic node confidence 上升
+ * quality 低 → confidence 下降，标记需要重新蒸馏
+ */
+export function feedbackDistillQuality(qualityScore: number) {
+  for (const topic of _usedTopicNodes) {
+    try {
+      const { adjustTopicConfidence } = require('./distill.ts')
+      if (qualityScore > 7) adjustTopicConfidence(topic, 0.05)
+      else if (qualityScore < 4) adjustTopicConfidence(topic, -0.1)
+    } catch {}
+  }
+  _usedTopicNodes.clear()
+}
+
 // LLM reranker cache: async results from previous turn
 let _cachedRerankedMemories: Memory[] = []
 let _cachedRerankedQuery = ''
@@ -722,7 +741,15 @@ export async function buildAndSelectAugments(params: {
   if (senderId) {
     const parts: string[] = []
     const unifiedCtx = getUnifiedUserContext(userMsg, senderId)
-    if (unifiedCtx) parts.push(unifiedCtx)
+    if (unifiedCtx) {
+      parts.push(unifiedCtx)
+      // 蒸馏反馈追踪：记录被使用的 topic nodes
+      try {
+        const { getRelevantTopics } = require('./distill.ts')
+        const relevantTopics = getRelevantTopics(userMsg, senderId, 5)
+        for (const t of relevantTopics) _usedTopicNodes.add(t.topic)
+      } catch {}
+    }
     parts.push(getProfileContext(senderId))
     if (isEnabled('relationship_dynamics')) {
       const relCtx = getRelationshipContext(senderId)
@@ -1427,6 +1454,21 @@ export async function buildAndSelectAugments(params: {
       augments.push({ content: association, priority: 7, tokens: estimateTokens(association) })
     }
   }
+
+  // ── FSRS 主动回顾推荐 ──
+  try {
+    const { getRecallRecommendations } = await import('./smart-forget.ts')
+    const { memoryState } = await import('./memory.ts')
+    const recommendations = getRecallRecommendations(memoryState.memories, 2)
+    if (recommendations.length > 0) {
+      const recList = recommendations.map(r => `"${r.content}"`).join('、')
+      augments.push({
+        content: `[主动回顾] 以下记忆即将遗忘但可能很重要，如果话题相关可以自然提起：${recList}`,
+        priority: 4,  // 低优先级，只在 budget 充裕时注入
+        tokens: 30,
+      })
+    }
+  } catch {}
 
   // ── Unified emotion awareness (contagion + arc + anchor) ──
   {

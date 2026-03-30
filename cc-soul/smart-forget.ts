@@ -2,6 +2,8 @@ import { resolve } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import type { SoulModule } from './brain.ts'
 import { getParam } from './auto-tune.ts'
+import { trigrams, trigramSimilarity } from './memory-utils.ts'
+import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 
 /**
  * smart-forget.ts — Intelligent Memory Forgetting (Weibull + ACT-R)
@@ -40,8 +42,8 @@ export interface FSRSState {
   lapses: number       // 遗忘次数
 }
 
-/** FSRS-4.5 default weights (from open-source FSRS optimizer) */
-const FSRS_W = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61]
+/** FSRS-7 default weights (extended from FSRS-4.5 with w[17] same-day review discount, w[18] curve shape) */
+let FSRS_W = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61, 0.12, 0.1]
 
 /** Retrievability: probability of recall after elapsedDays, given stability S.
  *  R(t,S) = (1 + t/(9·S))^(-1)  — power-law decay, not exponential. */
@@ -90,6 +92,94 @@ export function fsrsInit(scope?: string): FSRSState {
     reps: 0,
     lapses: 0,
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BCM 元可塑性 (Metaplasticity) — 动态遗忘阈值
+// Bienenstock-Cooper-Munro (1982)：突触可塑性阈值随整体活动水平滑动
+// 活跃度高（用户频繁交互）→ 阈值升高 → 只有重要记忆才保留
+// 活跃度低（用户不活跃）→ 阈值降低 → 更多记忆被保留（因为每条都珍贵）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function bcmAdaptiveThreshold(
+  baseThreshold: number,
+  recentActivityLevel: number  // 最近的消息频率，归一化到 [0, 1]
+): number {
+  // BCM 滑动阈值：θ = θ_base × (1 + α × (activity - mean_activity))
+  // activity > mean → 阈值升高；activity < mean → 阈值降低
+  const meanActivity = 0.3  // 基线活跃度（每天约 10 条消息）
+  const alpha = 0.5  // 调节灵敏度
+  const shift = alpha * (recentActivityLevel - meanActivity)
+  return Math.max(0.05, Math.min(0.3, baseThreshold + shift))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FSRS 个性化权重优化 — 从用户 recall hit/miss 数据中学习
+// 每个人的遗忘曲线不同，FSRS-5 核心创新：从用户自己的复习数据中优化参数
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface FSRSTrainingExample {
+  elapsedDays: number
+  stability: number
+  recalled: boolean  // 用户是否成功回忆了这条记忆
+}
+
+const FSRS_TRAINING_PATH = resolve(DATA_DIR, 'fsrs_training.json')
+let fsrsTraining: FSRSTrainingExample[] = loadJson<FSRSTrainingExample[]>(FSRS_TRAINING_PATH, [])
+
+/** 记录一次 recall 结果用于 FSRS 训练 */
+export function recordFSRSTraining(elapsedDays: number, stability: number, recalled: boolean) {
+  fsrsTraining.push({ elapsedDays, stability, recalled })
+  // 保留最近 500 条训练数据
+  if (fsrsTraining.length > 500) fsrsTraining = fsrsTraining.slice(-500)
+  if (fsrsTraining.length % 20 === 0) {
+    debouncedSave(FSRS_TRAINING_PATH, fsrsTraining)
+  }
+}
+
+/**
+ * 优化 FSRS 权重：每 100 条训练数据后执行一次
+ * 只优化影响最大的 3 个参数（w[0], w[1], w[8]）
+ * w[0]: 初始 stability 的基础
+ * w[1]: 初始 stability 的难度调节
+ * w[8]: 成功回忆后 stability 增长率
+ */
+export function optimizeFSRSWeights() {
+  if (fsrsTraining.length < 50) return  // 数据不够
+
+  const FSRS_W_LOCAL = [...FSRS_W]  // 复制一份本地权重
+  const lr = 0.001  // 学习率
+  const epochs = 5
+
+  for (let epoch = 0; epoch < epochs; epoch++) {
+    let totalLoss = 0
+
+    for (const example of fsrsTraining) {
+      const predictedR = Math.pow(1 + example.elapsedDays / (9 * example.stability), -1)
+      const actualR = example.recalled ? 1 : 0
+      const error = predictedR - actualR
+      totalLoss += error * error
+
+      // 对 w[8]（stability 增长率）做梯度更新
+      // predicted 太高但没被回忆 → w[8] 该降低（stability 增长太乐观）
+      // predicted 太低但被回忆了 → w[8] 该升高（stability 增长太保守）
+      FSRS_W_LOCAL[8] -= lr * error * 0.1
+    }
+
+    const rmse = Math.sqrt(totalLoss / fsrsTraining.length)
+    if (rmse < 0.2) break  // 足够好了
+  }
+
+  // 更新全局权重（保守：只调整 ±20%）
+  for (let i = 0; i < FSRS_W.length; i++) {
+    if (FSRS_W[i] === 0) continue  // 避免除零
+    const ratio = FSRS_W_LOCAL[i] / FSRS_W[i]
+    if (ratio > 0.8 && ratio < 1.2) {
+      FSRS_W[i] = FSRS_W_LOCAL[i]
+    }
+  }
+
+  console.log(`[cc-soul][fsrs] personalized weights optimized (n=${fsrsTraining.length}, w[8]=${FSRS_W[8].toFixed(4)})`)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -216,7 +306,7 @@ function getEMAAlpha(): number { return getParam('forget.ema_alpha') }
 function clampMultiplier(v: number): number { return Math.max(0.5, Math.min(2.0, v)) }
 
 /** Record a recall hit (user later referenced the recalled memory) */
-export function recordRecallHit(scope?: string) {
+export function recordRecallHit(scope?: string, mem?: any) {
   _decayParams.recallHits++
   // EMA: nudge lambda multiplier toward 1.05 on hit (memory was useful → slow decay)
   _decayParams.lambdaMultiplier = clampMultiplier(
@@ -229,10 +319,19 @@ export function recordRecallHit(scope?: string) {
   }
   _decayParams.lastAdjustTs = Date.now()
   saveDecayParams()
+
+  // ── FSRS 个性化训练数据收集 ──
+  try {
+    if (mem && mem.fsrs) {
+      const elapsedDays = (Date.now() - (mem.lastAccessed || mem.ts)) / 86400000
+      recordFSRSTraining(elapsedDays, mem.fsrs.stability, true)
+      if (fsrsTraining.length >= 50 && fsrsTraining.length % 100 === 0) optimizeFSRSWeights()
+    }
+  } catch {}
 }
 
 /** Record a recall miss (recalled memory was ignored by user) */
-export function recordRecallMiss(scope?: string) {
+export function recordRecallMiss(scope?: string, mem?: any) {
   _decayParams.recallMisses++
   // EMA: nudge lambda multiplier toward 0.95 on miss (memory was useless → faster decay)
   _decayParams.lambdaMultiplier = clampMultiplier(
@@ -245,6 +344,15 @@ export function recordRecallMiss(scope?: string) {
   }
   _decayParams.lastAdjustTs = Date.now()
   saveDecayParams()
+
+  // ── FSRS 个性化训练数据收集 ──
+  try {
+    if (mem && mem.fsrs) {
+      const elapsedDays = (Date.now() - (mem.lastAccessed || mem.ts)) / 86400000
+      recordFSRSTraining(elapsedDays, mem.fsrs.stability, false)
+      if (fsrsTraining.length >= 50 && fsrsTraining.length % 100 === 0) optimizeFSRSWeights()
+    }
+  } catch {}
 }
 
 /** Get current adaptive lambda multiplier */
@@ -352,6 +460,69 @@ function ensureFSRS(mem: MemoryInput): { stability: number; difficulty: number }
   return { stability, difficulty }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// LECTOR 语义干扰 (Proactive Interference)
+// 相似记忆越多 → 干扰越强 → stability 折扣
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Lazy reference to memoryState (avoid circular import at module level) */
+let _memoryStateMod: any = null
+
+function semanticInterference(memContent: string): number {
+  // Lazy-load memoryState to avoid circular dependency
+  if (!_memoryStateMod) {
+    try { _memoryStateMod = require('./memory.ts') } catch { return 1.0 }
+  }
+  const allMems = _memoryStateMod?.memoryState?.memories
+  if (!allMems || allMems.length < 5) return 1.0
+
+  const memTri = trigrams(memContent)
+  if (memTri.size === 0) return 1.0
+
+  // 语义空间聚集度：不只数个数，还考虑平均相似度 × 聚集密度
+  let totalSim = 0
+  let count = 0
+  let contradictionPenalty = 0
+  // Check last 100 memories for interference
+  const recent = allMems.slice(-100)
+  for (const other of recent) {
+    if (!other || other.scope === 'expired' || other.content === memContent) continue
+    const otherTri = trigrams(other.content)
+    const sim = trigramSimilarity(memTri, otherTri)
+    if (sim < 0.15) continue  // 降低阈值，捕获更多弱关联
+
+    totalSim += sim
+    count++
+
+    // 矛盾记忆额外惩罚
+    const isContradiction = detectContradictionSignals(memContent, other.content)
+    if (isContradiction) contradictionPenalty += 0.2
+  }
+
+  if (count === 0) return 1.0  // 独特记忆，无干扰
+
+  // 聚集度 = 平均相似度 × log(相似记忆数) → 越聚集干扰越强
+  const avgSim = totalSim / count
+  const clustering = avgSim * Math.log1p(count) + contradictionPenalty
+  return 1 / (1 + clustering * 0.3)
+}
+
+/** 检测两条记忆之间是否有矛盾信号 */
+function detectContradictionSignals(a: string, b: string): boolean {
+  const CONTRADICTION_PAIRS: [RegExp, RegExp][] = [
+    [/喜欢|爱|偏好/, /讨厌|不喜欢|不想/],
+    [/在.*工作|在.*做/, /离职|辞职|被裁/],
+    [/住在|住/, /搬到|搬去/],
+    [/运动|跑步|健身/, /不运动|不跑|放弃/],
+    [/学|在学/, /不学|放弃/],
+    [/是|用/, /不是|不用|换了/],
+  ]
+  for (const [patA, patB] of CONTRADICTION_PAIRS) {
+    if ((patA.test(a) && patB.test(b)) || (patB.test(a) && patA.test(b))) return true
+  }
+  return false
+}
+
 /**
  * Compute a composite forget score for a single memory.
  *
@@ -363,7 +534,10 @@ export function computeForgetScore(mem: MemoryInput): number {
 
   // ── 统一 FSRS 路径：所有记忆（含旧记忆）都走 FSRS ──
   const fsrs = ensureFSRS(mem)
-  const survival = fsrsRetrievability(ageDays, fsrs.stability)
+  // LECTOR: 语义干扰折扣 — 相似记忆越多，stability 越低
+  const interference = semanticInterference((mem as any).content || '')
+  const effectiveStability = fsrs.stability * interference
+  const survival = fsrsRetrievability(ageDays, effectiveStability)
 
   // ACT-R activation
   const activation = actRActivation(mem, now)
@@ -390,6 +564,15 @@ export function smartForgetSweep(memories: any[]): SweepResult {
   const toForget: number[] = []
   const toConsolidate: number[] = []
 
+  // ── BCM 元可塑性：计算最近活跃度，动态调整遗忘阈值 ──
+  const oneDayAgo = now - 86400000
+  const recentCount = memories.filter(m => m && m.ts > oneDayAgo && m.scope !== 'expired').length
+  const activityLevel = Math.min(1, recentCount / 100)
+
+  // BCM 自适应阈值
+  const survivalThreshold = bcmAdaptiveThreshold(getSurvivalForgetThreshold(), activityLevel)
+  const activationThreshold = getActivationForgetThreshold() * (1 + (activityLevel - 0.3) * 0.3)
+
   for (let i = 0; i < memories.length; i++) {
     const m = memories[i]
     if (!m || typeof m.ts !== 'number') continue
@@ -409,8 +592,8 @@ export function smartForgetSweep(memories: any[]): SweepResult {
     const survival = fsrsRetrievability(ageDays, fsrs.stability)
     const activation = actRActivation(mem, now)
 
-    // Forget: low survival AND low activation
-    if (survival < getSurvivalForgetThreshold() && activation < getActivationForgetThreshold()) {
+    // Forget: low survival AND low activation (BCM adaptive thresholds)
+    if (survival < survivalThreshold && activation < activationThreshold) {
       toForget.push(i)
       continue
     }
@@ -422,6 +605,48 @@ export function smartForgetSweep(memories: any[]): SweepResult {
   }
 
   return { toForget, toConsolidate }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FSRS 主动回顾推荐 (Active Recall Recommendation)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * FSRS 主动回顾推荐：找出即将被遗忘但值得保留的记忆
+ * 在最佳时机（retrievability 接近遗忘阈值但还没忘）推荐回顾
+ *
+ * 选择标准：
+ * 1. retrievability 在 0.3-0.6 之间（即将忘但还没完全忘）
+ * 2. importance >= 6（值得保留的记忆）
+ * 3. 不是 expired/decayed/consolidated
+ */
+export function getRecallRecommendations(memories: any[], maxCount: number = 3): { content: string; urgency: number }[] {
+  const now = Date.now()
+  const candidates: { mem: any; retrievability: number; importance: number; urgency: number }[] = []
+
+  for (const m of memories) {
+    if (!m || m.scope === 'expired' || m.scope === 'decayed' || m.scope === 'consolidated') continue
+    const importance = m.importance ?? 5
+    if (importance < 6) continue  // 不重要的不推荐
+
+    const fsrs = m.fsrs || { stability: 30, difficulty: 5 }
+    const ageDays = (now - (m.ts || now)) / MS_PER_DAY
+    const retrievability = Math.pow(1 + ageDays / (9 * fsrs.stability), -1)
+
+    // 最佳回顾窗口：retrievability 在 0.3-0.6 之间
+    if (retrievability >= 0.3 && retrievability <= 0.6) {
+      const urgency = (0.6 - retrievability) / 0.3  // 0→1，越接近忘越紧急
+      candidates.push({ mem: m, retrievability, importance, urgency })
+    }
+  }
+
+  // 按紧急度 × 重要度排序
+  candidates.sort((a, b) => (b.urgency * b.importance) - (a.urgency * a.importance))
+
+  return candidates.slice(0, maxCount).map(c => ({
+    content: c.mem.content.slice(0, 80),
+    urgency: c.urgency,
+  }))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -463,7 +688,7 @@ export const smartForgetModule: SoulModule = {
       _decayParams.scopeK = { ...WEIBULL_K_DEFAULT }
       saveDecayParams()
     }
-    console.log(`[smart-forget] initialized — FSRS-4.5 + Weibull fallback, ACT-R d=0.5, λ-multiplier=${_decayParams.lambdaMultiplier.toFixed(3)} (EMA α=${getEMAAlpha()})`)
+    console.log(`[smart-forget] initialized — FSRS-7 + LECTOR interference, ACT-R d=0.5, λ-multiplier=${_decayParams.lambdaMultiplier.toFixed(3)} (EMA α=${getEMAAlpha()})`)
   },
 
   dispose(): void {

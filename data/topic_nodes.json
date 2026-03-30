@@ -1,58 +1,58 @@
 [
   {
-    "topic": "Python并发选择",
-    "summary": "Python中因GIL限制，CPU密集型任务应使用多进程，I/O密集型任务推荐asyncio，多线程因无法并行处理CPU任务而表现尴尬。",
-    "sourceCount": 4,
-    "lastUpdated": 1774896429284,
+    "topic": "个人身份与偏好",
+    "summary": "张三是一位在字节工作的后端开发者，偏好Go语言和火锅，有一个5岁的女儿朵朵，讨厌PHP和寿司。",
+    "sourceCount": 8,
+    "lastUpdated": 1774903518234,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "Web服务器对比",
-    "summary": "Nginx采用异步事件驱动架构，适合现代高并发场景，处理静态资源高效；Apache采用多进程/多线程架构，配置灵活但较复杂，适合传统动态内容处理。",
-    "sourceCount": 5,
-    "lastUpdated": 1774896429287,
+    "topic": "张三职业家庭",
+    "summary": "张三在美团担任Go语言后端工程师，妻子小红在银行工作，女儿朵朵5岁。",
+    "sourceCount": 7,
+    "lastUpdated": 1774903518236,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "项目压力与记忆功能",
-    "summary": "wang正面临项目延期压力，同时了解到系统会主动标记重要信息并支持随时记录，对话默认被记忆除非明确要求停止。",
+    "topic": "小王职业信息",
+    "summary": "小王在腾讯从事前端开发工作，主要技术栈是Vue。此前AI曾错误记忆其工作单位为字节，后已修正。",
     "sourceCount": 5,
-    "lastUpdated": 1774896429326,
+    "lastUpdated": 1774903518301,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "用户身份与时区",
-    "summary": "用户要求被称呼为“大哥”，其身份标识为“wang”，并多次确认时区为欧洲/巴黎（GMT+1）。",
+    "summary": "用户要求被称为“大哥”，其身份偏好已确认；同时多次记录时区为欧洲/巴黎（GMT+1），表明地理位置信息稳定。",
     "sourceCount": 6,
-    "lastUpdated": 1774896429412,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
-  },
-  {
-    "topic": "Python并行计算",
-    "summary": "Python中CPU密集型任务推荐使用multiprocessing多进程实现真并行，I/O密集型任务适合用asyncio异步处理，混合场景可结合asyncio与进程池优化性能。",
-    "sourceCount": 4,
-    "lastUpdated": 1774896429457,
+    "lastUpdated": 1774903518306,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Docker清理",
-    "summary": "Docker清理命令包括查看空间占用、清理悬空或未使用镜像及系统资源，不同命令的风险等级各异，需谨慎选择以避免误删重要数据。",
+    "summary": "Docker清理命令包括查看空间占用（docker system df）和分级清理（prune），风险从低到中，需谨慎使用-a参数避免误删有用镜像。",
     "sourceCount": 11,
-    "lastUpdated": 1774896429486,
+    "lastUpdated": 1774903518322,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "Web服务器特性",
+    "summary": "Nginx以异步事件驱动架构实现高性能静态资源处理和低内存占用，配置简洁但不支持.htaccess；Apache通过模块化设计提供灵活的动态内容处理和.htaccess支持，但配置相对复杂。",
+    "sourceCount": 5,
+    "lastUpdated": 1774903518494,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "消息队列选型",
-    "summary": "Kafka 适用于高吞吐、强持久化、需削峰与重放的场景（如订单系统）；RabbitMQ 更适用于低延迟、复杂路由的实时消息处理，但吞吐和堆积能力较弱。",
+    "summary": "Kafka 适合高吞吐、强持久化、需削峰与重放的场景（如订单系统）；RabbitMQ 适合低延迟、灵活路由的轻量级场景。两者在性能、有序性、堆积能力上差异显著。",
     "sourceCount": 5,
-    "lastUpdated": 1774896429629,
+    "lastUpdated": 1774903518770,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "CPython GIL",
-    "summary": "GIL是CPython解释器的全局锁，它限制同一时间仅有一个线程执行Python字节码，影响多线程并发性能。",
-    "sourceCount": 3,
-    "lastUpdated": 1774896430215,
+    "topic": "用户认知与压力",
+    "summary": "wang了解系统的记忆机制，包括主动标记和隐私控制，同时正面临项目延期的压力。",
+    "sourceCount": 5,
+    "lastUpdated": 1774903519911,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   }
 ]

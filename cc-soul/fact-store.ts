@@ -46,8 +46,8 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'uses', object: m[1].replace(/[。，！？\s]+$/, ''),
     confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我在X工作" / "我是X的"
-  { pattern: /我(?:在|是)\s*(.{2,15})(?:工作|上班|就职|的员工)/, extract: (m) => ({
+  // "我在X工作" / "我在X做Y" / "我是X的"
+  { pattern: /我(?:在|是)\s*(.{2,15})(?:工作|上班|就职|的员工|做(?:前端|后端|开发|测试|设计|产品|运维|运营|销售|管理))/, extract: (m) => ({
     subject: 'user', predicate: 'works_at', object: m[1].replace(/[。，！？\s]+$/, ''),
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
@@ -81,6 +81,16 @@ const RULES: ExtractionRule[] = [
     return { subject: 'user', predicate: 'has_pet', object: m[0].replace(/^我(?:养了|家有|有一只|有一条|有一个)\s*/, '').replace(/[。，！？\s]+$/, ''),
       confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0 }
   }},
+  // "我有个女儿/儿子/孩子" / "我有X个孩子" → has_family
+  { pattern: /我有(?:个|一个|两个|三个)?\s*([^，。！？,;；\n]{1,10}?)(?:女儿|儿子|孩子|闺女|宝宝|小孩|老婆|老公|丈夫|妻子|爸|妈|哥|姐|弟|妹)/, extract: (m) => ({
+    subject: 'user', predicate: 'has_family', object: m[0].replace(/^我有(?:个|一个|两个|三个)?\s*/, '').replace(/[。，！？\s]+$/, ''),
+    confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
+  // "我女儿/儿子叫X" → family_name
+  { pattern: /我(?:女儿|儿子|孩子|闺女|宝宝|老婆|老公)叫\s*([^，。！？,;；\n]{1,8})/, extract: (m) => ({
+    subject: 'user', predicate: 'family_name', object: m[0].replace(/^我/, '').replace(/[。，！？\s]+$/, ''),
+    confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
+  })},
   // "我每天X" / "我习惯X" → habit
   { pattern: /我(?:每天|习惯|一般都|通常|经常)\s*([^，。！？,;；\n]{2,20})/, extract: (m) => ({
     subject: 'user', predicate: 'habit', object: m[1].replace(/[。，！？\s]+$/, ''),

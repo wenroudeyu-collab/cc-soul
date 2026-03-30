@@ -5,27 +5,27 @@
       20,
       14
     ],
-    "stressDay": null,
+    "stressDay": "周一",
     "lateNightFrequency": 0
   },
   "sayDo": {
     "gaps": []
   },
   "growth": {
-    "direction": "growing",
-    "details": "长度+40%，词汇0→2"
+    "direction": "plateauing",
+    "details": "模式稳定"
   },
   "unspoken": {
     "needs": [
       {
-        "domain": "编程",
-        "confidence": 0.4,
-        "evidence": "本周4次"
+        "domain": "职场",
+        "confidence": 0.7,
+        "evidence": "本周7次"
       },
       {
-        "domain": "职场",
-        "confidence": 0.4,
-        "evidence": "本周4次"
+        "domain": "编程",
+        "confidence": 0.6,
+        "evidence": "本周6次"
       }
     ]
   },
@@ -37,6 +37,6 @@
     "stressLevel": 0,
     "signals": []
   },
-  "dynamicProfile": "活跃10/20/14时；上升期；我渴望掌控与效率，追求以最小的认知成本获得最优解。这驱使我偏爱文档完善、生态成熟的技术（如Go），并厌恶混乱与低效（如P",
-  "updatedAt": 1774897925402
+  "dynamicProfile": "活跃10/20/14时；快速成长期，保持节奏；潜在需求:职场；我渴望掌控与效率，追求以最小的认知成本获得最优解。这驱使我偏爱文档完善、生态成熟的技术（如Go），并厌恶混乱与低效（如P",
+  "updatedAt": 1774905011579
 }

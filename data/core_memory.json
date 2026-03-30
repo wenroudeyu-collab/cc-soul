@@ -1,602 +1,602 @@
 [
   {
+    "content": "女儿名叫朵朵，5岁",
+    "category": "user_fact",
+    "addedAt": 1774903511568,
+    "source": "auto"
+  },
+  {
+    "content": "主要使用Go语言",
+    "category": "user_fact",
+    "addedAt": 1774903511569,
+    "source": "auto"
+  },
+  {
+    "content": "担任后端开发职位",
+    "category": "user_fact",
+    "addedAt": 1774903511570,
+    "source": "auto"
+  },
+  {
+    "content": "在美团工作",
+    "category": "user_fact",
+    "addedAt": 1774903511571,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我在美团做后端，主要用 Go → AI: 收到，张三。\n\n（更正记忆：工作腾讯→美团；职位前端→后端；技术栈 Vue→Go）\n\n在美团做 Go 后端，女儿朵朵5岁",
+    "category": "user_fact",
+    "addedAt": 1774903511572,
+    "source": "auto"
+  },
+  {
+    "content": "用户名叫张三",
+    "category": "user_fact",
+    "addedAt": 1774903511573,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 你好，我叫张三 → AI: 收到。\n\n（更正记忆：老王→张三；身份更新）\n\n张三在腾讯做前端吗？还是其他工作？",
+    "category": "user_fact",
+    "addedAt": 1774903511574,
+    "source": "auto"
+  },
+  {
+    "content": "用户有个女儿叫朵朵，5岁",
+    "category": "user_fact",
+    "addedAt": 1774903511575,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我有个女儿，今年5岁了，叫朵朵 → AI: 收到，老王。\n\n（记下了：有个女儿叫朵朵，5岁）\n\n朵朵最近怎么样？之前聊过孩子写作业和玩手机的问题，是朵朵吗？",
+    "category": "user_fact",
+    "addedAt": 1774903511575,
+    "source": "auto"
+  },
+  {
+    "content": "Vue 技术栈",
+    "category": "user_fact",
+    "addedAt": 1774903511576,
+    "source": "auto"
+  },
+  {
+    "content": "腾讯前端开发",
+    "category": "user_fact",
+    "addedAt": 1774903511577,
+    "source": "auto"
+  },
+  {
+    "content": "用户是老王",
+    "category": "user_fact",
+    "addedAt": 1774903511578,
+    "source": "auto"
+  },
+  {
+    "content": "[WAL事实] 我有个女儿，今年5岁了，叫朵朵",
+    "category": "user_fact",
+    "addedAt": 1774903511579,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我是谁 → AI: 你是 **老王**。\n\n- 腾讯前端开发，Vue 技术栈\n- 喜欢吃火锅，讨厌吃寿司和 Angular\n- 最近项目延期",
+    "category": "user_fact",
+    "addedAt": 1774903511579,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 好的 → AI: 好的，小王。有事儿随时说。",
+    "category": "user_fact",
+    "addedAt": 1774903511580,
+    "source": "auto"
+  },
+  {
+    "content": "小王喜欢吃火锅，讨厌吃寿司",
+    "category": "preference",
+    "addedAt": 1774903511581,
+    "source": "auto"
+  },
+  {
+    "content": "小王最喜欢Vue，讨厌Angular",
+    "category": "preference",
+    "addedAt": 1774903511582,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 你能帮我总结一下你对我的了解吗 → AI: 好的，小王：\n\n---\n\n**基本信息**\n- 名字：小王\n- 工作：腾讯，前端开发\n- 技术栈：Vue（最喜欢），讨厌",
+    "category": "user_fact",
+    "addedAt": 1774903511582,
+    "source": "auto"
+  },
+  {
+    "content": "Node.js全栈方向可学习BFF层、工具链开发，技术栈包括Nest.js/Egg.js + 数据库",
+    "category": "user_fact",
+    "addedAt": 1774903511583,
+    "source": "auto"
+  },
+  {
+    "content": "前端性能优化包括Core Web Vitals、懒加载、代码分割",
+    "category": "user_fact",
+    "addedAt": 1774903511584,
+    "source": "auto"
+  },
+  {
+    "content": "Vue 3源码学习可理解响应式、编译优化，面试加分",
+    "category": "user_fact",
+    "addedAt": 1774903511584,
+    "source": "auto"
+  },
+  {
+    "content": "小王是腾讯前端，使用Vue技术栈",
+    "category": "user_fact",
+    "addedAt": 1774903511585,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我适合学什么新技术 → AI: 小王是腾讯前端，用 Vue。基于这个背景，建议方向：\n\n---\n\n**深耕前端（稳扎稳打）**\n\n| 技术 | 为什么 ",
+    "category": "user_fact",
+    "addedAt": 1774903511586,
+    "source": "auto"
+  },
+  {
+    "content": "小王在腾讯做前端开发",
+    "category": "user_fact",
+    "addedAt": 1774903511587,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我之前跟你说过我在哪工作吗 → AI: 小王说过在 **腾讯** 做前端开发。",
+    "category": "user_fact",
+    "addedAt": 1774903511588,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 烦死了！！项目又延期了 老板还在催 → AI: 小王，项目延期到什么程度？还有救吗？\n\n先理清楚：\n- 延期多久？原定什么时候上线？\n- 卡在技术问题还是需求变更？\n-",
+    "category": "user_fact",
+    "addedAt": 1774903511588,
+    "source": "auto"
+  },
+  {
+    "content": "小王讨厌吃寿司",
+    "category": "preference",
+    "addedAt": 1774903511589,
+    "source": "auto"
+  },
+  {
+    "content": "小王喜欢吃火锅",
+    "category": "preference",
+    "addedAt": 1774903511590,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 你还记得我喜欢吃什么吗 → AI: 小王喜欢吃 **火锅**，讨厌吃 **寿司**。",
+    "category": "user_fact",
+    "addedAt": 1774903511590,
+    "source": "auto"
+  },
+  {
+    "content": "讨厌吃寿司",
+    "category": "preference",
+    "addedAt": 1774903511591,
+    "source": "auto"
+  },
+  {
+    "content": "喜欢吃火锅",
+    "category": "preference",
+    "addedAt": 1774903511592,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我特别喜欢吃火锅，讨厌吃寿司 → AI: 收到。\n\n（记下了：喜欢吃火锅，讨厌吃寿司）\n\n小王还有什么想聊的？",
+    "category": "user_fact",
+    "addedAt": 1774903511592,
+    "source": "auto"
+  },
+  {
+    "content": "讨厌 Angular",
+    "category": "preference",
+    "addedAt": 1774903511593,
+    "source": "auto"
+  },
+  {
+    "content": "喜欢 Vue",
+    "category": "preference",
+    "addedAt": 1774903511593,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我最喜欢用 Vue，讨厌 Angular → AI: 收到。\n\n（记下了：喜欢 Vue，讨厌 Angular）\n\n小王在腾讯做前端，Vue 技术栈。有什么想聊的？项目、技术还",
+    "category": "user_fact",
+    "addedAt": 1774903511594,
+    "source": "auto"
+  },
+  {
+    "content": "小王从事前端开发",
+    "category": "user_fact",
+    "addedAt": 1774903511595,
+    "source": "auto"
+  },
+  {
+    "content": "小王在腾讯工作",
+    "category": "user_fact",
+    "addedAt": 1774903511595,
+    "source": "auto"
+  },
+  {
+    "content": "用户叫小王",
+    "category": "user_fact",
+    "addedAt": 1774903511596,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我叫小王，在腾讯做前端开发 → AI: 收到。\n\n（更正记忆：名字 wang→小王；工作字节→腾讯；职位后端→前端）\n\n小王在腾讯做前端，技术栈是什么？Vue ",
+    "category": "user_fact",
+    "addedAt": 1774903511596,
+    "source": "auto"
+  },
+  {
+    "content": "用户关注Rust和TypeScript",
+    "category": "user_fact",
+    "addedAt": 1774903511597,
+    "source": "auto"
+  },
+  {
+    "content": "用户常用Python",
+    "category": "user_fact",
+    "addedAt": 1774903511598,
+    "source": "auto"
+  },
+  {
+    "content": "[WAL事实] 我喜欢什么编程语言吗",
+    "category": "user_fact",
+    "addedAt": 1774903511598,
+    "source": "auto"
+  },
+  {
+    "content": "Apache支持.htaccess和模块动态加载，Nginx不支持.htaccess且模块热加载需重编译",
+    "category": "user_fact",
+    "addedAt": 1774903511599,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx配置简洁声明式，Apache配置灵活但复杂",
+    "category": "user_fact",
+    "addedAt": 1774903511599,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx处理动态内容需反向代理到后端，Apache可通过模块直接运行",
+    "category": "user_fact",
+    "addedAt": 1774903511600,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx处理静态资源极快且内存占用低，Apache处理静态资源性能一般",
+    "category": "user_fact",
+    "addedAt": 1774903511600,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx采用异步事件驱动架构，Apache采用多进程/多线程架构",
+    "category": "user_fact",
+    "addedAt": 1774903511601,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: Nginx和Apache哪个好 → AI: **Nginx 更现代，Apache 更老牌，新项目首选 Nginx。**\n\n---\n\n**核心对比：**\n\n| | N",
+    "category": "user_fact",
+    "addedAt": 1774903511601,
+    "source": "auto"
+  },
+  {
     "content": "RESTful API 的 URL 设计示例：获取用户列表用 GET /users，获取单个用户用 GET /users/123，创建用户用 POST /users，更新用户用 PUT/PATCH",
     "category": "user_fact",
-    "addedAt": 1774896425374,
+    "addedAt": 1774903511602,
     "source": "auto"
   },
   {
     "content": "RESTful API 的核心原则包括：资源（一切皆是资源，用 URL 标识）、HTTP 方法（GET/POST/PUT/DELETE）、无状态、统一接口",
     "category": "user_fact",
-    "addedAt": 1774896425375,
+    "addedAt": 1774903511602,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 什么是RESTful API → AI: **RESTful API 是一种基于 HTTP 协议的设计风格，用 URL 定位资源，用 HTTP 方法描述操作。**",
     "category": "user_fact",
-    "addedAt": 1774896425377,
+    "addedAt": 1774903511603,
     "source": "auto"
   },
   {
     "content": "Go 语言使用 `go` 关键字一键启动 goroutine，无需线程池。",
     "category": "user_fact",
-    "addedAt": 1774896425377,
+    "addedAt": 1774903511603,
     "source": "auto"
   },
   {
     "content": "Goroutine 采用 M:N 调度模型，M 个 goroutine 映射到 N 个 OS 线程（GOMAXPROCS）。",
     "category": "user_fact",
-    "addedAt": 1774896425378,
+    "addedAt": 1774903511604,
     "source": "auto"
   },
   {
     "content": "Goroutine 采用协作式调度（非抢占），在函数调用、I/O、channel 操作时切换。",
     "category": "user_fact",
-    "addedAt": 1774896425379,
+    "addedAt": 1774903511605,
     "source": "auto"
   },
   {
     "content": "Goroutine 初始栈 2KB，可动态伸缩，可轻松开启百万个。",
     "category": "user_fact",
-    "addedAt": 1774896425380,
+    "addedAt": 1774903511605,
     "source": "auto"
   },
   {
     "content": "Goroutine 是 Go 语言的轻量级线程，由 Go 运行时管理，不是操作系统线程。",
     "category": "user_fact",
-    "addedAt": 1774896425381,
+    "addedAt": 1774903511606,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: Go语言的goroutine是什么 → AI: **Goroutine 是 Go 的轻量级线程，由 Go 运行时管理，不是操作系统线程。**\n\n---\n\n**核心特点：",
     "category": "user_fact",
-    "addedAt": 1774896425382,
+    "addedAt": 1774903511606,
     "source": "auto"
   },
   {
     "content": "Docker是一个容器化平台，用于打包和运行应用。",
     "category": "user_fact",
-    "addedAt": 1774896425383,
+    "addedAt": 1774903511607,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 什么是Docker → AI: Docker是一个容器化平台，用于打包和运行应用。",
     "category": "user_fact",
-    "addedAt": 1774896425383,
+    "addedAt": 1774903511607,
     "source": "auto"
   },
   {
     "content": "技术演进路径：裸机部署 → 虚拟机 → Docker（单机容器）→ K8s（容器编排）",
     "category": "user_fact",
-    "addedAt": 1774896425384,
+    "addedAt": 1774903511608,
     "source": "auto"
   },
   {
     "content": "Docker 与 K8s 的关系类比：Docker 类似集装箱（标准化打包），K8s 类似港口调度系统（管理大量容器）",
     "category": "user_fact",
-    "addedAt": 1774896425385,
+    "addedAt": 1774903511608,
     "source": "auto"
   },
   {
     "content": "Kubernetes (K8s) 是容器编排平台，用于跨多台机器调度容器，提供自动扩缩容、故障自愈、服务发现等功能",
     "category": "user_fact",
-    "addedAt": 1774896425386,
+    "addedAt": 1774903511609,
     "source": "auto"
   },
   {
     "content": "Docker 是容器技术，用于打包应用和依赖成镜像，解决单机运行和开发环境一致性问题",
     "category": "user_fact",
-    "addedAt": 1774896425386,
+    "addedAt": 1774903511609,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: Docker和K8s什么关系 → AI: **Docker 是容器，K8s 是管容器的编排平台。**\n\n---\n\n**关系类比：**\n\n| | 类比 |\n|--|",
     "category": "user_fact",
-    "addedAt": 1774896425387,
+    "addedAt": 1774903511610,
     "source": "auto"
   },
   {
     "content": "微服务会带来分布式复杂度、运维成本增加、调试困难和数据一致性等挑战",
     "category": "user_fact",
-    "addedAt": 1774896425388,
+    "addedAt": 1774903511610,
     "source": "auto"
   },
   {
     "content": "微服务适合团队规模较大（如50+人）、需要独立扩容、技术债务重的场景",
     "category": "user_fact",
-    "addedAt": 1774896425388,
+    "addedAt": 1774903511611,
     "source": "auto"
   },
   {
     "content": "微服务架构与单体架构在代码库、部署方式、技术栈、团队协作和故障影响方面存在差异",
     "category": "user_fact",
-    "addedAt": 1774896425389,
+    "addedAt": 1774903511612,
     "source": "auto"
   },
   {
     "content": "微服务是一种将大型系统拆分为多个独立部署的小服务的架构风格",
     "category": "user_fact",
-    "addedAt": 1774896425390,
+    "addedAt": 1774903511612,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**\n\n---\n\n**单体 vs 微服务**\n\n| | 单体 | 微服",
     "category": "user_fact",
-    "addedAt": 1774896425390,
+    "addedAt": 1774903511612,
     "source": "auto"
   },
   {
     "content": "Redis和MongoDB的核心差异：数据模型、持久化方式、查询能力、事务支持和适用场景",
     "category": "user_fact",
-    "addedAt": 1774896425391,
+    "addedAt": 1774903511613,
     "source": "auto"
   },
   {
     "content": "MongoDB是JSON-like文档数据库，适合内容管理、用户数据、日志、物联网等场景",
     "category": "user_fact",
-    "addedAt": 1774896425392,
+    "addedAt": 1774903511613,
     "source": "auto"
   },
   {
     "content": "Redis是Key-Value内存数据库，适合缓存、会话、排行榜、实时计数等场景",
     "category": "user_fact",
-    "addedAt": 1774896425392,
+    "addedAt": 1774903511614,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: Redis和MongoDB怎么选 → AI: **一句话：结构化查询用 Redis，文档存储用 MongoDB。**\n\n---\n\n**核心差异：**\n\n| | Red",
     "category": "user_fact",
-    "addedAt": 1774896425393,
+    "addedAt": 1774903511615,
     "source": "auto"
   },
   {
     "content": "CPU并行计算可使用multiprocessing多进程，异步I/O可使用asyncio，真并行线程可用Cython/numba写扩展或换PyPy/Jython",
     "category": "user_fact",
-    "addedAt": 1774896425394,
+    "addedAt": 1774903511615,
     "source": "auto"
   },
   {
     "content": "GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此多线程对I/O密集型任务有效",
     "category": "user_fact",
-    "addedAt": 1774896425394,
+    "addedAt": 1774903511616,
     "source": "auto"
   },
   {
     "content": "Python线程不能真正并行执行CPU密集型任务，多线程在CPU密集型场景下无效甚至更慢",
     "category": "user_fact",
-    "addedAt": 1774896425395,
+    "addedAt": 1774903511616,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpreter Lock）** 是 CPython 的全局解释器锁，确保同一时刻只有一",
     "category": "user_fact",
-    "addedAt": 1774896425395,
+    "addedAt": 1774903511616,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 我在哪工作来着 → AI: 老板辛苦了。今天什么进度？项目延期的事有缓解吗？",
     "category": "user_fact",
-    "addedAt": 1774896425396,
+    "addedAt": 1774903511617,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 你还记得我叫什么吗 → AI: 老板在 **字节** 工作。",
     "category": "user_fact",
-    "addedAt": 1774896425397,
+    "addedAt": 1774903511617,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 你好，在吗 → AI: 老板想问 **Python 和 Rust 怎么选**？\n\n还是两个都想聊？",
     "category": "user_fact",
-    "addedAt": 1774896425397,
+    "addedAt": 1774903511618,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: aaaaaaa → AI: 老板想问 **Python 和 Rust 怎么选**？\n\n还是两个都想聊？",
     "category": "user_fact",
-    "addedAt": 1774896425398,
+    "addedAt": 1774903511618,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: aaaaaaayaoaaaaaa React aa Vue → AI: 老板想问 **iOS** 的什么？\n\n开发（Swift/SwiftUI）、上架审核、还是日常使用问题？",
     "category": "user_fact",
-    "addedAt": 1774896425399,
+    "addedAt": 1774903511619,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: a → AI: 老板想问 Docker 的什么？\n\n镜像优化、网络配置、Compose 编排，还是部署问题？",
     "category": "user_fact",
-    "addedAt": 1774896425400,
+    "addedAt": 1774903511619,
     "source": "auto"
   },
   {
     "content": "Go开发者社区规模大，招聘容易；Rust相对小众",
     "category": "user_fact",
-    "addedAt": 1774896425400,
+    "addedAt": 1774903511620,
     "source": "auto"
   },
   {
     "content": "Go上手速度快（1-2周），Rust所有权学习曲线陡峭",
     "category": "user_fact",
-    "addedAt": 1774896425401,
+    "addedAt": 1774903511620,
     "source": "auto"
   },
   {
     "content": "Go在字节跳动业务后端占主导，Rust主要用于基础设施和存储引擎",
     "category": "user_fact",
-    "addedAt": 1774896425401,
+    "addedAt": 1774903511621,
     "source": "auto"
   },
   {
     "content": "字节跳动内部Go生态成熟，拥有Kitex、Hertz等框架",
     "category": "user_fact",
-    "addedAt": 1774896425402,
+    "addedAt": 1774903511621,
     "source": "auto"
   },
   {
     "content": "用户之前选择了Go而不是Rust作为主要开发语言",
     "category": "preference",
-    "addedAt": 1774896425402,
+    "addedAt": 1774903511622,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 为什么我之前选了 Go 而不是 Rust？ → AI: 老板之前没说过为什么选 Go 而不是 Rust。\n\n但从聊的内容看，Go 是主力语言，Rust 是关注/学习状态。可能的",
     "category": "user_fact",
-    "addedAt": 1774896425403,
+    "addedAt": 1774903511622,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 我之前提过在哪工作来着？ → AI: 老板在 **字节** 工作。",
     "category": "user_fact",
-    "addedAt": 1774896425404,
+    "addedAt": 1774903511623,
     "source": "auto"
   },
   {
     "content": "YTWL肩背激活、死虫式、鸟狗式、游泳、颈部抗阻训练是强化锻炼颈椎的有效动作",
     "category": "user_fact",
-    "addedAt": 1774896425404,
+    "addedAt": 1774903511623,
     "source": "auto"
   },
   {
     "content": "每小时应进行下巴后缩、头侧倾、耸肩后旋下沉等颈部拉伸动作",
     "category": "user_fact",
-    "addedAt": 1774896425405,
+    "addedAt": 1774903511624,
     "source": "auto"
   },
   {
     "content": "番茄钟工作法改良版：25分钟专注，5分钟强制离开座位进行活动",
     "category": "user_fact",
-    "addedAt": 1774896425405,
+    "addedAt": 1774903511624,
     "source": "auto"
   },
   {
     "content": "显示器上沿应与眼睛水平线齐平",
     "category": "user_fact",
-    "addedAt": 1774896425406,
+    "addedAt": 1774903511625,
     "source": "auto"
   },
   {
     "content": "改善颈椎问题的三个方向：环境调整、习惯打断、强化锻炼",
     "category": "user_fact",
-    "addedAt": 1774896425406,
+    "addedAt": 1774903511625,
     "source": "auto"
   },
   {
     "content": "[对话] 用户: 颈椎疼，长期对着电脑有什么改善办法？ → AI: **程序员职业病，从环境+习惯+锻炼三方面改：**\n\n---\n\n**1. 环境调整（立竿见影）**\n\n| 问题 | 解决",
     "category": "user_fact",
-    "addedAt": 1774896425407,
+    "addedAt": 1774903511626,
     "source": "auto"
   },
   {
     "content": "公积金贷款提前还款灵活通常无违约金，商业贷款提前还款看合同可能收违约金",
     "category": "user_fact",
-    "addedAt": 1774896425408,
+    "addedAt": 1774903511626,
     "source": "auto"
   },
   {
     "content": "公积金贷款审批速度慢（1-2个月），商业贷款审批速度快（1-2周）",
     "category": "user_fact",
-    "addedAt": 1774896425408,
+    "addedAt": 1774903511627,
     "source": "auto"
   },
   {
     "content": "公积金贷款额度有限（通常60-120万），商业贷款额度高（可贷房价70-80%）",
     "category": "user_fact",
-    "addedAt": 1774896425408,
+    "addedAt": 1774903511627,
     "source": "auto"
   },
   {
     "content": "公积金贷款5年以上利率为2.85%，商业贷款利率为3.5%-4.5%（LPR浮动）",
     "category": "user_fact",
-    "addedAt": 1774896425409,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 公积金贷款和商业贷款怎么选？ → AI: **能贷公积金优先用，额度不够再组合。**\n\n---\n\n**核心对比：**\n\n| | 公积金贷款 | 商业贷款 |\n|-",
-    "category": "user_fact",
-    "addedAt": 1774896425410,
-    "source": "auto"
-  },
-  {
-    "content": "有效提问示例：'今天课间你和谁玩了？'、'数学课上老师讲了什么题？'、'你们班今天谁最搞笑？'",
-    "category": "user_fact",
-    "addedAt": 1774896425410,
-    "source": "auto"
-  },
-  {
-    "content": "孩子说'没什么'是标准防御，需要改变提问方式",
-    "category": "user_fact",
-    "addedAt": 1774896425411,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 怎么和孩子聊学校发生的事？他总是说没什么 → AI: **\"没什么\"是孩子的标准防御，换个问法：**\n\n---\n\n**别问开放式问题：**\n\n| ❌ 无效 | ✅ 有效 |\n",
-    "category": "user_fact",
-    "addedAt": 1774896425411,
-    "source": "auto"
-  },
-  {
-    "content": "Redis集群采用主从架构，主节点负责读写，从节点负责故障切换",
-    "category": "user_fact",
-    "addedAt": 1774896425412,
-    "source": "auto"
-  },
-  {
-    "content": "Redis集群中多key操作必须在同一哈希槽才能执行",
-    "category": "user_fact",
-    "addedAt": 1774896425412,
-    "source": "auto"
-  },
-  {
-    "content": "Redis集群使用16384个哈希槽进行数据分片，key的槽位通过CRC16(key) % 16384计算",
-    "category": "user_fact",
-    "addedAt": 1774896425413,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: Redis 集群怎么做数据分片？ → AI: **Redis 集群数据分片：哈希槽（Hash Slot）**\n\n---\n\n**核心机制：**\n\n```\n16384 个",
-    "category": "user_fact",
-    "addedAt": 1774896425414,
-    "source": "auto"
-  },
-  {
-    "content": "用户在关注Rust和TypeScript",
-    "category": "user_fact",
-    "addedAt": 1774896425414,
-    "source": "auto"
-  },
-  {
-    "content": "用户可能常用Python（问过GIL、asyncio、JSON相关问题）",
-    "category": "user_fact",
-    "addedAt": 1774896425414,
-    "source": "auto"
-  },
-  {
-    "content": "用户主要用Go写后端",
-    "category": "user_fact",
-    "addedAt": 1774896425415,
-    "source": "auto"
-  },
-  {
-    "content": "用户讨厌PHP编程语言",
-    "category": "preference",
-    "addedAt": 1774896425415,
-    "source": "auto"
-  },
-  {
-    "content": "用户喜欢Go编程语言",
-    "category": "preference",
-    "addedAt": 1774896425416,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 你还记得我之前说过喜欢什么编程语言吗？ → AI: 老板喜欢 **Go**，讨厌 **PHP**。\n\n主要用 Go 写后端，Python 应该也常用（问过 GIL、asyn",
-    "category": "user_fact",
-    "addedAt": 1774896425416,
-    "source": "auto"
-  },
-  {
-    "content": "直腿抬高测试（平躺抬腿30-70度间腿麻/疼）可能提示神经根受压",
-    "category": "user_fact",
-    "addedAt": 1774896425417,
-    "source": "auto"
-  },
-  {
-    "content": "单纯腰疼、活动后减轻、久坐后疼休息缓解、有明确诱因（如搬重物）的情况可以观察1-2周",
-    "category": "user_fact",
-    "addedAt": 1774896425418,
-    "source": "auto"
-  },
-  {
-    "content": "腰疼伴随发烧可能是感染，需要立即就医",
-    "category": "user_fact",
-    "addedAt": 1774896425418,
-    "source": "auto"
-  },
-  {
-    "content": "腰疼伴随大小便失禁或困难是马尾综合征的紧急信号，必须立即就医",
-    "category": "user_fact",
-    "addedAt": 1774896425419,
-    "source": "auto"
-  },
-  {
-    "content": "腰疼伴随腿麻、脚麻、无力可能是腰椎间盘突出压迫神经，需要立即就医",
-    "category": "user_fact",
-    "addedAt": 1774896425419,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 腰疼好几天了需要去医院吗？ → AI: **看情况，有几个红线信号必须去：**\n\n| 必须立即就医 | 可以观察1-2周 |\n|-------------|--",
-    "category": "user_fact",
-    "addedAt": 1774896425420,
-    "source": "auto"
-  },
-  {
-    "content": "年收入较高（如超过20万）时通常单独计税更划算；年收入低（扣除后不足6万）时并入综合所得可能免税",
-    "category": "user_fact",
-    "addedAt": 1774896425420,
-    "source": "auto"
-  },
-  {
-    "content": "并入综合所得方法：将年终奖与全年工资合并后按年度累计税率计算个税",
-    "category": "user_fact",
-    "addedAt": 1774896425421,
-    "source": "auto"
-  },
-  {
-    "content": "单独计税方法：年终奖÷12后按月税率表确定税率，计算公式为年终奖×税率-速算扣除数",
-    "category": "user_fact",
-    "addedAt": 1774896425421,
-    "source": "auto"
-  },
-  {
-    "content": "年终奖个税有两种计算方式：单独计税和并入综合所得，应选择税额较低的方式",
-    "category": "user_fact",
-    "addedAt": 1774896425422,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 年终奖怎么算个税？ → AI: **年终奖个税：单独计税 or 并入综合所得，选低的那个。**\n\n---\n\n**两种算法：**\n\n| 方式 | 适用 |",
-    "category": "user_fact",
-    "addedAt": 1774896425422,
-    "source": "auto"
-  },
-  {
-    "content": "混合场景（I/O+CPU）推荐使用asyncio配合进程池处理",
-    "category": "user_fact",
-    "addedAt": 1774896425423,
-    "source": "auto"
-  },
-  {
-    "content": "Python中I/O密集型任务推荐使用asyncio，CPU密集型任务推荐使用multiprocessing，多线程在Python中因GIL限制表现尴尬",
-    "category": "user_fact",
-    "addedAt": 1774896425423,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: Python 的 asyncio 和多线程怎么选？ → AI: **一句话：I/O 密集用 asyncio，CPU 密集用多进程，多线程在 Python 里很尴尬。**\n\n---\n\n*",
-    "category": "user_fact",
-    "addedAt": 1774896425424,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 测试SDK → AI: 收到",
-    "category": "user_fact",
-    "addedAt": 1774896425424,
-    "source": "auto"
-  },
-  {
-    "content": "日本需带转换插头（两扁插）、便携垃圾袋（街上垃圾桶少）、充电宝（租借不便）",
-    "category": "user_fact",
-    "addedAt": 1774896425425,
-    "source": "auto"
-  },
-  {
-    "content": "日本现金建议带5-10万日元，信用卡需Visa/Master，Suica/Pasmo卡可iPhone电子卡使用",
-    "category": "user_fact",
-    "addedAt": 1774896425425,
-    "source": "auto"
-  },
-  {
-    "content": "日本旅行需准备护照（有效期6个月以上）、签证（提前2周办）、入境二维码（Visit Japan Web）",
-    "category": "user_fact",
-    "addedAt": 1774896425426,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 下个月要去日本旅行，需要准备什么？ → AI: **日本旅行准备清单：**\n\n**证件/入境**\n- 护照（有效期6个月以上）\n- 签证（单次/多次，提前2周办）\n- ",
-    "category": "user_fact",
-    "addedAt": 1774896425426,
-    "source": "auto"
-  },
-  {
-    "content": "[承诺] 月要去日本旅行，需要什么？",
-    "category": "user_fact",
-    "addedAt": 1774896425427,
-    "source": "auto"
-  },
-  {
-    "content": "1-2个月后系统学习乐理（音阶、和弦构成）和技巧（大横按、扫弦、指弹）",
-    "category": "user_fact",
-    "addedAt": 1774896425427,
-    "source": "auto"
-  },
-  {
-    "content": "前两周每日15分钟练习计划：爬格子、53231323、C/G/Am/Em和弦切换",
-    "category": "user_fact",
-    "addedAt": 1774896425427,
-    "source": "auto"
-  },
-  {
-    "content": "零基础吉他入门路径：选琴（预算500-1000，推荐雅马哈F310、卡马D1C，尺寸建议41寸或40寸，避免低价劣质琴）",
-    "category": "user_fact",
-    "addedAt": 1774896425428,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 最近想学吉他，零基础怎么入门？ → AI: **零基础吉他入门路径：**\n\n**第一步：选琴（别买烧火棍）**\n- 预算 500-1000：雅马哈 F310、卡马 ",
-    "category": "user_fact",
-    "addedAt": 1774896425428,
-    "source": "auto"
-  },
-  {
-    "content": "用户在字节工作",
-    "category": "user_fact",
-    "addedAt": 1774896425429,
-    "source": "auto"
-  },
-  {
-    "content": "用户讨厌PHP",
-    "category": "preference",
-    "addedAt": 1774896425429,
-    "source": "auto"
-  },
-  {
-    "content": "用户喜欢用Go写后端",
-    "category": "preference",
-    "addedAt": 1774896425430,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 我喜欢用Go写后端，讨厌PHP，目前在字节工作 → AI: 收到，老板。\n\n（更正记忆：称呼\"大哥\"→\"老板\"；工作字节；技术偏好 Go 后端，讨厌 PHP）\n\n有什么需要我帮忙的",
-    "category": "user_fact",
-    "addedAt": 1774896425430,
-    "source": "auto"
-  },
-  {
-    "content": "[WAL事实] 我喜欢用Go写后端，讨厌PHP，目前在字节工作",
-    "category": "user_fact",
-    "addedAt": 1774896425431,
-    "source": "auto"
-  },
-  {
-    "content": "用户曾问过Rust的所有权vs C++智能指针问题",
-    "category": "user_fact",
-    "addedAt": 1774896425431,
-    "source": "auto"
-  },
-  {
-    "content": "用户关注或学习Rust和TypeScript",
-    "category": "preference",
-    "addedAt": 1774896425432,
-    "source": "auto"
-  },
-  {
-    "content": "用户主要使用Python和Go编程语言",
-    "category": "preference",
-    "addedAt": 1774896425432,
-    "source": "auto"
-  },
-  {
-    "content": "[对话] 用户: 你还记得我之前说过什么编程语言吗？ → AI: 大哥之前问过这些技术问题：\n\n- **Python**（GIL、读 JSON）\n- **Go**（HTTP 服务器、ch",
-    "category": "user_fact",
-    "addedAt": 1774896425433,
-    "source": "auto"
-  },
-  {
-    "content": "用户曾讨论过Docker、MySQL、Kafka技术",
-    "category": "user_fact",
-    "addedAt": 1774896425433,
+    "addedAt": 1774903511628,
     "source": "auto"
   }
 ]
