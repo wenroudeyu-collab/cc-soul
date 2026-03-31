@@ -1235,8 +1235,8 @@
     "domain": "闲聊",
     "createdAt": 1774915685284,
     "expiresAt": 1775520485284,
-    "status": "pending",
-    "hitAt": null,
+    "status": "hit",
+    "hitAt": 1774916035914,
     "confidence": 0.9
   },
   {
@@ -1245,6 +1245,16 @@
     "domain": "通用",
     "createdAt": 1774915825089,
     "expiresAt": 1775520625089,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论javascript，预计下次会问更深入的javascript问题",
+    "basis": "最近20条消息中出现1次javascript相关话题（贝叶斯概率: 91%）",
+    "domain": "javascript",
+    "createdAt": 1774916035915,
+    "expiresAt": 1775520835915,
     "status": "pending",
     "hitAt": null,
     "confidence": 0.9

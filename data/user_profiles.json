@@ -121,12 +121,11 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "displayName": "",
     "tier": "owner",
-    "messageCount": 136,
+    "messageCount": 137,
     "corrections": 0,
-    "lastSeen": 1774915824983,
+    "lastSeen": 1774916035903,
     "firstSeen": 1774861718893,
     "topics": [
-      "点才回家",
       "的持久化",
       "第一次养猫需要准备什么",
       "今天被老板骂了一顿",
@@ -175,7 +174,8 @@
       "每天坐地铁",
       "号线上班",
       "做了一半了",
-      "技术分享的内容还没想好用什么主题"
+      "技术分享的内容还没想好用什么主题",
+      "你还记得我的饮食偏好吗"
     ],
     "style": "casual",
     "trust": 0.5,
@@ -240,17 +240,20 @@
         "技术分享": 1,
         "的内容还": 1,
         "没想好用": 1,
-        "什么主题": 1
+        "什么主题": 1,
+        "你还记得": 1,
+        "我的饮食": 1,
+        "偏好吗": 1
       },
-      "avgLength": 35.639705882352935,
-      "samples": 136
+      "avgLength": 35.467153284671525,
+      "samples": 137
     },
     "language": "zh",
     "rhythm": {
       "activeHours": [
         8,
         32,
-        4,
+        5,
         0,
         0,
         0,
@@ -288,11 +291,12 @@
         "我住在上海浦东",
         "每天坐地铁",
         "做了一半了",
-        "技术分享的内容还没想好用什么主题"
+        "技术分享的内容还没想好用什么主题",
+        "你还记得我的饮食偏好吗"
       ],
       "weekendTopics": [],
-      "avgResponseDelay": 141.68631114329486,
-      "lastMessageTs": 1774915824983
+      "avgResponseDelay": 148.60968002896539,
+      "lastMessageTs": 1774916035903
     }
   },
   "default": {
@@ -355,16 +359,17 @@
     "userId": "sdk_test",
     "displayName": "",
     "tier": "new",
-    "messageCount": 3,
+    "messageCount": 4,
     "corrections": 0,
-    "lastSeen": 1774910005545,
+    "lastSeen": 1774916124305,
     "firstSeen": 1774868960855,
     "topics": [
-      "怎么读"
+      "怎么读",
+      "推荐一本编程书"
     ],
     "style": "casual",
     "trust": 0.5,
-    "familiarity": 0.06,
+    "familiarity": 0.08,
     "relationshipTrend": "stable",
     "lastConflict": 0,
     "sharedEpisodes": 0,
@@ -374,17 +379,19 @@
         "怎么读": 1,
         "json": 1,
         "测试": 2,
-        "sdk": 1
+        "sdk": 1,
+        "推荐一本": 1,
+        "编程书": 1
       },
       "avgLength": 7,
-      "samples": 3
+      "samples": 4
     },
     "language": "zh",
     "rhythm": {
       "activeHours": [
         1,
         0,
-        0,
+        1,
         0,
         0,
         0,
@@ -408,11 +415,12 @@
         0
       ],
       "weekdayTopics": [
-        "怎么读"
+        "怎么读",
+        "推荐一本编程书"
       ],
       "weekendTopics": [],
       "avgResponseDelay": 0,
-      "lastMessageTs": 1774910005545
+      "lastMessageTs": 1774916124305
     }
   },
   "test_dedup": {

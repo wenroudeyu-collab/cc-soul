@@ -29,10 +29,15 @@
         "怎么管": 1,
         "年终奖": 1,
         "万怎么理": 1,
-        "财比较好": 1
+        "财比较好": 1,
+        "你还记得": 1,
+        "我的饮食": 1,
+        "偏好吗": 1,
+        "推荐一本": 1,
+        "编程书": 1
       },
-      "totalWords": 32,
-      "docCount": 14
+      "totalWords": 37,
+      "docCount": 16
     },
     "technical": {
       "wordCounts": {
@@ -444,5 +449,5 @@
       "docCount": 3
     }
   },
-  "totalDocs": 42
+  "totalDocs": 44
 }

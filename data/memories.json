@@ -118,10 +118,10 @@
     "visibility": "global",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825002,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 12,
-    "lastRecalled": 1774915825002,
+    "recallCount": 13,
+    "lastRecalled": 1774916124315,
     "validFrom": 1774914212339
   },
   {
@@ -250,10 +250,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825086,
+    "lastAccessed": 1774916124406,
     "tier": "short_term",
-    "recallCount": 19,
-    "lastRecalled": 1774915825086,
+    "recallCount": 21,
+    "lastRecalled": 1774916124406,
     "validFrom": 1774913970471
   },
   {
@@ -400,10 +400,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825001,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 15,
-    "lastRecalled": 1774915825001
+    "recallCount": 16,
+    "lastRecalled": 1774916124315
   },
   {
     "content": "[情绪表达习惯] 在表达委屈时，倾向于重复陈述事实（如“今天被老板当众批评了，感觉特别委屈”重复两次），而非直接宣泄情绪或详细描述细节，可能习惯用克制的方式表达内心波动。 (关于老板)",
@@ -1665,13 +1665,13 @@
   },
   {
     "content": "[对话] 用户: I我喜欢用 Go 写后端服务，Python 做数据分析 → AI: 收到，张三。\n\n（记下了：Go 写后端，Python 做数据分析）\n\n这个组合很实用，Go 处理高并发服务，Python",
-    "scope": "fact",
+    "scope": "expired",
     "ts": 1774910280314,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.76,
+    "confidence": 0.38,
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
@@ -2886,10 +2886,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825086,
+    "lastAccessed": 1774916124406,
     "tier": "short_term",
-    "recallCount": 46,
-    "lastRecalled": 1774915825086,
+    "recallCount": 48,
+    "lastRecalled": 1774916124406,
     "validFrom": 1774899453090
   },
   {
@@ -3613,10 +3613,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825087,
+    "lastAccessed": 1774916124406,
     "tier": "short_term",
-    "recallCount": 14,
-    "lastRecalled": 1774915825087,
+    "recallCount": 16,
+    "lastRecalled": 1774916124406,
     "validFrom": 1774894365105
   },
   {
@@ -4136,10 +4136,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825086,
+    "lastAccessed": 1774916124406,
     "tier": "short_term",
-    "recallCount": 62,
-    "lastRecalled": 1774915825086,
+    "recallCount": 64,
+    "lastRecalled": 1774916124406,
     "validFrom": 1774890025436
   },
   {
@@ -4621,10 +4621,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825086,
+    "lastAccessed": 1774916124406,
     "tier": "short_term",
-    "recallCount": 67,
-    "lastRecalled": 1774915825086,
+    "recallCount": 69,
+    "lastRecalled": 1774916124406,
     "validFrom": 1774877983819
   },
   {
@@ -5463,10 +5463,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825086,
+    "lastAccessed": 1774916124406,
     "tier": "short_term",
-    "recallCount": 68,
-    "lastRecalled": 1774915825086,
+    "recallCount": 70,
+    "lastRecalled": 1774916124406,
     "validFrom": 1774867947623
   },
   {
@@ -5623,10 +5623,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825002,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 22,
-    "lastRecalled": 1774915825002,
+    "recallCount": 23,
+    "lastRecalled": 1774916124315,
     "validFrom": 1774865117999
   },
   {
@@ -6521,10 +6521,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825002,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 62,
-    "lastRecalled": 1774915825002,
+    "recallCount": 63,
+    "lastRecalled": 1774916124315,
     "validFrom": 1774860496194
   },
   {
@@ -6536,10 +6536,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825002,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 56,
-    "lastRecalled": 1774915825002,
+    "recallCount": 57,
+    "lastRecalled": 1774916124315,
     "validFrom": 1774860496189
   },
   {
@@ -6565,10 +6565,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774915825002,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 65,
-    "lastRecalled": 1774915825002,
+    "recallCount": 66,
+    "lastRecalled": 1774916124315,
     "validFrom": 1774860485291
   },
   {
@@ -6895,9 +6895,9 @@
     "bayesAlpha": 2,
     "bayesBeta": 1,
     "confidence": 1,
-    "lastAccessed": 1774915825002,
+    "lastAccessed": 1774916124315,
     "tier": "short_term",
-    "recallCount": 9,
+    "recallCount": 10,
     "source": "ai_observed",
     "emotionIntensity": 0.3,
     "importance": 5,
@@ -6920,7 +6920,7 @@
       "常用操作",
       "基础用法"
     ],
-    "lastRecalled": 1774915825002
+    "lastRecalled": 1774916124315
   },
   {
     "content": "awk处理CSV文件时需要使用-F参数指定逗号为分隔符，例如awk -F','",
@@ -7881,5 +7881,174 @@
       "率工具链",
       "python"
     ]
+  },
+  {
+    "content": "[对话] 用户: 你还记得我的饮食偏好吗？ → AI: 我记得：\n\n- **喜欢**：吃火锅\n- **讨厌**：吃寿司\n\n还有什么需要补充的吗？",
+    "scope": "fact",
+    "ts": 1774916080946,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.7675,
+    "lastAccessed": 1774916124316,
+    "tier": "short_term",
+    "recallCount": 1,
+    "source": "ai_observed",
+    "emotionIntensity": 0.3,
+    "importance": 7,
+    "surprise": 7,
+    "validFrom": 1774916080946,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.00676346599238313,
+      "energy": 0.9404720873384019
+    },
+    "tags": [
+      "对话",
+      "用户",
+      "喜欢",
+      "讨厌",
+      "的吗",
+      "偏好吗",
+      "我记得",
+      "吃火锅",
+      "吃寿司",
+      "你还记得"
+    ],
+    "lastRecalled": 1774916124316
+  },
+  {
+    "content": "用户喜欢火锅",
+    "scope": "preference",
+    "ts": 1774916087128,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.915,
+    "lastAccessed": 1774916124316,
+    "tier": "short_term",
+    "recallCount": 1,
+    "source": "user_said",
+    "emotionIntensity": 0.3,
+    "importance": 6,
+    "surprise": 6,
+    "validFrom": 1774916087128,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.00676346599238313,
+      "energy": 0.9404720873384019
+    },
+    "emotion": "neutral",
+    "lastRecalled": 1774916124316
+  },
+  {
+    "content": "用户讨厌寿司",
+    "scope": "preference",
+    "ts": 1774916087135,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "visibility": "private",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.9125,
+    "lastAccessed": 1774916124316,
+    "tier": "short_term",
+    "recallCount": 1,
+    "source": "user_said",
+    "emotionIntensity": 0.3,
+    "importance": 6,
+    "surprise": 6,
+    "validFrom": 1774916087135,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.00676346599238313,
+      "energy": 0.9404720873384019
+    },
+    "emotion": "neutral",
+    "lastRecalled": 1774916124316
+  },
+  {
+    "content": "[对话] 用户: 推荐一本编程书 → AI: 推荐《重构》",
+    "scope": "fact",
+    "ts": 1774916124414,
+    "userId": "sdk_test",
+    "visibility": "private",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.7,
+    "lastAccessed": 1774916124414,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "ai_observed",
+    "emotionIntensity": 0.3,
+    "importance": 5,
+    "surprise": 5,
+    "validFrom": 1774916124414,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.042847266395968905,
+      "energy": 0.9430884293244953
+    },
+    "tags": [
+      "对话",
+      "用户",
+      "推荐",
+      "重构",
+      "编程书",
+      "推荐一本"
+    ]
+  },
+  {
+    "content": "用户询问编程书籍推荐",
+    "scope": "preference",
+    "ts": 1774916130396,
+    "userId": "sdk_test",
+    "visibility": "private",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.85,
+    "lastAccessed": 1774916130396,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "user_said",
+    "emotionIntensity": 0.3,
+    "importance": 5,
+    "surprise": 5,
+    "validFrom": 1774916130396,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.042847266395968905,
+      "energy": 0.9430884293244953
+    },
+    "emotion": "neutral"
+  },
+  {
+    "content": "推荐了《重构》这本书",
+    "scope": "fact",
+    "ts": 1774916130409,
+    "userId": "sdk_test",
+    "visibility": "global",
+    "channelId": "",
+    "bayesAlpha": 2,
+    "bayesBeta": 1,
+    "confidence": 0.7,
+    "lastAccessed": 1774916130409,
+    "tier": "short_term",
+    "recallCount": 0,
+    "source": "ai_observed",
+    "emotionIntensity": 0.3,
+    "importance": 5,
+    "surprise": 5,
+    "validFrom": 1774916130409,
+    "validUntil": 0,
+    "situationCtx": {
+      "mood": 0.042847266395968905,
+      "energy": 0.9430884293244953
+    },
+    "emotion": "neutral"
   }
 ]

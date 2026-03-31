@@ -3046,5 +3046,41 @@
     "action": "memory_add",
     "detail": "[opinion] 工具效率主题推荐《命令行效率工具链：从awk到Python》",
     "hash": "67351a859e13bca668e5589b082a844f44edf964a985aa3976ced49d5ca77828"
+  },
+  {
+    "ts": 1774916080949,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 你还记得我的饮食偏好吗？ → AI: 我记得：\n\n- **喜欢**：吃火锅\n- **讨厌**：吃寿司\n\n还有什么需要补充的吗？",
+    "hash": "6122ef5a635b9e70e05df6224163cfd92d7e70120af5095e3e9e7adf6f442190"
+  },
+  {
+    "ts": 1774916087129,
+    "action": "memory_add",
+    "detail": "[preference] 用户喜欢火锅",
+    "hash": "d81e4b928d9b1af5f8f4d6cd0f37d635347b6b9ce55ec6a0e21e53cea28ac692"
+  },
+  {
+    "ts": 1774916087136,
+    "action": "memory_add",
+    "detail": "[preference] 用户讨厌寿司",
+    "hash": "8ae50c6bf33dd825c42bb8fcff59d7468b4e8c87093256d82021b91d34f65797"
+  },
+  {
+    "ts": 1774916124415,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 推荐一本编程书 → AI: 推荐《重构》",
+    "hash": "29561fabde1991c30901d4cab39edcfd36c5943a601c296d1b86054a27499591"
+  },
+  {
+    "ts": 1774916130397,
+    "action": "memory_add",
+    "detail": "[preference] 用户询问编程书籍推荐",
+    "hash": "28eda09b719073cf85809b4e0d7f94dd744b4fa4627ae8e7f3755c6276cab86e"
+  },
+  {
+    "ts": 1774916130412,
+    "action": "memory_add",
+    "detail": "[fact] 推荐了《重构》这本书",
+    "hash": "32c4b25f6ec1b291da4a858204d17d10cee777abc1d9ceccd01fa47d6b64c5a7"
   }
 ]

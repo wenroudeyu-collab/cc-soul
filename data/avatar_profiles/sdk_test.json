@@ -8,9 +8,12 @@
     "style": "",
     "口头禅": [],
     "习惯": "",
-    "avg_msg_length": 10,
+    "avg_msg_length": 9,
     "samples": {
-      "casual": [],
+      "casual": [
+        "推荐一本编程书",
+        "推荐一本编程书"
+      ],
       "technical": [
         "Python怎么读JSON？",
         "Python怎么读JSON？",
@@ -45,10 +48,10 @@
     "avoidance": [],
     "decoder": {}
   },
-  "updated_at": 1774878331724,
+  "updated_at": 1774916124413,
   "lengthDistribution": {
-    "short": 0.5,
-    "medium": 0.5,
+    "short": 0.67,
+    "medium": 0.33,
     "long": 0
   }
 }
