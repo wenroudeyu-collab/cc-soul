@@ -122,6 +122,8 @@ export interface Memory {
   injectionMiss?: number        // 被注入后用户 ignored 的次数（trigram overlap < 0.1）
   // ── P2a: 日期双写（懒生成）──
   contentNormalized?: string    // 日期归一化版本（"昨天" → "2026-03-30"）。召回/注入用此字段
+  // ── Hindsight 认知网络分类 ──
+  network?: 'world' | 'experience' | 'opinion' | 'entity'
   // ── P0a: Graveyard metadata ──
   _graveyardOriginalScope?: string
   _graveyardTs?: number

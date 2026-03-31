@@ -402,6 +402,43 @@ async function handleFeedback(body: any): Promise<any> {
     feedbackMemoryEngagement(userMessage)
   } catch {}
 
+  // ── 主动记忆重构（Letta 启发，零 LLM）：从 AI 回复中检测修正信号 ──
+  try {
+    const UPDATE_SIGNALS = [
+      /(?:之前|以前).*?(?:现在|目前|最近)/,     // "之前X现在Y" → 事实变化
+      /(?:不过|但是).*?(?:看来|似乎|好像)/,      // "不过看来X" → 修正
+      /(?:原来|其实).*?(?:是|应该是)/,            // "原来是X" → 纠正
+    ]
+    const { memoryState } = await import('./memory.ts')
+    const { penalizeTruthfulness } = await import('./smart-forget.ts')
+    const { findMentionedEntities } = await import('./graph.ts')
+
+    // 获取本轮注入的记忆
+    const { getLastAugmentSnapshot } = await import('./metacognition.ts')
+    const injected = getLastAugmentSnapshot()
+
+    for (const signal of UPDATE_SIGNALS) {
+      if (!signal.test(aiReply)) continue
+      // AI 回复中有修正信号 → 检查是否引用了某条注入记忆的实体
+      for (const augContent of injected) {
+        const memEntities = findMentionedEntities(augContent)
+        const replyMentionsEntity = memEntities.some((e: string) => aiReply.includes(e))
+        if (replyMentionsEntity) {
+          // 找到对应的 Memory 对象
+          const mem = memoryState.memories.find((m: any) =>
+            m && m.content && augContent.includes(m.content.slice(0, 30))
+          )
+          if (mem) {
+            penalizeTruthfulness(mem, 'AI 回复暗示修正')
+            try { const { logDecision } = require('./decision-log.ts'); logDecision('active_reconstruct', (mem.content||'').slice(0,30), `AI回复含修正信号`) } catch {}
+          }
+          break
+        }
+      }
+      break  // 每轮最多检测一次
+    }
+  } catch {}
+
   // P5h: engagement 信号驱动质量权重学习
   try {
     const { updateQualityFromEngagement } = await import('./quality.ts')

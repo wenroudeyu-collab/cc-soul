@@ -26,9 +26,14 @@ import {
 import { queryFacts } from './fact-store.ts'
 import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
-  SYNONYM_MAP,
+  SYNONYM_MAP, onCacheEvent,
 } from './memory-utils.ts'
 import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
+
+// Event-Driven Cache Coherence：注册缓存失效
+onCacheEvent('memory_added', () => { idfCache = null; lastIdfBuildTs = 0 })
+onCacheEvent('memory_deleted', () => { idfCache = null; lastIdfBuildTs = 0; _bm25TokenCache.clear() })
+onCacheEvent('consolidation', () => { idfCache = null; lastIdfBuildTs = 0; _bm25TokenCache.clear() })
 
 // ── P2a: 日期归一化（懒生成）──
 const DATE_PATTERNS: Array<{ re: RegExp; replacer: (match: string, ...args: string[]) => string }> = [
@@ -791,8 +796,22 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       rankMaps.push(rm)
     }
 
-    // P5c: CWRF (Confidence-Weighted Rank Fusion) — 替换 RRF
-    // 通道置信度 = top1/top2 分数比。分数差距大 → 该通道权重放大
+    // ── MAGMA 四图动态权重：根据查询意图调通道权重 ──
+    const hasTimeKeyword = /上次|之前|昨天|上周|那次|上个月|以前/.test(msg)
+    const isNegated = /不记得|忘了|想不起/.test(msg)
+    const isCausalQuery = /为什么|怎么回事|原因|导致|因为/.test(msg)
+
+    // 四图权重：[语义ch1, 时间ch2, scope/情绪ch3, 实体ch4, 语言模型ch5]
+    let graphWeights = [0.3, 0.2, 0.2, 0.2, 0.1]  // 默认均匀
+    if (hasTimeKeyword && !isNegated) {
+      graphWeights = [0.1, 0.5, 0.1, 0.2, 0.1]  // 时间型查询
+    } else if (isCausalQuery) {
+      graphWeights = [0.1, 0.1, 0.1, 0.6, 0.1]  // 追因型 → 实体图（因果边在实体图上）
+    } else if (cog?.spectrum?.information > 0.6) {
+      graphWeights = [0.4, 0.1, 0.1, 0.3, 0.1]  // 信息型 → 语义+实体
+    }
+
+    // P5c: CWRF (Confidence-Weighted Rank Fusion) × MAGMA 图权重（两层加权）
     const RRF_K = 60
     const channelConfidences: number[] = []
     for (const channel of [ch1, ch2, ch3, ch4, ch5]) {
@@ -809,7 +828,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       let cwrfScore = 0
       for (let c = 0; c < rankMaps.length; c++) {
         const rank = rankMaps[c].get(i) ?? scored.length
-        cwrfScore += channelConfidences[c] / (RRF_K + rank)
+        cwrfScore += channelConfidences[c] * graphWeights[c] / (RRF_K + rank)
       }
       scored[i].score = 0.6 * scored[i].score + 0.4 * (cwrfScore * 1000)
     }

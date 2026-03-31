@@ -5,6 +5,7 @@ import { getParam } from './auto-tune.ts'
 import { trigrams, trigramSimilarity } from './memory-utils.ts'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { logDecision } from './decision-log.ts'
+import { emitCacheEvent } from './memory-utils.ts'
 
 /**
  * smart-forget.ts — Intelligent Memory Forgetting (Weibull + ACT-R)
@@ -641,6 +642,12 @@ export function computeStructuralImportance(mem: any): number {
   if (mem.scope === 'correction') I *= 2.0
   else if (mem.scope === 'preference' || mem.scope === 'fact') I *= 1.3
 
+  // Hindsight 认知网络加权：不同网络衰减策略不同
+  const network = (mem as any).network
+  if (network === 'world') I = Math.max(I, 0.5)          // 客观事实不轻易忘
+  else if (network === 'experience') I *= 0.8              // 经历衰减较快
+  // opinion 不加权（由 Bayes C 值控制）
+
   return Math.max(0.1, I)  // 最小 0.1，防止 graph 空时完全归零
 }
 
@@ -1207,6 +1214,8 @@ export const smartForgetModule: SoulModule = {
       if (gists.length >= 2) {
         processDecayedGists(gists)
       }
+      // 缓存失效通知
+      emitCacheEvent('memory_deleted')
     }
 
     // Execute consolidate: promote scope

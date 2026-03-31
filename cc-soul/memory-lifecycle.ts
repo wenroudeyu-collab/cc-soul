@@ -292,9 +292,8 @@ export function consolidateMemories() {
               rebuildRecallIndex(memoryState.memories)
               saveMemories()
               invalidateIDF()
-              // P6-学习#4: 巩固后同步更新关联索引（学自 Claude Code postCompactCleanup）
-              try { const { invalidateEntityMemoryIndex } = require('./graph.ts'); invalidateEntityMemoryIndex() } catch {}
-              try { const { clearStaleActivations } = require('./activation-field.ts'); clearStaleActivations?.() } catch {}
+              // 巩固后缓存失效：通过事件总线通知所有缓存
+              try { const { emitCacheEvent } = require('./memory-utils.ts'); emitCacheEvent('consolidation') } catch {}
               consolidating = false
             }
           } catch (e: any) {

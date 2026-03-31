@@ -29,6 +29,7 @@ import {
   trigrams, trigramSimilarity, timeDecay,
   MAX_MEMORIES, MAX_HISTORY, INJECT_HISTORY,
   compressMemory, detectMemoryPoisoning, extractReasoning, defaultVisibility,
+  emitCacheEvent,
 } from './memory-utils.ts'
 import { invalidateIDF, incrementalIDFUpdate, updateRecallIndex, rebuildRecallIndex } from './memory-recall.ts'
 
@@ -368,7 +369,38 @@ export function promoteToCore(content: string, category: CoreMemory['category'],
  */
 export function buildCoreMemoryContext(): string {
   if (coreMemories.length === 0) return ''
-  const lines = coreMemories.map(m => `- [${m.category}] ${m.content}`)
+
+  // 梯度压缩注入（ChatGPT 启发）：按 engagement 排序，热的全文，冷的压缩
+  let fullTextCount = 10, summaryCount = 20
+  try {
+    const { computeBudget } = require('./context-budget.ts')
+    const budget = computeBudget()
+    fullTextCount = Math.min(10, Math.floor(budget.augmentBudget / 200))
+    summaryCount = Math.min(20, Math.floor((budget.augmentBudget - fullTextCount * 200) / 50))
+  } catch {}
+
+  // 按 engagement 排序（从 memories 中找对应的 engagement 数据）
+  const sorted = [...coreMemories].sort((a, b) => {
+    const memA = memoryState.memories.find(m => m.content === a.content)
+    const memB = memoryState.memories.find(m => m.content === b.content)
+    return (memB?.injectionEngagement ?? 0) - (memA?.injectionEngagement ?? 0)
+  })
+
+  const lines: string[] = []
+  for (let i = 0; i < sorted.length; i++) {
+    if (i < fullTextCount) {
+      lines.push(`- [${sorted[i].category}] ${sorted[i].content}`)
+    } else if (i < fullTextCount + summaryCount) {
+      lines.push(`- [${sorted[i].category}] ${sorted[i].content.slice(0, 20)}...`)
+    } else {
+      // 骨架：只保留三元组
+      try {
+        const { extractFacts } = require('./fact-store.ts')
+        const facts = extractFacts(sorted[i].content)
+        if (facts.length > 0) lines.push(`- ${facts.map((f: any) => `${f.predicate}:${f.object}`).join(',')}`)
+      } catch {}
+    }
+  }
   return `[Core Memory — always available]\n${lines.join('\n')}`
 }
 
@@ -677,6 +709,20 @@ export function decideMemoryAction(newContent: string, scope?: string): { action
   }
 
   candidates.sort((a, b) => b.sim - a.sim)
+
+  // Context-Aware Similarity 增强：trigram 候选用语境相似度精排
+  try {
+    const { contextAwareSimilarity } = require('./memory-utils.ts')
+    for (const c of candidates.slice(0, 5)) {
+      const mem = memoryState.memories[c.idx]
+      if (mem) {
+        const ctxSim = contextAwareSimilarity({ content: newContent, ts: Date.now(), scope: scope || 'fact' } as any, mem)
+        c.sim = c.sim * 0.6 + ctxSim * 0.4  // 融合：trigram 60% + 语境 40%
+      }
+    }
+    candidates.sort((a, b) => b.sim - a.sim)
+  } catch {}
+
   const best = candidates[0]
 
   if (!best) return { action: 'add', targetIndex: -1 }
@@ -1161,6 +1207,28 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     return
   }
 
+  // ── 写入时内联冲突解决（从 Mem0 借鉴，零 LLM）──
+  // 用 fact-store 三元组精确匹配检测矛盾，不等 heartbeat
+  try {
+    const { extractFacts, queryFacts } = require('./fact-store.ts')
+    const newFacts = extractFacts(content)
+    for (const f of newFacts) {
+      const existing = queryFacts({ subject: f.subject, predicate: f.predicate })
+      if (existing.length > 0 && existing[0].object !== f.object) {
+        // 检查时间方向：新记忆比旧事实更早（导入历史数据）→ 不 penalize 旧的
+        if (existing[0].ts && Date.now() < existing[0].ts) continue
+        // 同 subject+predicate 不同 object → 立即降权旧记忆
+        const oldMem = memoryState.memories.find(m => m.content && m.content.includes(existing[0].object) && m.scope === scope)
+        if (oldMem) {
+          try {
+            const { penalizeTruthfulness } = require('./smart-forget.ts')
+            penalizeTruthfulness(oldMem, `被新事实覆盖: ${f.object} 替代 ${existing[0].object}`)
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+
   // ── Surprise-Only Encoding (Predictive Coding Theory, Friston 2005) ──
   // 只有出乎预料的信息才值得记忆
   const surprise = computeSurprise(content, scope, userId)
@@ -1183,6 +1251,13 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   const resolvedVisibility = visibility || defaultVisibility(scope)
   const newIndex = memoryState.memories.length
   const FACT_SCOPES = ['fact', 'preference', 'correction', 'discovery']
+
+  // ── Hindsight 认知网络自动分类 ──
+  const autoNetwork: Memory['network'] =
+    (scope === 'fact' && !/用户|我|你/.test(content)) ? 'world'         // 客观事实
+    : (scope === 'preference' || /喜欢|讨厌|觉得|偏好/.test(content)) ? 'opinion'  // 主观信念
+    : (scope === 'event' || autoSource === 'ai_observed') ? 'experience'  // 经历
+    : undefined  // entity 网络已在 graph.ts
   // Auto-detect memory source: user_said (from user message), ai_inferred (from LLM analysis), system
   const autoSource: Memory['source'] =
     scope === 'correction' || scope === 'preference' || scope === 'gratitude' ? 'user_said'
@@ -1213,6 +1288,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     tier: 'short_term',
     recallCount: 0,
     source: autoSource,
+    network: autoNetwork,
     emotionIntensity: autoEmotionIntensity,
     importance: surprise,
     ...(FACT_SCOPES.includes(scope) ? { validFrom: Date.now(), validUntil: 0 } : {}),
@@ -1236,6 +1312,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
 
   memoryState.memories.push(newMem)
   updateRecallIndex(newMem)
+  emitCacheEvent('memory_added')
 
   try {
     // #15 记忆图谱化：自动建立记忆间关系边

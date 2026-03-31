@@ -7,6 +7,31 @@ import type { Memory } from './types.ts'
 import { getParam } from './auto-tune.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Event-Driven Cache Coherence（原创算法）
+// 各缓存注册自己关心的事件，事件发生时自动失效
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type CacheEvent = 'memory_added' | 'memory_deleted' | 'memory_updated' | 'consolidation' | 'heartbeat'
+
+const _cacheListeners = new Map<CacheEvent, Array<() => void>>()
+
+/** 注册缓存失效处理器 */
+export function onCacheEvent(event: CacheEvent, handler: () => void): void {
+  if (!_cacheListeners.has(event)) _cacheListeners.set(event, [])
+  _cacheListeners.get(event)!.push(handler)
+}
+
+/** 触发缓存事件 */
+export function emitCacheEvent(event: CacheEvent): void {
+  const handlers = _cacheListeners.get(event) ?? []
+  for (const h of handlers) {
+    try { h() } catch (e: any) {
+      console.error(`[cc-soul][cache] ${event} handler error: ${e.message}`)
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Constants — now backed by auto-tune, with legacy const for backward compat
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -148,11 +173,77 @@ export function wordOverlapSimilarity(textA: string, textB: string): number {
   return (2 * overlap) / (wordsA.size + wordsB.size)
 }
 
-/** 混合相似度：三角字 + 词级匹配取 max（短文本自动切换到词级） */
+/** 混合相似度：三角字 + 词级匹配 + AAM 同义词融合（短文本自动增强）*/
 export function hybridSimilarity(textA: string, textB: string): number {
   const triSim = trigramSimilarity(trigrams(textA), trigrams(textB))
   const wordSim = wordOverlapSimilarity(textA, textB)
-  return Math.max(triSim, wordSim)
+  let baseSim = Math.max(triSim, wordSim)
+
+  // AAM 同义词融合：baseSim 在 0.25-0.5 的模糊区间时，查 AAM 共现补充
+  if (baseSim >= 0.25 && baseSim < 0.5) {
+    try {
+      const aamMod = require('./aam.ts')
+      if (aamMod.getCooccurrence) {
+        const wordsA = new Set((textA.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+        const wordsB = new Set((textB.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+        let synonymMatches = 0
+        for (const wA of wordsA) {
+          if (wordsB.has(wA)) continue  // 已直接匹配
+          // 查 AAM：wA 有没有跟 wordsB 中某个词高频共现？
+          for (const wB of wordsB) {
+            const cooccur = aamMod.getCooccurrence(wA, wB) ?? 0
+            if (cooccur >= 3) { synonymMatches++; break }  // 共现 3+ 次视为同义
+          }
+        }
+        if (wordsA.size > 0 && synonymMatches > 0) {
+          const synonymBoost = (synonymMatches / wordsA.size) * 0.3
+          baseSim = baseSim * 0.7 + (baseSim + synonymBoost) * 0.3
+        }
+      }
+    } catch {}
+  }
+
+  return Math.min(1, baseSim)
+}
+
+/**
+ * Context-Aware Similarity（原创算法）
+ * 不只比较文本，还比较语境：时段、情绪、共享实体
+ *
+ * 用途：召回排序、联想触发。不用于 consolidation 聚类（聚类用 SimHash+cosine）。
+ */
+export function contextAwareSimilarity(a: Memory, b: Memory): number {
+  // 文本相似度
+  const textSim = hybridSimilarity(a.content, b.content)
+
+  // 时间语境：是否在同一活跃时段
+  const slot = (ts: number) => {
+    const h = new Date(ts).getHours()
+    return h < 6 ? 'night' : h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening'
+  }
+  const slotA = slot(a.ts), slotB = slot(b.ts)
+  const timeSim = slotA === slotB ? 1.0
+    : ((slotA === 'night' && slotB === 'evening') || (slotA === 'evening' && slotB === 'night') ||
+       (slotA === 'morning' && slotB === 'afternoon') || (slotA === 'afternoon' && slotB === 'morning')) ? 0.5
+    : 0.0
+
+  // 情绪语境
+  const moodA = a.situationCtx?.mood ?? 0
+  const moodB = b.situationCtx?.mood ?? 0
+  const moodSim = 1 - Math.abs(moodA - moodB)
+
+  // 实体共享度（懒加载 graph.ts）
+  let entitySim = 0
+  try {
+    const { findMentionedEntities } = require('./graph.ts') as any
+    const entA = new Set(findMentionedEntities(a.content) as string[])
+    const entB = new Set(findMentionedEntities(b.content) as string[])
+    let shared = 0
+    for (const e of entA) if (entB.has(e)) shared++
+    entitySim = shared / Math.max(1, Math.max(entA.size, entB.size))
+  } catch {}
+
+  return textSim * 0.4 + timeSim * 0.1 + moodSim * 0.2 + entitySim * 0.3
 }
 
 /** Build IDF map from a trigram corpus: trigram → log(N / (1 + df)) */

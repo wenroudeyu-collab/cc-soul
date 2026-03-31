@@ -1172,6 +1172,34 @@ export async function buildAndSelectAugments(params: {
           }).join('；')
           augments.push({ content: histContent, priority: 9, tokens: estimateTokens(histContent) })
         }
+
+        // Zep 事实时间线：展示同一事实的演化轨迹
+        try {
+          const { formatFactTimeline } = require('./fact-store.ts')
+          const entities = findMentionedEntities(keywords)
+          for (const entity of entities.slice(0, 2)) {
+            for (const pred of ['使用', '住在', '工作', 'likes', 'uses', 'works_at', 'lives_in']) {
+              const timeline = formatFactTimeline(entity, pred)
+              if (timeline) {
+                augments.push({ content: `[事实演化] ${timeline}`, priority: 8, tokens: estimateTokens(timeline) })
+                break
+              }
+            }
+          }
+        } catch {}
+
+        // CompassMem 事件段搜索：搜索整个事件而非单条记忆
+        try {
+          const { searchEvents } = require('./flow.ts')
+          const events = searchEvents(keywords)
+          for (const evt of events.slice(0, 2)) {
+            const outcomeStr = evt.outcome === 'resolved' ? '已解决' : evt.outcome === 'abandoned' ? '已放弃' : '未解决'
+            augments.push({
+              content: `[历史事件] ${evt.topic}（${evt.turnCount}轮，${outcomeStr}）`,
+              priority: 7, tokens: 15,
+            })
+          }
+        } catch {}
       }
     }
   }
@@ -1701,6 +1729,15 @@ export async function buildAndSelectAugments(params: {
   if (flowCtx) {
     augments.push({ content: flowCtx, priority: 6, tokens: estimateTokens(flowCtx) })
   }
+
+  // 当前事件段注入（CompassMem）
+  try {
+    const { getCurrentEvent } = require('./flow.ts')
+    const evt = getCurrentEvent()
+    if (evt && evt.turnCount >= 3) {
+      augments.push({ content: `[当前事件] ${evt.topic}（第${evt.turnCount}轮，${evt.outcome}）`, priority: 5, tokens: 15 })
+    }
+  } catch {}
 
   // 耦合压力振荡器注入
   const pressureCtx = getCoupledPressureContext()

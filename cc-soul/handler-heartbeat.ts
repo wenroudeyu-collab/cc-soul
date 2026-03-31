@@ -77,6 +77,32 @@ export function runHeartbeat() {
       safeCLI('consolidate', () => consolidateMemories(), safe)
       safeCLI('contradiction', () => scanForContradictions(), safe)
       safe('coreMemory', () => autoPromoteToCoreMemory())
+      // Letta 热度分层：engagement 驱动 core 晋升/降级
+      safe('heatPromotion', () => {
+        try {
+          const { memoryState } = require('./memory.ts')
+          for (const m of memoryState.memories) {
+            if (!m || m.scope === 'expired') continue
+            const eng = m.injectionEngagement ?? 0
+            const miss = m.injectionMiss ?? 0
+            const rate = eng / Math.max(1, eng + miss)
+
+            // 高 engagement + 高频 → 自动晋升 core
+            if (rate > 0.6 && eng >= 5 && m.scope !== 'core_memory') {
+              m.scope = 'core_memory'
+              try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_promote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}`) } catch {}
+            }
+
+            // core 但长期无 engagement → 降级（engagement 减半防震荡）
+            if (m.scope === 'core_memory' && eng > 0 && rate < 0.2) {
+              m.scope = 'fact'
+              m.injectionEngagement = Math.floor(eng / 2)
+              m.injectionMiss = Math.floor(miss / 2)
+              try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_demote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}→${m.injectionEngagement}`) } catch {}
+            }
+          }
+        } catch {}
+      })
       safe('workingCleanup', () => cleanupWorkingMemory())
       safe('memoryDecay', () => processMemoryDecay())
       safe('batchTag', () => batchTagUntaggedMemories()) // local extraction, no LLM
@@ -105,6 +131,63 @@ export function runHeartbeat() {
       safe('behaviorLearn', async () => {
         const { learnFromObservations } = await import('./behavioral-phase-space.ts')
         learnFromObservations()
+      })
+
+      // ── Skill Memory 提炼（MemOS 启发）──
+      safe('skillExtract', async () => {
+        try {
+          const { traceCausalChain, graphState } = await import('./graph.ts')
+          const { memoryState } = await import('./memory.ts')
+          const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
+          const { resolve } = await import('path')
+
+          const SKILLS_PATH = resolve(DATA_DIR, 'skills.json')
+          interface Skill { id: string; trigger: string[]; steps: string[]; learnedFrom: string[]; successRate: number; lastUsed: number; domain: string }
+          let skills: Skill[] = loadJson<Skill[]>(SKILLS_PATH, [])
+          if (skills.length >= 50) return  // 技能上限
+
+          // 来源 1：因果链中的"问题→尝试→解决"模式
+          const resolvedEpisodes = memoryState.memories.filter((m: any) =>
+            m && m.scope === 'event' && /解决|搞定|成功|修好/.test(m.content)
+          ).slice(-10)
+
+          for (const resolved of resolvedEpisodes) {
+            const entities = (await import('./graph.ts')).findMentionedEntities(resolved.content)
+            if (entities.length === 0) continue
+            const chain = traceCausalChain(entities.slice(0, 1), 2)
+            if (chain.length === 0) continue
+
+            const trigger = entities.slice(0, 2)
+            const steps = chain.map((c: string) => c.slice(0, 50))
+            const id = `skill_${Date.now()}_${Math.random().toString(36).slice(2,5)}`
+
+            // 检查是否已有类似技能
+            const hasSimilar = skills.some(s => s.trigger.some(t => trigger.includes(t)))
+            if (hasSimilar) continue
+
+            skills.push({ id, trigger, steps, learnedFrom: [resolved.content.slice(0, 40)], successRate: 0.5, lastUsed: 0, domain: entities[0] })
+          }
+
+          // 来源 2：evolution rules 中高置信度的
+          try {
+            const { getRules } = await import('./evolution.ts')
+            const rules = getRules?.() ?? []
+            for (const r of rules.filter((r: any) => r.hits >= 5 && r.hits / (r.hits + (r.misses ?? 0) + 1) > 0.7)) {
+              const trigger = (r.conditions ?? []).slice(0, 3)
+              if (trigger.length === 0) continue
+              const hasSimilar = skills.some(s => s.trigger.some(t => trigger.includes(t)))
+              if (hasSimilar) continue
+              skills.push({
+                id: `skill_rule_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
+                trigger, steps: [r.rule], learnedFrom: [r.source ?? 'evolution'],
+                successRate: r.hits / (r.hits + (r.misses ?? 0) + 1), lastUsed: 0, domain: trigger[0],
+              })
+            }
+          } catch {}
+
+          if (skills.length > 50) skills = skills.slice(-50)
+          debouncedSave(SKILLS_PATH, skills, 5000)
+        } catch {}
       })
 
       // ── 前瞻记忆清理 + 主动发现 ──

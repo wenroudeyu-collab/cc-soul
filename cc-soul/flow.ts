@@ -195,6 +195,100 @@ interface ConversationFlow {
   frustrationTrajectory?: FrustrationTrajectory  // 挫败感动力学轨迹
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Event Segment Graph（CompassMem 启发，零 LLM 事件分割）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface EventSegment {
+  id: string
+  topic: string
+  memoryKeys: string[]     // content.slice(0,40) + '|' + ts
+  startTs: number
+  endTs: number
+  outcome: 'resolved' | 'unresolved' | 'abandoned' | 'ongoing'
+  causalLinks: Array<{ targetEventId: string; type: 'caused_by' | 'led_to' | 'concurrent' }>
+  turnCount: number
+}
+
+let _eventSegments: EventSegment[] = []
+let _currentEvent: EventSegment | null = null
+
+/** 零 LLM 事件分割：话题切换/时间间隔/结束信号 → 新事件 */
+export function updateEventSegment(userMsg: string, topic: string, flowKey: string): void {
+  const now = Date.now()
+
+  // 事件结束信号
+  const isEndSignal = /搞定|可以了|好了|解决了|谢谢|thanks|成功了|没问题了/.test(userMsg)
+
+  if (_currentEvent) {
+    const timeSinceLastUpdate = now - _currentEvent.endTs
+    const topicChanged = _currentEvent.topic !== topic && topic !== 'general'
+
+    if (isEndSignal) {
+      _currentEvent.outcome = 'resolved'
+      _currentEvent.endTs = now
+      _currentEvent = null
+    } else if (timeSinceLastUpdate > 30 * 60 * 1000) {
+      // 超过 30 分钟 → 上个事件 abandoned，开新事件
+      _currentEvent.outcome = _currentEvent.turnCount > 5 ? 'unresolved' : 'abandoned'
+      _currentEvent.endTs = now
+      _currentEvent = null
+    } else if (topicChanged) {
+      // 话题切换 → 上个事件 unresolved，开新事件
+      _currentEvent.outcome = 'unresolved'
+      _currentEvent.endTs = now
+      // 新旧事件建因果关系
+      const oldId = _currentEvent.id
+      _currentEvent = null
+      // 新事件会在下面创建
+      startNewEvent(topic, now)
+      if (_currentEvent) {
+        _currentEvent.causalLinks.push({ targetEventId: oldId, type: 'led_to' })
+      }
+      return
+    } else {
+      // 同一事件继续
+      _currentEvent.endTs = now
+      _currentEvent.turnCount++
+      _currentEvent.memoryKeys.push(userMsg.slice(0, 40) + '|' + now)
+      if (_currentEvent.memoryKeys.length > 20) _currentEvent.memoryKeys = _currentEvent.memoryKeys.slice(-20)
+      return
+    }
+  }
+
+  // 没有当前事件 → 开新的
+  if (!_currentEvent) startNewEvent(topic, now)
+}
+
+function startNewEvent(topic: string, ts: number): void {
+  _currentEvent = {
+    id: `evt_${ts}_${Math.random().toString(36).slice(2, 6)}`,
+    topic,
+    memoryKeys: [],
+    startTs: ts,
+    endTs: ts,
+    outcome: 'ongoing',
+    causalLinks: [],
+    turnCount: 1,
+  }
+  _eventSegments.push(_currentEvent)
+  if (_eventSegments.length > 100) _eventSegments = _eventSegments.slice(-100)
+}
+
+export function getCurrentEvent(): EventSegment | null { return _currentEvent }
+export function getRecentEvents(n = 5): EventSegment[] { return _eventSegments.slice(-n) }
+
+/** 按话题搜索事件段（用于"你上次调那个 bug 怎么解决的？"） */
+export function searchEvents(query: string): EventSegment[] {
+  const words = new Set((query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+  return _eventSegments.filter(e => {
+    const topicWords = new Set((e.topic.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+    let overlap = 0
+    for (const w of words) if (topicWords.has(w)) overlap++
+    return overlap > 0
+  }).slice(-5)
+}
+
 // ── Session end tracking ──
 
 interface ResolvedSession {
@@ -332,6 +426,12 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
 
   flow.lastUpdate = Date.now()
   flows.set(flowKey, flow)
+
+  // 事件段图更新（CompassMem 启发）
+  try {
+    const topic = flow.topic || flow.topicKeywords.slice(0, 3).join(' ') || 'general'
+    updateEventSegment(userMsg, topic, flowKey)
+  } catch {}
 
   // Evict oldest flows (keep max MAX_FLOWS)
   if (flows.size > MAX_FLOWS) {

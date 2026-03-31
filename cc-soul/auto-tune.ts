@@ -368,8 +368,10 @@ function updateCtxBanditReward(paramKey: string, armIdx: number, reward: number,
 
   const matching = arms.filter(a => a.contextKey === ctxKey)
   if (armIdx < matching.length) {
-    matching[armIdx].alpha += reward
-    matching[armIdx].beta += (1 - reward)
+    // 多维 reward 缩放（与全局 bandit 一致）
+    const REWARD_SCALE = 5
+    matching[armIdx].alpha += reward * REWARD_SCALE
+    matching[armIdx].beta += (1 - reward) * REWARD_SCALE
 
     // Discount old observations to adapt to non-stationary preferences
     const DISCOUNT_FACTOR = 0.995
@@ -643,19 +645,28 @@ export function checkAutoTune(stats: InteractionStats) {
  * Update bandit rewards after each response.
  * Called from handler.ts with quality score and correction flag.
  */
-export function updateBanditReward(qualityScore: number, wasCorrection: boolean) {
+/**
+ * 多维 reward Thompson Sampling（原创增强）
+ * 不再只用 qualityScore，融合 quality + body + engagement 三维信号
+ * reward 连续 [0,1]，用 k=5 的缩放因子加速学习
+ */
+export function updateBanditReward(qualityScore: number, wasCorrection: boolean, bodyResonance?: number, engagementSignal?: number) {
   if (Object.keys(banditState).length === 0) return
 
-  // Continuous reward: map score 1-10 to probability 0-1
-  let successProb = Math.max(0, Math.min(1, (qualityScore - 1) / 9))
+  // 多维 reward 融合
+  const qualityReward = Math.max(0, Math.min(1, (qualityScore - 1) / 9))
+  const bodyReward = bodyResonance ?? 0.5  // 默认中性
+  const engReward = engagementSignal ?? 0.5
 
-  // Correction penalty: reduce success probability
+  let successProb = qualityReward * 0.5 + bodyReward * 0.2 + engReward * 0.3
+
+  // Correction penalty
   if (wasCorrection) {
     successProb = Math.min(successProb, 0.2)
   }
 
-  // Clamp reward to valid [0,1] range after all adjustments
   const reward = Math.max(0, Math.min(1, successProb))
+  const REWARD_SCALE = 5  // 放大因子：好/差的回答贡献更多证据，加速学习
 
   for (const [key, state] of Object.entries(banditState)) {
     const armIdx = state.currentArm
@@ -663,9 +674,9 @@ export function updateBanditReward(qualityScore: number, wasCorrection: boolean)
 
     state.arms[armIdx].pulls++
     state.totalPulls++
-    // Continuous Beta update
-    state.arms[armIdx].alpha += reward
-    state.arms[armIdx].beta += (1 - reward)
+    // 多维 reward 连续 Beta 更新（缩放因子加速学习）
+    state.arms[armIdx].alpha += reward * REWARD_SCALE
+    state.arms[armIdx].beta += (1 - reward) * REWARD_SCALE
 
     // Discount old observations to adapt to non-stationary preferences
     const DISCOUNT_FACTOR = 0.995

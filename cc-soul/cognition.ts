@@ -57,6 +57,20 @@ function attentionGate(msg: string): { type: string; priority: number } {
     hypotheses[1].score += 1 // boost emotional even when technical words present
   }
 
+  // CIN 先验融合（原创增强）：用用户性格给假设加底分
+  try {
+    const cin = require('./cin.ts')
+    const field = cin.getCINField?.() || cin.getLatestWave?.()
+    if (field) {
+      // D3（决策风格）高 → technical 先验加底分
+      if ((field.D3 ?? field.strength?.[2] ?? 0) > 0.3) hypotheses[2].score += 0.5
+      // D2（社交倾向）高 → emotional 先验加底分
+      if ((field.D2 ?? field.strength?.[1] ?? 0) > 0.3) hypotheses[1].score += 0.3
+      // D4（沟通方式）偏直接 → correction 检测灵敏度提高
+      if ((field.D4 ?? field.strength?.[3] ?? 0) > 0.5) hypotheses[0].score += 0.2
+    }
+  } catch {}
+
   // Pick winner via softmax — 分数差距大时高优先级，差距小时中性
   hypotheses.sort((a, b) => b.score - a.score)
   const winner = hypotheses[0]
@@ -379,6 +393,18 @@ export function applyIntentMomentum(spectrum: IntentSpectrum, currentType: strin
   }
 
   return spectrum
+}
+
+/** Spectrum key → attention type（反向映射，用于 Intent Superposition） */
+function spectrumKeyToAttentionType(key: string): string | null {
+  switch (key) {
+    case 'information': return 'technical'
+    case 'emotional': return 'emotional'
+    case 'exploration': return 'casual'
+    case 'validation': return 'correction'
+    case 'action': return 'technical'
+    default: return null
+  }
 }
 
 function intentTypeToSpectrumKey(type: string): keyof IntentSpectrum | null {

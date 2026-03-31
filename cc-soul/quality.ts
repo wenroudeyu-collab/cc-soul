@@ -53,16 +53,22 @@ const FEATURE_KEYS: (keyof QualityFeatures)[] = [
   'repetitionPenalty', 'informationGain', 'userEngagement',
 ]
 
-/** Quick character-trigram Jaccard for repetition detection */
+/** 复用 memory-utils 的 hybridSimilarity（替换本地重写的 _quickTrigramSim）*/
 function _quickTrigramSim(a: string, b: string): number {
-  if (!a || !b) return 0
-  const triA = new Set<string>(), triB = new Set<string>()
-  for (let i = 0; i < a.length - 2; i++) triA.add(a.slice(i, i + 3))
-  for (let i = 0; i < b.length - 2; i++) triB.add(b.slice(i, i + 3))
-  if (triA.size === 0 || triB.size === 0) return 0
-  let inter = 0
-  for (const t of triA) { if (triB.has(t)) inter++ }
-  return inter / (triA.size + triB.size - inter)
+  try {
+    const { hybridSimilarity } = require('./memory-utils.ts')
+    return hybridSimilarity(a, b)
+  } catch {
+    // Fallback：极简 trigram（不该走到这里）
+    if (!a || !b) return 0
+    const triA = new Set<string>(), triB = new Set<string>()
+    for (let i = 0; i < a.length - 2; i++) triA.add(a.slice(i, i + 3))
+    for (let i = 0; i < b.length - 2; i++) triB.add(b.slice(i, i + 3))
+    if (triA.size === 0 || triB.size === 0) return 0
+    let inter = 0
+    for (const t of triA) { if (triB.has(t)) inter++ }
+    return inter / (triA.size + triB.size - inter)
+  }
 }
 
 function extractFeatures(question: string, answer: string): QualityFeatures {

@@ -198,6 +198,54 @@ export function queryFacts(opts: { subject?: string; predicate?: string; object?
 }
 
 /**
+ * 事实演化时间线（Zep 启发）：同一 subject+predicate 的所有版本按时间排列
+ * 返回最新版 + 变化轨迹。用户问"以前"时返回历史版本。
+ */
+export function queryFactTimeline(subject: string, predicate: string): Array<{ object: string; validFrom: number; validUntil: number; confidence: number; source: string }> {
+  // 包含已失效的版本（validUntil > 0）
+  const allVersions = facts.filter(f =>
+    f.subject === subject && f.predicate === predicate
+  ).sort((a, b) => a.ts - b.ts)
+
+  // SQLite 补充
+  if (isSQLiteReady() && allVersions.length === 0) {
+    try {
+      const results = sqliteQueryFacts({ subject, predicate })
+      // SQLite 版本只返回有效的，还需要查过期的
+      // 暂用内存版本
+    } catch {}
+  }
+
+  return allVersions.map(f => ({
+    object: f.object,
+    validFrom: f.ts,
+    validUntil: f.validUntil,
+    confidence: f.confidence,
+    source: f.source,
+  }))
+}
+
+/**
+ * 格式化事实时间线为可读字符串
+ */
+export function formatFactTimeline(subject: string, predicate: string): string | null {
+  const timeline = queryFactTimeline(subject, predicate)
+  if (timeline.length <= 1) return null  // 无变化历史
+
+  const current = timeline.find(v => v.validUntil === 0) ?? timeline[timeline.length - 1]
+  const history = timeline.filter(v => v.validUntil > 0)
+
+  if (history.length === 0) return null
+
+  const historyStr = history.map(v => {
+    const date = new Date(v.validFrom).toLocaleDateString('zh-CN')
+    return `${date}:${v.object}`
+  }).join(' → ')
+
+  return `${predicate}: ${historyStr} → 现在:${current.object}`
+}
+
+/**
  * Get all valid facts for a subject (usually "user"), formatted as readable string.
  */
 export function getFactSummary(subject = 'user'): string {

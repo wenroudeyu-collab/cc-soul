@@ -116,10 +116,11 @@ async function handleAction(action: string, body: any): Promise<any> {
     }
 
     case 'health': {
-      // P5h: 加入 workload 成本统计
       let workloadCosts = {}
+      let recentEvents: any[] = []
       try { const { getWorkloadCosts } = require('./cli.ts'); workloadCosts = getWorkloadCosts() } catch {}
-      return { status: 'ok', port: SOUL_API_PORT, version: '2.5.0', workloadCosts }
+      try { const { getRecentEvents } = require('./flow.ts'); recentEvents = getRecentEvents(3) } catch {}
+      return { status: 'ok', port: SOUL_API_PORT, version: '2.5.0', workloadCosts, recentEvents }
     }
 
     default:

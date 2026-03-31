@@ -372,31 +372,72 @@ export function getTopPredictions(topN = 3): Array<{ domain: string; probability
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PPM MARKOV CHAIN (from behavior-prediction, topic prediction)
+// PPM MARKOV CHAIN + 心理状态条件（原创增强）
+// 同一话题序列在不同心情下有不同转移概率
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ppmUpdate(context: string[], next: string, maxOrder = 3): void {
+// mood 分 2 桶起步（数据够了可扩到 3 桶）
+type MoodCondition = 'positive' | 'non_positive'
+function getMoodCondition(mood: number): MoodCondition {
+  return mood > 0.2 ? 'positive' : 'non_positive'
+}
+
+// 心理状态条件 PPM：每个 mood 桶有独立的 trie
+const ppmByMood: Record<MoodCondition, PPMNode> = {
+  positive: { children: {}, counts: {}, total: 0, escape: 0 },
+  non_positive: { children: {}, counts: {}, total: 0, escape: 0 },
+}
+
+function ppmUpdate(context: string[], next: string, maxOrder = 3, mood?: number): void {
+  // 全局 PPM（保持向后兼容）
   let node = ppmRoot
   const ctx = context.slice(-maxOrder)
-  // Order 0: root
   node.counts[next] = (node.counts[next] || 0) + 1
   node.total++
-  // Higher orders
   for (const symbol of ctx) {
     if (!node.children[symbol]) node.children[symbol] = { children: {}, counts: {}, total: 0, escape: 0 }
     node = node.children[symbol]
     node.counts[next] = (node.counts[next] || 0) + 1
     node.total++
   }
+
+  // 心理状态条件 PPM
+  if (mood !== undefined) {
+    const condition = getMoodCondition(mood)
+    let moodNode = ppmByMood[condition]
+    moodNode.counts[next] = (moodNode.counts[next] || 0) + 1
+    moodNode.total++
+    for (const symbol of ctx) {
+      if (!moodNode.children[symbol]) moodNode.children[symbol] = { children: {}, counts: {}, total: 0, escape: 0 }
+      moodNode = moodNode.children[symbol]
+      moodNode.counts[next] = (moodNode.counts[next] || 0) + 1
+      moodNode.total++
+    }
+  }
 }
 
-function ppmPredict(context: string[]): { predicted: string; confidence: number } | null {
+function ppmPredict(context: string[], mood?: number): { predicted: string; confidence: number } | null {
   const ctx = context.slice(-3)
-  // Try highest order first, escape to lower
+
+  // 优先用心理状态条件 PPM（如果该桶有足够数据）
+  if (mood !== undefined) {
+    const condition = getMoodCondition(mood)
+    const moodRoot = ppmByMood[condition]
+    if (moodRoot.total >= 5) {
+      const result = ppmPredictFromRoot(moodRoot, ctx)
+      if (result) return result
+    }
+  }
+
+  // Fallback: 全局 PPM
+  return ppmPredictFromRoot(ppmRoot, ctx)
+}
+
+function ppmPredictFromRoot(root: PPMNode, ctx: string[]): { predicted: string; confidence: number } | null {
   for (let order = ctx.length; order >= 0; order--) {
-    let node = ppmRoot
+    let node = root
     for (let i = ctx.length - order; i < ctx.length; i++) {
-      if (!node.children[ctx[i]]) { node = ppmRoot; break }
+      if (!node.children[ctx[i]]) { node = root; break }
       node = node.children[ctx[i]]
     }
     if (node.total > 0) {
@@ -412,15 +453,15 @@ function ppmPredict(context: string[]): { predicted: string; confidence: number 
   return null
 }
 
-export function updateMarkov(topicSequence: string[]): void {
+export function updateMarkov(topicSequence: string[], mood?: number): void {
   for (let i = 1; i < topicSequence.length; i++) {
-    ppmUpdate(topicSequence.slice(0, i), topicSequence[i])
+    ppmUpdate(topicSequence.slice(0, i), topicSequence[i], 3, mood)
   }
   save()
 }
 
-export function predictNextTopic(recentTopics: string[]): { topic: string; confidence: number } | null {
-  return ppmPredict(recentTopics)
+export function predictNextTopic(recentTopics: string[], mood?: number): { topic: string; confidence: number } | null {
+  return ppmPredict(recentTopics, mood)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

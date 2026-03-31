@@ -9,6 +9,11 @@ import type { SoulModule } from './brain.ts'
 
 import type { Entity, Relation } from './types.ts'
 import { getParam } from './auto-tune.ts'
+import { onCacheEvent } from './memory-utils.ts'
+
+// Event-Driven Cache Coherence：注册缓存失效
+onCacheEvent('memory_deleted', () => invalidateEntityMemoryIndex())
+onCacheEvent('consolidation', () => { invalidateEntityMemoryIndex(); _pageRankDirty = true })
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { resolve } from 'path'
 import {

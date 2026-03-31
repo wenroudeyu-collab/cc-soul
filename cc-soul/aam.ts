@@ -738,6 +738,11 @@ function pmi(w1: string, w2: string): number {
  * Expand a set of query words with semantically related words.
  * Uses learned co-occurrence + cold-start synonyms.
  */
+/** 查询两个词的共现次数（供 hybridSimilarity 的 AAM 同义词融合用）*/
+export function getCooccurrence(wordA: string, wordB: string): number {
+  return network.cooccur[wordA]?.[wordB] ?? network.cooccur[wordB]?.[wordA] ?? 0
+}
+
 export function expandQuery(queryWords: string[], maxExpansion = 10): { word: string; weight: number }[] {
   const expanded: Map<string, number> = new Map()
 
