@@ -408,18 +408,9 @@ All automatic. No setup, no toggles. Works from the first message.
 
 ## NAM — Neural Activation Memory
 
-cc-soul's original memory engine. Memories aren't "searched" — they surface automatically, like the human brain. 6 signals computed simultaneously:
+cc-soul's original memory engine. Memories aren't "searched" — they surface automatically, like the human brain. No external models needed. Gets smarter the more you talk.
 
-```
-① Base activation     — frequency + recency (ACT-R model)
-② Context match       — AAM word expansion + BM25 + trigram fusion
-③ Emotional resonance — current mood × memory emotion (PADCN cosine)
-④ Spreading activation — related memories boost each other
-⑤ Interference        — similar memories compete, strongest wins
-⑥ Temporal context    — time-of-day encoding specificity
-```
-
-One system, no layers, no degradation, no external models. NAM learns your personal semantic connections from usage — gets smarter the more you talk.
+Powered by 17 original algorithms: NAM (Neural Activation Memory), AAM (Adaptive Associative Memory), CIN (Cognitive Interference Network), BPS (Behavioral Phase Space), FSRS-7, Coupled Pressure Oscillators, 3-Layer Distillation Pipeline, Adaptive Context Budget, Personalized Compression, User Projector, 4-Level Confidence Voice, Multi-dimensional Thompson Sampling, CIN Prior Fusion, Social Graph Integration, Bidirectional Causal Graph, Semantic Freshness Scoring, Decision Audit Chain.
 
 ---
 

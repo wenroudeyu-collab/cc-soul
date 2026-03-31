@@ -666,6 +666,16 @@ export function updateSocialGraph(msg: string, mood: number) {
     entity.lastActivatedAt = Date.now()
     entity.activation = Math.min(1, (entity.activation ?? 0) + 0.3)
 
+    // 动态人物关系推断（不靠称呼列表，靠语境共现）
+    try {
+      const { inferRelationship } = require('./dynamic-extractor.ts')
+      const rel = inferRelationship(name)
+      if (rel !== 'unknown' && !entity.attrs.includes(`role:${rel}`)) {
+        entity.attrs = entity.attrs.filter((a: string) => !a.startsWith('role:'))
+        entity.attrs.push(`role:${rel}`)
+      }
+    } catch {}
+
     // 情绪归因到具体关系边，而非粗暴加到人物上
     // "老板夸我" → Relation { source: "老板", target: "用户", type: "praised", mood: 0.5 }
     const moodLabel = mood > 0.2 ? 'positive_interaction' : mood < -0.2 ? 'negative_interaction' : 'neutral_interaction'

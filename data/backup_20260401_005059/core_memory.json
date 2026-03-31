@@ -1,0 +1,602 @@
+[
+  {
+    "content": "[对话] 用户: 为什么每次项目延期我就会失眠？ → AI: 这个问题涉及到你的压力反应模式。\n\n**可能的原因：**\n\n1. **失控感** — 延期意味着计划被打乱，对不确定性的",
+    "category": "user_fact",
+    "addedAt": 1774967838320,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: tune → AI: 需要我调整什么？\n\n- 语气风格（更正式/更随意）\n- 回复长度（更简洁/更详细）\n- 其他偏好\n\n告诉我具体想调什么。",
+    "category": "user_fact",
+    "addedAt": 1774967838320,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 技术分享的 PPT 我做了一半了，但是还缺个好例子 → AI: 什么主题的分享？缺什么类型的例子 — 代码实战、架构设计、还是故障排查？\n\n告诉我主题和缺的部分，我帮你找或想。",
+    "category": "user_fact",
+    "addedAt": 1774967838320,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 最近工作忙吗？ → AI: 我不忙，随时在。\n\n你呢？今天周二，这周有什么安排？",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 跟女朋友吵架了，她说我不关心她 → AI: 我在听。\n\n说说具体情况？",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 提醒我 周五下午3点开会 → AI: 收到。\n\n**提醒：周五下午3点开会**\n\n---\n\n由于记忆功能已关闭，我无法主动提醒。建议：\n\n1. **手机日历*",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 功能 memory_active off → AI: 收到，记忆功能已关闭。\n\n从现在开始，对话内容不会被保存。说\"memory_active on\"恢复。",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我的银行卡密码是123456 → AI: 这条不会记录。\n\n说完记得说\"可以了\"关闭隐私模式。",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "推荐了《重构》这本书",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "用户询问编程书籍推荐",
+    "category": "preference",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 推荐一本编程书 → AI: 推荐《重构》",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "用户讨厌寿司",
+    "category": "preference",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "用户喜欢火锅",
+    "category": "preference",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 你还记得我的饮食偏好吗？ → AI: 我记得：\n\n- **喜欢**：吃火锅\n- **讨厌**：吃寿司\n\n还有什么需要补充的吗？",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: PPT 做了一半了，技术分享的内容还没想好用什么主题 → AI: 张三，技术分享多长时间？听众什么背景？\n\n几个方向供参考：\n\n---\n\n**方向1：架构实战（推荐）**\n- 主题：《百",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "每天坐地铁2号线上班",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "住在上海浦东",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我住在上海浦东，每天坐地铁2号线上班 → AI: 收到，张三。\n\n（记下了：住上海浦东，地铁2号线上班）\n\n2号线人很多吧？早晚高峰挤吗？",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 年终奖20万怎么理财比较好？ → AI: **20 万年终奖，先防守再进攻。**\n\n---\n\n**第一步：安全垫（1-2 周完成）**\n\n| 动作 | 金额 | ",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "4-7-8呼吸法（吸气4秒，憋气7秒，呼气8秒）可作为助眠技巧",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "固定起床时间比入睡时间对调节睡眠节律更重要",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "睡前1小时减少蓝光暴露（调暗灯光或使用防蓝光眼镜）有助于睡眠",
+    "category": "user_fact",
+    "addedAt": 1774967838321,
+    "source": "auto"
+  },
+  {
+    "content": "酒精助眠会导致后半夜易醒，影响睡眠连续性",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "咖啡因摄入时间建议中午前截止，下午2点后饮用可能影响睡眠",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 最近失眠严重，有什么好的助眠方法？ → AI: **失眠先找原因，再对症解决。**\n\n---\n\n**先自查（最近有吗？）**\n\n| 因素 | 表现 | 调整 |\n|--",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "管理孩子手机使用的立即可做措施：物理隔离（学习时手机放另一房间、路由器设置断网时段、用老人机限时替代）、契约代替命令（约定时间表、让孩子自定并签字）、填满时间（安排外出运动、创造无屏幕时间）",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "判断孩子沉迷手机程度的三个等级：正常（完成作业后玩1-2小时）、轻度沉迷（偷偷玩、熬夜玩、成绩下降）、重度依赖（不给玩就暴怒、拒绝上学、社交退缩）",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 孩子沉迷手机游戏怎么管？ → AI: **孩子沉迷手机，管比不管难，但不管更糟。**\n\n---\n\n**先判断程度**\n\n| 表现 | 程度 | 应对 |\n|-",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "awk可以用于CSV文件的列打印、条件过滤、统计计算和分组统计等操作",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "NR>1可以跳过CSV文件的表头行进行数据处理",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "awk处理CSV文件时需要使用-F参数指定逗号为分隔符，例如awk -F','",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 怎么用 awk 处理 CSV 文件？ → AI: **awk 处理 CSV 常用操作：**\n\n---\n\n**基础用法**\n\n```bash\n# 打印指定列（默认空格/制表",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "用户可能从事Java后端和Python数据分析工作",
+    "category": "preference",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: Python 的 GIL 是什么？ → AI: 这个刚回答过，还有什么不清楚的？\n\n或者换个角度：GIL 对张三的工作有什么具体影响？Java 后端 + Python ",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "CPU并行计算可用multiprocessing多进程方案，异步I/O可用asyncio，真并行线程可用Cython/numba写扩展或换PyPy/Jython",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此不是问题",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 是Python 的 GIL 是什么 → AI: **GIL（Global Interpreter Lock）** 是 CPython 的全局解释器锁，确保同一时刻只有一",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: Python 的 GIL 是什么？ → AI: **GIL（Global Interpreter Lock）** 是 CPython 的全局解释器锁，确保同一时刻只有一",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "go tool pprof 命令可以对 goroutine 堆栈进行可视化分析",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "使用 net/http/pprof 的 /debug/pprof/goroutine 端点可以获取 goroutine 堆栈信息用于定位泄漏",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "Goroutine 泄漏可通过 runtime.NumGoroutine() 在接口入口和出口打印数量对比来确认",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: Go 的 goroutine 泄漏怎么排查？ → AI: **Goroutine 泄漏排查步骤：**\n\n---\n\n**1. 确认泄漏**\n\n```go\nimport \"runti",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx负载均衡在server配置块中通过proxy_pass指令指向upstream名称实现流量转发，可配置proxy_set_header、proxy_connect_timeout等代理参数",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx负载均衡配置使用upstream模块定义后端服务器组，支持weight参数设置权重，backup参数标记备用服务器，keepalive参数管理长连接",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: Nginx 怎么配置负载均衡？ → AI: **Nginx 负载均衡配置：**\n\n---\n\n**基础配置**\n\n```nginx\nupstream backend ",
+    "category": "user_fact",
+    "addedAt": 1774967838322,
+    "source": "auto"
+  },
+  {
+    "content": "AOF机制记录每个写操作类似日志，文件大随时间膨胀，恢复慢需重放命令，但数据安全最多丢1秒（默认配置）",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "RDB机制是定时快照保存全量数据，文件紧凑压缩，恢复快，但可能丢失最后一次快照后的数据",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "[深层焦虑] 对技术问题的执着（如反复讨论Nginx配置和日志排查）可能反映对工作失误的隐性恐惧，或通过技术专注掩盖对职场评价的担忧。",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 今天被老板当众批评了，感觉特别委屈 → AI: 确实不好受，当众批评换谁都难受。\n\n老板是因为什么事？项目延期还是别的问题？\n\n现在想聊聊，还是先缓缓？",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx 500 问题原因——upstream 超时设置太短",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 刚才说的那个 Nginx 问题后来查出原因了，是 upstream 超时设置太短 → AI: 收到。\n\n（记下了：Nginx 500 问题原因——upstream 超时设置太短）\n\n超时设多少合适？默认 60s 还",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "数据库优化建议包括慢查询优化、读写分离、缓存层（Redis、Caffeine）、连接池调优",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "用户团队规模为5人，负责系统维护",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "用户所在公司技术架构为单体Java应用加MySQL，用户量达百万级别",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 我有个很复杂的问题需要你帮我分析。我们公司最近在做技术架构升级，目前用的是单体 Java 应用加 MySQL，但是随着用 → AI: **核心判断：5人团队别拆微服务，先解决数据库瓶颈。**\n\n---\n\n**问题拆解**\n\n| 症状 | 真正瓶颈 |\n|",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "Bun 在 2024 年存在部分 npm 包兼容问题和边缘 case",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "Bun 兼容 Express、Koa 等主流框架",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "Bun 内置打包、测试、TypeScript 支持，零配置",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "Bun 内置包管理工具安装速度比 npm 快 10-20 倍",
+    "category": "user_fact",
+    "addedAt": 1774967838323,
+    "source": "auto"
+  },
+  {
+    "content": "Bun 启动速度比 Node.js 快 3-4 倍",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 有人推荐我试试 Bun 替代 Node.js，你觉得值得吗？ → AI: **Bun 值得试，但生产环境谨慎。**\n\n---\n\n**Bun 的优势**\n\n| 方面 | 表现 |\n|------|",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "后端返回500时，access.log显示状态码500但Nginx运行正常",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx自身错误在error.log中会有upstream或rewrite相关错误记录",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "查看Nginx访问日志中500状态码的命令：grep \" 500 \" /var/log/nginx/access.log",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "查看Nginx错误日志的命令：tail -f /var/log/nginx/error.log",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "Nginx 500错误排查需要区分是Nginx自身错误还是后端返回的错误",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 线上服务报500了，Nginx日志怎么查？ → AI: **Nginx 500 错误排查路径：**\n\n---\n\n**第一步：确认错误来源**\n\n```bash\n# 看 Ngin",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 昨天和同事王磊一起调试了一个Nginx配置问题，搞了3个小时才搞定 → AI: 收到。\n\n（记下了：同事王磊，一起调试 Nginx 配置问题 3 小时）\n\n什么问题这么难搞？配置重写规则还是负载均衡？",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "张三在美团用Java写后端",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 不对，我用的不是Go，是Java写后端的 → AI: 收到。\n\n（更正记忆：Go→Java）\n\n张三在美团用 **Java** 写后端，Python 做数据分析。还有什么需要",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "Redis 4.0+支持混合持久化模式，可同时开启RDB和AOF",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "AOF机制记录每个写操作，文件大随时间膨胀，恢复慢但最多丢1秒数据（默认配置）",
+    "category": "user_fact",
+    "addedAt": 1774967838324,
+    "source": "auto"
+  },
+  {
+    "content": "单体架构部署简单，微服务架构需要成熟的CI/CD和分布式追踪",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "微服务架构适合50人以上团队，单体架构适合10人以内团队",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 帮我分析一下微服务架构和单体架构的优劣，我在做技术选型 → AI: **技术选型核心：团队规模决定架构复杂度。**\n\n---\n\n**快速对比**\n\n| | 单体 | 微服务 |\n|--|-",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "信用卡分期常有免息活动，花呗分期免息活动较少",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "信用卡分期上征信且按时还款可加分，花呗分期2021年后也上征信",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "信用卡分期提前还款可能收违约金，花呗分期提前还款已收手续费不退",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "信用卡分期实际年化利率13%-18%，花呗分期实际年化利率15%-18%",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 信用卡分期和花呗分期哪个划算？ → AI: **直接比数字：信用卡分期通常更便宜，但要看具体费率。**\n\n---\n\n**费率对比（年化）：**\n\n| | 信用卡分期",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "需要立即就医的红线信号：视力突然下降、视物变形、持续眼痛或头痛",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "长期护眼习惯：显示器距离50-70cm、位置略低于眼睛水平、有意识多眨眼、睡前热敷5分钟",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "护眼环境调整：屏幕亮度匹配环境光、使用防蓝光措施、调整角度避免反光、保持40-60%湿度",
+    "category": "user_fact",
+    "addedAt": 1774967838325,
+    "source": "auto"
+  },
+  {
+    "content": "人工泪液选择：玻璃酸钠滴眼液适用于日常干涩，聚乙二醇用于重度干眼，避免使用去红血丝的眼药水",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "20-20-20法则：每20分钟看20英尺（6米）外20秒，缓解眼疲劳",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 每天对着电脑十几个小时，眼睛干涩怎么缓解？ → AI: **程序员护眼实操：**\n\n---\n\n**环境调整**\n\n| 问题 | 解决 |\n|------|------|\n| 屏",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "用户可能心情不好",
+    "category": "preference",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 哈哈今天天气真好 → AI: 张三，今天巴黎天气确实不错。\n\n心情好点了？还是转移话题？",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 下周五要做年度技术分享，得好好准备 → AI: 张三，技术分享主题定了没？多长时间？听众什么背景？\n\n（记下了：下周五年度技术分享）",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "张三用Python做数据分析",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "张三用Go写后端",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 你还记得我用什么语言写后端吗？ → AI: 张三用 **Go** 写后端，**Python** 做数据分析。",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 今天被老板骂了一顿，心情很差 → AI: 张三，因为什么被骂？项目延期还是别的事？\n\n现在想聊聊，还是先缓缓？",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "新猫到家可能躲藏、不吃不喝，应给3-7天适应期，避免强行抱",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "养猫环境需封窗，收好巧克力、百合、电线，使用带盖垃圾桶",
+    "category": "user_fact",
+    "addedAt": 1774967838326,
+    "source": "auto"
+  },
+  {
+    "content": "接猫后需安排体检、疫苗（猫三联+狂犬）、驱虫（每月一次）、绝育（6-8月龄）",
+    "category": "user_fact",
+    "addedAt": 1774967838327,
+    "source": "auto"
+  },
+  {
+    "content": "新手养猫必备物品包括猫砂盆、猫砂、猫粮、食盆水盆、猫窝/猫抓板、航空箱",
+    "category": "user_fact",
+    "addedAt": 1774967838327,
+    "source": "auto"
+  },
+  {
+    "content": "[对话] 用户: 第一次养猫需要准备什么？ → AI: **新手养猫必备清单：**\n\n---\n\n**接猫前准备**\n\n| 物品 | 说明 |\n|------|------|\n|",
+    "category": "user_fact",
+    "addedAt": 1774967838327,
+    "source": "auto"
+  },
+  {
+    "content": "Redis 4.0+支持混合持久化模式，可以同时开启RDB和AOF",
+    "category": "user_fact",
+    "addedAt": 1774967838327,
+    "source": "auto"
+  },
+  {
+    "content": "AOF机制是记录每个写操作类似日志，文件大随时间膨胀，恢复慢但最多丢1秒数据（默认配置）",
+    "category": "user_fact",
+    "addedAt": 1774967838327,
+    "source": "auto"
+  }
+]

@@ -112,6 +112,28 @@ export function runHeartbeat() {
       safe('compressOld', () => compressOldMemories())
       safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) }) // intentionally silent — maintenance
 
+      // 实体结晶缓存：heartbeat 预计算实体画像写入 attrs
+      safe('entityCrystal', async () => {
+        try {
+          const { graphState, generateEntitySummary } = await import('./graph.ts')
+          const now = Date.now()
+          for (const entity of graphState.entities) {
+            if (entity.invalid_at !== null) continue
+            if (entity.mentions < 3) continue  // 提及太少不值得画像
+            // 检查是否需要刷新（>24h 未更新）
+            const lastCrystal = entity.attrs.find((a: string) => a.startsWith('crystal:'))
+            const lastTs = lastCrystal ? parseInt(lastCrystal.split('|')[1] || '0') : 0
+            if (now - lastTs < 86400000) continue  // <24h 不刷新
+            // 生成画像
+            const summary = generateEntitySummary(entity.name)
+            if (summary) {
+              entity.attrs = entity.attrs.filter((a: string) => !a.startsWith('crystal:'))
+              entity.attrs.push(`crystal:${summary.slice(0, 100)}|${now}`)
+            }
+          }
+        } catch {}
+      })
+
       // ── 蒸馏 + 图谱（核心，有条件调 LLM）──
       safeCLI('distill', () => runDistillPipeline(), safe)
       safe('pageRank', () => computePageRank())
@@ -126,6 +148,17 @@ export function runHeartbeat() {
 
       // ── 盲点提问扫描（基于 epistemic 域 + person-model 缺口）──
       safe('blindSpotQuestions', () => scanBlindSpotQuestions())
+
+      // ── 动态结构词发现 ──
+      safe('structureWordDiscovery', async () => {
+        try {
+          const { discoverNewStructureWords } = await import('./dynamic-extractor.ts')
+          const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
+          const sess = getSessionState(getLastActiveSessionKey())
+          const userId = sess?.userId || 'default'
+          discoverNewStructureWords(userId)
+        } catch {}
+      })
 
       // ── 行为模式学习 ──
       safe('behaviorLearn', async () => {

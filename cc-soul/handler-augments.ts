@@ -195,6 +195,117 @@ const SCOPE_LABELS: Record<string, string> = {
   correction: '纠正', task: '任务', discovery: '发现', reflection: '思考',
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 叙事织网 + 记忆晶体（Narrative Weaving + Memory Crystal）— cc-soul 原创
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 叙事织网：零 LLM 从碎片记忆组装连贯叙述
+ * 自适应格式：topic node 命中 → 三层模板；未命中 → 纯时间线
+ */
+function weaveNarrative(query: string, recalled: Memory[]): string {
+  if (recalled.length <= 2) return recalled.map(m => m.content).join('；')
+
+  const sorted = [...recalled].sort((a, b) => a.ts - b.ts)
+
+  let topicNode: any = null
+  try {
+    const { getRelevantTopics } = require('./distill.ts')
+    topicNode = getRelevantTopics(query, recalled[0]?.userId, 1)[0] ?? null
+  } catch {}
+
+  // 提取时间线骨架
+  const timeline: string[] = []
+  try {
+    const { extractFacts } = require('./fact-store.ts')
+    for (const m of sorted) {
+      const facts = extractFacts(m.content)
+      timeline.push(facts.length > 0
+        ? facts.map((f: any) => `${f.subject}${f.predicate}${f.object}`).join('，')
+        : m.content.slice(0, 40))
+    }
+  } catch {
+    for (const m of sorted) timeline.push(m.content.slice(0, 40))
+  }
+  const deduped = timeline.filter((t, i) => i === 0 || t !== timeline[i - 1])
+
+  if (!topicNode) {
+    // 无 topic node → 纯时间线（不强套模板）
+    return deduped.join(' → ')
+  }
+
+  // 有 topic node → 三层模板
+  const parts: string[] = []
+  parts.push(`[主题] ${topicNode.summary}`)
+  if (deduped.length > 0) parts.push(`[轨迹] ${deduped.join(' → ')}`)
+  const latest = sorted[sorted.length - 1]
+  const ageDays = (Date.now() - latest.ts) / 86400000
+  const ageStr = ageDays < 1 ? '今天' : ageDays < 2 ? '昨天' : `${Math.round(ageDays)}天前`
+  parts.push(`[当前] ${latest.content.slice(0, 40)}（${ageStr}提到）`)
+  return parts.join('\n')
+}
+
+/**
+ * 记忆晶体：查询时即时组装，融合叙事+事实+时间线+事件+前瞻
+ * token 预算控制：逐层削减，超预算停止
+ */
+function crystallize(query: string, recalled: Memory[], maxTokens: number = 300): string {
+  const parts: string[] = []
+  let usedTokens = 0
+
+  // 第一层：叙事（最高优先级）
+  const narrative = weaveNarrative(query, recalled)
+  const narrativeTokens = estimateTokens(narrative)
+  if (usedTokens + narrativeTokens <= maxTokens) {
+    parts.push(narrative)
+    usedTokens += narrativeTokens
+  } else {
+    parts.push(narrative.slice(0, (maxTokens - usedTokens) * 2))
+    return parts.join('\n')
+  }
+
+  // 第二层：精确事实补充
+  try {
+    const { formatFactTimeline } = require('./fact-store.ts')
+    const entities = findMentionedEntities(query)
+    for (const entity of entities.slice(0, 2)) {
+      for (const pred of ['使用', '住在', '工作', 'likes', 'uses', 'works_at', 'lives_in']) {
+        const tl = formatFactTimeline(entity, pred)
+        if (tl) {
+          const tlTokens = estimateTokens(tl)
+          if (usedTokens + tlTokens <= maxTokens) { parts.push(`[事实] ${tl}`); usedTokens += tlTokens }
+          break
+        }
+      }
+    }
+  } catch {}
+
+  // 第三层：前瞻信号
+  for (const m of recalled) {
+    if (m.prospective?.trigger && m.prospective.expiresAt > Date.now()) {
+      try {
+        if (new RegExp(m.prospective.trigger, 'i').test(query)) {
+          const hint = `[提醒] ${m.prospective.action}`
+          const hintTokens = estimateTokens(hint)
+          if (usedTokens + hintTokens <= maxTokens) { parts.push(hint); usedTokens += hintTokens }
+        }
+      } catch {}
+    }
+  }
+
+  // 第四层：事件上下文
+  try {
+    const { getCurrentEvent } = require('./flow.ts')
+    const evt = getCurrentEvent()
+    if (evt && evt.turnCount >= 3) {
+      const evtStr = `[事件] ${evt.topic}第${evt.turnCount}轮`
+      if (usedTokens + estimateTokens(evtStr) <= maxTokens) parts.push(evtStr)
+    }
+  } catch {}
+
+  return parts.join('\n')
+}
+
 /**
  * 语义新鲜度标注（原创：不只看日历，还看话题相关性）
  * 3 天前的记忆如果跟当前话题强相关 → 标为"仍然相关"
@@ -1055,40 +1166,17 @@ export async function buildAndSelectAugments(params: {
 
   session.lastRecalledContents = recalled.map(m => m.content)
   if (recalled.length > 0) {
-    // When too many memories, distill into narrative paragraphs to save tokens
-    const content = recalled.length > 8
-      ? '[相关记忆] ' + distillMemories(recalled)
-      : '[相关记忆] ' + recalled.map(m => {
-        const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
-        const isHistorical = m.validUntil && m.validUntil > 0 && m.validUntil < Date.now()
-        const temporalPrefix = isHistorical
-          ? `[历史] ${m.content} (截至 ${new Date(m.validUntil!).toLocaleDateString('zh-CN')})`
-          : annotateMemoryFreshness(m.content, m, userMsg)  // 语义新鲜度：话题相关则标"仍相关"
-        const reasoningTag = m.reasoning
-          ? ` (推理: 因为${m.reasoning.context}所以${m.reasoning.conclusion}, 置信度 ${m.reasoning.confidence})`
-          : ''
-        // 四档置信度语气（原创：Bayes C 连续谱 → 四档自然语气，比二值 verified/hint 更像人类回忆）
-        // C > 0.8  → 确定（"我记得你说过"）
-        // C 0.5-0.8 → 一般（不加标签，默认语气）
-        // C 0.3-0.5 → 不确定（"你之前好像提过"）
-        // C < 0.3  → 模糊（不注入，已在 recall 阶段被过滤）
-        const bayesC = (m.bayesAlpha ?? 2) / ((m.bayesAlpha ?? 2) + (m.bayesBeta ?? 1))
-        const recallFreq = m.recallCount ?? 0
-        const trustTag = bayesC > 0.8 && recallFreq >= 3
-          ? ' [确信,用"我记得你说过"的语气]'
-          : bayesC > 0.8 ? ' [可信]'
-          : bayesC < 0.5 && m.source !== 'user_said'
-            ? ' [不确定,用"你之前好像提过"的语气,等用户确认]'
-          : ''
-        const sourceTag = m.source === 'user_said' ? ' [用户亲述]'
-          : m.source === 'ai_inferred' ? ' [AI推断,需验证]'
-          : ''
-        const becauseTag = m.because ? ` （因为: ${m.because}）` : ''
-        return temporalPrefix + emotionTag + reasoningTag + sourceTag + trustTag + becauseTag
-      }).join('; ')
-    augments.push({ content, priority: 8, tokens: estimateTokens(content) })
+    // ── 记忆晶体（Memory Crystal）：替代碎片拼接 ──
+    // 从 context-budget 获取 token 预算
+    let crystalBudget = 300
+    try {
+      const { computeBudget } = require('./context-budget.ts')
+      const budget = computeBudget()
+      crystalBudget = Math.min(500, Math.floor(budget.augmentBudget * 0.4))  // 最多占 augment 预算的 40%
+    } catch {}
 
-    // Tip-of-the-Tongue 已合并进四档置信度语气标签（trustTag），不再需要单独 augment
+    const content = '[记忆] ' + crystallize(userMsg, recalled, crystalBudget)
+    augments.push({ content, priority: 8, tokens: estimateTokens(content) })
 
     // ── 因果链注入: 当召回的记忆包含纠正类时，追溯因果并注入上下文 ──
     const corrRecalled = recalled.filter(m => m.scope === 'correction' || m.scope === 'event')

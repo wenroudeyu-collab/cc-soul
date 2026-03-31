@@ -1,0 +1,1996 @@
+{
+  "patterns": [
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "tech"
+      },
+      "action": {
+        "style": "concise",
+        "hint": "深夜问技术问题，可能在排障，给命令和代码，少解释"
+      },
+      "hits": 22,
+      "misses": 0,
+      "lastHit": 1774916124417,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "timeSlot": "early_morning"
+      },
+      "action": {
+        "style": "concise",
+        "hint": "早上刚起来，简洁回答，别长篇大论"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "afterEvent": "correction"
+      },
+      "action": {
+        "style": "careful",
+        "hint": "刚被纠正过，这次更谨慎，多检查事实"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "afterEvent": "rapid_fire"
+      },
+      "action": {
+        "style": "concise",
+        "hint": "用户连续快速提问，给短平快的答案"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "mood": "negative"
+      },
+      "action": {
+        "style": "empathetic",
+        "hint": "用户情绪不好，先共情再给方案"
+      },
+      "hits": 5,
+      "misses": 0,
+      "lastHit": 1774911773789,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "mood": "negative",
+        "topicDomain": "work"
+      },
+      "action": {
+        "style": "empathetic",
+        "hint": "工作压力大，别说教，给实际可操作的建议"
+      },
+      "hits": 4,
+      "misses": 0,
+      "lastHit": 1774903277599,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "topicDomain": "tech",
+        "afterEvent": "topic_switch"
+      },
+      "action": {
+        "style": "code_first",
+        "hint": "刚切到技术话题，先上代码再解释"
+      },
+      "hits": 4,
+      "misses": 0,
+      "lastHit": 1774890025441,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "dayType": "weekend"
+      },
+      "action": {
+        "style": "casual",
+        "hint": "周末了，轻松一点，不用太正式"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774869015096_NaN",
+      "condition": {
+        "dayType": "weekend",
+        "topicDomain": "life"
+      },
+      "action": {
+        "style": "casual",
+        "hint": "周末聊生活话题，像朋友一样说话"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774869015096,
+      "createdAt": 1774869015096,
+      "source": "seeded"
+    },
+    {
+      "id": "bp_1774897925404_0",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊go，历史3次互动表明平衡回答效果最好"
+      },
+      "hits": 22,
+      "misses": 0,
+      "lastHit": 1774914202420,
+      "createdAt": 1774897925403,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774897925404_1",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊devops，历史3次互动表明平衡回答效果最好"
+      },
+      "hits": 25,
+      "misses": 0,
+      "lastHit": 1774913970480,
+      "createdAt": 1774897925403,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774899908273_0",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊career，历史3次互动表明平衡回答效果最好"
+      },
+      "hits": 16,
+      "misses": 0,
+      "lastHit": 1774941181841,
+      "createdAt": 1774899908273,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_0",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "python",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊python，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 4,
+      "misses": 0,
+      "lastHit": 1774910280321,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_1",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "javascript",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊javascript，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_2",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "finance",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊finance，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_3",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "study",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊study，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_4",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "tech",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊tech，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_5",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "devops",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊devops，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_6",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "career",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊career，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774941181841,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_7",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "health",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊health，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774941561650,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_8",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "go",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊go，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_9",
+      "condition": {
+        "timeSlot": "afternoon",
+        "topicDomain": "travel",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊travel，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_10",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "python",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊python，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 4,
+      "misses": 0,
+      "lastHit": 1774910280321,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_11",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "relationship",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊relationship，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_12",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "tech",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊tech，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_13",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "database",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊database，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774911617398,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_14",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "finance",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊finance，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_15",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "javascript",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊javascript，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_16",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "negative"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊career、情绪不好时，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774911773789,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_17",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "negative"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户情绪不好时，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_18",
+      "condition": {
+        "timeSlot": "evening",
+        "topicDomain": "network",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊network，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774909219823,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774909219823_19",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜，历史4次互动表明平衡回答效果最好"
+      },
+      "hits": 46,
+      "misses": 0,
+      "lastHit": 1774941499767,
+      "createdAt": 1774909219823,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774911840000_0",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊python，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 30,
+      "misses": 0,
+      "lastHit": 1774918181346,
+      "createdAt": 1774911839999,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774911840000_1",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "rust",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊rust，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774911839999,
+      "createdAt": 1774911839999,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774911840000_2",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "devops",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊devops，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 19,
+      "misses": 0,
+      "lastHit": 1774918049376,
+      "createdAt": 1774911839999,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774911840000_3",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "database",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊database，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 4,
+      "misses": 0,
+      "lastHit": 1774913743476,
+      "createdAt": 1774911839999,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774911840000_4",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "career",
+        "mood": "negative"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊career、情绪不好时，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774911839999,
+      "createdAt": 1774911839999,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774913884949_0",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "career",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊career，历史2次互动表明平衡回答效果最好"
+      },
+      "hits": 3,
+      "misses": 0,
+      "lastHit": 1774941181841,
+      "createdAt": 1774913884949,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774913884949_1",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "go",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊go，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774914202420,
+      "createdAt": 1774913884949,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774913884949_2",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "javascript",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊javascript，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774913884949,
+      "createdAt": 1774913884949,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_0",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "relationship",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊relationship，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774918181346,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_1",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "health",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊health，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774941561650,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_2",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "finance",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊finance，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774916681916,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_3",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "tech",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊tech，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774916681916,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774942571547_0",
+      "condition": {
+        "timeSlot": "morning",
+        "topicDomain": "career",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊career，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774942571547,
+      "createdAt": 1774942571547,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774942571547_1",
+      "condition": {
+        "timeSlot": "morning",
+        "topicDomain": "health",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊health，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774942571547,
+      "createdAt": 1774942571547,
+      "source": "learned"
+    }
+  ],
+  "observations": [
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774868960889
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "javascript",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774869060247
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "finance",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774869180127
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "study",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774869253898
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872587605
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872673235
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872723170
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872802772
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872943003
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774872973389
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774873003690
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "health",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774873171341
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774873207550
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774874643353
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774877983825
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774878212111
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "travel",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774878293522
+    },
+    {
+      "situation": {
+        "timeSlot": "afternoon",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774878328384
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889772633
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889836185
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889899550
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774889962435
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774890025441
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "database",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891456821
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891519935
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "finance",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891585023
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891648802
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774891712516
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774893502055
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894347099
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "javascript",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894365111
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894406210
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894416463
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894503701
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "negative",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894540803
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "negative",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894576829
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894788179
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774894963041
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895347425
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895531952
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895704615
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774895810181
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "network",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774896016797
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774896189822
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899121417
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899453095
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "javascript",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899544842
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899665593
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899739775
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899783561
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899892659
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774899927909
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774900914394
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774900967610
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774901015671
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774901673903
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774901726686
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774903119917
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774903173692
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "negative",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774903277599
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774903332687
+    },
+    {
+      "situation": {
+        "timeSlot": "evening",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774903376061
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774907540034
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774907569766
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774907601792
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774909073908
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774910004882
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "rust",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774910101963
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774910202600
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774910280321
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774910371335
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "database",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774911617398
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774911697764
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "career",
+        "mood": "negative",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774911773789
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774911881657
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774911959275
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912044556
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912198946
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912283162
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912375636
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912513671
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "database",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912591313
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912766364
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912850464
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774912936743
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "javascript",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774913084052
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "database",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774913225266
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774913372085
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774913652854
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "database",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774913743476
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "devops",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774913970480
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "go",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914202420
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914402528
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914468629
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914781669
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914949356
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915030510
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "health",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915118654
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "finance",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915185864
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915730346
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915870122
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774916080955
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "tech",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774916124417
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774916660143
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774917115515
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774918049376
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774918181346
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941181841
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941330416
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941499767
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "health",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941561650
+    }
+  ],
+  "lastLearningRun": 1774989438497
+}

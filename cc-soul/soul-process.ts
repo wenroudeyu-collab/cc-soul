@@ -370,6 +370,31 @@ async function handleFeedback(body: any): Promise<any> {
               executeMemoryCommands(result.memoryOps.slice(0, 3), userId, '')
             }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
           }
+
+          // ── Tier 2 → Tier 1 反馈环：LLM 发现的结构喂给动态引擎学习 ──
+          try {
+            const { dynamicExtract, updateStructureStrength } = await import('./dynamic-extractor.ts')
+            for (const m of (result.memories || [])) {
+              // LLM 提取的记忆内容 → 尝试用动态引擎也提取一遍
+              const tier1Results = dynamicExtract(m.content, userId)
+              if (tier1Results.length > 0) {
+                // Tier 1 也能提取 → 强化该结构词（确认有效）
+                for (const r of tier1Results) updateStructureStrength(r.structureWord, userId, true)
+              } else {
+                // Tier 1 提取不到但 Tier 2 提取到了 → 潜在的新结构词
+                // 从 LLM 的记忆内容中提取 2-3 字短语，记录为候选结构词
+                const cjkPhrases = m.content.match(/[\u4e00-\u9fff]{2,3}/g) || []
+                for (const phrase of cjkPhrases.slice(0, 3)) {
+                  // 记录到 AAM：这个短语出现在有效的事实提取语境中
+                  try {
+                    const aamMod = require('./aam.ts')
+                    aamMod.learnAssociation?.(`${phrase} ${m.scope}`)
+                  } catch {}
+                }
+              }
+            }
+          } catch {}
+
           console.log(`[cc-soul][api] feedback: ${(result.memories||[]).length} memories`)
         } catch {}
         resolve()

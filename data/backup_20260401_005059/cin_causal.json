@@ -1,0 +1,30 @@
+[
+  {
+    "trigger": "延期",
+    "effect": "熬夜",
+    "count": 13,
+    "avgDelay": 13982482.076923076,
+    "lastSeen": 1774991238443
+  },
+  {
+    "trigger": "学习",
+    "effect": "实践",
+    "count": 2,
+    "avgDelay": 42300657,
+    "lastSeen": 1774991238444
+  },
+  {
+    "trigger": "焦虑",
+    "effect": "失眠",
+    "count": 39,
+    "avgDelay": 9902245.948717948,
+    "lastSeen": 1774991238444
+  },
+  {
+    "trigger": "熬夜",
+    "effect": "效率低",
+    "count": 8,
+    "avgDelay": 6641824.625,
+    "lastSeen": 1774991238443
+  }
+]

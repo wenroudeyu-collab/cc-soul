@@ -1252,18 +1252,18 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   const newIndex = memoryState.memories.length
   const FACT_SCOPES = ['fact', 'preference', 'correction', 'discovery']
 
-  // ── Hindsight 认知网络自动分类 ──
-  const autoNetwork: Memory['network'] =
-    (scope === 'fact' && !/用户|我|你/.test(content)) ? 'world'         // 客观事实
-    : (scope === 'preference' || /喜欢|讨厌|觉得|偏好/.test(content)) ? 'opinion'  // 主观信念
-    : (scope === 'event' || autoSource === 'ai_observed') ? 'experience'  // 经历
-    : undefined  // entity 网络已在 graph.ts
   // Auto-detect memory source: user_said (from user message), ai_inferred (from LLM analysis), system
   const autoSource: Memory['source'] =
     scope === 'correction' || scope === 'preference' || scope === 'gratitude' ? 'user_said'
     : scope === 'fact' || scope === 'event' || scope === 'visual' ? 'ai_observed'
     : scope === 'reflexion' || scope === 'curiosity' || scope === 'dream' ? 'ai_inferred'
     : 'system'
+  // ── Hindsight 认知网络自动分类（必须在 autoSource 之后）──
+  const autoNetwork: Memory['network'] =
+    (scope === 'fact' && !/用户|我|你/.test(content)) ? 'world'
+    : (scope === 'preference' || /喜欢|讨厌|觉得|偏好/.test(content)) ? 'opinion'
+    : (scope === 'event' || autoSource === 'ai_observed') ? 'experience'
+    : undefined
   // Auto-detect emotional intensity from emotion tag + scope
   const autoEmotionIntensity =
     content.includes('！') || content.includes('!') ? 0.8
@@ -1298,6 +1298,21 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   // ── Decision causal recording: extract WHY from causal keywords ──
   const causalMatch = content.match(/(?:because|因为|由于|是因为|之所以.*?是|所以选.*?是因为)\s*[,，:：]?\s*(.{4,80}?)(?:[。.!！;；]|$)/i)
   if (causalMatch) newMem.because = causalMatch[1].trim()
+
+  // ── 前瞻锚定（Prospective Anchoring）：检测前瞻信号并嵌入 Memory ──
+  const PROSPECTIVE_PATTERNS: Array<{ detect: RegExp; trigger: string; action: string; days: number }> = [
+    { detect: /下周.*面试|面试.*下周/, trigger: '面试|紧张|准备', action: '主动问面试准备得怎么样', days: 14 },
+    { detect: /要出差|出差.*天/, trigger: '出差|机场|酒店', action: '问出差顺利吗', days: 14 },
+    { detect: /deadline|截止|交付/, trigger: 'deadline|截止|进度', action: '问项目进度', days: 14 },
+    { detect: /搬家|要搬/, trigger: '搬家|新房|地址', action: '问搬家顺利吗', days: 30 },
+    { detect: /考试|备考/, trigger: '考试|成绩|通过', action: '问考试结果', days: 30 },
+  ]
+  for (const p of PROSPECTIVE_PATTERNS) {
+    if (p.detect.test(content)) {
+      newMem.prospective = { trigger: p.trigger, expiresAt: Date.now() + p.days * 86400000, action: p.action }
+      break
+    }
+  }
 
   // 写入后才更新索引（学自 Claude Code strict write discipline）
   // SQLite 写入优先，失败则不更新内存索引

@@ -218,7 +218,14 @@ export function updateEventSegment(userMsg: string, topic: string, flowKey: stri
   const now = Date.now()
 
   // 事件结束信号
-  const isEndSignal = /搞定|可以了|好了|解决了|谢谢|thanks|成功了|没问题了/.test(userMsg)
+  // 结束信号：优先用动态学习，fallback 种子列表
+  let isEndSignal = false
+  try {
+    const { isEndSignal: dynamicEnd } = require('./dynamic-extractor.ts')
+    isEndSignal = dynamicEnd(userMsg)
+  } catch {
+    isEndSignal = /搞定|可以了|好了|解决了|谢谢|thanks|成功了|没问题了/.test(userMsg)
+  }
 
   if (_currentEvent) {
     const timeSinceLastUpdate = now - _currentEvent.endTs
@@ -333,8 +340,19 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
       if (!flow.topicKeywords.includes(w)) flow.topicKeywords.push(w)
     }
     if (flow.topicKeywords.length > 15) flow.topicKeywords = flow.topicKeywords.slice(-10)
+    // 结束信号学习：用户继续同一话题 → 上一句不是结束信号
+    try {
+      const { learnEndSignal } = require('./dynamic-extractor.ts')
+      const prevMsg = flow.topicKeywords.join(' ')  // 近似上一句
+      learnEndSignal(prevMsg, 'continue')
+    } catch {}
   } else {
-    // New topic — reset flow
+    // New topic — 结束信号学习：话题切换 → 上一句可能是结束信号
+    try {
+      const { learnEndSignal } = require('./dynamic-extractor.ts')
+      learnEndSignal(userMsg, 'topic_switch')
+    } catch {}
+    // reset flow
     flow = {
       topic: userMsg.slice(0, 50),
       turnCount: 1,

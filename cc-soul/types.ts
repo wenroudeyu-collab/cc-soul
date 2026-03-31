@@ -124,6 +124,12 @@ export interface Memory {
   contentNormalized?: string    // 日期归一化版本（"昨天" → "2026-03-30"）。召回/注入用此字段
   // ── Hindsight 认知网络分类 ──
   network?: 'world' | 'experience' | 'opinion' | 'entity'
+  // ── 前瞻锚定（Prospective Anchoring）──
+  prospective?: {
+    trigger: string       // 触发正则，如 "面试|紧张|准备"
+    expiresAt: number     // 过期时间戳
+    action: string        // 触发时的提示，如 "主动问面试准备得怎么样"
+  }
   // ── P0a: Graveyard metadata ──
   _graveyardOriginalScope?: string
   _graveyardTs?: number

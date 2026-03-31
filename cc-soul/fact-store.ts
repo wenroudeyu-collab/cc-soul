@@ -74,8 +74,8 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'age', object: m[1],
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我养了X" / "我家有X（猫/狗/宠物）" → has_pet
-  { pattern: /我(?:养了|家有|有一只|有一条|有一个)\s*([^，。！？,;；\n]{2,10}?)(?:猫|狗|鱼|鸟|兔|仓鼠|宠物)?/, extract: (m) => {
+  // "我养了X" / "我家有X" / "我们养了X"（猫/狗/宠物）→ has_pet
+  { pattern: /我们?(?:养了|家有|有一只|有一条|有一个)\s*([^，。！？,;；\n]{2,10}?)(?:猫|狗|鱼|鸟|兔|仓鼠|宠物)?/, extract: (m) => {
     const obj = m[1].trim()
     if (obj.length < 1 || /^(什么|哪|这|那)/.test(obj)) return null
     return { subject: 'user', predicate: 'has_pet', object: m[0].replace(/^我(?:养了|家有|有一只|有一条|有一个)\s*/, '').replace(/[。，！？\s]+$/, ''),
@@ -102,7 +102,7 @@ const RULES: ExtractionRule[] = [
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "我老婆/老公/女朋友/男朋友" → relationship
-  { pattern: /我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)\s*([^，。！？,;；\n]{0,15})/, extract: (m) => {
+  { pattern: /我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)\s*([^，。！？,;；\n\s]{0,8})/, extract: (m) => {
     const relType = m[0].match(/老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人/)?.[0] || 'partner'
     const detail = m[1]?.trim()
     return { subject: 'user', predicate: 'relationship', object: detail ? `${relType}：${detail}` : relType,
@@ -124,8 +124,32 @@ const RULES: ExtractionRule[] = [
  * Extract structured facts from a text string (rule-based, instant).
  * Returns new facts not already in the store.
  */
-export function extractFacts(content: string, source: StructuredFact['source'] = 'user_said'): StructuredFact[] {
+export function extractFacts(content: string, source: StructuredFact['source'] = 'user_said', userId?: string): StructuredFact[] {
   const extracted: StructuredFact[] = []
+
+  // ── 动态引擎提取（优先）──
+  try {
+    const { dynamicExtract, updateStructureStrength } = require('./dynamic-extractor.ts')
+    const dynamicResults = dynamicExtract(content, userId)
+    for (const r of dynamicResults) {
+      const exists = facts.some(f =>
+        f.subject === r.subject && f.predicate === r.predicate &&
+        f.object === r.object && f.validUntil === 0
+      )
+      if (!exists) {
+        const fact: StructuredFact = {
+          subject: r.subject, predicate: r.predicate, object: r.object,
+          confidence: r.confidence, source: r.source as any,
+          ts: Date.now(), validUntil: 0, memoryRef: content.slice(0, 60),
+        }
+        extracted.push(fact)
+        // 反馈强度学习
+        if (userId) updateStructureStrength(r.structureWord, userId, true)
+      }
+    }
+  } catch {}
+
+  // ── 旧正则规则（种子兜底）──
   for (const rule of RULES) {
     const match = content.match(rule.pattern)
     if (match) {
@@ -133,10 +157,13 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
       if (fact) {
         fact.source = source
         fact.memoryRef = content.slice(0, 60)
-        // Dedup: skip if same subject+predicate+object already exists
+        // Dedup: skip if same subject+predicate+object already extracted
         const exists = facts.some(f =>
           f.subject === fact.subject && f.predicate === fact.predicate &&
           f.object === fact.object && f.validUntil === 0
+        ) || extracted.some(e =>
+          e.subject === fact.subject && e.predicate === fact.predicate &&
+          e.object === fact.object
         )
         if (!exists) extracted.push(fact)
       }
