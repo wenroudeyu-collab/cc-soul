@@ -84,8 +84,6 @@ const DEFAULT_PARAMS: Record<string, number> = {
   // inner-life.ts
   'inner.journal_cooldown_min': 30,
   'inner.reflection_cooldown_hours': 24,
-  'inner.dream_idle_min': 60,
-  'inner.dream_cooldown_hours': 2,
 
   // memory.ts — fusion weights
   'memory.fusion_text_weight': 0.5,
@@ -810,6 +808,14 @@ function evaluateLegacyExperiment(stats: InteractionStats) {
 
 export function handleTuneCommand(msg: string): boolean {
   const m = msg.trim()
+
+  // "tune" or "调整" alone → show status summary
+  if (m === 'tune' || m === '调整') {
+    const tracked = Object.keys(banditState).length
+    const totalPulls = Object.values(banditState).reduce((s: number, st: any) => s + (st.totalPulls || 0), 0)
+    console.log(`[cc-soul][auto-tune] status: ${tracked} params, ${totalPulls} pulls`)
+    return true
+  }
 
   if (m === '调参状态' || m === 'tune status') {
     // Legacy experiment status

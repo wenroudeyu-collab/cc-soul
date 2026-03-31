@@ -369,7 +369,6 @@ export const theoryOfMindModule: SoulModule = {
   id: 'theory-of-mind',
   name: '用户认知模型',
   priority: 45,
-  features: ['theory_of_mind'],
 
   init() {
     const loaded = loadJson<ToMState>(TOM_PATH, {

@@ -230,5 +230,23 @@
       "tone": "mixed",
       "typical_mood": "平稳"
     }
+  },
+  {
+    "name": "女朋友",
+    "mentions": 1,
+    "lastMentioned": 1774918136325,
+    "emotionSum": -0.08979671382402885,
+    "emotions": {
+      "positive": 0,
+      "negative": 0,
+      "neutral": 1
+    },
+    "recentTopics": [
+      "跟吵架了"
+    ],
+    "style": {
+      "tone": "casual",
+      "typical_mood": "平稳"
+    }
   }
 ]

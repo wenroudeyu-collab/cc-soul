@@ -74,12 +74,12 @@ export function runHeartbeat() {
       safe('bodyTick', () => bodyTick())
 
       // ── 记忆维护（核心，不调 LLM）──
-      if (isEnabled('memory_consolidation')) safeCLI('consolidate', () => consolidateMemories(), safe)
-      if (isEnabled('memory_contradiction_scan')) safeCLI('contradiction', () => scanForContradictions(), safe)
-      if (isEnabled('memory_core')) safe('coreMemory', () => autoPromoteToCoreMemory())
-      if (isEnabled('memory_working')) safe('workingCleanup', () => cleanupWorkingMemory())
+      safeCLI('consolidate', () => consolidateMemories(), safe)
+      safeCLI('contradiction', () => scanForContradictions(), safe)
+      safe('coreMemory', () => autoPromoteToCoreMemory())
+      safe('workingCleanup', () => cleanupWorkingMemory())
       safe('memoryDecay', () => processMemoryDecay())
-      if (isEnabled('memory_tags')) safe('batchTag', () => batchTagUntaggedMemories()) // local extraction, no LLM
+      safe('batchTag', () => batchTagUntaggedMemories()) // local extraction, no LLM
       safe('pruneExpired', () => pruneExpiredMemories())
       safe('reviveDecayed', () => reviveDecayedMemories())
       safe('memoryAudit', () => auditMemoryHealth())
@@ -128,7 +128,7 @@ export function runHeartbeat() {
       // ── 轻量维护 ──
       safe('brainHeartbeat', () => brain.fire('onHeartbeat'))
       if (isEnabled('self_upgrade')) safe('autoTune', () => checkAutoTune(stats))
-      if (isEnabled('plan_tracking')) safe('planCleanup', () => cleanupPlans())
+      safe('planCleanup', () => cleanupPlans())
       safeCLI('qualityResample', () => resampleHardExamples(), safe)
       safe('health', () => healthCheck())
 

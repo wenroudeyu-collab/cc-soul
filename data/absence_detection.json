@@ -1,14 +1,6 @@
 {
   "ou_db9ed11831f16364610ed6eefcff963e": {
-    "lastSeen": 1774916035908,
-    "isAbsent": false,
-    "absentSince": 0,
-    "welcomeShown": false,
-    "totalAbsences": 0,
-    "avgAbsenceDuration": 0
-  },
-  "sdk_test": {
-    "lastSeen": 1774916124307,
+    "lastSeen": 1774942710492,
     "isAbsent": false,
     "absentSince": 0,
     "welcomeShown": false,

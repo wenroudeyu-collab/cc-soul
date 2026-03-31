@@ -713,7 +713,6 @@ const EMPTY_RESULT: PostResponseResult = {
   quality: { score: 5, issues: [] },
   emotion: 'neutral',
   reflection: null,
-  curiosity: null,
 }
 
 export function runPostResponseAnalysis(
@@ -734,10 +733,9 @@ export function runPostResponseAnalysis(
 5. quality: 回复质量评分1-10 + 问题列表。{"score":N,"issues":["问题"]}
 6. emotion: 对话情感标签: neutral/warm/important/painful/funny
 7. reflection: 回复有什么遗憾或可改进的？1句话，没有就null
-8. curiosity: 作为朋友想追问什么？1句话，没有就null
 
 JSON格式(严格):
-{"memories":[],"memory_ops":[],"entities":[],"satisfaction":"NEUTRAL","quality":{"score":5,"issues":[]},"emotion":"neutral","reflection":null,"curiosity":null}`
+{"memories":[],"memory_ops":[],"entities":[],"satisfaction":"NEUTRAL","quality":{"score":5,"issues":[]},"emotion":"neutral","reflection":null}`
 
   spawnCLI(
     prompt,
@@ -789,7 +787,6 @@ JSON格式(严格):
             quality: { score: clampedScore, issues: result.quality?.issues || [] },
             emotion: result.emotion || 'neutral',
             reflection: result.reflection || null,
-            curiosity: result.curiosity || null,
           })
           return
         }

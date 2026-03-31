@@ -41,7 +41,7 @@ const MAX_MODEL_LENGTH = 600              // chars per user mental model
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface TopicNode {
-  topic: string            // e.g. "iOS逆向", "芒果偏好", "feishu-bot部署"
+  topic: string            // e.g. "iOS逆向", "芒果偏好", "Python项目部署"
   summary: string          // distilled understanding
   sourceCount: number      // how many raw memories contributed
   lastUpdated: number

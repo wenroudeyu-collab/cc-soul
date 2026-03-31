@@ -17,10 +17,10 @@ import {
   getCompressionRate,
   getSoulMode, setSoulMode,
 } from './handler-state.ts'
-import { loadJson, debouncedSave, DATA_DIR, REMINDERS_PATH } from './persistence.ts'
-import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
-import { dbGetHabits, dbCheckin, dbGetGoals, dbAddGoal, dbUpdateGoalProgress, dbGetReminders, dbAddReminder, dbDeleteReminder, dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
-import { handleFeatureCommand, isEnabled } from './features.ts'
+import { loadJson, debouncedSave, DATA_DIR } from './persistence.ts'
+import { isAuditCommand, formatAuditLog } from './audit.ts'
+import { dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
+import { handleFeatureCommand } from './features.ts'
 import { getVectorStatus, installVectorSearch } from './embedder.ts'
 import {
   memoryState, recall, addMemory, addMemoryWithEmotion, saveMemories,
@@ -28,8 +28,8 @@ import {
   trigrams, trigramSimilarity,
 } from './memory.ts'
 import { generateMoodReport, formatEmotionAnchors } from './body.ts'
-import { generateMorningReport, generateWeeklyReport, generateRelationshipNarrative, generateDailyReview, generateMemoryChain } from './reports.ts'
-import { getCapabilityScore, formatGrowthVectors } from './epistemic.ts'
+import { generateMemoryChain } from './reports.ts'
+import { getCapabilityScore } from './epistemic.ts'
 import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } from './user-dashboard.ts'
 // ── Optional modules (absent in public build) ──
 let _exportEvolutionAssets: ((stats: any) => { data: any; path: string }) | null = null
@@ -204,24 +204,11 @@ export function routeCommand(
 • 导入进化 <路径>                  — 导入 GEP 格式进化资产
 • 摄入文档 <路径> / ingest <path> — 导入文档到记忆
 
-━━ 日常工具 ━━
-• 打卡 <习惯名>                   — 习惯打卡（有连续天数里程碑）
-• 习惯状态 / habits               — 查看打卡记录
-• 新目标 <描述>                   — 创建目标
-• 目标进度 <目标名> <更新>        — 更新进度
-• 我的目标 / my goals             — 查看目标
-• 提醒 HH:MM <消息>              — 设置每日提醒
-• 我的提醒 / my reminders         — 查看提醒
-• 删除提醒 <序号>                 — 删除提醒
-
 ━━ 状态查看 ━━
 • stats                           — 个人仪表盘
 • soul state                      — AI 能量/心情/情绪
-• 晨报 / morning report          — 每日晨报
-• 周报 / weekly report           — 每周周报
 • 情绪周报 / mood report          — 7天情绪趋势
 • 能力评分 / capability score     — 各领域能力评分
-• 成长轨迹 / growth               — 成长趋势追踪
 • 我的技能 / my skills            — 自动生成的技能列表
 • metrics / 监控                  — 系统运行指标
 • cost / 成本                     — Token 使用统计
@@ -236,8 +223,6 @@ export function routeCommand(
 • 记忆链路 <关键词>               — 搜索相关记忆并展示关联链
 
 ━━ 体验功能 ━━
-• 讲讲我们的故事 / our story      — 生成关系叙事
-• 每日复盘 / daily review         — 今日对话、决定、行动项总结
 • 保存话题 / save topic           — 保存当前对话上下文为话题分支
 • 切换话题 <名称> / switch topic  — 恢复保存的话题分支
 • 话题列表 / topic list           — 查看所有话题分支
@@ -368,40 +353,12 @@ export function routeCommand(
     return true
   }
 
-  // 晨报
-  if (/^(晨报|morning report)$/i.test(userMsg.trim())) {
-    try {
-      const report = generateMorningReport()
-      cmdReply(ctx, event, session, report, userMsg)
-    } catch (e: any) { cmdReply(ctx, event, session, '晨报生成失败: ' + e.message, userMsg) }
-    return true
-  }
-
-  // 周报
-  if (/^(周报|weekly report)$/i.test(userMsg.trim())) {
-    try {
-      const report = generateWeeklyReport()
-      cmdReply(ctx, event, session, report, userMsg)
-    } catch (e: any) { cmdReply(ctx, event, session, '周报生成失败: ' + e.message, userMsg) }
-    return true
-  }
-
   // P1-#12: 对话能力评分公示
   if (/^(能力评分|capability score)$/i.test(userMsg.trim())) {
     const score = getCapabilityScore()
     cmdReply(ctx, event, session, score, userMsg)
     return true
   }
-
-  // Growth vectors command
-  if (/^(成长轨迹|growth)$/i.test(userMsg.trim())) {
-    try {
-      const report = formatGrowthVectors()
-      cmdReply(ctx, event, session, report, userMsg)
-    } catch (e: any) { cmdReply(ctx, event, session, '成长轨迹生成失败: ' + e.message, userMsg) }
-    return true
-  }
-
 
   // Cost / token usage command
   if (/^(cost|token cost|token使用|成本)$/i.test(userMsg.trim())) {
@@ -473,6 +430,23 @@ export function routeCommand(
     return true
   }
 
+  // My skills command
+  if (/^(我的技能|my skills)$/i.test(userMsg.trim())) {
+    try {
+      const skillsPath = resolve(DATA_DIR, 'skills.json')
+      const skills = existsSync(skillsPath) ? JSON.parse(readFileSync(skillsPath, 'utf-8')) : []
+      if (skills.length === 0) {
+        cmdReply(ctx, event, session, '还没有发现技能。多聊几轮后会自动生成。', userMsg)
+      } else {
+        const list = skills.slice(0, 10).map((s: any, i: number) => `${i + 1}. ${s.name || s.pattern || s.content?.slice(0, 40) || '未命名'}`).join('\n')
+        cmdReply(ctx, event, session, `你的技能（${skills.length} 个）：\n${list}`, userMsg)
+      }
+    } catch {
+      cmdReply(ctx, event, session, '技能列表暂不可用。', userMsg)
+    }
+    return true
+  }
+
   // ── Soul Mode (灵魂模式) — all subsequent messages become soul replies ──
   {
     // getSoulMode and setSoulMode imported from handler-state.ts at top
@@ -503,26 +477,6 @@ export function routeCommand(
     }
   }
 
-  // /分身 命令已删除 — 灵魂回复统一通过 Soul API (/soul endpoint) 或灵魂模式
-  // 分身状态（查看数据）保留
-  if (/^(\/分身状态|\/avatar.status)$/i.test(userMsg.trim())) {
-    import('./avatar.ts').then(({ getAvatarStats }) => {
-      const stats = getAvatarStats(senderId)
-      const lines = [
-        `🧬 分身状态`,
-        `  样本: ${stats.samples} 条`,
-        `  口头禅: ${stats.catchphrases} 个`,
-        `  决策: ${stats.decisions} 条`,
-        `  联系人: ${stats.contacts} 人`,
-        `  情绪模式: ${stats.emotions} 种`,
-        `  风格: ${stats.style}`,
-      ]
-      cmdReply(ctx, event, session, lines.join('\n'), userMsg)
-    }).catch((e: any) => {
-      cmdReply(ctx, event, session, `分身状态获取失败: ${e.message}`, userMsg)
-    })
-    return true
-  }
 
   // ── Memory view / export commands ──
   if (/^(我的记忆|my memories)$/i.test(userMsg.trim())) {
@@ -652,24 +606,6 @@ export function routeCommand(
       const lines = Object.entries(counts).map(([k, v]) => `  ${k}: ${v}`)
       cmdReply(ctx, event, session, `全量恢复完成（需重启生效）\n${lines.join('\n')}`, userMsg)
     } catch (e: any) { cmdReply(ctx, event, session, `全量恢复失败: ${e.message}`, userMsg) }
-    return true
-  }
-
-  // ── Feature 12: 关系叙事 ──
-  if (/^(讲讲我们的故事|our story|关系叙事)$/i.test(userMsg.trim())) {
-    try {
-      const narrative = generateRelationshipNarrative()
-      cmdReply(ctx, event, session, narrative, userMsg)
-    } catch (e: any) { cmdReply(ctx, event, session, '关系叙事生成失败: ' + e.message, userMsg) }
-    return true
-  }
-
-  // ── Feature 13: 每日复盘 ──
-  if (/^(每日复盘|daily review)$/i.test(userMsg.trim())) {
-    try {
-      const review = generateDailyReview()
-      cmdReply(ctx, event, session, review, userMsg)
-    } catch (e: any) { cmdReply(ctx, event, session, '每日复盘生成失败: ' + e.message, userMsg) }
     return true
   }
 
@@ -864,65 +800,6 @@ export function routeCommand(
     }
   }
 
-  // ── #8 习惯追踪命令（使用官方 habits + habit_logs 表）──
-  const checkinMatch = userMsg.match(/^(打卡|checkin)\s+(.+)$/i)
-  if (checkinMatch) {
-    const habitName = checkinMatch[2].trim()
-    const { streak, total, isNew } = dbCheckin(habitName, senderId)
-    const milestones: Record<number, string> = {
-      7: '🔥 连续7天达成！节律已建立，可以开始关注配速和距离。',
-      30: '🏅 连续30天！习惯已固化，注意别因偶尔断签就放弃——整体趋势比单次记录重要。',
-      100: '🏆 连续100天！这已经是生活方式的一部分了。',
-    }
-    const milestone = milestones[streak]
-    appendAudit('checkin', `${habitName} 连续${streak}天 总计${total}次`)
-    cmdReply(ctx, event, session, `打卡成功！"${habitName}" 连续 ${streak} 天，总计 ${total} 次${milestone ? `\n${milestone}` : ''}`, userMsg)
-    return true
-  }
-  if (/^(习惯状态|habits)$/i.test(userMsg.trim())) {
-    const habits = dbGetHabits(senderId)
-    if (habits.length === 0) { cmdReply(ctx, event, session, '暂无打卡记录，用"打卡 <习惯名>"开始', userMsg); return true }
-    const lines = habits.map(h => `• ${h.name}: 连续${h.streak}天 / 总${h.total}次`)
-    cmdReply(ctx, event, session, `习惯追踪：\n${lines.join('\n')}`, userMsg)
-    return true
-  }
-
-  // ── #9 目标里程碑追踪命令（使用官方 goals + key_results 表）──
-  const newGoalMatch = userMsg.match(/^(新目标|new goal)\s+(.+)$/i)
-  if (newGoalMatch) {
-    const name = newGoalMatch[2].trim()
-    dbAddGoal(name, senderId)
-    cmdReply(ctx, event, session, `目标已创建："${name}"（进度 0%）`, userMsg)
-    return true
-  }
-  const goalProgressMatch = userMsg.match(/^(目标进度|goal progress)\s+(.+?)\s+(.+)$/i)
-  if (goalProgressMatch) {
-    try {
-      const goals = dbGetGoals(senderId)
-      const keyword = goalProgressMatch[2].trim()
-      const target = goals.find(g => g.name.includes(keyword))
-      if (!target) { cmdReply(ctx, event, session, `未找到目标："${keyword}"`, userMsg) }
-      else {
-        const update = goalProgressMatch[3].trim()
-        const numMatch = update.match(/(\d+)%?/)
-        const newProgress = numMatch ? Math.min(100, parseInt(numMatch[1])) : target.progress
-        dbUpdateGoalProgress(target.id, newProgress, update)
-        cmdReply(ctx, event, session, `目标"${target.name}"已更新：进度 ${newProgress}%，里程碑 +1`, userMsg)
-      }
-    } catch (e: any) { cmdReply(ctx, event, session, `目标更新失败: ${e.message}`, userMsg) }
-    session.lastPrompt = userMsg; return true
-  }
-  if (/^(我的目标|my goals)$/i.test(userMsg.trim())) {
-    const goals = dbGetGoals(senderId)
-    if (goals.length === 0) { cmdReply(ctx, event, session, '暂无目标，用"新目标 <描述>"创建', userMsg); return true }
-    const lines = goals.map(g => {
-      const age = Math.floor((Date.now() - g.created) / 86400000)
-      return `• ${g.name} — ${g.progress}% — ${g.milestones}个里程碑（${age}天前创建）`
-    })
-    cmdReply(ctx, event, session, `我的目标：\n${lines.join('\n')}`, userMsg)
-    return true
-  }
-
   // ── #10 记忆审计命令 ──
   if (/^(记忆审计|memory audit)$/i.test(userMsg.trim())) {
     const auditPath = resolve(DATA_DIR, 'memory_audit.json')
@@ -977,48 +854,6 @@ export function routeCommand(
       }
     } catch (e: any) { cmdReply(ctx, event, session, `恢复失败: ${e.message}`, userMsg) }
     return true
-  }
-
-  // ── 提醒命令 ──
-  const remindMatch = userMsg.match(/^(?:提醒|remind)\s+(?:每天)?\s*(\d{1,2})[:\uff1a](\d{2})\s+(.+)$/i)
-  if (remindMatch) {
-    const hour = parseInt(remindMatch[1], 10)
-    const minute = parseInt(remindMatch[2], 10)
-    const msg = remindMatch[3].trim()
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      dbAddReminder(msg, hour, minute, senderId)
-      cmdReply(ctx, event, session, `已添加提醒：每天 ${hour}:${String(minute).padStart(2, '0')} — ${msg}。提醒已持久化保存，重启不丢失。`, userMsg)
-      return true
-    } else {
-      cmdReply(ctx, event, session, '时间格式不正确，请用 0-23:00-59 格式', userMsg)
-    }
-    session.lastPrompt = userMsg; return true
-  }
-  if (/^(我的提醒|my reminders)$/i.test(userMsg.trim())) {
-    const mine = dbGetReminders(senderId)
-    if (mine.length === 0) {
-      cmdReply(ctx, event, session, '你还没有设置任何提醒。', userMsg)
-      return true
-    } else {
-      const lines = mine.map((r, i) => `${i + 1}. 每天 ${r.hour}:${String(r.minute).padStart(2, '0')} — ${r.msg}`)
-      cmdReply(ctx, event, session, `你的提醒（${mine.length} 条）：\n${lines.join('\n')}`, userMsg)
-    }
-    session.lastPrompt = userMsg; return true
-  }
-  // ── 删除提醒命令（使用官方 reminders 表）──
-  const delRemindMatch = userMsg.match(/^(?:删除提醒|delete reminder)\s+(\d+)$/i)
-  if (delRemindMatch) {
-    const idx = parseInt(delRemindMatch[1], 10) - 1
-    const mine = dbGetReminders(senderId)
-    if (idx >= 0 && idx < mine.length) {
-      const target = mine[idx]
-      dbDeleteReminder(target.id)
-      cmdReply(ctx, event, session, `已删除提醒：${target.hour}:${String(target.minute).padStart(2, '0')} — ${target.msg}`, userMsg)
-      return true
-    } else {
-      cmdReply(ctx, event, session, `提醒序号 ${idx + 1} 不存在，请用"我的提醒"查看列表。`, userMsg)
-    }
-    session.lastPrompt = userMsg; return true
   }
 
   // ── 记忆时间线命令 ──
@@ -1188,13 +1023,8 @@ export async function routeCommandDirect(userMsg: string, params: any): Promise<
 我的记忆 — 查看最近记忆
 stats — 个人仪表盘
 soul state — AI 能量/心情
-晨报 — 每日晨报
-周报 — 每周周报
 情绪周报 — 7天情绪趋势
 能力评分 — 各领域评分
-习惯状态 — 打卡记录
-我的目标 — 查看目标
-我的提醒 — 查看提醒
 功能状态 — 功能开关
 记忆健康 — 记忆统计
 导出全部 / export all — 全量备份
@@ -1225,15 +1055,6 @@ soul state — AI 能量/心情
   // stats
   if (/^(stats)$/i.test(userMsg.trim())) {
     reply(executeStats())
-    return true
-  }
-
-  // 习惯状态（使用官方DB）
-  if (/^(习惯状态|habits)$/i.test(userMsg.trim())) {
-    const habits = dbGetHabits()
-    if (habits.length === 0) { reply('暂无打卡记录。'); return true }
-    const lines = habits.map(h => `• ${h.name}: 连续${h.streak}天 / 总${h.total}次`)
-    reply(`习惯追踪：\n${lines.join('\n')}`)
     return true
   }
 
@@ -1270,22 +1091,6 @@ soul state — AI 能量/心情
     return true
   }
 
-  // 晨报
-  if (/^(晨报|morning report)$/i.test(userMsg.trim())) {
-    try {
-      reply(generateMorningReport())
-    } catch (_) { reply('晨报暂不可用') }
-    return true
-  }
-
-  // 周报
-  if (/^(周报|weekly report)$/i.test(userMsg.trim())) {
-    try {
-      reply(generateWeeklyReport())
-    } catch (_) { reply('周报暂不可用') }
-    return true
-  }
-
   // 能力评分
   if (/^(能力评分|capability)$/i.test(userMsg.trim())) {
     try {
@@ -1295,39 +1100,9 @@ soul state — AI 能量/心情
     return true
   }
 
-  // 成长轨迹
-  if (/^(成长轨迹|growth)$/i.test(userMsg.trim())) {
-    try {
-      reply(formatGrowthVectors())
-    } catch (_) { reply('成长轨迹暂不可用') }
-    return true
-  }
-
-
   // 记忆健康（使用官方DB）
   if (/^(记忆健康|memory health)$/i.test(userMsg.trim())) {
     reply(executeHealth())
-    return true
-  }
-
-  // 我的目标（使用官方DB）
-  if (/^(我的目标|my goals)$/i.test(userMsg.trim())) {
-    const goals = dbGetGoals()
-    if (goals.length === 0) { reply('暂无目标，用"新目标 <描述>"创建'); return true }
-    const lines = goals.map((g, i) => {
-      const age = Math.floor((Date.now() - g.created) / 86400000)
-      return `${i + 1}. ${g.name} — ${g.progress}% — ${g.milestones}个里程碑（${age}天前创建）`
-    })
-    reply(`我的目标：\n${lines.join('\n')}`)
-    return true
-  }
-
-  // 我的提醒（使用官方DB）
-  if (/^(我的提醒|my reminders)$/i.test(userMsg.trim())) {
-    const mine = dbGetReminders()
-    if (mine.length === 0) { reply('暂无提醒。'); return true }
-    const lines = mine.map((r, i) => `${i + 1}. ${r.hour}:${String(r.minute).padStart(2, '0')} — ${r.msg}`)
-    reply(`我的提醒：\n${lines.join('\n')}`)
     return true
   }
 
@@ -1416,18 +1191,6 @@ soul state — AI 能量/心情
     return true
   }
 
-  // ── Feature 12: 关系叙事 (direct) ──
-  if (/^(讲讲我们的故事|our story|关系叙事)$/i.test(userMsg.trim())) {
-    try { reply(generateRelationshipNarrative()) } catch (_) { reply('关系叙事暂不可用') }
-    return true
-  }
-
-  // ── Feature 13: 每日复盘 (direct) ──
-  if (/^(每日复盘|daily review)$/i.test(userMsg.trim())) {
-    try { reply(generateDailyReview()) } catch (_) { reply('每日复盘暂不可用') }
-    return true
-  }
-
   // ── Feature 14: 记忆链路 (direct) ──
   const chainMatchDirect = userMsg.match(/^(记忆链路|memory chain)\s+(.+)$/i)
   if (chainMatchDirect) {
@@ -1484,16 +1247,11 @@ const CMD_PATTERNS = [
   /^(搜索记忆|search memory)\s+/i,
   /^(我的记忆|my memories)$/i,
   /^(stats)$/i,
-  /^(习惯状态|habits)$/i,
   /^(soul state|灵魂状态|内心状态)$/i,
   /^(情绪周报|mood report)$/i,
-  /^(晨报|morning report)$/i,
-  /^(周报|weekly report)$/i,
   /^(能力评分|capability)$/i,
   /^(功能状态|features)$/i,
   /^(记忆健康|memory health)$/i,
-  /^(我的目标|my goals)$/i,
-  /^(我的提醒|my reminders)$/i,
   /^(功能|feature)\s+/i,
   /^(审计|audit)/i,
   /^(人格列表|personas?)$/i,
@@ -1508,14 +1266,11 @@ const CMD_PATTERNS = [
   /^(sync|同步)/i,
   /^(upgrade|更新)/i,
   /^(radar|竞品)/i,
-  /^(dashboard|仪表盘|记忆地图|stats|soul state|灵魂状态|晨报|周报|情绪周报|能力评分|metrics|cost)/i,
-  /^(成长轨迹|growth)$/i,
+  /^(dashboard|仪表盘|记忆地图|stats|soul state|灵魂状态|情绪周报|能力评分|metrics|cost)/i,
   /^(我的技能|my skills)$/i,
   /^(时间旅行|time travel)\s+/i,
   /^(推理链|reasoning chain)$/i,
   /^(情绪锚点|emotion anchors?)$/i,
-  /^(讲讲我们的故事|our story|关系叙事)$/i,
-  /^(每日复盘|daily review)$/i,
   /^(记忆链路|memory chain)\s+/i,
   /^(保存话题|save topic)$/i,
   /^(切换话题|switch topic)\s+/i,

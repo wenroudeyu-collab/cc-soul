@@ -224,6 +224,5 @@ export const fingerprintModule: SoulModule = {
   id: 'fingerprint',
   name: '灵魂指纹',
   priority: 50,
-  features: ['fingerprint'],
   init() { loadFingerprint() },
 }

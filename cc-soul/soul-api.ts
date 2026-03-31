@@ -104,12 +104,15 @@ async function handleAction(action: string, body: any): Promise<any> {
       return { ok: true, model: body.model }
 
     case 'command': {
-      const { routeCommand } = await import('./handler-commands.ts')
+      const { routeCommand, routeCommandDirect } = await import('./handler-commands.ts')
       const { getSessionState } = await import('./handler-state.ts')
       const session = getSessionState(body.user_id || 'default')
       let reply = ''; const ctx = { bodyForAgent: '', reply: (t: string) => { reply = t } }
       const handled = routeCommand(body.message || '', ctx, session, body.user_id || '', '', { context: { senderId: body.user_id || '' } })
-      return { handled, reply: reply || (handled ? '(done)' : '(not a command)') }
+      if (handled) return { handled, reply: reply || '(done)' }
+      // Fallback: try routeCommandDirect (handles values, personas, features, etc.)
+      const directHandled = await routeCommandDirect(body.message || '', { to: '', cfg: {}, event: {} })
+      return { handled: directHandled, reply: directHandled ? '(done)' : '(not a command)' }
     }
 
     case 'health':

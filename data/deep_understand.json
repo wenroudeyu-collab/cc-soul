@@ -3,10 +3,10 @@
     "peakHours": [
       1,
       20,
-      14
+      22
     ],
-    "stressDay": "周二",
-    "lateNightFrequency": 0.36
+    "stressDay": "周一",
+    "lateNightFrequency": 0.45
   },
   "sayDo": {
     "gaps": []
@@ -20,7 +20,7 @@
       {
         "domain": "职场",
         "confidence": 1,
-        "evidence": "本周12次"
+        "evidence": "本周13次"
       },
       {
         "domain": "编程",
@@ -31,11 +31,6 @@
         "domain": "情感",
         "confidence": 0.5,
         "evidence": "本周5次"
-      },
-      {
-        "domain": "学习",
-        "confidence": 0.3,
-        "evidence": "本周3次"
       }
     ]
   },
@@ -49,6 +44,6 @@
       "深夜"
     ]
   },
-  "dynamicProfile": "活跃1/20/14时；夜猫子；平台期，可能需要新挑战；潜在需求:职场；我的核心驱动力是对“可控的优雅”的追求。我痴迷于Python装饰器这类语法糖，因为它用简洁的规则封装了复杂逻辑，这映射了",
-  "updatedAt": 1774915182180
+  "dynamicProfile": "活跃1/20/22时；夜猫子；平台期，可能需要新挑战；潜在需求:职场；我的核心驱动力是追求**掌控与效率**，这源于对混乱（如PHP、项目延期）的深层恐惧。我渴望被认可为可靠的技术决策者，因",
+  "updatedAt": 1774966338323
 }

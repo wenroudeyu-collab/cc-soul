@@ -318,14 +318,16 @@ function buildExtraThinkAugment(msg: string, attentionType: string, senderId?: s
 
   if (hints.length === 0) {
     if (isSoft) return null  // pure casual with no domain hit → skip
+    // Format instruction already in SOUL.md top section — only remind briefly here
     return {
-      content: `[举一反三] 回答完后必须另起一段，以「顺便说一下：」开头，用编号列表补充 ${countGuide} 条用户没问但相关的实用信息（常见坑/注意事项/更好方案）。每条不同角度，不要揉进主回答。` + toneGuide,
+      content: `[举一反三] 补充 ${countGuide} 条实用信息（常见坑/注意事项/更好方案）。` + toneGuide,
       priority,
-      tokens: 80,
+      tokens: 40,
     }
   }
 
-  const content = `[举一反三] 回答完后必须另起一段，格式严格如下：\n顺便说一下：\n1. （第一条补充）\n2. （第二条补充）\n3. （第三条补充，可选）\n参考方向：` + hints.join('；') + '。条目之间必须是不同角度，不能省略。' + toneGuide
+  // Only provide direction hints — format is defined once in SOUL.md top section
+  const content = `[举一反三] 参考方向：` + hints.join('；') + '。' + toneGuide
 
   return {
     content,
@@ -597,7 +599,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Core memory
-  if (isEnabled('memory_core')) {
+  {
     const coreCtx = buildCoreMemoryContext()
     if (coreCtx) {
       augments.push({ content: coreCtx, priority: 9, tokens: estimateTokens(coreCtx) })
@@ -634,7 +636,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Working memory
-  if (isEnabled('memory_working')) {
+  {
     const workingCtx = buildWorkingMemoryContext(workingMemKey)
     if (workingCtx) {
       augments.push({ content: workingCtx, priority: 9, tokens: estimateTokens(workingCtx) })
@@ -648,7 +650,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Active persona overlay
-  if (isEnabled('persona_splitting')) {
+  {
     const profile = senderId ? getProfile(senderId) : null
     const personaCtx = getBlendedPersonaOverlay(cog.attention, profile?.style, flow.frustration, senderId)
     augments.push({ content: personaCtx, priority: 8, tokens: estimateTokens(personaCtx) })
@@ -658,7 +660,7 @@ export async function buildAndSelectAugments(params: {
   // so they already have conversation history. autoImportHistory + mental model handles cold start.
 
   // Predictive memory — also serves as fallback for short/generic messages
-  if (isEnabled('memory_predictive')) {
+  {
     const predicted = predictiveRecall(senderId, channelId)
     if (predicted.length > 0) {
       // Boost priority when user message is short (likely greeting/generic → recall miss)
@@ -669,7 +671,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Episodic memory
-  if (isEnabled('episodic_memory')) {
+  {
     const episodeCtx = buildEpisodeContext(userMsg)
     if (episodeCtx) {
       augments.push({ content: episodeCtx, priority: 8, tokens: estimateTokens(episodeCtx) })
@@ -677,7 +679,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Intent anticipation
-  if (isEnabled('intent_anticipation') && memoryState.chatHistory.length >= 3) {
+  if (memoryState.chatHistory.length >= 3) {
     const last3 = memoryState.chatHistory.slice(-3).map(h => h.user.slice(0, 50)).join(' | ')
     const isTechStreak = /code|函数|bug|hook|frida|ida|debug|error|crash/i.test(last3)
     const isEmotionalStreak = /累|烦|难过|开心|算了|崩溃/i.test(last3)
@@ -689,7 +691,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Pending search results
-  if (isEnabled('memory_active')) {
+  {
     const searchResults = getPendingSearchResults()
     if (searchResults.length > 0) {
       const content = '[记忆搜索结果] 你上轮请求查找的记忆：\n' + searchResults.join('\n')
@@ -698,7 +700,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Plan tracking
-  if (isEnabled('plan_tracking')) {
+  {
     const planReminder = checkActivePlans(userMsg)
     if (planReminder) {
       augments.push({ content: planReminder, priority: 9, tokens: estimateTokens(planReminder) })
@@ -767,10 +769,8 @@ export async function buildAndSelectAugments(params: {
       } catch {}
     }
     parts.push(getProfileContext(senderId))
-    if (isEnabled('relationship_dynamics')) {
-      const relCtx = getRelationshipContext(senderId)
-      if (relCtx) parts.push(relCtx)
-    }
+    const relCtx = getRelationshipContext(senderId)
+    if (relCtx) parts.push(relCtx)
     const rhythmCtx = getRhythmContext(senderId)
     if (rhythmCtx) parts.push(rhythmCtx)
     const userProfile = parts.filter(Boolean).join('\n')
@@ -833,7 +833,7 @@ export async function buildAndSelectAugments(params: {
   let recalled = recalledRaw.slice(0, 12)
 
   // ── Layer A: Synchronous association (graph + topics + chain) ──
-  const associated = isEnabled('auto_memory_chain') ? associateSync(userMsg, recalled, senderId, channelId) : []
+  const associated = associateSync(userMsg, recalled, senderId, channelId)
   // Associated memories are merged into recalled (not separate augment)
   // They feed into 举一反三 below as "顺便说一下" material
   if (associated.length > 0) {
@@ -841,7 +841,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   session.lastRecalledContents = recalled.map(m => m.content)
-  if (recalled.length > 0 && isEnabled('auto_memory_reference')) {
+  if (recalled.length > 0) {
     // When too many memories, distill into narrative paragraphs to save tokens
     const content = recalled.length > 8
       ? '[相关记忆] ' + distillMemories(recalled)
@@ -872,7 +872,7 @@ export async function buildAndSelectAugments(params: {
     }
 
     // ── 因果链注入: 当召回的记忆包含纠正类时，追溯因果并注入上下文 ──
-    const corrRecalled = isEnabled('auto_natural_citation') ? recalled.filter(m => m.scope === 'correction' || m.scope === 'event') : []
+    const corrRecalled = recalled.filter(m => m.scope === 'correction' || m.scope === 'event')
     if (corrRecalled.length > 0) {
       const DAY_MS = 24 * 3600000
       const causalHints: string[] = []
@@ -907,7 +907,7 @@ export async function buildAndSelectAugments(params: {
     // (deleted 2 standalone augments — their formatting is now part of the recall content)
 
     // ── Feature 6: 矛盾主动指出 — 当前消息和记忆矛盾时提示 AI ──
-    if (isEnabled('auto_contradiction_hint')) {
+    {
       const changeIndicators = /但是|不过|其实|改|变了|不再|现在|不是.*了|now|actually|however|changed/i
       if (changeIndicators.test(userMsg)) {
         for (const mem of recalled) {
@@ -936,7 +936,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // ── Feature 4: 时间旅行自动触发 — 回忆性词汇触发历史搜索 ──
-  if (isEnabled('auto_time_travel')) {
+  {
     const timeTravel = /以前|之前|上次|还记得|那时候|那次|当时|曾经|过去|remember|last time|before/i
     // 排除已经被 cross-session topic resume 处理的情况
     const resumePhrases = ['上次聊', '上次说', '上次那个', '之前讨论', '接着聊', '继续上次']
@@ -979,7 +979,7 @@ export async function buildAndSelectAugments(params: {
   // Feature 8: 记忆链路 — replaced by unified association engine (associateSync)
 
   // ── Feature 9: 重复问题检测 — 扫描所有记忆（含 topic/decayed）找相似问题 ──
-  if (isEnabled('auto_repeat_detect') && userMsg.length >= 5) {
+  if (userMsg.length >= 5) {
     ensureMemoriesLoaded() // recall() 可能走了 SQLite fast path 没加载到内存
     const userTri = trigrams(userMsg)
     // 扫描所有记忆（不限 scope），找最相似的历史问题
@@ -1093,7 +1093,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Conversation pace augment
-  if (isEnabled('rhythm_adaptation')) {
+  {
     const recentForPace = memoryState.chatHistory.slice(-5).map(h => ({ user: h.user, ts: h.ts }))
     const pace = detectConversationPace(userMsg, recentForPace)
     if (pace.hint) {
@@ -1304,18 +1304,16 @@ export async function buildAndSelectAugments(params: {
   }
 
   // ── #7 信任度标注 ──
-  if (isEnabled('trust_annotation')) {
-    if (epistemic.confidence === 'high') {
-      const hint = '[信任度] 你在这个领域表现很好，可以自信回答'
-      augments.push({ content: hint, priority: 5, tokens: estimateTokens(hint) })
-    } else if (epistemic.confidence === 'low') {
-      const hint = "[信任度] 你在这个领域数据不足或表现一般，回答时加上'我不太确定'的提示"
-      augments.push({ content: hint, priority: 7, tokens: estimateTokens(hint) })
-    }
+  if (epistemic.confidence === 'high') {
+    const hint = '[信任度] 你在这个领域表现很好，可以自信回答'
+    augments.push({ content: hint, priority: 5, tokens: estimateTokens(hint) })
+  } else if (epistemic.confidence === 'low') {
+    const hint = "[信任度] 你在这个领域数据不足或表现一般，回答时加上'我不太确定'的提示"
+    augments.push({ content: hint, priority: 7, tokens: estimateTokens(hint) })
   }
 
   // ── #9 预测式记忆 (逻辑在 behavior-prediction.ts) ──
-  if (isEnabled('predictive_memory')) {
+  {
     const timeSlotHint = getTimeSlotPrediction(memoryState.chatHistory)
     if (timeSlotHint) {
       augments.push({ content: timeSlotHint, priority: 3, tokens: estimateTokens(timeSlotHint) })
@@ -1343,7 +1341,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // ── #10 情境快捷 ──
-  if (isEnabled('scenario_shortcut')) {
+  {
     const correctionMemories = memoryState.memories.filter(m => m.scope === 'correction' && m.content.length > 10)
     if (correctionMemories.length > 0 && userMsg.length >= 5) {
       const userTri = trigrams(userMsg)
@@ -1363,7 +1361,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // ── #11 智能提醒（上下文触发）──
-  if (isEnabled('context_reminder')) {
+  {
     try {
       const ctxReminders = getContextReminders(senderId)
       for (const r of ctxReminders) {
@@ -1476,7 +1474,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Associative recall
-  if (isEnabled('memory_associative_recall')) {
+  {
     const association = getAssociativeRecall()
     if (association) {
       augments.push({ content: association, priority: 7, tokens: estimateTokens(association) })
@@ -1501,7 +1499,7 @@ export async function buildAndSelectAugments(params: {
   // ── Unified emotion awareness (contagion + arc + anchor) ──
   {
     const emotionParts: string[] = []
-    if (isEnabled('emotional_contagion')) {
+    {
       const emotionCtx = getEmotionContext(senderId)
       if (emotionCtx) emotionParts.push(emotionCtx)
     }
@@ -1517,7 +1515,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Soul fingerprint drift warning
-  if (isEnabled('fingerprint')) {
+  {
     const driftWarning = getCachedDriftWarning()
     if (driftWarning) {
       augments.push({ content: driftWarning, priority: 8, tokens: estimateTokens(driftWarning) })
@@ -1832,8 +1830,8 @@ export async function buildAndSelectAugments(params: {
   // ── Select augments within budget ──
   const hour = new Date().getHours()
   const isLateNight = hour >= 23 || hour < 6
-  const turnDecay = isEnabled('attention_decay') ? Math.max(0.5, 1 - (flow.turnCount * 0.03)) : 1.0
-  const timeDecay = isEnabled('attention_decay') ? (isLateNight ? 0.7 : 1.0) : 1.0
+  const turnDecay = Math.max(0.5, 1 - (flow.turnCount * 0.03))
+  const timeDecay = isLateNight ? 0.7 : 1.0
   const attentionMultiplier = bparams.maxTokensMultiplier * turnDecay * timeDecay * ctxBudgetMul
   const selected = selectAugments(augments, getParam('prompt.augment_budget'), attentionMultiplier)
 

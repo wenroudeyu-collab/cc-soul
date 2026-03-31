@@ -15,13 +15,10 @@ import { DATA_DIR, MEMORIES_PATH, REMINDERS_PATH, GRAPH_PATH } from './persisten
 import type { Memory, Entity, Relation, StructuredFact } from './types.ts'
 import { embed, isEmbedderReady, getEmbedDim } from './embedder.ts'
 
-// Database path priority:
-// 1. SOUL_DB_PATH env var (standalone mode, user-specified)
-// 2. OpenClaw's memory.db (plugin mode, shared with OpenClaw)
-// 3. DATA_DIR/soul.db (fallback)
+// Database path: auto-detect, no configuration needed
+// OpenClaw users → shared memory.db; everyone else → DATA_DIR/soul.db (auto-created)
 const OFFICIAL_DB = resolve(homedir(), '.openclaw/data/memory.db')
-const DB_PATH = process.env.SOUL_DB_PATH
-  || (existsSync(OFFICIAL_DB) ? OFFICIAL_DB : resolve(DATA_DIR, 'soul.db'))
+const DB_PATH = existsSync(OFFICIAL_DB) ? OFFICIAL_DB : resolve(DATA_DIR, 'soul.db')
 
 // Use globalThis to share db across multiple jiti module instances
 const _g = globalThis as any

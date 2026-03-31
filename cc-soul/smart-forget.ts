@@ -667,7 +667,6 @@ const stats: ForgetStats = {
 export const smartForgetModule: SoulModule = {
   id: 'smart-forget',
   name: '智能遗忘引擎',
-  features: ['smart_forget'],
   priority: 20,
 
   async init(): Promise<void> {

@@ -1,52 +1,10 @@
 {
-  "ts": 1774915181969,
-  "duplicates": [
-    {
-      "a": "[对话] 用户: 是Python 的 GIL 是什么 → AI: **GIL（Global Interpreter Lo",
-      "b": "[对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpreter Lock）",
-      "sim": 0.91
-    },
-    {
-      "a": "[对话] 用户: Python 的 GIL 是什么？ → AI: **GIL（Global Interpreter Lo",
-      "b": "[对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpreter Lock）",
-      "sim": 0.91
-    },
-    {
-      "a": "decay_test_old_memory_for_unit_test",
-      "b": "decay_test_old_memory_for_unit_test",
-      "sim": 1
-    },
-    {
-      "a": "Docker清理无用镜像的常用命令：docker system df查看空间占用，docker image prune清",
-      "b": "Docker清理无用镜像的常用命令：docker system df查看空间，docker image prune清理悬",
-      "sim": 0.93
-    }
-  ],
-  "tooShort": [
-    "用户可能心情不好",
-    "张三用Go写后端",
-    "用户是张三",
-    "用户叫张三",
-    "用户姓名为张三",
-    "用户的老婆叫小红",
-    "女儿朵朵5岁",
-    "讨厌跑步",
-    "喜欢打篮球",
-    "女儿名叫朵朵，5岁",
-    "主要使用Go语言",
-    "担任后端开发职位",
-    "在美团工作",
-    "用户名叫张三",
-    "Vue 技术栈",
-    "腾讯前端开发",
-    "用户是老王",
-    "用户的项目延期了",
-    "用户最近压力特别大",
-    "小王讨厌吃寿司"
-  ],
-  "untagged": 472,
+  "ts": 1774966338313,
+  "duplicates": [],
+  "tooShort": [],
+  "untagged": 0,
   "lowConfidence": 0,
   "zombie": 0,
   "staleExpiry": 0,
-  "suggestions": "建议合并 4 组重复记忆；建议清理 33 条过短记忆；472 条记忆缺少标签，建议批量打标"
+  "suggestions": "记忆状态良好"
 }

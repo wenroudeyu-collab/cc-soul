@@ -379,7 +379,6 @@ export interface PostResponseResult {
   quality: { score: number; issues: string[] }
   emotion: string
   reflection: string | null
-  curiosity: string | null
 }
 
 export interface Augment {

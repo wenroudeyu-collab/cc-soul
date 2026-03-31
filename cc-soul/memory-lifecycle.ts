@@ -13,7 +13,6 @@ import {
   sqliteFindByContent, sqliteUpdateMemory, sqliteUpdateRawLine, getDb, sqliteCount,
 } from './sqlite-store.ts'
 import { findMentionedEntities, getRelatedEntities } from './graph.ts'
-import { isEnabled } from './features.ts'
 import {
   memoryState, scopeIndex, useSQLite,
   addMemory, addMemoryWithEmotion, saveMemories, syncToSQLite,
@@ -1211,7 +1210,7 @@ export function processMemoryDecay() {
   let gisted = 0
   let absorbed = 0
 
-  const useArchive = isEnabled('dag_archive')
+  const useArchive = true // dag_archive is always-on
   let archived = 0
 
   for (const mem of memoryState.memories) {

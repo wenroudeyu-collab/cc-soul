@@ -508,7 +508,7 @@ const TECH_KEYWORDS = new Set([
   'html', 'css', 'scss', 'tailwind', 'figma',
   'test', 'debug', 'deploy', 'build', 'compile', 'lint',
   'async', 'await', 'promise', 'thread', 'mutex', 'lock',
-  'feishu', 'wechat', 'telegram', 'slack', 'discord',
+  'wechat', 'telegram', 'slack', 'discord',
 ])
 
 /**

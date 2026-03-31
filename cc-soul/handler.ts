@@ -90,7 +90,7 @@ import {
 import {
   innerState, loadInnerLife,
   writeJournalWithCLI, triggerDeepReflection,
-  getRecentJournal, checkDreamMode,
+  getRecentJournal,
   reflectOnLastResponse, extractFollowUp, peekPendingFollowUps,
   checkActivePlans, cleanupPlans,
 } from './inner-life.ts'
@@ -253,7 +253,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
   {
     const ctx0 = event.context || {}
     const raw0 = (ctx0.body || '') as string  // 用原始 body，不用 bodyForAgent（可能包含上次注入的 augment）
-    const msg0 = raw0.replace(/^\[message_id:\s*\S+\]\s*/i, '').replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s/, '').trim()
+    const msg0 = raw0.replace(/^\[message_id:\s*\S+\]\s*/i, '').replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s*/, '').trim()
     if (!msg0) return
     if (/^[\[(（]?(对话历史|当前面向|认知|相关记忆|Working Memory|内部矛盾|隐私模式|Goal|Intent|用户档案|情绪|举一反三|回答完主问题)/i.test(msg0)) {
       console.log(`[cc-soul][preprocessed] skipped system augment content: ${msg0.slice(0, 40)}...`)
@@ -276,7 +276,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
   const rawMsg = (ctx.bodyForAgent || ctx.body || '') as string
   const userMsg = rawMsg
     .replace(/^\[message_id:\s*\S+\]\s*/i, '')
-    .replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s/, '')
+    .replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s*/, '')
     .trim()
   if (!userMsg) { setAgentBusy(false); return }
 
@@ -326,7 +326,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
     console.log(`[cc-soul][topic-shift] detected for ${sessionKey}, CLI session cleared`)
 
     // ── Feature 3: 话题自动保存 — topic shift 时自动保存上一个话题到 branches/ ──
-    if (isEnabled('auto_topic_save')) {
+    {
       try {
         const branchDir = resolve(DATA_DIR, 'branches')
         if (!existsSync(branchDir)) mkdirSync(branchDir, { recursive: true })
@@ -341,7 +341,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
             savedAt: Date.now(),
             autoSaved: true,
             chatHistory: recentMsgs,
-            persona: isEnabled('persona_splitting') ? getActivePersona()?.id || 'default' : 'default',
+            persona: getActivePersona()?.id || 'default',
           }
           const branchPath = resolve(branchDir, `${topicLabel}.json`)
           writeFileSync(branchPath, JSON.stringify(branchData, null, 2), 'utf-8')
@@ -353,7 +353,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
     }
 
     // ── Episodic memory: record completed episode on topic shift ──
-    if (isEnabled('episodic_memory')) {
+    {
       try {
         const recentHistory = memoryState.chatHistory.slice(-10)
         if (recentHistory.length >= 2) {
@@ -442,7 +442,6 @@ export async function handlePreprocessed(event: any): Promise<void> {
         // Heuristic: only persist reflection when quality is actually poor (score < 5)
         // — the merged analysis returns reflection for free, but 90% are trivial "无" equivalents
         if (result.reflection && result.quality.score < 5) addMemory(`[反思] ${result.reflection}`, 'reflection', snapSenderId, 'private', snapChannelId)
-        if (result.curiosity) addMemory(`[好奇] ${result.curiosity}`, 'curiosity', snapSenderId, 'private', snapChannelId)
         const codeBlocks = snapResponse.match(/```(\w+)?\n([\s\S]*?)```/g)
         if (codeBlocks && codeBlocks.length > 0) {
           const lang = snapResponse.match(/```(\w+)/)?.[1] || 'unknown'
@@ -467,7 +466,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
   // Soul Mode removed from handler.ts — now handled via POST /soul API endpoint in soul-api.ts
 
   // ── WAL Protocol: persist key info from user message BEFORE AI reply ──
-  if (isEnabled('wal_protocol') && !getPrivacyMode()) {
+  if (!getPrivacyMode()) {
     try {
       const walEntries: { content: string; type: string }[] = []
 
@@ -529,7 +528,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
 
   // Working memory
   const workingMemKey = channelId || senderId || '_default'
-  if (isEnabled('memory_working')) addWorkingMemory(userMsg.slice(0, 100), workingMemKey)
+  addWorkingMemory(userMsg.slice(0, 100), workingMemKey)
 
   // ── Cognition pipeline ──
   const cog = cogProcess(userMsg, session.lastResponseContent, session.lastPrompt, senderId)
@@ -553,9 +552,9 @@ export async function handlePreprocessed(event: any): Promise<void> {
   const flowKey = senderId ? (channelId ? channelId + ':' + senderId : senderId) : (channelId || '_default')
   const flow = updateFlow(userMsg, session.lastResponseContent, flowKey)
 
-  if (isEnabled('emotional_contagion')) processEmotionalContagion(userMsg, cog.attention, flow.frustration, senderId)
+  processEmotionalContagion(userMsg, cog.attention, flow.frustration, senderId)
 
-  const persona = isEnabled('persona_splitting') ? selectPersona(cog.attention, flow.frustration, senderId, cog.intent, userMsg) : null
+  const persona = selectPersona(cog.attention, flow.frustration, senderId, cog.intent, userMsg)
   if (persona) {
     console.log(`[cc-soul][persona] selected: ${persona.id} (${persona.name}) | trigger: ${cog.attention}/${cog.intent}`)
     if (senderId) trackPersonaUsage(senderId, persona.id)
@@ -570,12 +569,12 @@ export async function handlePreprocessed(event: any): Promise<void> {
   if (cog.attention === 'correction') {
     stats.corrections++
     updateProfileOnCorrection(senderId)
-    if (isEnabled('relationship_dynamics')) updateRelationship(senderId, 'correction')
+    updateRelationship(senderId, 'correction')
     onCorrectionAdvanced(userMsg, session.lastResponseContent)
     trackDomainCorrection(userMsg)
     attributeCorrection(userMsg, session.lastResponseContent, session.lastAugmentsUsed)
     // Record correction as episodic memory for future recall
-    if (isEnabled('episodic_memory') && session.lastResponseContent) {
+    if (session.lastResponseContent) {
       try {
         recordEpisode(
           userMsg.slice(0, 80),
@@ -640,12 +639,10 @@ export async function handlePreprocessed(event: any): Promise<void> {
     if (misconception) _extraAugments.push(`[认知偏差] ${misconception}`)
   } catch (_) {}
   // Persona drift reinforcement (from previous turn's checkPersonaDrift)
-  if (isEnabled('persona_drift_detection')) {
-    try {
-      const reinforcement = getPersonaDriftReinforcement()
-      if (reinforcement) _extraAugments.push(reinforcement)
-    } catch (_) {}
-  }
+  try {
+    const reinforcement = getPersonaDriftReinforcement()
+    if (reinforcement) _extraAugments.push(reinforcement)
+  } catch (_) {}
 
   // ── 重复消息检测：1小时内发过一样的消息则注入提醒 ──
   const _userMsgKey = userMsg.slice(0, 100).toLowerCase().trim()
@@ -753,11 +750,8 @@ export async function handlePreprocessed(event: any): Promise<void> {
   session.lastResponseContent = ''
   session._dedupKey = userMsg.slice(0, 100).toLowerCase().trim()  // for reply dedup in handleSent
   // Save the clean user message (before augment injection) for avatar data collection.
-  // ctx.body format from Feishu: "[Feishu {id} {time}] [message_id: {id}]\n{nick}: {msg}"
   {
     let raw = ((event.context || {}).body || userMsg) as string
-    // Strip Feishu envelope: [Feishu ...] [message_id: ...]
-    raw = raw.replace(/^\[Feishu[^\]]*\]\s*/i, '')
     raw = raw.replace(/^\[message_id:\s*\S+\]\s*/i, '')
     // Strip nickname prefix: "wang: " or "用户名: "
     raw = raw.replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s*/, '')
@@ -817,15 +811,13 @@ export async function handlePreprocessed(event: any): Promise<void> {
         }
 
         // Persona drift
-        if (isEnabled('persona_drift_detection')) {
-          try {
-            const persona = getActivePersona()
-            if (persona) {
-              const driftScore = checkPersonaDrift(botResponse, persona.id, persona.name, persona.tone, persona.idealVector)
-              if (driftScore > 0.5) { stats.driftCount++; saveStats() }
-            }
-          } catch {}
-        }
+        try {
+          const persona = getActivePersona()
+          if (persona) {
+            const driftScore = checkPersonaDrift(botResponse, persona.id, persona.name, persona.tone, persona.idealVector)
+            if (driftScore > 0.5) { stats.driftCount++; saveStats() }
+          }
+        } catch {}
 
         // Cost tracking
         try { recordTurnUsage(_snapPrompt, botResponse, 0) } catch {}
@@ -834,7 +826,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
         try { brain.fire('onSent', { userMessage: _snapPrompt, botReply: botResponse, senderId: _snapSenderId, channelId: _snapChannelId }) } catch {}
 
         // Memory commands from response
-        if (isEnabled('memory_active')) {
+        {
           const memCmds = parseMemoryCommands(botResponse)
           if (memCmds.length > 0) executeMemoryCommands(memCmds, _snapSenderId, _snapChannelId)
         }
@@ -893,8 +885,8 @@ export function handleSent(event: any): void {
       }
     }
 
-    // Cost tracking (optional module)
-    if (isEnabled('cost_tracker')) {
+    // Cost tracking
+    {
       const augTokens = session.lastAugmentsUsed.reduce((sum, a) => sum + estimateTokens(a), 0)
       try { recordTurnUsage(session.lastPrompt || '', content, augTokens) } catch (_) { /* cost-tracker not available */ }
     }
@@ -910,28 +902,24 @@ export function handleSent(event: any): void {
     // 举一反三 post-processing moved to context-engine.ts afterTurn()
 
     // Update soul fingerprint
-    if (isEnabled('fingerprint')) {
-      updateFingerprint(content)
-      const drift = checkPersonaConsistency(content)
-      if (drift) {
-        console.log(`[cc-soul][fingerprint] ${drift}`)
-        setCachedDriftWarning(drift)
-      }
+    updateFingerprint(content)
+    const drift = checkPersonaConsistency(content)
+    if (drift) {
+      console.log(`[cc-soul][fingerprint] ${drift}`)
+      setCachedDriftWarning(drift)
     }
 
     // Persona drift detection (rule-based)
-    if (isEnabled('persona_drift_detection')) {
-      try {
-        const persona = getActivePersona()
-        if (persona) {
-          const driftScore = checkPersonaDrift(content, persona.id, persona.name, persona.tone, persona.idealVector)
-          if (driftScore > 0.5) {
-            stats.driftCount++
-            saveStats()
-          }
+    try {
+      const persona = getActivePersona()
+      if (persona) {
+        const driftScore = checkPersonaDrift(content, persona.id, persona.name, persona.tone, persona.idealVector)
+        if (driftScore > 0.5) {
+          stats.driftCount++
+          saveStats()
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
 
     // ── #8 自我纠错 ──
     if (isEnabled('self_correction') && session.lastPrompt && content.length > 20) {
@@ -947,7 +935,7 @@ export function handleSent(event: any): void {
     }
 
     // Active memory management
-    if (isEnabled('memory_active')) {
+    {
       const memCommands = parseMemoryCommands(content)
       if (memCommands.length > 0) {
         executeMemoryCommands(memCommands, session.lastSenderId, session.lastChannelId)
@@ -1028,7 +1016,7 @@ export function handleSent(event: any): void {
             bodyOnPositiveFeedback()
             detectValueSignals(snapPrompt, true, snapSenderId)
             learnSuccessPattern(snapPrompt, snapResponse, snapSenderId)
-            if (isEnabled('relationship_dynamics')) updateRelationship(snapSenderId, 'positive')
+            updateRelationship(snapSenderId, 'positive')
             stats.positiveFeedback++
             trackGratitude(snapPrompt, snapResponse, snapSenderId)
             updateUserStylePreference(snapSenderId, snapResponse, true)
@@ -1052,23 +1040,17 @@ export function handleSent(event: any): void {
           if (result.reflection && result.quality.score < 5) {
             addMemory(`[反思] ${result.reflection}`, 'reflection', snapSenderId, 'private', snapChannelId)
           }
-          if (result.curiosity) {
-            addMemory(`[好奇] ${result.curiosity}`, 'curiosity', snapSenderId, 'private', snapChannelId)
-          }
         })
 
         recallFeedbackLoop(snapPrompt, snapRecalled)
-        if (isEnabled('memory_associative_recall')) triggerAssociativeRecall(snapPrompt, snapRecalled)
+        triggerAssociativeRecall(snapPrompt, snapRecalled)
 
         writeJournalWithCLI(snapPrompt, snapResponse, stats)
         detectWorkflowOpportunity(snapPrompt, snapResponse)
-        if (isEnabled('dream_mode')) checkDreamMode()
 
-        if (isEnabled('memory_predictive')) {
-          CJK_WORD_REGEX.lastIndex = 0
-          const recentTopicWords = (snapPrompt.match(CJK_WORD_REGEX) || []).slice(0, 5)
-          generatePrediction(recentTopicWords, snapSenderId)
-        }
+        CJK_WORD_REGEX.lastIndex = 0
+        const recentTopicWords = (snapPrompt.match(CJK_WORD_REGEX) || []).slice(0, 5)
+        generatePrediction(recentTopicWords, snapSenderId)
 
         if (isEnabled('skill_library')) autoExtractSkill(snapPrompt, snapResponse)
 

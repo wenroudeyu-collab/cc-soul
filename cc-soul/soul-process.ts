@@ -21,6 +21,13 @@ async function handleProcess(body: any): Promise<any> {
     try { const { setActiveAgent } = await import('./persistence.ts'); setActiveAgent(agentId) } catch {}
   }
 
+  // Privacy mode check: skip memory operations if privacy is ON
+  let isPrivacy = false
+  try {
+    const { getPrivacyMode } = await import('./handler-state.ts')
+    isPrivacy = getPrivacyMode()
+  } catch {}
+
   // Bootstrap mode: empty message → return system_prompt only
   if (!message) {
     try {
@@ -60,7 +67,9 @@ async function handleProcess(body: any): Promise<any> {
         return { command: true, command_reply: cmdReply }
       }
     }
-  } catch {}
+  } catch (cmdErr: any) {
+    console.error(`[cc-soul][api] command detection error: ${cmdErr.message}`)
+  }
 
   // Initialize (lazy)
   try {
@@ -110,9 +119,8 @@ async function handleProcess(body: any): Promise<any> {
   try { (await import('./user-profiles.ts')).updateProfileOnMessage(userId, message) } catch {}
 
   // ── 5. WAL protocol ──
-  try {
-    const { isEnabled } = await import('./features.ts')
-    if (isEnabled('wal_protocol')) {
+  if (!isPrivacy) {
+    try {
       const { addMemory } = await import('./memory.ts')
       const walEntries: string[] = []
       const prefMatch = message.match(/我(?:最|特别|超|很|比较)?(?:喜欢|不喜欢|讨厌|爱|偏好|住在?|是|养了?|有|擅长|从事|叫|在.{1,10}(?:工作|上班|做))(.{2,40})/g)
@@ -121,11 +129,11 @@ async function handleProcess(body: any): Promise<any> {
       if (rememberMatch) for (const r of rememberMatch.slice(0, 3)) walEntries.push(r.slice(0, 60))
       for (const entry of walEntries) addMemory(`[WAL事实] ${entry}`, 'wal', userId, 'private')
       if (walEntries.length > 0) console.log(`[cc-soul][api] WAL: ${walEntries.length} entries`)
-    }
-  } catch {}
+    } catch {}
 
-  // ── 6. Avatar collection ──
-  try { (await import('./avatar.ts')).collectAvatarData(message, '', userId) } catch {}
+    // ── 6. Avatar collection ──
+    try { (await import('./avatar.ts')).collectAvatarData(message, '', userId) } catch {}
+  }
 
   // ── 7. Proactive hints ──
   try {
@@ -243,6 +251,12 @@ async function handleFeedback(body: any): Promise<any> {
   }
 
   if (!userMessage || !aiReply) return { error: 'user_message and ai_reply required' }
+
+  // Privacy mode: skip all learning/memory operations
+  try {
+    const { getPrivacyMode } = await import('./handler-state.ts')
+    if (getPrivacyMode()) return { learned: false, reason: 'privacy_mode' }
+  } catch {}
 
   // Update dedup cache with actual reply content (read fresh from disk to avoid stale cache)
   try {

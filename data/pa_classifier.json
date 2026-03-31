@@ -1,14 +1,14 @@
 {
   "weights": {
     "casual": {
-      "correctionHits": 0,
-      "emotionHits": -0.19791666666666666,
-      "negEmotionHits": -0.19791666666666666,
-      "techHits": -0.5625,
+      "correctionHits": 0.4739583333333333,
+      "emotionHits": 0.03009259259259256,
+      "negEmotionHits": 0.03009259259259256,
+      "techHits": -0.32552083333333337,
       "casualHits": 0,
-      "lenShort": 0.48958333333333337,
-      "lenMedium": -0.5,
-      "lenLong": 0,
+      "lenShort": 0.7175925925925926,
+      "lenMedium": -0.26302083333333337,
+      "lenLong": -0.5,
       "lenVeryShort": 0.25
     },
     "general": {
@@ -19,32 +19,43 @@
       "casualHits": 0,
       "lenShort": -0.25,
       "lenMedium": 0.3159722222222222,
-      "lenLong": 0,
+      "lenLong": 0.5,
       "lenVeryShort": -0.25
     },
     "technical": {
-      "correctionHits": 0,
+      "correctionHits": -0.2604166666666667,
       "emotionHits": 0,
       "negEmotionHits": 0,
-      "techHits": 0.5625,
+      "techHits": 0.43229166666666663,
       "casualHits": 0,
       "lenShort": 0.0625,
-      "lenMedium": 0,
+      "lenMedium": -0.13020833333333334,
       "lenLong": 0,
       "lenVeryShort": 0
     },
     "emotional": {
       "correctionHits": 0,
-      "emotionHits": 0.3819444444444444,
-      "negEmotionHits": 0.3819444444444444,
+      "emotionHits": 0.1539351851851852,
+      "negEmotionHits": 0.1539351851851852,
       "techHits": 0,
       "casualHits": 0,
-      "lenShort": -0.30208333333333337,
+      "lenShort": -0.5300925925925926,
       "lenMedium": 0.1840277777777778,
+      "lenLong": 0,
+      "lenVeryShort": 0
+    },
+    "correction": {
+      "correctionHits": -0.21354166666666663,
+      "emotionHits": 0,
+      "negEmotionHits": 0,
+      "techHits": -0.10677083333333331,
+      "casualHits": 0,
+      "lenShort": 0,
+      "lenMedium": -0.10677083333333331,
       "lenLong": 0,
       "lenVeryShort": 0
     }
   },
   "C": 0.5,
-  "samples": 8
+  "samples": 12
 }

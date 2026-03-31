@@ -18,7 +18,6 @@ import { bodyOnPositiveFeedback } from './body.ts'
 import { addEntitiesFromAnalysis } from './graph.ts'
 import { runPostResponseAnalysis, setAgentBusy, killGatewayClaude, spawnCLI } from './cli.ts'
 import { notifyOwnerDM } from './notify.ts'
-import { isEnabled } from './features.ts'
 import { taskState } from './tasks.ts'
 import { trackQuality } from './quality.ts'
 import { getSessionState, getLastActiveSessionKey } from './handler-state.ts'
@@ -232,7 +231,7 @@ export function createCcSoulContextEngine() {
       } catch {}
 
       // Active memory management from response text
-      if (isEnabled('memory_active')) {
+      {
         const memCommands = parseMemoryCommands(botResponse)
         if (memCommands.length > 0) {
           executeMemoryCommands(memCommands, _state.lastSenderId)
@@ -240,11 +239,9 @@ export function createCcSoulContextEngine() {
       }
 
       // Fingerprint update
-      if (isEnabled('fingerprint')) {
-        updateFingerprint(botResponse)
-        const drift = checkPersonaConsistency(botResponse)
-        if (drift) console.log(`[cc-soul][fingerprint] ${drift}`)
-      }
+      updateFingerprint(botResponse)
+      const drift = checkPersonaConsistency(botResponse)
+      if (drift) console.log(`[cc-soul][fingerprint] ${drift}`)
 
       // Full post-response analysis
       runPostResponseAnalysis(userMsg, botResponse, (result) => {
@@ -286,7 +283,6 @@ export function createCcSoulContextEngine() {
         if (result.satisfaction === 'POSITIVE') bodyOnPositiveFeedback()
         trackQuality(result.quality.score)
         if (result.reflection) addMemory(`[反思] ${result.reflection}`, 'reflection', _state.lastSenderId, 'private')
-        if (result.curiosity) addMemory(`[好奇] ${result.curiosity}`, 'curiosity', _state.lastSenderId, 'private')
 
         console.log(`[cc-soul][context-engine] afterTurn complete: sat=${result.satisfaction} q=${result.quality.score}`)
 
@@ -334,8 +330,7 @@ export function createCcSoulContextEngine() {
               .join(' ')
           }
           if (text.length > 0) {
-            // Strip OpenClaw metadata envelope:
-            // "Conversation info (untrusted metadata):\n```json\n{...}\n```\n\nSender...\n```json\n{...}\n```\n\n[message_id: xxx]\nwang: actual message"
+            // Strip OpenClaw metadata envelope
             let cleaned = text
             // Remove OpenClaw metadata: find the last ``` and take everything after it
             const lastBacktick = text.lastIndexOf('```')
@@ -488,7 +483,7 @@ export function createCcSoulContextEngine() {
         const botResponse = _state.lastBotResponse
 
         // Active memory management from response text
-        if (isEnabled('memory_active')) {
+        {
           const memCommands = parseMemoryCommands(botResponse)
           if (memCommands.length > 0) {
             executeMemoryCommands(memCommands, _state.lastSenderId)
@@ -496,9 +491,7 @@ export function createCcSoulContextEngine() {
         }
 
         // Fingerprint update
-        if (isEnabled('fingerprint')) {
-          updateFingerprint(botResponse)
-        }
+        updateFingerprint(botResponse)
 
         // Full post-response analysis (async, fire-and-forget)
         runPostResponseAnalysis(userMsg, botResponse, (result) => {
@@ -538,7 +531,6 @@ export function createCcSoulContextEngine() {
           if (result.satisfaction === 'POSITIVE') bodyOnPositiveFeedback()
           trackQuality(result.quality.score)
           if (result.reflection) addMemory(`[反思] ${result.reflection}`, 'reflection', _state.lastSenderId, 'private')
-          if (result.curiosity) addMemory(`[好奇] ${result.curiosity}`, 'curiosity', _state.lastSenderId, 'private')
           console.log(`[cc-soul][context-engine] dispose-afterTurn complete: sat=${result.satisfaction} q=${result.quality.score}`)
 
           // New module hooks

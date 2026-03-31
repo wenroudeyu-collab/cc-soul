@@ -184,9 +184,9 @@
         "style": "balanced",
         "hint": "用户聊career，历史3次互动表明平衡回答效果最好"
       },
-      "hits": 15,
+      "hits": 16,
       "misses": 0,
-      "lastHit": 1774913652854,
+      "lastHit": 1774941181841,
       "createdAt": 1774899908273,
       "source": "learned"
     },
@@ -303,9 +303,9 @@
         "style": "balanced",
         "hint": "用户聊career，历史1次互动表明平衡回答效果最好"
       },
-      "hits": 1,
+      "hits": 2,
       "misses": 0,
-      "lastHit": 1774909219823,
+      "lastHit": 1774941181841,
       "createdAt": 1774909219823,
       "source": "learned"
     },
@@ -320,9 +320,9 @@
         "style": "balanced",
         "hint": "用户聊health，历史1次互动表明平衡回答效果最好"
       },
-      "hits": 1,
+      "hits": 2,
       "misses": 0,
-      "lastHit": 1774909219823,
+      "lastHit": 1774941561650,
       "createdAt": 1774909219823,
       "source": "learned"
     },
@@ -524,9 +524,9 @@
         "style": "balanced",
         "hint": "用户深夜，历史4次互动表明平衡回答效果最好"
       },
-      "hits": 40,
+      "hits": 46,
       "misses": 0,
-      "lastHit": 1774916124417,
+      "lastHit": 1774941499767,
       "createdAt": 1774909219823,
       "source": "learned"
     },
@@ -541,9 +541,9 @@
         "style": "balanced",
         "hint": "用户深夜、聊python，历史2次互动表明平衡回答效果最好"
       },
-      "hits": 26,
+      "hits": 30,
       "misses": 0,
-      "lastHit": 1774916124417,
+      "lastHit": 1774918181346,
       "createdAt": 1774911839999,
       "source": "learned"
     },
@@ -575,9 +575,9 @@
         "style": "balanced",
         "hint": "用户深夜、聊devops，历史1次互动表明平衡回答效果最好"
       },
-      "hits": 16,
+      "hits": 19,
       "misses": 0,
-      "lastHit": 1774916080955,
+      "lastHit": 1774918049376,
       "createdAt": 1774911839999,
       "source": "learned"
     },
@@ -626,9 +626,9 @@
         "style": "balanced",
         "hint": "用户深夜、聊career，历史2次互动表明平衡回答效果最好"
       },
-      "hits": 2,
+      "hits": 3,
       "misses": 0,
-      "lastHit": 1774913884949,
+      "lastHit": 1774941181841,
       "createdAt": 1774913884949,
       "source": "learned"
     },
@@ -664,6 +664,108 @@
       "misses": 0,
       "lastHit": 1774913884949,
       "createdAt": 1774913884949,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_0",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "relationship",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊relationship，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774918181346,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_1",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "health",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊health，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 2,
+      "misses": 0,
+      "lastHit": 1774941561650,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_2",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "finance",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊finance，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774916681916,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774916681916_3",
+      "condition": {
+        "timeSlot": "late_night",
+        "topicDomain": "tech",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户深夜、聊tech，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774916681916,
+      "createdAt": 1774916681916,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774942571547_0",
+      "condition": {
+        "timeSlot": "morning",
+        "topicDomain": "career",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊career，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774942571547,
+      "createdAt": 1774942571547,
+      "source": "learned"
+    },
+    {
+      "id": "bp_1774942571547_1",
+      "condition": {
+        "timeSlot": "morning",
+        "topicDomain": "health",
+        "mood": "neutral"
+      },
+      "action": {
+        "style": "balanced",
+        "hint": "用户聊health，历史1次互动表明平衡回答效果最好"
+      },
+      "hits": 1,
+      "misses": 0,
+      "lastHit": 1774942571547,
+      "createdAt": 1774942571547,
       "source": "learned"
     }
   ],
@@ -1800,7 +1902,95 @@
       "userReaction": "neutral",
       "responseStyle": "balanced",
       "ts": 1774916124417
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774916660143
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774917115515
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774918049376
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774918181346
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "career",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941181841
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941330416
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941499767
+    },
+    {
+      "situation": {
+        "timeSlot": "morning",
+        "topicDomain": "health",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774941561650
     }
   ],
-  "lastLearningRun": 1774913884949
+  "lastLearningRun": 1774966338326
 }

@@ -4,20 +4,27 @@
     "effect": "熬夜",
     "count": 14,
     "avgDelay": 13604978.714285715,
-    "lastSeen": 1774915182183
+    "lastSeen": 1774966338329
   },
   {
     "trigger": "学习",
     "effect": "实践",
     "count": 2,
     "avgDelay": 42300657,
-    "lastSeen": 1774915182184
+    "lastSeen": 1774966338330
   },
   {
     "trigger": "焦虑",
     "effect": "失眠",
-    "count": 19,
-    "avgDelay": 17425595.157894738,
-    "lastSeen": 1774915182183
+    "count": 40,
+    "avgDelay": 10072143.425,
+    "lastSeen": 1774966338330
+  },
+  {
+    "trigger": "熬夜",
+    "effect": "效率低",
+    "count": 8,
+    "avgDelay": 6641824.625,
+    "lastSeen": 1774966338329
   }
 ]

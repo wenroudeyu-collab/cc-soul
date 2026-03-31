@@ -304,9 +304,53 @@ You:  "周报"                   → Weekly review with trends and insights.
 
 ---
 
-## Things It Does Automatically
+## What's Running Behind the Scenes (43 always-on features)
 
-Every message is analyzed for memory extraction, entity recognition, emotional signals, and topic tracking. 11 personas blend automatically based on content. Corrections trigger fact-checking and rule learning. Old memories decay intelligently via Weibull survival modeling, and aged memories are auto-compressed into distilled summaries so nothing important is lost. Contradictions between memories are detected and flagged. Your knowledge graph grows with entity relationships. Long conversations are compressed to save tokens. Theory of mind silently observes you across 7 dimensions — beliefs, knowledge gaps, frustrations, preferences, expertise, communication style, and decision patterns. Persona drift is monitored with Shannon entropy and auto-corrected. Quality scoring learns what response style works best for you. Absence detection notices topics you stopped mentioning and nudges the AI to ask. Behavior prediction warns when you're about to repeat a past mistake. Decision causal recording stores *why* you made choices, not just what you chose. Value conflict learning tracks your tradeoff preferences over time. Social context adaptation adjusts tone based on who you're talking about. Proactive questioning fills in knowledge gaps the AI notices. Non-urgent LLM tasks are batched and queued for off-hours to save tokens.
+All automatic. No setup, no toggles. Works from the first message.
+
+**Memory (NAM Engine)**
+- Every message auto-extracted for facts, preferences, events
+- NAM 6-signal activation field — memories surface by relevance, not keyword match
+- Contradiction detection — catches when you contradict yourself
+- Smart decay (Weibull + ACT-R) — unused memories fade, important ones strengthen
+- Memory compression — 90-day+ memories distilled into summaries
+- WAL protocol — key facts persisted before AI replies (crash-safe)
+- DAG archive — lossless archival replaces hard deletion
+- Associative recall — one memory activates related ones
+- Predictive recall — pre-warms memories based on conversation patterns
+
+**Understanding**
+- 7-dimension deep understanding — temporal patterns, growth trajectory, cognitive load, stress fingerprint, say-do gap, unspoken needs, dynamic profile
+- Theory of mind — tracks your beliefs, knowledge gaps, frustrations
+- Decision causal recording — stores WHY you chose, not just what
+- Value conflict learning — tracks which values you prioritize in tradeoffs
+- Social context adaptation — adjusts tone when you mention boss vs friend
+- Person model — identity, thinking style, communication decoder ("算了" → "换个角度")
+- Expression fingerprint — learns your argument style and certainty level
+
+**Personality & Emotion**
+- 11 personas auto-blend by context — like a friend who adjusts their tone naturally
+- Emotion tracking — senses your mood from messages, adapts in real time
+- Your mood affects AI's mood — just like talking to a real person
+- Late night = concise replies, Monday morning = gentle start
+
+**Proactive Intelligence**
+- Proactive expansion — adds related pitfalls after answering
+- Absence detection — notices topics you stopped mentioning
+- Behavior prediction — warns when you're about to repeat a past mistake
+- Proactive questioning — asks about knowledge gaps it detects
+- Follow-up tracking — "I'll do it tomorrow" → next day reminder
+- Soul moments — naturally references shared history at milestones
+
+**Infrastructure**
+- Knowledge graph — entities and relationships auto-extracted
+- Context compression — long conversations auto-compressed to save tokens
+- Quality scoring — learns which response style works for you
+- LLM batch queue — non-urgent tasks queued for off-hours
+- Habit/goal/reminder tracking
+- Cost tracking — token usage per conversation
+
+**7 optional features** (user can toggle): `dream_mode` · `auto_daily_review` · `self_correction` · `memory_session_summary` · `absence_detection` · `behavior_prediction` · `auto_mood_care`
 
 ---
 
@@ -358,7 +402,7 @@ Every message is analyzed for memory extraction, entity recognition, emotional s
 
 **Persona & Values:** `人格列表` · `价值观` · `别记这个`
 
-**Advanced:** `功能状态` · `开启 <功能>` · `关闭 <功能>` · `审计日志` · `开始实验 <描述>` · `安装向量` · `向量状态`
+**Advanced:** `功能状态` · `开启 <功能>` · `关闭 <功能>` · `审计日志` · `开始实验 <描述>`
 
 ---
 
@@ -393,7 +437,7 @@ All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data
 
 ---
 
-**50+ commands · 40 feature toggles · 15 API endpoints · 11 personas · 7-dimension user model**
+**NAM memory engine · 50+ commands · 40 feature toggles · 15 API endpoints · 11 personas · 7-dimension user model · no external models needed**
 
 [npm](https://www.npmjs.com/package/@cc-soul/openclaw) · [GitHub](https://github.com/wenroudeyu-collab/cc-soul) · Issues: [github.com/wenroudeyu-collab/cc-soul/issues](https://github.com/wenroudeyu-collab/cc-soul/issues) · wenroudeyu@gmail.com
 

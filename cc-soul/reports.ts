@@ -14,7 +14,6 @@ import { rules } from './evolution.ts'
 import { stats } from './handler-state.ts'
 import { DATA_DIR, loadJson } from './persistence.ts'
 import { resolve } from 'path'
-import { isEnabled } from './features.ts'
 
 // ── Helpers ──
 
@@ -31,7 +30,6 @@ function fmtDay(ts: number): string {
 // Track last report fire times to avoid duplicates within the same hour
 let lastMorningReportDate = ''
 let lastWeeklyReportDate = ''
-let lastDailyReviewDate = ''
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MORNING REPORT — 每日晨报
@@ -407,8 +405,7 @@ export function generateWeeklyReport(): string {
 
 /**
  * Called from handler-heartbeat.ts on every heartbeat.
- * Fires morning report (daily 8:00-9:00), weekly report (Monday 8:00-9:00),
- * and daily review (21:00-21:59).
+ * Fires morning report (daily 8:00-9:00), weekly report (Monday 8:00-9:00).
  * Returns the report text if fired, or null.
  */
 export function checkScheduledReports(): string | null {
@@ -431,12 +428,6 @@ export function checkScheduledReports(): string | null {
       lastMorningReportDate = todayStr
       return generateMorningReport()
     }
-  }
-
-  // Daily review: every day 21:00-21:59 (auto_daily_review feature toggle)
-  if (isEnabled('auto_daily_review') && hour === 21 && lastDailyReviewDate !== todayStr) {
-    lastDailyReviewDate = todayStr
-    return generateDailyReview()
   }
 
   return null

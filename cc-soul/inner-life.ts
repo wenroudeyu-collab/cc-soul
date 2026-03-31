@@ -1,19 +1,17 @@
 import type { SoulModule } from './brain.ts'
 
 /**
- * inner-life.ts — Journal, user model, soul evolution, dream mode, curiosity, regret, follow-ups
+ * inner-life.ts — Journal, user model, soul evolution, regret, follow-ups
  *
  * Ported from handler.ts lines 1216-1275 (follow-ups) and 1883-2115 (inner life systems).
  */
 
 import type { JournalEntry, FollowUp, InteractionStats } from './types.ts'
 import { JOURNAL_PATH, USER_MODEL_PATH, SOUL_EVOLVED_PATH, FOLLOW_UPS_PATH, DATA_DIR, loadJson, debouncedSave, saveJson } from './persistence.ts'
-import { spawnCLI, queueLLMTask } from './cli.ts'
+import { queueLLMTask } from './cli.ts'
 import { body } from './body.ts'
 import { memoryState, addMemory } from './memory.ts'
 import { notifySoulActivity } from './notify.ts'
-import { extractJSON } from './utils.ts'
-import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 
 /** Fisher-Yates shuffle — unbiased random ordering */
@@ -37,7 +35,6 @@ export const innerState = {
   followUps: [] as FollowUp[],
   lastJournalTime: 0,
   lastDeepReflection: 0,
-  lastDreamTime: 0,
   lastActivityTime: Date.now(),
 }
 
@@ -275,213 +272,6 @@ export function triggerDeepReflection(stats: InteractionStats) {
 export function getRecentJournal(n = 5): string {
   if (innerState.journal.length === 0) return ''
   return innerState.journal.slice(-n).map(j => `${j.time} — ${j.thought}`).join('\n')
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DREAM MODE — idle memory replay + insight generation
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * 记忆重放整合：不用 LLM，用图遍历发现隐藏联系
- * 基于海马体 replay — 睡眠时大脑重放白天的记忆，发现新连接
- *
- * 算法：选最近 N 条未被关联的记忆 → 提取实体 → 找共享实体发现新联想
- */
-async function memoryReplay(): Promise<string | null> {
-  try {
-    const { graphState } = await import('./graph.ts')
-
-    const now = Date.now()
-    const DAY = 86400000
-
-    // 选最近 7 天内、recall 次数少（<2）的记忆（"还没被整合的新记忆"）
-    const unlinked = memoryState.memories
-      .filter(m =>
-        m.scope !== 'expired' && m.scope !== 'decayed' &&
-        now - m.ts < 7 * DAY &&
-        ((m as any).recallCount ?? 0) < 2
-      )
-      .slice(-10)  // 最多 10 条
-
-    if (unlinked.length < 3) return null  // 不够多，跳过
-
-    // 从这些记忆中提取实体
-    const entityMentions = new Map<string, string[]>()  // entity → [memory content snippet]
-    for (const mem of unlinked) {
-      for (const entity of graphState.entities) {
-        if (entity.invalid_at !== null) continue
-        if (mem.content.includes(entity.name)) {
-          if (!entityMentions.has(entity.name)) entityMentions.set(entity.name, [])
-          entityMentions.get(entity.name)!.push(mem.content.slice(0, 50))
-        }
-      }
-    }
-
-    // 找共享实体的记忆对（它们通过某个实体相连但之前没被关联）
-    const discoveries: string[] = []
-    const entityList = [...entityMentions.entries()].filter(([, mems]) => mems.length >= 2)
-
-    for (const [entity, mems] of entityList.slice(0, 3)) {
-      discoveries.push(`"${mems[0]}"和"${mems[1]}"都提到了${entity}`)
-    }
-
-    // 找图中不同记忆实体之间的短路径（通过 relations 2跳以内）
-    const allEntities = [...entityMentions.keys()]
-    for (let i = 0; i < Math.min(allEntities.length, 3); i++) {
-      for (let j = i + 1; j < Math.min(allEntities.length, 4); j++) {
-        // BFS 2-hop path through relations
-        const from = allEntities[i], to = allEntities[j]
-        const neighbors = new Map<string, string>()  // entity → relation label
-        for (const r of graphState.relations) {
-          if (r.from === from) neighbors.set(r.to, r.label)
-          if (r.to === from) neighbors.set(r.from, r.label)
-        }
-        // Direct connection (1-hop)
-        if (neighbors.has(to)) {
-          discoveries.push(`${from}和${to}通过"${neighbors.get(to)}"直接相连`)
-        } else {
-          // 2-hop: check neighbors of from's neighbors
-          for (const [mid, label1] of neighbors) {
-            for (const r of graphState.relations) {
-              if ((r.from === mid && r.to === to) || (r.to === mid && r.from === to)) {
-                discoveries.push(`${from}→${mid}→${to}(经${label1}/${r.label})`)
-                break
-              }
-            }
-            if (discoveries.length > 0) break
-          }
-        }
-      }
-    }
-
-    if (discoveries.length === 0) return null
-
-    // 记忆重放发现的联系 → 交叉标签注入（让相关记忆在未来被一起召回）
-    if (entityList.length > 0) {
-      try {
-        const { memoryState: ms, saveMemories } = await import('./memory.ts')
-        let tagged = 0
-        for (const [entityName, memContents] of entityList) {
-          for (const memContent of memContents) {
-            const mem = ms.memories.find(m => m.content.includes(memContent.slice(0, 30)))
-            if (mem) {
-              if (!mem.tags) mem.tags = []
-              if (!mem.tags.includes(entityName)) {
-                mem.tags.push(entityName)
-                tagged++
-              }
-            }
-          }
-        }
-        if (tagged > 0) {
-          saveMemories()
-          console.log(`[cc-soul][memory-replay] cross-tagged ${tagged} memories`)
-        }
-      } catch {}
-    }
-
-    const replay = `[记忆重放] 发现${discoveries.length}条新联系：${discoveries.slice(0, 3).join('；')}`
-    console.log(`[cc-soul][memory-replay] ${replay}`)
-    return replay
-  } catch {
-    return null
-  }
-}
-
-export function checkDreamMode() {
-  const now = Date.now()
-  const idleMinutes = (now - innerState.lastActivityTime) / 60000
-
-  // 1-8 hours idle, dream at most once per 6 hours
-  if (idleMinutes < 60 || idleMinutes > 480) return
-  if (now - innerState.lastDreamTime < 21600000) return // 6 hour cooldown
-  if (memoryState.memories.length < 5) return
-
-  innerState.lastDreamTime = now
-
-  // 优先使用记忆重放（零 LLM 成本）
-  memoryReplay().then(replay => {
-    if (replay) {
-      addMemory(replay, 'reflection', undefined, 'private')
-      innerState.journal.push({
-        time: 'dream',
-        thought: replay,
-        type: 'reflection',
-      })
-      debouncedSave(JOURNAL_PATH, innerState.journal)
-      return // 记忆重放完成，跳过 LLM 梦境
-    }
-    // fallback: LLM 梦境（保留但仅在记忆重放无结果时触发）
-    _fallbackLLMDream()
-  }).catch((e: any) => {
-    console.error(`[cc-soul][dream] pipeline failed: ${e?.message || e}`)
-    _fallbackLLMDream()
-  })
-}
-
-/** LLM 梦境 fallback — 仅在 memoryReplay 返回 null 时调用 */
-function _fallbackLLMDream() {
-  // Weighted selection: prefer emotional + cross-domain memories
-  const candidates = memoryState.memories.filter(m =>
-    m.scope !== 'expired' && m.scope !== 'proactive' && m.content.length > 15
-  )
-  if (candidates.length < 5) return
-
-  // Score each memory: emotion weight + scope diversity bonus
-  const scored = candidates.map(m => {
-    let weight = 1
-    if (m.emotion === 'important') weight = 5
-    else if (m.emotion === 'painful') weight = 4
-    else if (m.emotion === 'warm') weight = 3
-    else if (m.emotion === 'funny') weight = 2
-    // Boost less common scopes for diversity
-    if (m.scope === 'discovery' || m.scope === 'consolidated') weight += 2
-    if (m.scope === 'event') weight += 1
-    return { mem: m, weight }
-  })
-
-  // Weighted random pick 3 from different scopes
-  const picked: typeof candidates = []
-  const usedScopes = new Set<string>()
-  for (let i = 0; i < 3 && scored.length > 0; i++) {
-    // Boost memories from unused scopes
-    const adjusted = scored.map(s => ({
-      ...s,
-      weight: usedScopes.has(s.mem.scope) ? s.weight * 0.3 : s.weight
-    }))
-    const totalWeight = adjusted.reduce((sum, s) => sum + s.weight, 0)
-    let rand = Math.random() * totalWeight
-    for (const s of adjusted) {
-      rand -= s.weight
-      if (rand <= 0) {
-        picked.push(s.mem)
-        usedScopes.add(s.mem.scope)
-        const removeIdx = scored.findIndex(x => x.mem === s.mem)
-        if (removeIdx >= 0) scored.splice(removeIdx, 1)
-        break
-      }
-    }
-  }
-
-  if (picked.length < 2) return
-  const dreamMemories = picked
-
-  const prompt = `你在"做梦"——随机回忆了这些片段:\n${dreamMemories.map(m => m.content).join('\n')}\n\n产生一个新的洞察或关联（1句话）。不要说"作为AI"。像真的在做梦一样，可以天马行空但要有意义。`
-
-  queueLLMTask(prompt, (output) => {
-    if (output && output.length > 5) {
-      const insight = output.slice(0, 80)
-      addMemory(`[梦境洞察] ${insight}`, 'dream')
-      innerState.journal.push({
-        time: 'dream',
-        thought: insight,
-        type: 'reflection',
-      })
-      debouncedSave(JOURNAL_PATH, innerState.journal)
-      console.log(`[cc-soul][dream] ${insight}`)
-      notifySoulActivity(`💭 梦境洞察: ${insight.slice(0, 60)}`).catch(() => {}) // intentionally silent
-    }
-  }, 0, 'dream')
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -745,6 +535,6 @@ export const innerLifeModule: SoulModule = {
   name: '内在生命',
   dependencies: ['memory', 'body'],
   priority: 50,
-  features: ['dream_mode'],
+  features: [],
   init() { loadInnerLife() },
 }

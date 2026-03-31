@@ -146,9 +146,24 @@ export default {
           // Normal message: write augments into SOUL.md
           if (data.system_prompt || data.augments) {
             const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
+            const MAX_SOUL_CHARS = 6000  // keep SOUL.md under 6K for model attention
+            let augmentStr = data.augments || ''
+            const baseLen = (data.system_prompt || '').length
+            if (baseLen + augmentStr.length > MAX_SOUL_CHARS) {
+              // Trim augments to fit budget — keep first N lines
+              const budget = MAX_SOUL_CHARS - baseLen - 50
+              if (budget > 200) {
+                augmentStr = augmentStr.slice(0, budget)
+                // Cut at last complete line
+                const lastNewline = augmentStr.lastIndexOf('\n')
+                if (lastNewline > 100) augmentStr = augmentStr.slice(0, lastNewline)
+              } else {
+                augmentStr = ''  // no room for augments
+              }
+            }
             const fullPrompt = data.system_prompt
-              ? data.system_prompt + (data.augments ? '\n\n## 内部指令（仅本轮有效）\n' + data.augments : '')
-              : data.augments
+              ? data.system_prompt + (augmentStr ? '\n\n## 内部指令（仅本轮有效）\n' + augmentStr : '')
+              : augmentStr
             writeFileSync(soulPath, fullPrompt, 'utf-8')
             _soulMdLock = Date.now() + 120000  // block bootstrap from overwriting for 2 min (30s was too short, bootstrap race condition)
             console.log(`[cc-soul][api] SOUL.md updated (${fullPrompt.length} chars)`)
@@ -163,8 +178,7 @@ export default {
       }, { name: 'cc-soul:preprocessed' })
 
       // ── Sent: call /feedback so cc-soul learns from AI's reply ──
-      // Problem: OpenClaw streaming card replies don't pass content in the event.
-      // Solution: try event content first, fallback to reading session JSONL after delay.
+      // Send feedback when AI reply is available.
       api.registerHook(['message:sent'], async (event: any) => {
         const content = (event.context?.content || event.content || event.text || '') as string
         const lastMsg = (globalThis as any).__ccSoulLastMsg || ''
@@ -211,54 +225,7 @@ export default {
         })
       }
 
-      // ── Delayed fallback: read bot reply from session JSONL (for streaming cards) ──
-      api.registerHook(['message:preprocessed'], async (_event: any) => {
-        const lastMsg = (globalThis as any).__ccSoulLastMsg
-        const lastSenderId = (globalThis as any).__ccSoulLastSenderId
-        if (!lastMsg) return
-
-        // Dedup: only one JSONL fallback per message
-        const feedbackKey = lastMsg.slice(0, 30) + ':' + lastSenderId
-        if ((globalThis as any).__ccSoulLastFeedback === feedbackKey) return
-        ;(globalThis as any).__ccSoulLastFeedback = feedbackKey
-
-        setTimeout(async () => {
-          try {
-            const { readdirSync, readFileSync: rf } = await import('fs')
-            const sessDir = resolve(homedir(), '.openclaw/agents/cc/sessions')
-            const files = readdirSync(sessDir).filter((f: string) => f.endsWith('.jsonl')).sort()
-            if (files.length === 0) return
-            const lastFile = resolve(sessDir, files[files.length - 1])
-            const lines = rf(lastFile, 'utf-8').trim().split('\n')
-            let botReply = ''
-            for (let i = lines.length - 1; i >= 0; i--) {
-              try {
-                const obj = JSON.parse(lines[i])
-                if (obj?.message?.role === 'assistant') {
-                  botReply = Array.isArray(obj.message.content)
-                    ? obj.message.content.filter((c: any) => c?.type === 'text').map((c: any) => c.text || '').join('')
-                    : (obj.message.content || '')
-                  break
-                }
-              } catch {}
-            }
-            if (!botReply || botReply.length < 10) return
-
-            // Dedup: skip if same content already sent via direct or plugin event path
-            if (!_markFeedbackSent(lastMsg, botReply)) {
-              console.log(`[cc-soul][api] feedback skipped (JSONL fallback, dedup)`)
-              return
-            }
-
-            await fetch(`${SOUL_API}/feedback`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ user_message: lastMsg, ai_reply: botReply, user_id: lastSenderId }),
-            })
-            console.log(`[cc-soul][api] feedback sent (JSONL fallback, ${botReply.length} chars)`)
-          } catch {}
-        }, 45000)
-      }, { name: 'cc-soul:delayed-feedback' })
+      // (JSONL session fallback removed — no platform-specific workarounds)
 
       // ── Commands: route through /command API ──
       if (typeof api.on === 'function') {

@@ -4,7 +4,7 @@
  * Handles all file I/O: path constants, atomic save, debounced writes, config loading.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync } from 'fs'
 import { resolve } from 'path'
 import { homedir } from 'os'
 import type { SoulConfig } from './types.ts'
@@ -85,20 +85,74 @@ export function ensureDataDir() {
 // LOAD JSON
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ── SQLite KV Store (primary) — JSON files as fallback ──
+let _kvDb: any = null
+let _kvDbFailed = false
+
+function getKVDb() {
+  if (_kvDb || _kvDbFailed) return _kvDb
+  try {
+    const dbPath = resolve(DATA_DIR, 'soul_kv.db')
+    const { DatabaseSync } = require('node:sqlite')
+    _kvDb = new DatabaseSync(dbPath)
+    _kvDb.exec('CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)')
+    _migrateJsonToSqlite()
+    console.log(`[cc-soul][kv] SQLite KV store ready (${dbPath})`)
+  } catch (e: any) {
+    console.error(`[cc-soul][kv] SQLite init failed, falling back to JSON: ${e.message}`)
+    _kvDbFailed = true
+  }
+  return _kvDb
+}
+
+function _kvKey(path: string): string {
+  // Extract filename from path: /Users/.../data/features.json → features.json
+  return path.split('/').pop() || path
+}
+
+function _migrateJsonToSqlite() {
+  if (!_kvDb) return
+  try {
+    const files = readdirSync(DATA_DIR).filter(f => f.endsWith('.json'))
+    let migrated = 0
+    const stmt = _kvDb.prepare('INSERT OR IGNORE INTO kv (key, value, updated_at) VALUES (?, ?, ?)')
+    for (const f of files) {
+      try {
+        const raw = readFileSync(resolve(DATA_DIR, f), 'utf-8').trim()
+        if (raw) { stmt.run(f, raw, Date.now()); migrated++ }
+      } catch {}
+    }
+    if (migrated > 0) console.log(`[cc-soul][kv] migrated ${migrated} JSON files to SQLite`)
+  } catch {}
+}
+
 export function loadJson<T>(path: string, fallback: T): T {
+  const db = getKVDb()
+  const key = _kvKey(path)
+
+  // Primary: read from SQLite
+  if (db) {
+    try {
+      const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as { value: string } | undefined
+      if (row?.value) return JSON.parse(row.value)
+    } catch {}
+  }
+
+  // Fallback: read from JSON file
   try {
     const raw = readFileSync(path, 'utf-8').trim()
     if (!raw) return fallback
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    // Write to SQLite for next time
+    if (db) try { db.prepare('INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)').run(key, raw, Date.now()) } catch {}
+    return parsed
   } catch (e: any) {
     if (e.code === 'ENOENT') return fallback
     console.error(`[cc-soul] CORRUPTED JSON: ${path}: ${e.message}`)
-    // Backup corrupted file for diagnosis
     try {
       const backup = path + '.corrupted.' + Date.now()
       writeFileSync(backup, readFileSync(path, 'utf-8'), 'utf-8')
-      console.error(`[cc-soul] corrupted file backed up to ${backup}`)
-    } catch { /* best effort */ }
+    } catch {}
   }
   return fallback
 }
@@ -110,15 +164,29 @@ export function loadJson<T>(path: string, fallback: T): T {
 const pendingSaves = new Map<string, { data: any; timer: ReturnType<typeof setTimeout> | null }>()
 
 export function saveJson(path: string, data: any) {
-  // Cancel any pending debounced save for this path to prevent stale data overwrite
   const pending = pendingSaves.get(path)
   if (pending?.timer) clearTimeout(pending.timer)
   pendingSaves.delete(path)
 
+  const db = getKVDb()
+  const key = _kvKey(path)
+  const json = JSON.stringify(data, null, 2)
+
+  // Primary: write to SQLite
+  if (db) {
+    try {
+      db.prepare('INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)').run(key, json, Date.now())
+      return  // SQLite succeeded, no need for JSON file
+    } catch (e: any) {
+      console.error(`[cc-soul][kv] SQLite write failed, falling back to JSON: ${e.message}`)
+    }
+  }
+
+  // Fallback: write JSON file (only if SQLite unavailable)
   ensureDataDir()
   const tmp = path + '.tmp'
   try {
-    writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8')
+    writeFileSync(tmp, json, 'utf-8')
     renameSync(tmp, path)
   } catch (e: any) {
     console.error(`[cc-soul] failed to save ${path}: ${e.message}`)
@@ -128,7 +196,6 @@ export function saveJson(path: string, data: any) {
 export function debouncedSave(path: string, data: any, delayMs = 3000) {
   const existing = pendingSaves.get(path)
   if (existing?.timer) clearTimeout(existing.timer)
-  // Clone data to prevent stale reference after reassignment
   const snapshot = JSON.parse(JSON.stringify(data))
   const timer = setTimeout(() => {
     saveJson(path, snapshot)

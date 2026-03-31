@@ -337,7 +337,6 @@ export function getPersonaDriftReinforcement(): string | null {
 export const personaDriftModule: SoulModule = {
   id: 'persona-drift',
   name: '人格漂移检测',
-  features: ['persona_drift'],
   priority: 30,
 
   init(): void {
