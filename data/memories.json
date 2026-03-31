@@ -1,5 +1,79 @@
 [
   {
+    "content": "面临工作与亲密关系的双重压力时，倾向于用碎片化陈述或转移话题（如切换至技术问题）来应对，反映出潜在的平衡困境与情感压抑习惯。",
+    "scope": "insight",
+    "ts": 1774965863597,
+    "emotion": "neutral",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "在亲密关系中存在情感表达与沟通的困难，倾向于回避深入交流，内心可能伴随无力感或未表达的愧疚。",
+    "scope": "insight",
+    "ts": 1774965863593,
+    "emotion": "neutral",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "将自我价值感与工作表现深度绑定，对工作责任有强烈的完美主义倾向和焦虑，导致压力内化并引发生理反应（如失眠）。",
+    "scope": "insight",
+    "ts": 1774965863586,
+    "emotion": "neutral",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "存在一种用技术/工作议题来转移或掩盖情感与关系压力的行为模式，反映出内心在平衡工作与情感需求上的困境。",
+    "scope": "insight",
+    "ts": 1774942576340,
+    "emotion": "neutral",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6638461538461539,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774942620034
+  },
+  {
+    "content": "在亲密关系中存在情感表达障碍与回避倾向，面对冲突时倾向于重复陈述问题而非深入沟通或寻求解决。",
+    "scope": "insight",
+    "ts": 1774942576335,
+    "emotion": "neutral",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.6,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 0
+  },
+  {
+    "content": "将自我价值与工作表现深度绑定，工作责任感和完美主义倾向已引发显著焦虑与生理反应（如失眠）。",
+    "scope": "insight",
+    "ts": 1774942576327,
+    "emotion": "neutral",
+    "visibility": "private",
+    "tags": [],
+    "confidence": 0.666923076923077,
+    "lastAccessed": null,
+    "tier": "short_term",
+    "recallCount": 1,
+    "lastRecalled": 1774942620034
+  },
+  {
     "content": "[责任内化的压力模式] 项目延期导致失眠，显示其将工作责任完全转化为自我施压，可能潜意识认为‘我必须为所有延迟负责’。这种模式可能源自对失控的恐惧，或早期形成的‘必须完美履约’的价值观。",
     "scope": "wisdom",
     "ts": 1774941857274,
@@ -328,7 +402,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
-    "validFrom": 1774941181831
+    "validFrom": 1774941181831,
+    "contentNormalized": "[对话] 用户: 最近工作忙吗？ → AI: 我不忙，随时在。\n\n你呢？2026-03-31周二，这周有什么安排？"
   },
   {
     "content": "[矛盾面] 声称关心工作进展（做PPT）却拖延主题选择；声称关心女友却因忽视而引发争吵，可能存在知行不一的自我认知偏差。 (关于自我)",
@@ -1172,10 +1247,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710512,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 30,
-    "lastRecalled": 1774942710512,
+    "recallCount": 33,
+    "lastRecalled": 1774966075604,
     "validFrom": 1774914949315
   },
   {
@@ -1297,10 +1372,10 @@
     "visibility": "global",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710512,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 28,
-    "lastRecalled": 1774942710512,
+    "recallCount": 30,
+    "lastRecalled": 1774966075454,
     "validFrom": 1774914212339
   },
   {
@@ -1429,10 +1504,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710511,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 43,
-    "lastRecalled": 1774942710511,
+    "recallCount": 47,
+    "lastRecalled": 1774966075604,
     "validFrom": 1774913970471
   },
   {
@@ -1554,7 +1629,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
-    "lastRecalled": 1774913698355
+    "lastRecalled": 1774913698355,
+    "contentNormalized": "用户2026-03-31被老板当众批评，感到委屈"
   },
   {
     "content": "[未说出口的话] 重复提及与同事王磊合作解决技术问题，可能隐含对团队协作的重视，或未言明的对同事能力的认可/依赖。 (关于王磊)",
@@ -1579,10 +1655,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710512,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 34,
-    "lastRecalled": 1774942710512
+    "recallCount": 37,
+    "lastRecalled": 1774966075453
   },
   {
     "content": "[情绪表达习惯] 在表达委屈时，倾向于重复陈述事实（如“今天被老板当众批评了，感觉特别委屈”重复两次），而非直接宣泄情绪或详细描述细节，可能习惯用克制的方式表达内心波动。 (关于老板)",
@@ -1596,7 +1672,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 1,
-    "lastRecalled": 1774913698355
+    "lastRecalled": 1774913698355,
+    "contentNormalized": "[情绪表达习惯] 在表达委屈时，倾向于重复陈述事实（如“2026-03-31被老板当众批评了，感觉特别委屈”重复两次），而非直接宣泄情绪或详细描述细节，可能习惯用克制的方式表达内心波动。 (关于老板)"
   },
   {
     "content": "[对话] 用户: 今天被老板当众批评了，感觉特别委屈 → AI: 确实不好受，当众批评换谁都难受。\n\n老板是因为什么事？项目延期还是别的问题？\n\n现在想聊聊，还是先缓缓？",
@@ -1610,7 +1687,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
-    "validFrom": 1774913652843
+    "validFrom": 1774913652843,
+    "contentNormalized": "[对话] 用户: 2026-03-31被老板当众批评了，感觉特别委屈 → AI: 确实不好受，当众批评换谁都难受。\n\n老板是因为什么事？项目延期还是别的问题？\n\n现在想聊聊，还是先缓缓？"
   },
   {
     "content": "[未表达的委屈情绪] 被老板当众批评后只说‘感觉特别委屈’，未展开具体细节，可能隐藏着更深的职业挫败感或对权威的复杂情绪 (关于老板)",
@@ -1994,7 +2072,8 @@
     "tier": "short_term",
     "recallCount": 1,
     "lastRecalled": 1774912891646,
-    "validFrom": 1774912850459
+    "validFrom": 1774912850459,
+    "contentNormalized": "[对话] 用户: 2026-03-30和同事王磊一起调试了一个Nginx配置问题，搞了3个小时才搞定 → AI: 收到。\n\n（记下了：同事王磊，一起调试 Nginx 配置问题 3 小时）\n\n什么问题这么难搞？配置重写规则还是负载均衡？"
   },
   {
     "content": "张三在美团用Java写后端",
@@ -2448,7 +2527,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
-    "validFrom": 1774912044550
+    "validFrom": 1774912044550,
+    "contentNormalized": "[对话] 用户: 哈哈2026-03-31天气真好 → AI: 张三，2026-03-31巴黎天气确实不错。\n\n心情好点了？还是转移话题？"
   },
   {
     "content": "[对话] 用户: 下周五要做年度技术分享，得好好准备 → AI: 张三，技术分享主题定了没？多长时间？听众什么背景？\n\n（记下了：下周五年度技术分享）",
@@ -2534,7 +2614,8 @@
     "confidence": 0.7,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0
+    "recallCount": 0,
+    "contentNormalized": "用户2026-03-31被老板骂了一顿"
   },
   {
     "content": "[对话] 用户: 今天被老板骂了一顿，心情很差 → AI: 张三，因为什么被骂？项目延期还是别的事？\n\n现在想聊聊，还是先缓缓？",
@@ -2548,7 +2629,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 0,
-    "validFrom": 1774911773784
+    "validFrom": 1774911773784,
+    "contentNormalized": "[对话] 用户: 2026-03-31被老板骂了一顿，心情很差 → AI: 张三，因为什么被骂？项目延期还是别的事？\n\n现在想聊聊，还是先缓缓？"
   },
   {
     "content": "新猫到家可能躲藏、不吃不喝，应给3-7天适应期，避免强行抱",
@@ -3499,7 +3581,7 @@
   },
   {
     "content": "用户有个女儿叫朵朵，5岁",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774901731633,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3512,8 +3594,8 @@
     "validFrom": 1774901731633
   },
   {
-    "content": "[对话] 用户: 我有个女儿，今年5岁了，叫朵朵 → AI: 收到，老王。\n\n（记下了：有个女儿叫朵朵，5岁）\n\n朵朵最近怎么样？之前聊过孩子写作业和玩手机的问题，是朵朵吗？",
-    "scope": "fact",
+    "content": "[对话] 用户: 我有个女儿，今年5岁了，叫朵朵 → AI: 收到，老王。\n\n（记下了：有个女儿叫朵...",
+    "scope": "archived",
     "ts": 1774901726682,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3527,7 +3609,7 @@
   },
   {
     "content": "Vue 技术栈",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774901683522,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3541,7 +3623,7 @@
   },
   {
     "content": "腾讯前端开发",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774901683518,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3555,7 +3637,7 @@
   },
   {
     "content": "用户是老王",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774901683512,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3582,8 +3664,8 @@
     "lastRecalled": 1774901681653
   },
   {
-    "content": "[对话] 用户: 我是谁 → AI: 你是 **老王**。\n\n- 腾讯前端开发，Vue 技术栈\n- 喜欢吃火锅，讨厌吃寿司和 Angular\n- 最近项目延期",
-    "scope": "fact",
+    "content": "[对话] 用户: 我是谁 → AI: 你是 **老王**。\n\n- 腾讯前端开发，Vue 技术栈\n-...",
+    "scope": "archived",
     "ts": 1774901673895,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3597,7 +3679,7 @@
   },
   {
     "content": "[对话] 用户: 好的 → AI: 好的，小王。有事儿随时说。",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774901015660,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3611,7 +3693,7 @@
   },
   {
     "content": "小王之前提过睡眠不好（凌晨三点醒）",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774900985560,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3624,7 +3706,7 @@
   },
   {
     "content": "小王当前项目延期，压力大，老板天天催",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774900985555,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3637,7 +3719,7 @@
   },
   {
     "content": "小王喜欢吃火锅，讨厌吃寿司",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774900985551,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3651,7 +3733,7 @@
   },
   {
     "content": "小王最喜欢Vue，讨厌Angular",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774900985545,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3680,7 +3762,7 @@
   },
   {
     "content": "用户的老板天天催项目进度",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774900923140,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3693,7 +3775,7 @@
   },
   {
     "content": "用户的项目延期了",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774900923138,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3706,7 +3788,7 @@
   },
   {
     "content": "用户最近压力特别大",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774900923132,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3719,7 +3801,7 @@
   },
   {
     "content": "Node.js全栈方向可学习BFF层、工具链开发，技术栈包括Nest.js/Egg.js + 数据库",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899951513,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3733,7 +3815,7 @@
   },
   {
     "content": "前端性能优化包括Core Web Vitals、懒加载、代码分割",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899951507,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3747,7 +3829,7 @@
   },
   {
     "content": "Vue 3源码学习可理解响应式、编译优化，面试加分",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899951502,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3761,7 +3843,7 @@
   },
   {
     "content": "TypeScript是大型项目标配，腾讯肯定用",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774899951497,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3774,7 +3856,7 @@
   },
   {
     "content": "小王是腾讯前端，使用Vue技术栈",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899951489,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3787,8 +3869,8 @@
     "validFrom": 1774899951489
   },
   {
-    "content": "[对话] 用户: 我适合学什么新技术 → AI: 小王是腾讯前端，用 Vue。基于这个背景，建议方向：\n\n---\n\n**深耕前端（稳扎稳打）**\n\n| 技术 | 为什么 ",
-    "scope": "fact",
+    "content": "[对话] 用户: 我适合学什么新技术 → AI: 小王是腾讯前端，用 Vue。基于这个背景，建议方向...",
+    "scope": "archived",
     "ts": 1774899927905,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3802,7 +3884,7 @@
   },
   {
     "content": "小王在腾讯做前端开发",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899900163,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3816,7 +3898,7 @@
   },
   {
     "content": "[对话] 用户: 我之前跟你说过我在哪工作吗 → AI: 小王说过在 **腾讯** 做前端开发。",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899892652,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3830,7 +3912,7 @@
   },
   {
     "content": "用户对项目延期感到烦躁，老板在催促",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774899792856,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3842,8 +3924,8 @@
     "recallCount": 0
   },
   {
-    "content": "[对话] 用户: 烦死了！！项目又延期了 老板还在催 → AI: 小王，项目延期到什么程度？还有救吗？\n\n先理清楚：\n- 延期多久？原定什么时候上线？\n- 卡在技术问题还是需求变更？\n-",
-    "scope": "fact",
+    "content": "[对话] 用户: 烦死了！！项目又延期了 老板还在催 → AI: 小王，项目延期到什么程度？还有救吗...",
+    "scope": "archived",
     "ts": 1774899783556,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3857,7 +3939,7 @@
   },
   {
     "content": "小王讨厌吃寿司",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774899747279,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3871,7 +3953,7 @@
   },
   {
     "content": "小王喜欢吃火锅",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774899747273,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3884,8 +3966,8 @@
     "validFrom": 1774899747273
   },
   {
-    "content": "[对话] 用户: 你还记得我喜欢吃什么吗 → AI: 小王喜欢吃 **火锅**，讨厌吃 **寿司**。",
-    "scope": "fact",
+    "content": "[对话] 用户: 你还记得我喜欢吃什么吗 → AI: 小王喜欢吃 **火锅**，讨厌吃 **寿司**...",
+    "scope": "archived",
     "ts": 1774899739770,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3913,7 +3995,7 @@
   },
   {
     "content": "讨厌吃寿司",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774899672466,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3941,8 +4023,8 @@
     "validFrom": 1774899672461
   },
   {
-    "content": "[对话] 用户: 我特别喜欢吃火锅，讨厌吃寿司 → AI: 收到。\n\n（记下了：喜欢吃火锅，讨厌吃寿司）\n\n小王还有什么想聊的？",
-    "scope": "fact",
+    "content": "[对话] 用户: 我特别喜欢吃火锅，讨厌吃寿司 → AI: 收到。\n\n（记下了：喜欢吃火锅，讨厌吃寿...",
+    "scope": "archived",
     "ts": 1774899665587,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -3970,7 +4052,7 @@
   },
   {
     "content": "讨厌 Angular",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774899554903,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4044,7 +4126,7 @@
   },
   {
     "content": "用户叫小王",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774899468206,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4065,10 +4147,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710512,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 72,
-    "lastRecalled": 1774942710512,
+    "recallCount": 76,
+    "lastRecalled": 1774966075604,
     "validFrom": 1774899453090
   },
   {
@@ -4116,8 +4198,8 @@
     "lastRecalled": 1774901681653
   },
   {
-    "content": "Apache支持.htaccess和模块动态加载，Nginx不支持.htaccess且模块热加载需重编译",
-    "scope": "fact",
+    "content": "Apache支持.htaccess和模块动态加载，Nginx不支持.htaccess且模块热加载需重...",
+    "scope": "archived",
     "ts": 1774896205966,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4131,7 +4213,7 @@
   },
   {
     "content": "Nginx配置简洁声明式，Apache配置灵活但复杂",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774896205963,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4175,7 +4257,7 @@
   },
   {
     "content": "Nginx采用异步事件驱动架构，Apache采用多进程/多线程架构",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774896205941,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4263,8 +4345,8 @@
     "validFrom": 1774895823512
   },
   {
-    "content": "Goroutine 采用 M:N 调度模型，M 个 goroutine 映射到 N 个 OS 线程（GOMAXPROCS）。",
-    "scope": "fact",
+    "content": "Goroutine 采用 M:N 调度模型，M 个 goroutine 映射到 N 个 OS 线程（...",
+    "scope": "archived",
     "ts": 1774895823509,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4293,7 +4375,7 @@
   },
   {
     "content": "Goroutine 初始栈 2KB，可动态伸缩，可轻松开启百万个。",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774895823501,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4337,7 +4419,7 @@
   },
   {
     "content": "Docker是一个容器化平台，用于打包和运行应用。",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774895710807,
     "emotion": "neutral",
     "userId": "test_dedup",
@@ -4360,7 +4442,7 @@
   },
   {
     "content": "[对话] 用户: 什么是Docker → AI: Docker是一个容器化平台，用于打包和运行应用。",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774895704612,
     "emotion": "neutral",
     "userId": "test_dedup",
@@ -4417,8 +4499,8 @@
     "validFrom": 1774895545226
   },
   {
-    "content": "Kubernetes (K8s) 是容器编排平台，用于跨多台机器调度容器，提供自动扩缩容、故障自愈、服务发现等功能",
-    "scope": "fact",
+    "content": "Kubernetes (K8s) 是容器编排平台，用于跨多台机器调度容器，提供自动扩缩容、故障自愈、...",
+    "scope": "archived",
     "ts": 1774895545222,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4475,8 +4557,8 @@
     "lastRecalled": 1774899847600
   },
   {
-    "content": "[幽默方式] 使用混乱的‘aaaaa’夹杂技术词汇，是一种自嘲式、近乎行为艺术的情绪表达。用看似无意义的重复和拼写错误（如‘iguPython’）来调侃技术学习的混乱感与信息过载，而非直接抱怨。",
-    "scope": "wisdom",
+    "content": "[幽默方式] 使用混乱的‘aaaaa’夹杂技术词汇，是一种自嘲式、近乎行为艺术的情绪表达。用看似无意...",
+    "scope": "archived",
     "ts": 1774895507029,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4488,8 +4570,8 @@
     "recallCount": 0
   },
   {
-    "content": "[技术选择背后的自我怀疑与遗憾] 对过去技术选型（Go vs Rust）的反复追问，透露出对决策合理性的深度怀疑和潜在的后悔。可能认为当初为追求开发效率（Go的简洁）而牺牲了技术前瞻性或性能（Rust的优势），这种纠结反映了他对自身技术判断力存在焦虑，并渴望为过去的‘错误’",
-    "scope": "wisdom",
+    "content": "[技术选择背后的自我怀疑与遗憾] 对过去技术选型（Go vs Rust）的反复追问，透露出对决策合理...",
+    "scope": "archived",
     "ts": 1774895507016,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4502,7 +4584,7 @@
   },
   {
     "content": "微服务会带来分布式复杂度、运维成本增加、调试困难和数据一致性等挑战",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774895360492,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4531,7 +4613,7 @@
   },
   {
     "content": "微服务架构与单体架构在代码库、部署方式、技术栈、团队协作和故障影响方面存在差异",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774895360486,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4545,7 +4627,7 @@
   },
   {
     "content": "微服务是一种将大型系统拆分为多个独立部署的小服务的架构风格",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774895360480,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4558,8 +4640,8 @@
     "validFrom": 1774895360480
   },
   {
-    "content": "[对话] 用户: 什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**\n\n---\n\n**单体 vs 微服务**\n\n| | 单体 | 微服",
-    "scope": "fact",
+    "content": "[对话] 用户: 什么是微服务 → AI: **微服务：把一个大系统拆成多个独立部署的小服务。**...",
+    "scope": "archived",
     "ts": 1774895347416,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4573,7 +4655,7 @@
   },
   {
     "content": "Redis和MongoDB的核心差异：数据模型、持久化方式、查询能力、事务支持和适用场景",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774894973050,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4587,7 +4669,7 @@
   },
   {
     "content": "MongoDB是JSON-like文档数据库，适合内容管理、用户数据、日志、物联网等场景",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774894973045,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4661,7 +4743,7 @@
   },
   {
     "content": "Python线程不能真正并行执行CPU密集型任务，多线程在CPU密集型场景下无效甚至更慢",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774894803754,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4690,7 +4772,7 @@
   },
   {
     "content": "用户今天加班到很晚",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774894583160,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4699,7 +4781,8 @@
     "confidence": 0.6666666666666666,
     "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 0
+    "recallCount": 0,
+    "contentNormalized": "用户2026-03-31加班到很晚"
   },
   {
     "content": "[对话] 用户: 我在哪工作来着 → AI: 老板辛苦了。今天什么进度？项目延期的事有缓解吗？",
@@ -4714,7 +4797,8 @@
     "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774900922560,
-    "validFrom": 1774894540800
+    "validFrom": 1774894540800,
+    "contentNormalized": "[对话] 用户: 我在哪工作来着 → AI: 老板辛苦了。2026-03-31什么进度？项目延期的事有缓解吗？"
   },
   {
     "content": "[对话] 用户: 你还记得我叫什么吗 → AI: 老板在 **字节** 工作。",
@@ -4724,16 +4808,21 @@
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
     "visibility": "private",
     "tags": [],
-    "confidence": 0.8059183673469388,
-    "lastAccessed": null,
+    "confidence": 1,
+    "lastAccessed": 1774993075018,
     "tier": "short_term",
-    "recallCount": 5,
-    "lastRecalled": 1774899847599,
-    "validFrom": 1774894503690
+    "recallCount": 6,
+    "lastRecalled": 1774993075018,
+    "validFrom": 1774894503690,
+    "bayesAlpha": 15.732877855701485,
+    "bayesBeta": 0.5822448979591837,
+    "recallContexts": [
+      "还记得我吗"
+    ]
   },
   {
     "content": "用户询问Python和Rust的选择问题",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774894424206,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4745,8 +4834,8 @@
     "recallCount": 0
   },
   {
-    "content": "[对话] 用户: 你好，在吗 → AI: 老板想问 **Python 和 Rust 怎么选**？\n\n还是两个都想聊？",
-    "scope": "fact",
+    "content": "[对话] 用户: 你好，在吗 → AI: 老板想问 **Python 和 Rust 怎么选**？...",
+    "scope": "archived",
     "ts": 1774894416457,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4860,7 +4949,7 @@
   },
   {
     "content": "字节跳动内部Go生态成熟，拥有Kitex、Hertz等框架",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774893518727,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4919,7 +5008,7 @@
   },
   {
     "content": "YTWL肩背激活、死虫式、鸟狗式、游泳、颈部抗阻训练是强化锻炼颈椎的有效动作",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891662290,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4933,7 +5022,7 @@
   },
   {
     "content": "每小时应进行下巴后缩、头侧倾、耸肩后旋下沉等颈部拉伸动作",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891662287,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -4962,7 +5051,7 @@
   },
   {
     "content": "显示器上沿应与眼睛水平线齐平",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891662280,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5006,7 +5095,7 @@
   },
   {
     "content": "贷款决策路径：公积金能贷满需求则用纯公积金，否则用组合贷或纯商贷",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774891598706,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5019,7 +5108,7 @@
   },
   {
     "content": "公积金贷款提前还款灵活通常无违约金，商业贷款提前还款看合同可能收违约金",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891598704,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5033,7 +5122,7 @@
   },
   {
     "content": "公积金贷款审批速度慢（1-2个月），商业贷款审批速度快（1-2周）",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891598702,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5047,7 +5136,7 @@
   },
   {
     "content": "公积金贷款额度有限（通常60-120万），商业贷款额度高（可贷房价70-80%）",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891598700,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5061,7 +5150,7 @@
   },
   {
     "content": "公积金贷款5年以上利率为2.85%，商业贷款利率为3.5%-4.5%（LPR浮动）",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774891598697,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5090,7 +5179,7 @@
   },
   {
     "content": "如果孩子始终封闭，需要观察非语言信号",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774891532557,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5103,7 +5192,7 @@
   },
   {
     "content": "更有效的沟通策略包括：先分享自己的一天、利用碎片时间、关注情绪而非事实、不评判不立刻给建议",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774891532554,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5127,11 +5216,12 @@
     "tier": "short_term",
     "recallCount": 5,
     "lastRecalled": 1774895714406,
-    "validFrom": 1774891532550
+    "validFrom": 1774891532550,
+    "contentNormalized": "有效提问示例：'2026-03-31课间你和谁玩了？'、'数学课上老师讲了什么题？'、'你们班2026-03-31谁最搞笑？'"
   },
   {
     "content": "与孩子交流时，应避免开放式问题，使用具体、小范围、有场景的问题",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774891532545,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5315,10 +5405,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710511,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 88,
-    "lastRecalled": 1774942710511,
+    "recallCount": 92,
+    "lastRecalled": 1774966075604,
     "validFrom": 1774890025436
   },
   {
@@ -5338,7 +5428,7 @@
   },
   {
     "content": "单纯腰疼、活动后减轻、久坐后疼休息缓解、有明确诱因（如搬重物）的情况可以观察1-2周",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889983462,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5352,7 +5442,7 @@
   },
   {
     "content": "腰疼伴随发烧可能是感染，需要立即就医",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889983457,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5366,7 +5456,7 @@
   },
   {
     "content": "腰疼伴随大小便失禁或困难是马尾综合征的紧急信号，必须立即就医",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889983454,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5380,7 +5470,7 @@
   },
   {
     "content": "腰疼伴随腿麻、脚麻、无力可能是腰椎间盘突出压迫神经，需要立即就医",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889983446,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5393,8 +5483,8 @@
     "validFrom": 1774889983446
   },
   {
-    "content": "[对话] 用户: 腰疼好几天了需要去医院吗？ → AI: **看情况，有几个红线信号必须去：**\n\n| 必须立即就医 | 可以观察1-2周 |\n|-------------|--",
-    "scope": "fact",
+    "content": "[对话] 用户: 腰疼好几天了需要去医院吗？ → AI: **看情况，有几个红线信号必须去：**...",
+    "scope": "archived",
     "ts": 1774889962431,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5408,7 +5498,7 @@
   },
   {
     "content": "年收入较高（如超过20万）时通常单独计税更划算；年收入低（扣除后不足6万）时并入综合所得可能免税",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889914049,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5422,7 +5512,7 @@
   },
   {
     "content": "并入综合所得方法：将年终奖与全年工资合并后按年度累计税率计算个税",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889914046,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5436,7 +5526,7 @@
   },
   {
     "content": "单独计税方法：年终奖÷12后按月税率表确定税率，计算公式为年终奖×税率-速算扣除数",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889914043,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5450,7 +5540,7 @@
   },
   {
     "content": "年终奖个税有两种计算方式：单独计税和并入综合所得，应选择税额较低的方式",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774889914037,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5479,7 +5569,7 @@
   },
   {
     "content": "孩子持续两周以上不愿上学且严重影响家庭功能是需要专业帮助的红线信号",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774889850028,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5492,7 +5582,7 @@
   },
   {
     "content": "应对孩子不愿上学的短期方法：不质问先倾听、降低启动难度、和老师结盟",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774889850026,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5579,7 +5669,7 @@
   },
   {
     "content": "日本需带转换插头（两扁插）、便携垃圾袋（街上垃圾桶少）、充电宝（租借不便）",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774878314596,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5606,8 +5696,8 @@
     "lastRecalled": 1774889917404
   },
   {
-    "content": "日本现金建议带5-10万日元，信用卡需Visa/Master，Suica/Pasmo卡可iPhone电子卡使用",
-    "scope": "fact",
+    "content": "日本现金建议带5-10万日元，信用卡需Visa/Master，Suica/Pasmo卡可iPhone...",
+    "scope": "archived",
     "ts": 1774878314590,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5664,8 +5754,8 @@
     "lastRecalled": 1774895714405
   },
   {
-    "content": "避坑建议：别一开始练solo，节奏感更重要；手指疼会持续两周左右；先免费学习（如B站），坚持3个月再考虑付费",
-    "scope": "opinion",
+    "content": "避坑建议：别一开始练solo，节奏感更重要；手指疼会持续两周左右；先免费学习（如B站），坚持3个月再...",
+    "scope": "archived",
     "ts": 1774878232767,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5678,7 +5768,7 @@
   },
   {
     "content": "1-2个月后系统学习乐理（音阶、和弦构成）和技巧（大横按、扫弦、指弹）",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774878232765,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5692,7 +5782,7 @@
   },
   {
     "content": "第一首歌建议选择C-G-Am-Em循环的歌曲，如《平凡之路》《拥抱》",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774878232762,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5705,7 +5795,7 @@
   },
   {
     "content": "前两周每日15分钟练习计划：爬格子、53231323、C/G/Am/Em和弦切换",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774878232756,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5718,8 +5808,8 @@
     "validFrom": 1774878232756
   },
   {
-    "content": "零基础吉他入门路径：选琴（预算500-1000，推荐雅马哈F310、卡马D1C，尺寸建议41寸或40寸，避免低价劣质琴）",
-    "scope": "fact",
+    "content": "零基础吉他入门路径：选琴（预算500-1000，推荐雅马哈F310、卡马D1C，尺寸建议41寸或40...",
+    "scope": "archived",
     "ts": 1774878232745,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5800,10 +5890,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710512,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 93,
-    "lastRecalled": 1774942710512,
+    "recallCount": 97,
+    "lastRecalled": 1774966075604,
     "validFrom": 1774877983819
   },
   {
@@ -5836,7 +5926,7 @@
   },
   {
     "content": "用户曾问过Go的HTTP服务器、channel vs mutex问题",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774874660447,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5923,7 +6013,7 @@
   },
   {
     "content": "用户可能拥有服务器配置需求，但未具体说明过",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774873219165,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -5992,7 +6082,7 @@
   },
   {
     "content": "微服务的代价包括分布式复杂度、运维成本、调试困难、数据一致性问题",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774873022468,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6006,7 +6096,7 @@
   },
   {
     "content": "采用微服务的原因包括团队规模大、模块独立扩容需求、技术债务重",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774873022466,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6020,7 +6110,7 @@
   },
   {
     "content": "单体架构与微服务架构在代码库、部署、技术栈、团队协作、故障影响方面的对比",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774873022463,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6034,7 +6124,7 @@
   },
   {
     "content": "微服务是将一个大系统拆分成多个独立部署的小服务",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774873022460,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6063,7 +6153,7 @@
   },
   {
     "content": "用户正在考虑跳槽，处于职业决策阶段",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774872982534,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6210,7 +6300,7 @@
   },
   {
     "content": "JSONDecodeError通常由非标准JSON格式引起，如包含注释或尾部逗号",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774872740138,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6299,7 +6389,7 @@
   },
   {
     "content": "大哥睡眠不太好",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774872598714,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6356,7 +6446,7 @@
   },
   {
     "content": "可安装网站屏蔽插件如Cold Turkey",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774869270490,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6370,7 +6460,7 @@
   },
   {
     "content": "避免完全禁止手机，否则容易反弹",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774869270488,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6383,7 +6473,7 @@
   },
   {
     "content": "应对手机成瘾的立即可做措施：物理隔离、契约代替命令、替代活动先跟上",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774869270486,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6440,7 +6530,7 @@
   },
   {
     "content": "新手应避开的投资坑：个股（研究不透）、期货/期权/外汇（杠杆）、任何‘保本高收益’",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774869194081,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6452,8 +6542,8 @@
     "recallCount": 0
   },
   {
-    "content": "新手投资路径：先建立安全垫（存生活费、还高息负债、买保险），再理解自己（资金期限、风险承受力、查看频率），最后从低风险工具开始",
-    "scope": "opinion",
+    "content": "新手投资路径：先建立安全垫（存生活费、还高息负债、买保险），再理解自己（资金期限、风险承受力、查看频...",
+    "scope": "archived",
     "ts": 1774869194073,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6466,7 +6556,7 @@
   },
   {
     "content": "投资第一原则：不用的钱才能投",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774869194068,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6493,8 +6583,8 @@
     "validFrom": 1774869180122
   },
   {
-    "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义；type 支持联合类型和映射类型，interface 不支持这些特性",
-    "scope": "fact",
+    "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义...",
+    "scope": "archived",
     "ts": 1774869073183,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6517,7 +6607,7 @@
   },
   {
     "content": "TypeScript 中 type 支持联合类型和映射类型，interface 不支持这些特性",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774869070392,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6531,7 +6621,7 @@
   },
   {
     "content": "TypeScript 中 interface 支持声明合并（自动扩展），而 type 不支持重复定义",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774869070383,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6642,10 +6732,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710512,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 91,
-    "lastRecalled": 1774942710512,
+    "recallCount": 95,
+    "lastRecalled": 1774966075604,
     "validFrom": 1774867947623
   },
   {
@@ -6664,8 +6754,8 @@
     "validFrom": 1774866616614
   },
   {
-    "content": "Go应用多阶段构建示例：第一阶段使用golang镜像编译，第二阶段使用alpine镜像运行，可大幅减小镜像体积",
-    "scope": "fact",
+    "content": "Go应用多阶段构建示例：第一阶段使用golang镜像编译，第二阶段使用alpine镜像运行，可大幅减...",
+    "scope": "archived",
     "ts": 1774866616611,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6739,7 +6829,7 @@
   },
   {
     "content": "Kafka 削峰能力极强，堆积无压力；RabbitMQ 堆积影响性能",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774865138387,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6753,7 +6843,7 @@
   },
   {
     "content": "Kafka 分区内严格有序；RabbitMQ 单队列有序，难扩展",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774865138384,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6767,7 +6857,7 @@
   },
   {
     "content": "Kafka 磁盘持久化，可重放；RabbitMQ 默认内存，持久化性能下降",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774865138380,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6781,7 +6871,7 @@
   },
   {
     "content": "Kafka 吞吐量百万级/秒，RabbitMQ 吞吐量万级/秒",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774865138371,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6810,7 +6900,7 @@
   },
   {
     "content": "用户有睡眠问题，经常凌晨三点醒",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774865049468,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6838,7 +6928,7 @@
   },
   {
     "content": "吃烤鸭推荐四季民福，性价比高于全聚德，可用'美味不用等'取号",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774864981499,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6851,7 +6941,7 @@
   },
   {
     "content": "北京地面交通不可预测，酒店选地铁沿线更重要",
-    "scope": "opinion",
+    "scope": "archived",
     "ts": 1774864981495,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -6950,7 +7040,7 @@
   },
   {
     "content": "由于服务器负载太高，我们决定扩容到三节点",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774864519664,
     "emotion": "neutral",
     "userId": "test_causal_yy",
@@ -6973,11 +7063,12 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 2,
-    "lastRecalled": 1774894531788
+    "lastRecalled": 1774894531788,
+    "contentNormalized": "2026-03-31学了新的设计模式，很有意思的方法论"
   },
   {
-    "content": "I chose option B because it has better documentation and community support",
-    "scope": "preference",
+    "content": "I chose option B because it has better documentati...",
+    "scope": "archived",
     "ts": 1774864519663,
     "emotion": "neutral",
     "userId": "test_causal_en",
@@ -7079,7 +7170,7 @@
   },
   {
     "content": "用户时区为 Europe/Paris (GMT+1)",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774862761007,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7093,7 +7184,7 @@
   },
   {
     "content": "用户偏好被称呼为大哥",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774862761003,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7106,8 +7197,8 @@
     "validFrom": 1774862761003
   },
   {
-    "content": "[对话] 用户: 我是谁 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你大哥）\n- 时区：Europe/Paris (GMT+1)",
-    "scope": "fact",
+    "content": "[对话] 用户: 我是谁 → AI: 你是 **大哥**，我的用户。\n\n- 名字：wang（让我叫你...",
+    "scope": "archived",
     "ts": 1774862747412,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7129,7 +7220,7 @@
   },
   {
     "content": "用户沟通风格偏好直接、简洁",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774862738924,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7157,7 +7248,7 @@
   },
   {
     "content": "用户时区为Europe/Paris (GMT+1)",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774862738919,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7171,7 +7262,7 @@
   },
   {
     "content": "用户希望被称呼为大哥",
-    "scope": "preference",
+    "scope": "archived",
     "ts": 1774862738915,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7229,7 +7320,7 @@
   },
   {
     "content": "常见优化手段：无索引/索引未命中时使用CREATE INDEX，检查WHERE字段类型匹配",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861798003,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7242,8 +7333,8 @@
     "validFrom": 1774861798003
   },
   {
-    "content": "分析执行计划使用EXPLAIN ANALYZE，关注type（ALL=全表扫描）、rows、Extra（Using filesort/Using temporary）",
-    "scope": "fact",
+    "content": "分析执行计划使用EXPLAIN ANALYZE，关注type（ALL=全表扫描）、rows、Extr...",
+    "scope": "archived",
     "ts": 1774861798002,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7256,8 +7347,8 @@
     "validFrom": 1774861798002
   },
   {
-    "content": "定位慢查询可通过查看慢查询日志配置、实时查看正在执行的慢查询（SHOW PROCESSLIST, performance_schema.events_statements_current）",
-    "scope": "fact",
+    "content": "定位慢查询可通过查看慢查询日志配置、实时查看正在执行的慢查询（SHOW PROCESSLIST, p...",
+    "scope": "archived",
     "ts": 1774861798000,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7271,7 +7362,7 @@
   },
   {
     "content": "常见优化手段包括创建索引、检查WHERE字段类型匹配",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861797413,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7285,7 +7376,7 @@
   },
   {
     "content": "分析执行计划可使用EXPLAIN ANALYZE，关注type、rows、Extra字段",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861797409,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7299,7 +7390,7 @@
   },
   {
     "content": "定位慢查询可通过查看慢查询日志配置、实时查看正在执行的慢查询",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861797406,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7313,7 +7404,7 @@
   },
   {
     "content": "常见优化手段：针对无索引/索引未命中问题创建索引并检查WHERE字段类型匹配",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861796843,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7327,7 +7418,7 @@
   },
   {
     "content": "分析执行计划使用EXPLAIN ANALYZE，关注type、rows、Extra字段",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861796842,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7341,7 +7432,7 @@
   },
   {
     "content": "定位慢查询的方法：查看慢查询日志配置、实时查看正在执行的慢查询",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861796839,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7355,7 +7446,7 @@
   },
   {
     "content": "MySQL慢查询优化步骤：定位慢查询、分析执行计划、常见优化手段",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774861796836,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7622,7 +7713,7 @@
   },
   {
     "content": "用户正在学习Rust",
-    "scope": "event",
+    "scope": "archived",
     "ts": 1774860518884,
     "emotion": "neutral",
     "userId": "test_fix",
@@ -7635,7 +7726,7 @@
   },
   {
     "content": "[对话] 用户: 我最近在学Rust → AI: Rust很好，从Rust Book开始",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774860506572,
     "emotion": "neutral",
     "userId": "test_fix",
@@ -7664,7 +7755,7 @@
   },
   {
     "content": "CPU并行计算解决方案：使用multiprocessing多进程",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774860496198,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7700,10 +7791,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710511,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 80,
-    "lastRecalled": 1774942710511,
+    "recallCount": 82,
+    "lastRecalled": 1774966075454,
     "validFrom": 1774860496194
   },
   {
@@ -7715,15 +7806,15 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710511,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 74,
-    "lastRecalled": 1774942710511,
+    "recallCount": 76,
+    "lastRecalled": 1774966075454,
     "validFrom": 1774860496189
   },
   {
     "content": "decay_test_old_memory_for_unit_test",
-    "scope": "mid_term",
+    "scope": "archived",
     "ts": 1774860485304,
     "emotion": "neutral",
     "userId": "test-user",
@@ -7744,10 +7835,10 @@
     "visibility": "private",
     "tags": [],
     "confidence": 1,
-    "lastAccessed": 1774942710511,
+    "lastAccessed": null,
     "tier": "short_term",
-    "recallCount": 80,
-    "lastRecalled": 1774942710511,
+    "recallCount": 82,
+    "lastRecalled": 1774966075454,
     "validFrom": 1774860485291
   },
   {
@@ -7807,7 +7898,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 4,
-    "lastRecalled": 1774894531788
+    "lastRecalled": 1774894531788,
+    "contentNormalized": "与wang的对话从2026-03-31开始"
   },
   {
     "content": "与 wang 的对话从今天开始",
@@ -7821,7 +7913,8 @@
     "lastAccessed": null,
     "tier": "short_term",
     "recallCount": 3,
-    "lastRecalled": 1774894531788
+    "lastRecalled": 1774894531788,
+    "contentNormalized": "与 wang 的对话从2026-03-31开始"
   },
   {
     "content": "用户的沟通风格偏好是直接、简洁",
@@ -7885,7 +7978,7 @@
   },
   {
     "content": "用户的时区是Europe/Paris (GMT+1)",
-    "scope": "fact",
+    "scope": "archived",
     "ts": 1774860160279,
     "emotion": "neutral",
     "userId": "ou_db9ed11831f16364610ed6eefcff963e",
@@ -7987,8 +8080,8 @@
     "lastRecalled": 1774901681653
   },
   {
-    "content": "[historical] A friend named Lao Meng invited wang to play basketball tomorrow.",
-    "scope": "fact",
+    "content": "[historical] A friend named Lao Meng invited wang...",
+    "scope": "archived",
     "ts": 1774859919878,
     "emotion": "neutral",
     "visibility": "global",
@@ -8000,8 +8093,8 @@
     "validFrom": 1774859919878
   },
   {
-    "content": "[historical] wang has a running goal to complete 10km by next month; today he ran 2km, bringing his cumulative total to 7km.",
-    "scope": "fact",
+    "content": "[historical] wang has a running goal to complete 1...",
+    "scope": "archived",
     "ts": 1774859919877,
     "emotion": "neutral",
     "visibility": "global",
@@ -8013,8 +8106,8 @@
     "validFrom": 1774859919877
   },
   {
-    "content": "[historical] wang's core value, learned from his father, is \"to be worthy of one's conscience.\"",
-    "scope": "fact",
+    "content": "[historical] wang's core value, learned from his f...",
+    "scope": "archived",
     "ts": 1774859919875,
     "emotion": "neutral",
     "visibility": "global",
@@ -8026,8 +8119,8 @@
     "validFrom": 1774859919875
   },
   {
-    "content": "[historical] wang had an argument with his wife today; she accused him of never caring about the family, and he acknowledges he hasn't done enough.",
-    "scope": "fact",
+    "content": "[historical] wang had an argument with his wife to...",
+    "scope": "archived",
     "ts": 1774859919871,
     "emotion": "neutral",
     "visibility": "global",
@@ -8039,8 +8132,8 @@
     "validFrom": 1774859919871
   },
   {
-    "content": "[historical] wang will be on a business trip to Beijing next Wednesday.",
-    "scope": "fact",
+    "content": "[historical] wang will be on a business trip to Be...",
+    "scope": "archived",
     "ts": 1774859919867,
     "emotion": "neutral",
     "visibility": "global",
@@ -8064,103 +8157,5 @@
     "tier": "short_term",
     "recallCount": 2,
     "lastRecalled": 1774860157782
-  },
-  {
-    "content": "将自我价值与工作表现深度绑定，工作责任感和完美主义倾向已引发显著焦虑与生理反应（如失眠）。",
-    "scope": "insight",
-    "ts": 1774942576327,
-    "visibility": "private",
-    "bayesAlpha": 2,
-    "bayesBeta": 1,
-    "confidence": 0.666923076923077,
-    "lastAccessed": 1774942620034,
-    "tier": "short_term",
-    "recallCount": 1,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "importance": 10,
-    "surprise": 10,
-    "situationCtx": {
-      "mood": 0.242504693470799,
-      "energy": 0.9826376379018279
-    },
-    "tags": [
-      "绑定",
-      "如失眠",
-      "将自我价",
-      "值与工作",
-      "表现深度",
-      "工作责任",
-      "感和完美",
-      "主义倾向",
-      "已引发显",
-      "著焦虑与"
-    ],
-    "lastRecalled": 1774942620034
-  },
-  {
-    "content": "在亲密关系中存在情感表达障碍与回避倾向，面对冲突时倾向于重复陈述问题而非深入沟通或寻求解决。",
-    "scope": "insight",
-    "ts": 1774942576335,
-    "visibility": "private",
-    "bayesAlpha": 2,
-    "bayesBeta": 1,
-    "confidence": 0.6,
-    "lastAccessed": 1774942576335,
-    "tier": "short_term",
-    "recallCount": 0,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "importance": 5,
-    "surprise": 5,
-    "situationCtx": {
-      "mood": 0.242504693470799,
-      "energy": 0.9826376379018279
-    },
-    "tags": [
-      "避倾向",
-      "在亲密关",
-      "系中存在",
-      "情感表达",
-      "障碍与回",
-      "面对冲突",
-      "时倾向于",
-      "重复陈述",
-      "问题而非",
-      "深入沟通"
-    ]
-  },
-  {
-    "content": "存在一种用技术/工作议题来转移或掩盖情感与关系压力的行为模式，反映出内心在平衡工作与情感需求上的困境。",
-    "scope": "insight",
-    "ts": 1774942576340,
-    "visibility": "private",
-    "bayesAlpha": 2,
-    "bayesBeta": 1,
-    "confidence": 0.6638461538461539,
-    "lastAccessed": 1774942620034,
-    "tier": "short_term",
-    "recallCount": 1,
-    "source": "system",
-    "emotionIntensity": 0.3,
-    "importance": 9,
-    "surprise": 9,
-    "situationCtx": {
-      "mood": 0.242504693470799,
-      "energy": 0.9826376379018279
-    },
-    "tags": [
-      "模式",
-      "用技术",
-      "的困境",
-      "存在一种",
-      "工作议题",
-      "来转移或",
-      "掩盖情感",
-      "与关系压",
-      "力的行为",
-      "反映出内"
-    ],
-    "lastRecalled": 1774942620034
   }
 ]

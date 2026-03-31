@@ -88,6 +88,101 @@ export function computeFrustrationDynamics(
   return { current, velocity, turnsToAbandon }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 耦合压力振荡器（Coupled Pressure Oscillators）— 原创算法
+//
+// 短期挫败感（对话内，τ~分钟）和长期压力（跨对话，τ~天）通过耦合项互动：
+// - stress→frustration 是乘法（放大敏感度）：长期压力让人易怒
+// - frustration→stress 是加法（缓慢累积）：单次挫败不会立刻造成长期压力
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface CoupledPressureState {
+  frustration: number         // [0, 1] 短期挫败感
+  frustrationVelocity: number
+  stress: number              // [0, 1] 长期压力
+  stressVelocity: number
+  couplingStrength: number    // [0, 1] 两者互相影响的程度
+  phase: 'calm' | 'building' | 'critical' | 'recovering'
+  turnsToBreakdown: number | null
+}
+
+// 全局耦合压力状态（跨 session 保持）
+let _coupledPressure: CoupledPressureState = {
+  frustration: 0, frustrationVelocity: 0,
+  stress: 0, stressVelocity: 0,
+  couplingStrength: 0.3,  // 初始弱耦合（不是 0，让系统有机会发现耦合关系）
+  phase: 'calm', turnsToBreakdown: null,
+}
+
+/**
+ * 更新耦合压力状态
+ * 在每次 computeFrustrationDynamics 之后调用
+ */
+export function updateCoupledPressure(
+  frustrationSignal: number,
+  stressSignals: { msgLen: number; hasNegWord: boolean; timeSinceLastMsg: number }
+): CoupledPressureState {
+  const p = _coupledPressure
+
+  // ── 短期挫败感更新（指数衰减，保留 flow.ts 原有特性）──
+  // 不对称耦合：stress 影响 frustration 的敏感度（乘法）
+  const effectiveFrustration = frustrationSignal * (1 + p.stress * p.couplingStrength)
+  p.frustration = Math.max(0, Math.min(1, p.frustration * 0.9 + effectiveFrustration * 0.3))
+  p.frustrationVelocity = effectiveFrustration
+
+  // ── 长期压力更新（弹簧-阻尼，保留 deep-understand 原有特性）──
+  let stressForce = 0
+  if (stressSignals.msgLen < 10) stressForce += 0.15
+  if (stressSignals.hasNegWord) stressForce += 0.25
+  if (stressSignals.timeSinceLastMsg < 10000) stressForce += 0.1
+
+  // 不对称耦合：frustration 累积加速 stress（加法）
+  const effectiveStressForce = stressForce + p.frustration * p.couplingStrength * 0.1
+
+  const k = 0.15, γ = 0.3  // 弹簧阻尼参数
+  p.stressVelocity += -k * p.stress + effectiveStressForce - γ * p.stressVelocity
+  p.stress = Math.max(0, Math.min(1, p.stress + p.stressVelocity))
+  p.stressVelocity = Math.max(-0.5, Math.min(0.5, p.stressVelocity))
+
+  // ── 耦合强度自适应 ──
+  if (p.frustration > 0.5 && p.stress > 0.5) {
+    p.couplingStrength = Math.min(1, p.couplingStrength + 0.05)
+  } else {
+    p.couplingStrength = Math.max(0.1, p.couplingStrength * 0.99)
+  }
+
+  // ── 阶段判定 ──
+  const maxPressure = Math.max(p.frustration, p.stress)
+  if (maxPressure > 0.7) p.phase = 'critical'
+  else if (maxPressure > 0.4 && (p.frustrationVelocity > 0 || p.stressVelocity > 0)) p.phase = 'building'
+  else if (maxPressure > 0.3 && p.stressVelocity < -0.05) p.phase = 'recovering'
+  else p.phase = 'calm'
+
+  // ── 爆发预测 ──
+  const maxVelocity = Math.max(p.frustrationVelocity, p.stressVelocity)
+  if (maxVelocity > 0.03 && maxPressure > 0.3) {
+    p.turnsToBreakdown = Math.ceil((0.8 - maxPressure) / maxVelocity)
+    if (p.turnsToBreakdown > 10 || p.turnsToBreakdown < 0) p.turnsToBreakdown = null
+  } else {
+    p.turnsToBreakdown = null
+  }
+
+  return { ...p }
+}
+
+export function getCoupledPressure(): CoupledPressureState { return { ..._coupledPressure } }
+
+export function getCoupledPressureContext(): string | null {
+  const p = _coupledPressure
+  if (p.phase === 'calm') return null
+  const parts: string[] = [`压力阶段：${p.phase}`]
+  if (p.frustration > 0.5) parts.push(`挫败感${(p.frustration * 100).toFixed(0)}%`)
+  if (p.stress > 0.5) parts.push(`长期压力${(p.stress * 100).toFixed(0)}%`)
+  if (p.couplingStrength > 0.5) parts.push(`压力耦合强(${(p.couplingStrength * 100).toFixed(0)}%)`)
+  if (p.turnsToBreakdown) parts.push(`预计${p.turnsToBreakdown}轮后临界`)
+  return `[压力动态] ${parts.join('，')}`
+}
+
 interface ConversationFlow {
   topic: string              // current topic being discussed
   turnCount: number          // consecutive turns on same topic
@@ -204,6 +299,15 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
   const hasQuestionMark = /[？?]/.test(userMsg)
   const hasNegativeWords = ['算了', '不对', '还是不行', '怎么又', '说了多少遍', '烦', '累'].some(w => userMsg.includes(w))
   flow.frustrationTrajectory = computeFrustrationDynamics(flowKey, userMsg.length, prevMsgLen, flow.turnCount, hasQuestionMark, hasNegativeWords)
+
+  // 耦合压力振荡器更新（在挫败感计算后触发）
+  const timeSinceLastMsg = flow.lastMsgLengths.length >= 2 ? Date.now() - (flow as any)._lastMsgTs || 30000 : 30000
+  ;(flow as any)._lastMsgTs = Date.now()
+  updateCoupledPressure(flow.frustrationTrajectory.current, {
+    msgLen: userMsg.length,
+    hasNegWord: hasNegativeWords,
+    timeSinceLastMsg,
+  })
 
   // Resolution detection
   if (['搞定', '可以了', '好了', '解决了', '谢谢', 'thanks', '成功了'].some(w => userMsg.toLowerCase().includes(w))) {

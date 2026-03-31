@@ -177,16 +177,6 @@ function buildNarrativeFallback(totalMessages: number, firstSeen: number): strin
     parts.push('印象深刻: ' + emotional.map(m => `${m.content} (${m.emotion})`).join('; '))
   }
 
-  const dreams = memoryState.memories.filter(m => m.scope === 'dream').slice(-3)
-  if (dreams.length) {
-    parts.push('梦境洞察: ' + dreams.map(d => d.content).join('; '))
-  }
-
-  const curiosities = memoryState.memories.filter(m => m.scope === 'curiosity').slice(-3)
-  if (curiosities.length) {
-    parts.push('好奇: ' + curiosities.map(c => c.content).join('; '))
-  }
-
   return parts.join('\n')
 }
 

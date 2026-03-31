@@ -230,61 +230,10 @@ export function setParam(key: string, value: number) {
   debouncedSave(PARAMS_PATH, params)
 }
 
-/** Get all params (for dashboard) */
-export function getAllParams(): Record<string, number> {
-  return { ...params }
-}
-
 /** Reset a param to default */
 export function resetParam(key: string) {
   params[key] = DEFAULT_PARAMS[key] ?? 0
   debouncedSave(PARAMS_PATH, params)
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PER-USER PARAMETER OVERRIDES (Strategy D)
-// ══════════════════════════════════════════════════════════════════════════════
-
-interface UserParams {
-  overrides: Record<string, number>
-  lastUpdated: number
-}
-
-const userParamsCache = new Map<string, UserParams>()
-const USER_PARAMS_DIR = resolve(DATA_DIR, 'user_params')
-
-/** Get param with per-user override support */
-export function getUserParam(key: string, userId?: string): number {
-  if (userId && userParamsCache.has(userId)) {
-    const up = userParamsCache.get(userId)!
-    if (key in up.overrides) return up.overrides[key]
-  }
-  return getParam(key)
-}
-
-/** Set a per-user parameter override */
-export function setUserParam(key: string, value: number, userId: string) {
-  if (!userParamsCache.has(userId)) userParamsCache.set(userId, { overrides: {}, lastUpdated: 0 })
-  const up = userParamsCache.get(userId)!
-  up.overrides[key] = value
-  up.lastUpdated = Date.now()
-  try {
-    const { existsSync, mkdirSync } = require('fs')
-    if (!existsSync(USER_PARAMS_DIR)) mkdirSync(USER_PARAMS_DIR, { recursive: true })
-  } catch (e: any) {
-    console.log(`[cc-soul][auto-tune] user params dir creation failed: ${e.message}`)
-  }
-  debouncedSave(resolve(USER_PARAMS_DIR, `${userId}.json`), up)
-}
-
-/** Load per-user params from disk (called on first access) */
-export function loadUserParams(userId: string) {
-  if (userParamsCache.has(userId)) return
-  const filePath = resolve(USER_PARAMS_DIR, `${userId}.json`)
-  const data = loadJson<UserParams>(filePath, { overrides: {}, lastUpdated: 0 })
-  if (data.lastUpdated > 0) {
-    userParamsCache.set(userId, data)
-  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -442,11 +391,6 @@ function updateCtxBanditReward(paramKey: string, armIdx: number, reward: number,
 
 // Current context key (set per-message from handler)
 let _currentCtxKey = 'afternoon:general:neutral'
-
-/** Set context for current message (called from handler before bandit selection) */
-export function setBanditContext(timeSlot?: string, domain?: string, mood?: string) {
-  _currentCtxKey = buildContextKey(timeSlot, domain, mood)
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // THOMPSON SAMPLING MATH — pure JS, no dependencies

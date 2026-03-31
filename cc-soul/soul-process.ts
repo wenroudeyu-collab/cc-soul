@@ -16,6 +16,14 @@ async function handleProcess(body: any): Promise<any> {
   const agentId = body.agent_id || body.agentId || 'default'
   const customPrompt = body.system_prompt || ''
 
+  // 自适应 context budget：如果调用方传了 context_window，设置到 budget manager
+  if (body.context_window && typeof body.context_window === 'number') {
+    try {
+      const { setContextWindow } = await import('./context-budget.ts')
+      setContextWindow(body.context_window)
+    } catch {}
+  }
+
   // Multi-agent isolation: switch data directory if agent_id provided
   if (agentId !== 'default') {
     try { const { setActiveAgent } = await import('./persistence.ts'); setActiveAgent(agentId) } catch {}
@@ -223,9 +231,19 @@ async function handleProcess(body: any): Promise<any> {
     }
   } catch {}
 
+  // ── System prompt 分段缓存（学自 Claude Code static/dynamic split）──
+  // static_prompt: 身份/价值观/规则（跨会话不变，API 可缓存）
+  // dynamic_prompt: 记忆/情绪/augment/去重提醒（每次变化）
+  // 支持 prompt caching 的 API 可以只对 static 部分计费 0.1×
+  const staticPrompt = soulPrompt  // buildSoulPrompt 输出的核心身份
+  const dynamicPrompt = selected.join('\n\n')  // augments 是动态的
+
   return {
-    system_prompt: customPrompt ? customPrompt + '\n\n' + soulPrompt : soulPrompt,
-    augments: selected.join('\n\n'),
+    system_prompt: customPrompt ? customPrompt + '\n\n' + staticPrompt : staticPrompt,
+    // 新增：分段输出，让调用方可以分别处理 static/dynamic
+    static_prompt: staticPrompt,
+    dynamic_prompt: dynamicPrompt,
+    augments: dynamicPrompt,
     augments_array: augmentObjects,
     memories: recalled.map((m: any) => ({ content: m.content, scope: m.scope, emotion: m.emotion })),
     mood: moodScore,
@@ -295,7 +313,20 @@ async function handleFeedback(body: any): Promise<any> {
   // Body feedback
   try {
     const { bodyOnPositiveFeedback, bodyOnCorrection } = await import('./body.ts')
-    if (satisfaction === 'positive') bodyOnPositiveFeedback()
+    if (satisfaction === 'positive') {
+      bodyOnPositiveFeedback()
+      // P2b: 正面反馈 → 提升最近被注入记忆的 Bayes 可信度
+      try {
+        const { confirmTruthfulness } = await import('./smart-forget.ts')
+        const { memoryState } = await import('./memory.ts')
+        const recentInjected = memoryState.memories.filter((m: any) =>
+          m && (m.injectionEngagement ?? 0) > 0 && Date.now() - (m.lastAccessed || 0) < 600000
+        ).slice(0, 3)
+        for (const m of recentInjected) {
+          confirmTruthfulness(m, `用户正面反馈(satisfaction=positive)`)
+        }
+      } catch {}
+    }
     if (satisfaction === 'negative') bodyOnCorrection()
   } catch {}
 
@@ -365,13 +396,24 @@ async function handleFeedback(body: any): Promise<any> {
 
   // ── 蒸馏反馈闭环：根据质量反馈 topic node 置信度 ──
   try {
-    const { feedbackDistillQuality } = await import('./handler-augments.ts')
+    const { feedbackDistillQuality, feedbackMemoryEngagement } = await import('./handler-augments.ts')
     if (qualityScore >= 0) feedbackDistillQuality(qualityScore)
+    // P1a: 记忆级 engagement 反馈
+    feedbackMemoryEngagement(userMessage)
+  } catch {}
+
+  // P5h: engagement 信号驱动质量权重学习
+  try {
+    const { updateQualityFromEngagement } = await import('./quality.ts')
+    // 用 qualityScore 归一化到 0-1 作为 engagement 代理
+    if (qualityScore >= 0) {
+      updateQualityFromEngagement(userMessage, aiReply, qualityScore / 10)
+    }
   } catch {}
 
   // Record observation for behavior engine learning
   try {
-    const { recordObservation } = await import('./behavior-engine.ts')
+    const { recordObservation } = await import('./behavioral-phase-space.ts')
     const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
     const { body: bodyState } = await import('./body.ts')
     const sess = getSessionState(getLastActiveSessionKey())

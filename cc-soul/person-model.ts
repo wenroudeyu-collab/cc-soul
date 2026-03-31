@@ -236,6 +236,13 @@ export interface ReasoningProfile {
   certainty: 'assertive' | 'hedging' | 'mixed' | 'unknown'
   disagreement: 'dig_in' | 'compromise' | 'question' | 'unknown'
   _counts: { style: Record<string, number>; evidence: Record<string, number>; certainty: Record<string, number>; disagreement: Record<string, number>; total: number }
+  // ── 推理风格演化追踪（按领域分别追踪）── 原创算法
+  byDomain?: Record<string, {
+    current: string       // 当前推理风格
+    confidence: number    // [0, 1]
+    trend: 'stabilizing' | 'shifting' | 'oscillating'
+    history: Array<{ style: string; ts: number }>  // cap 20/domain
+  }>
 }
 
 export interface PersonModel {
@@ -422,7 +429,8 @@ export function distillPersonModel() {
     } catch {}
   }
 
-  // ── Reasoning profile: detect argument style, evidence, certainty, disagreement ──
+  // ── Reasoning profile: evidence, certainty, disagreement (正则提取)
+  //    style 维度委托给 CIN D3（删除正则版，避免重复）
   // (fine phase only — needs substantial conversation data)
   if (phase === 'fine') {
     if (!personModel.reasoningProfile?._counts) {
@@ -431,17 +439,20 @@ export function distillPersonModel() {
     const rp = personModel.reasoningProfile
     const rc = rp._counts
     const msgs = history.slice(-50).map(h => h.user).filter(m => m.length > 15)
+
+    // 检测当前领域（用于按域追踪推理风格演化）
+    let currentDomain = 'general'
+    try { currentDomain = require('./epistemic.ts').detectDomain(msgs[msgs.length - 1] || '') || 'general' } catch {}
+
     for (const m of msgs) {
-      // Argument style
-      if (/^.{3,20}(因为|因此|because|since)/i.test(m)) rc.style.conclusion_first = (rc.style.conclusion_first || 0) + 1
-      else if (/首先|其次|最后|第一|第二|first|then|finally|secondly/i.test(m)) rc.style.buildup = (rc.style.buildup || 0) + 1
-      // Evidence preference
+      // style 维度：不再用正则，委托 CIN D3
+      // Evidence preference（保留）
       if (/\d+%|\d+\.\d|数据|指标|metrics|stat/i.test(m)) rc.evidence.data = (rc.evidence.data || 0) + 1
       if (/就像|好比|类似|like\s|similar\sto|好像.*一样|打个比方/i.test(m)) rc.evidence.analogy = (rc.evidence.analogy || 0) + 1
-      // Certainty
+      // Certainty（保留）
       if (/可能|也许|不确定|maybe|perhaps|might|大概|应该是/i.test(m)) rc.certainty.hedging = (rc.certainty.hedging || 0) + 1
       if (/肯定|一定|绝对|必须|definitely|must|always|毫无疑问|确定/i.test(m)) rc.certainty.assertive = (rc.certainty.assertive || 0) + 1
-      // Disagreement response
+      // Disagreement（保留）
       if (/不对|你错了|我不同意|我坚持|no way|disagree|wrong/i.test(m)) rc.disagreement.dig_in = (rc.disagreement.dig_in || 0) + 1
       if (/也有道理|你说的对|折中|那就|行吧|fair point|compromise/i.test(m)) rc.disagreement.compromise = (rc.disagreement.compromise || 0) + 1
       if (/为什么|怎么说|你觉得呢|why|how come|what makes you/i.test(m)) rc.disagreement.question = (rc.disagreement.question || 0) + 1
@@ -449,10 +460,37 @@ export function distillPersonModel() {
     }
     const pick = (counts: Record<string, number>) => { const e = Object.entries(counts); if (e.length === 0) return 'unknown'; e.sort((a, b) => b[1] - a[1]); return e[0][1] >= 10 ? (e.length > 1 && e[1][1] > e[0][1] * 0.6 ? 'mixed' : e[0][0]) : 'unknown' }
     if (rc.total >= 10) {
-      rp.style = (pick(rc.style) === 'mixed' ? 'unknown' : pick(rc.style)) as any
+      // style 从 CIN D3 获取（如果可用）
+      try {
+        const cin = require('./cin.ts')
+        const wave = cin.getLatestWave?.()
+        if (wave?.D3 !== undefined) {
+          rp.style = (wave.D3 > 0.3 ? 'conclusion_first' : wave.D3 < -0.3 ? 'buildup' : 'unknown') as any
+        }
+      } catch {}
       rp.evidence = pick(rc.evidence) as any
       rp.certainty = pick(rc.certainty) as any
       rp.disagreement = pick(rc.disagreement) as any
+    }
+
+    // ── 推理风格演化追踪（按领域分别，cap 20/domain）──
+    if (!rp.byDomain) rp.byDomain = {}
+    if (rp.style !== 'unknown') {
+      if (!rp.byDomain[currentDomain]) {
+        rp.byDomain[currentDomain] = { current: rp.style, confidence: 0.5, trend: 'stabilizing', history: [] }
+      }
+      const domainTrack = rp.byDomain[currentDomain]
+      domainTrack.history.push({ style: rp.style, ts: Date.now() })
+      if (domainTrack.history.length > 20) domainTrack.history = domainTrack.history.slice(-20)
+      domainTrack.current = rp.style
+      domainTrack.confidence = Math.min(0.95, 0.3 + domainTrack.history.length * 0.03)
+
+      // Trend 检测
+      const lastFew = domainTrack.history.slice(-5)
+      const styles = lastFew.map(h => h.style)
+      const allSame = styles.every(s => s === styles[0])
+      const uniqueCount = new Set(styles).size
+      domainTrack.trend = allSame ? 'stabilizing' : uniqueCount >= 3 ? 'oscillating' : 'shifting'
     }
   }
 

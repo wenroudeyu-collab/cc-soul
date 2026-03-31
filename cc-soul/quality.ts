@@ -103,48 +103,20 @@ function extractFeatures(question: string, answer: string): QualityFeatures {
   }
 }
 
-// ── FTRL-Proximal per-feature state ──
-
-interface FTRLFeatureState {
-  z: number    // accumulated gradient term
-  n: number    // squared gradient sum
-}
+// [DELETED] FTRL-Proximal — 被 P5h AdaGrad 统一优化器替换
 
 interface QualityWeights {
   bias: number
   weights: Record<string, number>
   learningRate: number
   trainingExamples: number
-  gradientSquaredSum: Record<string, number>  // legacy AdaGrad (kept for compat)
-  // Adam optimizer state (legacy, kept for backward compat on load)
-  adamM: Record<string, number>
-  adamV: Record<string, number>
-  adamT: number
-  // FTRL-Proximal state (new optimizer)
-  ftrl: Record<string, FTRLFeatureState>
+  gradientSquaredSum: Record<string, number>  // AdaGrad per-feature state
+  // Legacy fields（保留用于 JSON 兼容加载，不再写入）
+  adamM?: Record<string, number>
+  adamV?: Record<string, number>
+  adamT?: number
+  ftrl?: Record<string, any>
   hardExamples: Array<{ question: string; answer: string; target: number; loss: number }>
-}
-
-/** FTRL-Proximal update: sparse + per-feature adaptive learning rate */
-function ftrlUpdate(
-  state: FTRLFeatureState,
-  gradient: number,
-  alpha = 0.1,
-  beta = 1.0,
-  lambda1 = 0.01,
-  lambda2 = 0.001
-): { weight: number; state: FTRLFeatureState } {
-  // Standard FTRL-Proximal z-accumulation (simplified: sigma term absorbed into L2 regularization)
-  state.z += gradient
-  state.n += gradient * gradient
-
-  // L1 proximal: sparse feature elimination
-  if (Math.abs(state.z) <= lambda1) {
-    return { weight: 0, state }
-  }
-  const sign = state.z > 0 ? 1 : -1
-  const weight = -(state.z - sign * lambda1) / ((beta + Math.sqrt(state.n)) / alpha + lambda2)
-  return { weight: Math.max(-5, Math.min(5, weight)), state }
 }
 
 // Initial weights mirror the previous hardcoded heuristic values
@@ -228,6 +200,30 @@ export function scoreResponse(question: string, answer: string): number {
  * Update quality weights from user feedback via online SGD.
  * correction → target low score, positive → target high score.
  */
+/**
+ * P5h: engagement 信号驱动的质量权重更新
+ * 除了 positive/correction 二值反馈，还接受 P1a 的 engagement 分数
+ */
+export function updateQualityFromEngagement(question: string, answer: string, engagementRate: number) {
+  const features = extractFeatures(question, answer)
+  const target = engagementRate  // 0-1 连续值
+  let logit = qw.bias
+  for (const key of FEATURE_KEYS) logit += (qw.weights[key] || 0) * features[key]
+  const predicted = 1 / (1 + Math.exp(-logit))
+  const error = predicted - target
+
+  if (!qw.gradientSquaredSum) qw.gradientSquaredSum = {}
+  const adaEps = 1e-8
+  qw.gradientSquaredSum['_bias'] = (qw.gradientSquaredSum['_bias'] || 0) + error * error
+  qw.bias -= (qw.learningRate * 0.5) / Math.sqrt(qw.gradientSquaredSum['_bias'] + adaEps) * error  // 0.5× lr for engagement (noisier signal)
+  for (const key of FEATURE_KEYS) {
+    const grad = error * features[key]
+    qw.gradientSquaredSum[key] = (qw.gradientSquaredSum[key] || 0) + grad * grad
+    qw.weights[key] = Math.max(-5, Math.min(5, (qw.weights[key] || 0) - (qw.learningRate * 0.5) / Math.sqrt(qw.gradientSquaredSum[key] + adaEps) * grad))
+  }
+  debouncedSave(WEIGHTS_PATH, qw)
+}
+
 export function updateQualityWeights(question: string, answer: string, feedback: 'positive' | 'correction') {
   const features = extractFeatures(question, answer)
   const target = feedback === 'positive' ? 0.9 : 0.2
@@ -251,23 +247,24 @@ export function updateQualityWeights(question: string, answer: string, feedback:
     }
   }
 
-  // FTRL-Proximal optimizer update (replaces Adam — sparser weights, per-feature adaptive LR)
-  if (!qw.ftrl) qw.ftrl = {}
+  // P5h: AdaGrad 统一优化器（替换 FTRL+AdaGrad+HardExample 三合一）
+  // 简单、稳定、per-feature adaptive learning rate
+  if (!qw.gradientSquaredSum) qw.gradientSquaredSum = {}
+  const adaEps = 1e-8
 
-  // Bias update via FTRL
-  const biasGrad = error
-  if (!qw.ftrl['_bias']) qw.ftrl['_bias'] = { z: 0, n: 0 }
-  const biasResult = ftrlUpdate(qw.ftrl['_bias'], biasGrad)
-  qw.ftrl['_bias'] = biasResult.state
-  qw.bias = biasResult.weight || qw.bias  // keep existing bias if FTRL zeros it
+  // Bias update
+  qw.gradientSquaredSum['_bias'] = (qw.gradientSquaredSum['_bias'] || 0) + error * error
+  const biasLR = qw.learningRate / Math.sqrt(qw.gradientSquaredSum['_bias'] + adaEps)
+  qw.bias -= biasLR * error
 
-  // Per-weight FTRL update
+  // Per-weight AdaGrad update
   for (const key of FEATURE_KEYS) {
     const grad = error * features[key]
-    if (!qw.ftrl[key]) qw.ftrl[key] = { z: 0, n: 0 }
-    const result = ftrlUpdate(qw.ftrl[key], grad)
-    qw.ftrl[key] = result.state
-    qw.weights[key] = result.weight
+    qw.gradientSquaredSum[key] = (qw.gradientSquaredSum[key] || 0) + grad * grad
+    const lr = qw.learningRate / Math.sqrt(qw.gradientSquaredSum[key] + adaEps)
+    qw.weights[key] = (qw.weights[key] || 0) - lr * grad
+    // Clamp weights to [-5, 5]
+    qw.weights[key] = Math.max(-5, Math.min(5, qw.weights[key]))
   }
 
   qw.trainingExamples++
@@ -279,38 +276,37 @@ export function updateQualityWeights(question: string, answer: string, feedback:
  * Periodically replay hard examples to reinforce learning on difficult cases.
  * Called from heartbeat.
  */
+/**
+ * P5h: resampleHardExamples 用 AdaGrad 统一优化器替换 FTRL
+ */
 export function resampleHardExamples() {
   if (!qw.hardExamples || qw.hardExamples.length < 3) return
+  if (!qw.gradientSquaredSum) qw.gradientSquaredSum = {}
 
   const samples = qw.hardExamples.slice(0, 3)
-  if (!qw.ftrl) qw.ftrl = {}
+  const adaEps = 1e-8
 
   for (const { question, answer, target } of samples) {
     const features = extractFeatures(question, answer)
     let logit = qw.bias
-    for (const key of FEATURE_KEYS) {
-      logit += (qw.weights[key] || 0) * features[key]
-    }
+    for (const key of FEATURE_KEYS) logit += (qw.weights[key] || 0) * features[key]
     const predicted = 1 / (1 + Math.exp(-logit))
     const error = predicted - target
 
-    // Bias via FTRL (smaller alpha for replay = more conservative)
-    if (!qw.ftrl['_bias']) qw.ftrl['_bias'] = { z: 0, n: 0 }
-    const biasResult = ftrlUpdate(qw.ftrl['_bias'], error, 0.05)
-    qw.ftrl['_bias'] = biasResult.state
-    if (biasResult.weight !== 0) qw.bias = biasResult.weight
+    // AdaGrad（0.5× lr for replay = conservative）
+    const replayLR = qw.learningRate * 0.5
+    qw.gradientSquaredSum['_bias'] = (qw.gradientSquaredSum['_bias'] || 0) + error * error
+    qw.bias -= replayLR / Math.sqrt(qw.gradientSquaredSum['_bias'] + adaEps) * error
 
     for (const key of FEATURE_KEYS) {
       const grad = error * features[key]
-      if (!qw.ftrl[key]) qw.ftrl[key] = { z: 0, n: 0 }
-      const result = ftrlUpdate(qw.ftrl[key], grad, 0.05)
-      qw.ftrl[key] = result.state
-      qw.weights[key] = result.weight
+      qw.gradientSquaredSum[key] = (qw.gradientSquaredSum[key] || 0) + grad * grad
+      qw.weights[key] = Math.max(-5, Math.min(5, (qw.weights[key] || 0) - replayLR / Math.sqrt(qw.gradientSquaredSum[key] + adaEps) * grad))
     }
   }
 
   debouncedSave(WEIGHTS_PATH, qw)
-  console.log(`[cc-soul][quality] replayed ${samples.length} hard examples`)
+  console.log(`[cc-soul][quality] replayed ${samples.length} hard examples (AdaGrad)`)
 }
 
 // ── Self-check (sync fallback) ──

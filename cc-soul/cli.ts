@@ -299,7 +299,22 @@ export function getActiveTaskStatus(): string {
 
 const HARD_TIMEOUT_MS = 30000 // 30s hard ceiling — prevents infinite hangs when LLM stalls
 
+// ── Workload 成本追踪（学自 Claude Code billing headers）──
+const _workloadCosts = new Map<string, { calls: number; tokens: number }>()
+export function getWorkloadCosts(): Record<string, { calls: number; tokens: number }> {
+  return Object.fromEntries(_workloadCosts)
+}
+function trackWorkload(label: string, estimatedTokens: number): void {
+  const workload = label.split(':')[0] || 'unknown'  // "distill:L1" → "distill"
+  const entry = _workloadCosts.get(workload) ?? { calls: 0, tokens: 0 }
+  entry.calls++
+  entry.tokens += estimatedTokens
+  _workloadCosts.set(workload, entry)
+}
+
 export function spawnCLI(prompt: string, callback: (output: string) => void, timeoutMs = 120000, label = 'ai-task') {
+  // 成本追踪：按 workload 分类记录调用次数和估算 token
+  trackWorkload(label, Math.ceil(prompt.length * 0.8))
   // Hard timeout: independent 30s safety net — if backend never calls back, force-resolve
   // Does NOT override caller's timeoutMs (that's passed to the backend as-is)
   let callbackSettled = false

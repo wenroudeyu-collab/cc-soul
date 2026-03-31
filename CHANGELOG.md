@@ -7,6 +7,7 @@ All notable changes to cc-soul will be documented here.
 ### Changed — Core Memory Engine
 - **Refactored to NAM — Neural Activation Memory（神经激活记忆）**: cc-soul original algorithm. Memories aren't "searched" — they surface automatically via 6 simultaneous signals (base activation, context match, emotional resonance, spreading activation, interference suppression, temporal context). Replaces the previous 4-layer cascade (hash → AAM → BM25 → vector).
 - **Vector search retired**: NAM's learned associations cover semantic matching without external models. Embedder.ts reduced to no-op stub. No 90MB model download needed.
+- **dream_mode and curiosity scope removed**: dead code cleaned up from prompt-builder, features no longer references dream_mode.
 - **Auto data directory**: `~/.cc-soul/data/` auto-created for non-OpenClaw users. No configuration, no environment variables.
 
 ## [2.5.0] - 2026-03-30

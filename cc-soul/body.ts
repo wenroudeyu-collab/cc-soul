@@ -385,27 +385,6 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
   }
 }
 
-/** Get user emotional wellness summary (for proactive voice wellness checks) */
-export function getUserEmotionSummary(): { needsCare: boolean; reason: string; worstUser: string } {
-  let worstValence = Infinity
-  let worstUser = ''
-  let reason = ''
-
-  for (const [uid, emotion] of userEmotions) {
-    if (uid === '_default') continue
-    // Sustained negative emotion (valence < -0.3 AND declining trend)
-    if (emotion.valence < -0.3 && emotion.trend < -0.1 && Date.now() - emotion.lastUpdate < 86400000) {
-      if (emotion.valence < worstValence) {
-        worstValence = emotion.valence
-        worstUser = uid
-        reason = emotion.valence < -0.5 ? '情绪持续低落' : '情绪有些低'
-      }
-    }
-  }
-
-  return { needsCare: worstValence < -0.3, reason, worstUser }
-}
-
 /**
  * Get emotional contagion context for augment injection.
  */

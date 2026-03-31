@@ -4,6 +4,7 @@ import type { SoulModule } from './brain.ts'
 import { getParam } from './auto-tune.ts'
 import { trigrams, trigramSimilarity } from './memory-utils.ts'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
+import { logDecision } from './decision-log.ts'
 
 /**
  * smart-forget.ts — Intelligent Memory Forgetting (Weibull + ACT-R)
@@ -125,16 +126,32 @@ interface FSRSTrainingExample {
 }
 
 const FSRS_TRAINING_PATH = resolve(DATA_DIR, 'fsrs_training.json')
-let fsrsTraining: FSRSTrainingExample[] = loadJson<FSRSTrainingExample[]>(FSRS_TRAINING_PATH, [])
+let fsrsTraining: FSRSTrainingExample[] = []
+let _fsrsTrainingLoaded = false
+
+function ensureFSRSTrainingLoaded() {
+  if (_fsrsTrainingLoaded) return
+  _fsrsTrainingLoaded = true
+  try {
+    const sqlMod = require('./sqlite-store.ts')
+    if (sqlMod?.dbLoadFSRSTraining) {
+      fsrsTraining = sqlMod.dbLoadFSRSTraining()
+      if (fsrsTraining.length > 0) return
+    }
+  } catch {}
+  fsrsTraining = loadJson<FSRSTrainingExample[]>(FSRS_TRAINING_PATH, [])
+}
 
 /** 记录一次 recall 结果用于 FSRS 训练 */
 export function recordFSRSTraining(elapsedDays: number, stability: number, recalled: boolean) {
+  ensureFSRSTrainingLoaded()
   fsrsTraining.push({ elapsedDays, stability, recalled })
-  // 保留最近 500 条训练数据
   if (fsrsTraining.length > 500) fsrsTraining = fsrsTraining.slice(-500)
-  if (fsrsTraining.length % 20 === 0) {
-    debouncedSave(FSRS_TRAINING_PATH, fsrsTraining)
-  }
+  // SQLite 存储
+  try {
+    const sqlMod = require('./sqlite-store.ts')
+    if (sqlMod?.dbAddFSRSTraining) sqlMod.dbAddFSRSTraining(elapsedDays, stability, recalled)
+  } catch {}
 }
 
 /**
@@ -286,6 +303,15 @@ let _decayParamsPath = ''
 
 function loadDecayParams(dataDir: string) {
   _decayParamsPath = resolve(dataDir, DECAY_PARAMS_FILENAME)
+  // 优先 SQLite
+  try {
+    const sqlMod = require('./sqlite-store.ts')
+    if (sqlMod?.dbLoadDecayParams) {
+      const loaded = sqlMod.dbLoadDecayParams(null)
+      if (loaded) { Object.assign(_decayParams, loaded); return }
+    }
+  } catch {}
+  // JSON fallback
   try {
     if (existsSync(_decayParamsPath)) {
       const raw = readFileSync(_decayParamsPath, 'utf-8').trim()
@@ -295,6 +321,12 @@ function loadDecayParams(dataDir: string) {
 }
 
 function saveDecayParams() {
+  // SQLite 主存储
+  try {
+    const sqlMod = require('./sqlite-store.ts')
+    if (sqlMod?.dbSaveDecayParams) sqlMod.dbSaveDecayParams(_decayParams)
+  } catch {}
+  // JSON backup
   if (!_decayParamsPath) return
   try { writeFileSync(_decayParamsPath, JSON.stringify(_decayParams, null, 2)) } catch {}
 }
@@ -524,6 +556,9 @@ function detectContradictionSignals(a: string, b: string): boolean {
 }
 
 /**
+ * @deprecated 使用 decideForget() 替代。此函数保留仅供测试兼容。
+ * 新代码应使用领地划分模型（decideForget）而非加权融合。
+ *
  * Compute a composite forget score for a single memory.
  *
  * @returns 0-1 probability of forgetting (1 = definitely forget)
@@ -555,52 +590,481 @@ export function computeForgetScore(mem: MemoryInput): number {
   return Math.max(0, Math.min(1, rawForget))
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TERRITORY DIVISION — 模型领地划分
+//
+// structuralImportance → I(m) ∈ [0.1, ∞)：这条记忆有多重要（缓慢变化）
+// contextBinding       → B ∈ [0, 1]：跟当前语境有多相关（快速变化）
+// R = I × 0.3 + B × 0.7：综合相关性（保底层 + 动态层）
+// Bayes → C ∈ [0,1]：是不是真的
+// BCM → θ ∈ [0.05,0.3]：标准多严
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface ForgetDecision {
+  retrievability: number   // R = I×0.3 + B×0.7
+  truthfulness: number     // C = α/(α+β)
+  threshold: number        // BCM θ
+  action: 'keep' | 'demote' | 'verify' | 'graveyard'
+  reason: string
+}
+
+// ── P5a: structuralImportance — 记忆的固有重要性 ──
+
 /**
- * Batch-scan memories and return indices of those that should be
- * forgotten or consolidated. Does NOT mutate the input array.
+ * 计算记忆的结构重要性 I(m)
+ * I = graphDegree × emotionWeight × causalDepth × uniqueness
+ * 最小值 clamp 到 0.1（防止 graph 为空时 I=0）
+ */
+export function computeStructuralImportance(mem: any): number {
+  let I = 1.0
+
+  // 知识图谱度数：被更多实体关联的记忆更重要
+  try {
+    const { findMentionedEntities } = require('./graph.ts')
+    const entities = findMentionedEntities(mem.content || '')
+    I *= (1 + entities.length * 0.3)  // 每个实体 +30%
+  } catch {}
+
+  // 情绪权重：高情绪强度的记忆更重要
+  const ei = mem.emotionIntensity ?? 0
+  I *= (1 + ei * 0.5)  // emotionIntensity=1 → +50%
+
+  // 因果深度：有 reasoning 或 because 的记忆更重要
+  if (mem.reasoning) I *= 1.3
+  if (mem.because) I *= 1.2
+
+  // 信息增益/独特性：importance/surprise 高的记忆更重要
+  const imp = mem.importance ?? mem.surprise ?? 5
+  I *= (0.5 + imp / 10)  // importance=10 → ×1.5, importance=1 → ×0.6
+
+  // scope 加权：correction 最重要
+  if (mem.scope === 'correction') I *= 2.0
+  else if (mem.scope === 'preference' || mem.scope === 'fact') I *= 1.3
+
+  return Math.max(0.1, I)  // 最小 0.1，防止 graph 空时完全归零
+}
+
+// ── P5a: contextBinding — 语境绑定度 ──
+
+// 每条记忆的 CRD 状态缓存（内存中，不持久化）
+const _crdBindings = new Map<string, { bindingStrength: number; lastContextMatch: number }>()
+
+/**
+ * 计算记忆的语境绑定度 B
+ * 话题匹配 → B 升高，话题不匹配 → B 指数衰减（半衰期 2 小时）
+ */
+export function computeContextBinding(mem: any, currentTopics: string[]): number {
+  const key = (mem.content || '').slice(0, 40) + '|' + mem.ts
+  const now = Date.now()
+
+  if (!_crdBindings.has(key)) {
+    _crdBindings.set(key, { bindingStrength: 0.5, lastContextMatch: mem.lastAccessed || mem.ts })
+  }
+  const state = _crdBindings.get(key)!
+
+  if (currentTopics.length === 0) {
+    // 无活跃话题（用户不在线 > 6小时）→ 纯衰减
+    const hoursSince = (now - state.lastContextMatch) / 3600000
+    state.bindingStrength *= Math.exp(-0.35 * hoursSince)
+    return state.bindingStrength
+  }
+
+  // 话题匹配：记忆内容与 currentTopics 的关键词重叠
+  const memWords = new Set(((mem.content || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+  const topicWords = new Set(currentTopics.flatMap(t => (t.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())))
+
+  let overlap = 0
+  for (const w of memWords) { if (topicWords.has(w)) overlap++ }
+  const overlapRatio = memWords.size > 0 ? overlap / memWords.size : 0
+
+  if (overlapRatio > 0.2) {
+    // 话题匹配 → binding 刷新
+    state.bindingStrength = Math.min(1, state.bindingStrength + 0.2)
+    state.lastContextMatch = now
+  } else {
+    // 话题不匹配 → 指数衰减（半衰期 2 小时）
+    const hoursSince = (now - state.lastContextMatch) / 3600000
+    state.bindingStrength *= Math.exp(-0.35 * hoursSince)
+  }
+
+  return state.bindingStrength
+}
+
+/**
+ * 获取当前话题签名（heartbeat 时调用）
+ * 优先用最近 session 话题，距今 > 6小时返回空数组
+ */
+export function getCurrentTopics(): string[] {
+  try {
+    const { getSessionState, getLastActiveSessionKey } = require('./handler-state.ts')
+    const sess = getSessionState(getLastActiveSessionKey())
+    if (!sess) return []
+    // session 距今 > 6小时 → 无活跃话题
+    const lastActivity = sess.lastMessageTs || 0
+    if (Date.now() - lastActivity > 6 * 3600000) return []
+    // 从 session 的最近消息提取话题关键词
+    const recentMsgs = (sess.recentMessages || []).slice(-3)
+    const topics = recentMsgs.map((m: any) => (m.content || m.user || '').slice(0, 100))
+    return topics
+  } catch {
+    return []
+  }
+}
+
+// P0 部署时间戳 — 用于 graveyard grace period（7 天内保留完整 content）
+// 持久化到 distill_state.json，避免进程重启后 grace period 重置
+let P0_DEPLOY_TS = 0
+function getP0DeployTs(): number {
+  if (P0_DEPLOY_TS > 0) return P0_DEPLOY_TS
+  try {
+    const { loadJson, saveJson, DATA_DIR } = require('./persistence.ts')
+    const { resolve } = require('path')
+    const path = resolve(DATA_DIR, 'distill_state.json')
+    const state = loadJson(path, {})
+    if (state.p0DeployTs) {
+      P0_DEPLOY_TS = state.p0DeployTs
+    } else {
+      P0_DEPLOY_TS = Date.now()
+      state.p0DeployTs = P0_DEPLOY_TS
+      saveJson(path, state)
+    }
+  } catch {
+    P0_DEPLOY_TS = Date.now()
+  }
+  return P0_DEPLOY_TS
+}
+const GRAVEYARD_GRACE_PERIOD = 7 * 86400000  // 7 天
+const GRAVEYARD_PURGE_AGE = 180 * 86400000   // 180 天彻底清除
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Derivability Decay — 信息可推导性衰减（原创算法）
+// 一条记忆的信息能否从其他系统推导出来？可推导 → 优先遗忘，独有 → 保护
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function computeDerivability(mem: MemoryInput): number {
+  const content = (mem as any).content || ''
+  if (!content || content.length < 5) return 0.5
+  if ((mem as any).scope === 'correction') return 0  // 纠正永远不可推导
+
+  let d = 0
+
+  // 1. 知识图谱已有这些实体？
+  try {
+    const { findMentionedEntities } = require('./graph.ts')
+    const entities = findMentionedEntities(content)
+    if (entities.length > 0) d += 0.2
+  } catch {}
+
+  // 2. fact-store 已有同样的三元组？
+  try {
+    const { extractFacts, queryFacts } = require('./fact-store.ts')
+    const facts = extractFacts(content)
+    let existingCount = 0
+    for (const f of facts) {
+      const existing = queryFacts({ subject: f.subject, predicate: f.predicate })
+      if (existing && existing.length > 0) existingCount++
+    }
+    if (facts.length > 0) d += 0.3 * (existingCount / facts.length)
+  } catch {}
+
+  // 3. topic node 已覆盖？
+  try {
+    const { getRelevantTopics } = require('./distill.ts')
+    const topics = getRelevantTopics(content, (mem as any).userId, 1)
+    if (topics.length > 0) d += 0.2
+  } catch {}
+
+  // 4. L3 mental model 已包含？
+  try {
+    const { getMentalModel } = require('./distill.ts')
+    const model = getMentalModel((mem as any).userId)
+    if (model) {
+      const modelWords = new Set((model.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+      const memWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+      let overlap = 0
+      for (const w of memWords) if (modelWords.has(w)) overlap++
+      if (memWords.length > 0 && overlap / memWords.length > 0.4) d += 0.2
+    }
+  } catch {}
+
+  return Math.min(0.9, d)
+}
+
+/**
+ * 领地划分遗忘判定（P5a 升级版）
+ *
+ * R = I(m) × 0.3 + B × 0.7（结构重要性保底 + 语境绑定动态层）
+ * C = Bayes α/(α+β)（可信度）
+ * θ = BCM 自适应阈值（遗忘标准）
+ */
+export function decideForget(mem: MemoryInput, activityLevel: number): ForgetDecision {
+  // ── I: structuralImportance（有多重要）──
+  const I = computeStructuralImportance(mem)
+
+  // ── B: contextBinding（跟当前话题多相关）──
+  const currentTopics = getCurrentTopics()
+  const B = computeContextBinding(mem, currentTopics)
+
+  // ── R: 综合相关性 = 保底层 + 动态层 ──
+  const R = Math.min(1, I * 0.3 + B * 0.7)
+
+  // ── C: Bayes truthfulness（是不是真的）──
+  const alpha = (mem as any).bayesAlpha ?? 2
+  const beta = (mem as any).bayesBeta ?? 1
+  const C = alpha / (alpha + beta)
+
+  // ── θ: BCM adaptive threshold（标准多严）──
+  const θ = bcmAdaptiveThreshold(getSurvivalForgetThreshold(), activityLevel)
+
+  // ── 四分支判定 ──
+  let action: ForgetDecision['action']
+  let reason: string
+
+  if (R >= θ && C >= 0.3) {
+    action = 'keep'
+    reason = `R=${R.toFixed(2)}(I=${I.toFixed(1)},B=${B.toFixed(2)})≥θ=${θ.toFixed(2)}, C=${C.toFixed(2)}≥0.3`
+  } else if (R >= θ && C < 0.3) {
+    action = 'verify'
+    reason = `R=${R.toFixed(2)}≥θ=${θ.toFixed(2)}, C=${C.toFixed(2)}<0.3 相关但可疑`
+  } else {
+    // ── Derivability Decay（惰性计算：只对即将 demote/graveyard 的记忆算）──
+    // 可推导的记忆优先遗忘，独有信息被保护
+    const d = computeDerivability(mem)
+    const R_adjusted = R * (1 - d * 0.3)  // 最多打 73 折
+
+    if (R_adjusted < θ && C >= 0.3) {
+      action = 'demote'
+      reason = `R=${R.toFixed(2)}→R_adj=${R_adjusted.toFixed(2)}(d=${d.toFixed(2)})<θ=${θ.toFixed(2)}, C=${C.toFixed(2)}≥0.3 可信但可推导`
+    } else if (R_adjusted < θ && C < 0.3) {
+      action = 'graveyard'
+      reason = `R=${R.toFixed(2)}→R_adj=${R_adjusted.toFixed(2)}(d=${d.toFixed(2)})<θ=${θ.toFixed(2)}, C=${C.toFixed(2)}<0.3`
+    } else {
+      // derivability 救了它：原本要 demote 但不可推导
+      action = 'keep'
+      reason = `R=${R.toFixed(2)}<θ but R_adj=${R_adjusted.toFixed(2)}≥θ (d=${d.toFixed(2)} low=独有信息)`
+    }
+  }
+
+  return { retrievability: R, truthfulness: C, threshold: θ, action, reason }
+}
+
+/**
+ * Graveyard 复活：当 recall 结果不足时，fallback 查 graveyard
+ * trigram 匹配 > 0.5 → 复活为 short_term，FSRS 重新初始化
+ */
+export function reviveFromGraveyard(query: string, memories: any[], maxRevive: number = 2): any[] {
+  const revived: any[] = []
+  const queryTri = trigrams(query)
+  if (queryTri.size === 0) return revived
+
+  for (const m of memories) {
+    if (!m || m.tier !== 'graveyard') continue
+    const memTri = trigrams(m.content || '')
+    const sim = trigramSimilarity(queryTri, memTri)
+    if (sim > 0.5) {
+      m.tier = 'short_term'
+      m.scope = m._graveyardOriginalScope || 'fact'
+      m.fsrs = fsrsInit(m.scope)
+      m.lastAccessed = Date.now()
+      delete m._graveyardOriginalScope
+      revived.push(m)
+      logDecision('revive', (m.content || '').slice(0, 30) + '|' + m.ts,
+        `trigramSim=${sim.toFixed(2)}>0.5, query="${query.slice(0, 20)}"`)
+      if (revived.length >= maxRevive) break
+    }
+  }
+  return revived
+}
+
+/**
+ * Graveyard 彻底清除：age > 180天 且从未被复活查询命中
+ */
+export function purgeGraveyard(memories: any[]): number {
+  const now = Date.now()
+  let purged = 0
+  for (let i = memories.length - 1; i >= 0; i--) {
+    const m = memories[i]
+    if (!m || m.tier !== 'graveyard') continue
+    const graveyardAge = now - (m._graveyardTs || m.ts)
+    // 只清除：age > 180天 且从未被复活命中（lastAccessed 未更新过）
+    const neverRevived = !m.lastAccessed || m.lastAccessed <= (m._graveyardTs || m.ts)
+    if (graveyardAge > GRAVEYARD_PURGE_AGE && neverRevived) {
+      const key = (m.content || '').slice(0, 30) + '|' + m.ts
+      logDecision('purge', key, `graveyardAge=${(graveyardAge / 86400000).toFixed(0)}d>180d, neverRevived`)
+      memories.splice(i, 1)
+      purged++
+    }
+  }
+  return purged
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P2b: Contradiction → Bayes（矛盾检测命中时降低 truthfulness）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 当蒸馏系统检测到矛盾时调用：降低旧记忆的 Bayes 可信度
+ */
+export function penalizeTruthfulness(mem: any, reason: string): void {
+  mem.bayesBeta = (mem.bayesBeta ?? 1) + 1
+  const C = (mem.bayesAlpha ?? 2) / ((mem.bayesAlpha ?? 2) + mem.bayesBeta)
+  logDecision('bayes_penalty', (mem.content || '').slice(0, 30) + '|' + mem.ts,
+    `bayesBeta++→${mem.bayesBeta}, C=${C.toFixed(2)}, reason=${reason}`)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P2c: 遗忘即蒸馏 — decay 产生 gist，积累后触发 L2 蒸馏
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 从即将遗忘的记忆中提取结构化 gist（零 LLM）
+ * 提取实体、事实三元组、因果链
+ */
+export function extractGistBeforeForget(mem: any): any | null {
+  const content = mem.content || ''
+  if (content.length < 10) return null
+
+  let facts: any[] = []
+  let entities: string[] = []
+  try {
+    const factStore = require('./fact-store.ts')
+    facts = factStore.extractFacts(content)
+  } catch {}
+  try {
+    const graph = require('./graph.ts')
+    entities = graph.findMentionedEntities(content)
+  } catch {}
+
+  const hasCausal = !!mem.reasoning || !!mem.because
+  if (facts.length === 0 && entities.length === 0 && !hasCausal) {
+    return null  // 纯废话，不值得提取 gist
+  }
+
+  return {
+    entities,
+    facts: facts.map((f: any) => ({ subject: f.subject, predicate: f.predicate, object: f.object })),
+    causal: mem.reasoning ?? null,
+    because: mem.because ?? null,
+    originalScope: mem.scope,
+    originalTs: mem.ts,
+    forgottenAt: Date.now(),
+  }
+}
+
+/**
+ * 收集 decay sweep 中的 gist，聚类后触发蒸馏
+ * 每轮最多 3 次 LLM 调用，超限排入 distill_state.json.pendingDecayDistill
+ */
+export function processDecayedGists(gists: any[]): void {
+  if (gists.length < 2) return
+
+  // 按共享实体聚类（简单版）
+  const clusters: any[][] = []
+  const assigned = new Set<number>()
+
+  for (let i = 0; i < gists.length; i++) {
+    if (assigned.has(i)) continue
+    const cluster = [gists[i]]
+    assigned.add(i)
+
+    for (let j = i + 1; j < gists.length; j++) {
+      if (assigned.has(j)) continue
+      // 共享实体 → 同簇
+      const shared = gists[i].entities.filter((e: string) => gists[j].entities.includes(e))
+      if (shared.length > 0) {
+        cluster.push(gists[j])
+        assigned.add(j)
+      }
+    }
+    clusters.push(cluster)
+  }
+
+  // 每个簇触发零 LLM 蒸馏（通过 distill.ts 的 zeroLLMDistill）
+  try {
+    const distillMod = require('./distill.ts')
+    let llmCalls = 0
+    for (const cluster of clusters) {
+      if (cluster.length < 2) continue
+      const contents = cluster.map((g: any) => {
+        const parts: string[] = []
+        if (g.facts.length > 0) parts.push(g.facts.map((f: any) => `${f.subject}${f.predicate}${f.object}`).join('，'))
+        if (g.entities.length > 0) parts.push(`涉及：${g.entities.join('、')}`)
+        if (g.because) parts.push(`原因：${g.because}`)
+        return parts.join('；') || `[${g.originalScope}] 遗忘于${new Date(g.forgottenAt).toISOString().slice(0,10)}`
+      })
+
+      // 排入蒸馏队列（不直接调 LLM，让 distillL1toL2 处理）
+      if (!distillMod.distillState) continue
+      const pending = distillMod.distillState.pendingDecayDistill ?? []
+      pending.push({ contents, clusteredAt: Date.now() })
+      // 限流：最多保留 10 个 pending
+      if (pending.length > 10) pending.splice(0, pending.length - 10)
+      distillMod.distillState.pendingDecayDistill = pending
+    }
+  } catch {}
+}
+
+/**
+ * Batch-scan memories using territory division (R/C/θ if-else).
+ * Returns indices categorized by action. Does NOT mutate the input array.
  */
 export function smartForgetSweep(memories: any[]): SweepResult {
   const now = Date.now()
   const toForget: number[] = []
   const toConsolidate: number[] = []
 
-  // ── BCM 元可塑性：计算最近活跃度，动态调整遗忘阈值 ──
+  // ── BCM: 计算活跃度（唯一用途：决定遗忘标准多严）──
   const oneDayAgo = now - 86400000
   const recentCount = memories.filter(m => m && m.ts > oneDayAgo && m.scope !== 'expired').length
   const activityLevel = Math.min(1, recentCount / 100)
 
-  // BCM 自适应阈值
-  const survivalThreshold = bcmAdaptiveThreshold(getSurvivalForgetThreshold(), activityLevel)
-  const activationThreshold = getActivationForgetThreshold() * (1 + (activityLevel - 0.3) * 0.3)
-
   for (let i = 0; i < memories.length; i++) {
     const m = memories[i]
     if (!m || typeof m.ts !== 'number') continue
+    // 跳过已处理的
+    if (m.scope === 'expired' || m.tier === 'graveyard') continue
 
-    const mem: MemoryInput = {
+    const mem: MemoryInput & { bayesAlpha?: number; bayesBeta?: number } = {
       ts: m.ts ?? now,
       recallCount: m.recallCount ?? m.recall_count ?? 0,
       lastAccessed: m.lastAccessed ?? m.last_accessed ?? m.ts ?? now,
       scope: m.scope ?? m.type ?? 'fact',
       confidence: m.confidence,
+      fsrs: m.fsrs,
+      bayesAlpha: m.bayesAlpha,
+      bayesBeta: m.bayesBeta,
     }
 
-    const ageDays = (now - mem.ts) / MS_PER_DAY
+    // ── 领地划分判定 ──
+    const decision = decideForget(mem, activityLevel)
+    const key = (m.content || '').slice(0, 30) + '|' + m.ts
 
-    // ── 统一 FSRS 路径 ──
-    const fsrs = ensureFSRS({ ...mem, fsrs: (m as any).fsrs })
-    const survival = fsrsRetrievability(ageDays, fsrs.stability)
-    const activation = actRActivation(mem, now)
-
-    // Forget: low survival AND low activation (BCM adaptive thresholds)
-    if (survival < survivalThreshold && activation < activationThreshold) {
-      toForget.push(i)
-      continue
-    }
-
-    // Consolidate: high survival AND high activation (memory is strong)
-    if (survival > getSurvivalConsolidateThreshold() && activation > getActivationConsolidateThreshold()) {
-      toConsolidate.push(i)
+    switch (decision.action) {
+      case 'graveyard':
+        toForget.push(i)
+        logDecision('graveyard', key, decision.reason)
+        break
+      case 'demote':
+        // 降级 tier 但不删除
+        if (m.tier !== 'fading') {
+          m.tier = 'fading'
+          logDecision('demote', key, decision.reason)
+        }
+        break
+      case 'verify':
+        // 标记待验证（可信度低但还记得）
+        if (!m._needsVerification) {
+          m._needsVerification = true
+          logDecision('verify', key, decision.reason)
+        }
+        break
+      case 'keep':
+        // 健康记忆，检查是否值得巩固
+        if (decision.retrievability > getSurvivalConsolidateThreshold() &&
+            decision.truthfulness > 0.7) {
+          toConsolidate.push(i)
+        }
+        break
     }
   }
 
@@ -715,15 +1179,33 @@ export const smartForgetModule: SoulModule = {
     stats.lastSweepConsolidate = result.toConsolidate.length
     stats.totalSweeps++
 
-    // Execute forget: mark expired (reverse order to preserve indices)
+    // Execute forget: move to graveyard + extract gist (P2c)
     if (result.toForget.length > 0) {
       const maxPerSweep = getParam('forget.max_per_sweep')
       const toForget = result.toForget.slice(0, maxPerSweep)
+      const isGracePeriod = Date.now() - getP0DeployTs() < GRAVEYARD_GRACE_PERIOD
+      const gists: any[] = []
       for (let i = toForget.length - 1; i >= 0; i--) {
         const idx = toForget[i]
-        if (idx >= 0 && idx < memories.length && memories[idx].scope !== 'expired') {
-          memories[idx].scope = 'expired'
+        if (idx >= 0 && idx < memories.length && memories[idx].tier !== 'graveyard') {
+          const m = memories[idx]
+          // P2c: 遗忘前提取 gist
+          const gist = extractGistBeforeForget(m)
+          if (gist) gists.push(gist)
+
+          m._graveyardOriginalScope = m.scope
+          m._graveyardTs = Date.now()
+          m.tier = 'graveyard'
+          m.scope = 'expired'
+          // Grace period: 前 7 天保留完整 content，之后压缩到 50 字
+          if (!isGracePeriod) {
+            m.content = (m.content || '').slice(0, 50)
+          }
         }
+      }
+      // P2c: 收集 gists 触发蒸馏
+      if (gists.length >= 2) {
+        processDecayedGists(gists)
       }
     }
 
@@ -735,6 +1217,9 @@ export const smartForgetModule: SoulModule = {
         }
       }
     }
+
+    // Graveyard 定期清除：age > 180天
+    purgeGraveyard(memories)
 
     if (result.toForget.length > 0 || result.toConsolidate.length > 0) {
       // Persist changes

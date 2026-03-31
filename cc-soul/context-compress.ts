@@ -61,9 +61,30 @@ export function classifyTier(ts: number | undefined, now: number): CompressionTi
  *
  * 每句话的信息密度 = 唯一词比例 × (1 + 实体/数字密度) × 位置权重
  */
-export function compressByDensity(text: string, targetRatio: number = 0.4): string {
+/**
+ * 个性化压缩（原创）：知道用户在意什么，压缩时保留他在意的
+ * 通过 person-model 的核心领域关键词给相关句子加权
+ * 比通用信息密度压缩多了一层"对这个用户有没有用"的判断
+ */
+export function compressByDensity(text: string, targetRatio: number = 0.4, userId?: string): string {
   const sentences = text.split(/(?<=[。！？!?\.\n])\s*/).filter(s => s.trim().length > 3)
   if (sentences.length <= 2) return text
+
+  // 加载用户核心领域关键词（个性化压缩的关键）
+  let userDomainKeywords: Set<string> = new Set()
+  if (userId) {
+    try {
+      const pm = require('./person-model.ts')
+      const profile = pm.getPersonModel(userId)
+      if (profile?.topDomains) {
+        for (const d of profile.topDomains) {
+          // 把领域名拆成关键词
+          const words = (d.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || [])
+          for (const w of words) userDomainKeywords.add(w.toLowerCase())
+        }
+      }
+    } catch {}
+  }
 
   // 计算每句的信息密度
   const scored = sentences.map((sent, idx) => {
@@ -81,7 +102,14 @@ export function compressByDensity(text: string, targetRatio: number = 0.4): stri
     // 长度惩罚：太短的句子信息量低
     const lengthFactor = sent.length < 10 ? 0.5 : 1.0
 
-    const density = uniqueRatio * entityDensity * posWeight * lengthFactor
+    // 个性化加权：包含用户核心领域关键词的句子 ×1.5
+    let personalBoost = 1.0
+    if (userDomainKeywords.size > 0) {
+      const domainHits = words.filter(w => userDomainKeywords.has(w)).length
+      if (domainHits > 0) personalBoost = 1.5
+    }
+
+    const density = uniqueRatio * entityDensity * posWeight * lengthFactor * personalBoost
     return { sent, density, idx }
   })
 

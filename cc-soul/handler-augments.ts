@@ -16,6 +16,7 @@ import {
   buildCoreMemoryContext, buildEpisodeContext, buildWorkingMemoryContext,
   getMemoriesByScope, generatePrediction,
   triggerSessionSummary, ensureMemoriesLoaded,
+  trigrams, trigramSimilarity,
 } from './memory.ts'
 import { innerState, peekPendingFollowUps, checkActivePlans } from './inner-life.ts'
 import { body, bodyGetParams, getEmotionContext, getEmotionalArcContext, getEmotionAnchorWarning, getMoodState, isTodayMoodAllLow } from './body.ts'
@@ -26,7 +27,7 @@ import { getDomainConfidence, detectDomain, popBlindSpotQuestion } from './epist
 import { getPersonModel, getUnifiedUserContext } from './person-model.ts'
 // blindSpots analysis now done inline (no heartbeat dependency)
 import { queryEntityContext, findMentionedEntities, generateEntitySummary, graphWalkRecallScored, traceCausalChain } from './graph.ts'
-import { getFlowHints, getFlowContext } from './flow.ts'
+import { getFlowHints, getFlowContext, getCoupledPressureContext } from './flow.ts'
 import { getAssociativeRecall, triggerAssociativeRecall, associateSync } from './memory.ts'
 import { queryLorebook } from './lorebook.ts'
 import { prepareContext } from './context-prep.ts'
@@ -39,7 +40,7 @@ import { getCachedDriftWarning } from './fingerprint.ts'
 import { getParam } from './auto-tune.ts'
 import { getBestPattern } from './patterns.ts'
 import { detectConversationPace } from './cognition.ts'
-import { checkPredictions, generateNewPredictions, getBehaviorPrediction, getTimeSlotPrediction, isDecisionQuestion, predictUserDecision } from './behavior-prediction.ts'
+import { checkPredictions, generateNewPredictions, getBehaviorPrediction, getTimeSlotPrediction, isDecisionQuestion, predictUserDecision } from './behavioral-phase-space.ts'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
@@ -54,6 +55,99 @@ const _lastSoulMoments = new Map<string, number>()
 
 // ── 蒸馏反馈追踪：记录哪些 topic node 被使用了 ──
 const _usedTopicNodes = new Set<string>()
+
+// ── P1a: 记忆级注入竞争 — 追踪本轮注入的记忆内容 ──
+let _lastInjectedMemoryContents: string[] = []
+
+// ── P5e: retention 信号 — 用户 48 小时内回来 → 上次 session 记忆注入有效 ──
+let _lastRetentionCheckTs = 0
+export function checkRetentionSignal(userId: string): void {
+  const now = Date.now()
+  if (now - _lastRetentionCheckTs < 3600000) return  // 每小时最多检查一次
+  _lastRetentionCheckTs = now
+  try {
+    const { getProfile } = require('./user-profiles.ts')
+    const profile = getProfile(userId)
+    const lastSeen = profile?.lastSeen ?? 0
+    // 48 小时内回来 → 上次 session 的记忆注入是成功的
+    if (lastSeen > 0 && now - lastSeen < 48 * 3600000 && now - lastSeen > 1800000) {
+      // 轻微提升最近被注入记忆的 engagement 分
+      const { memoryState } = require('./memory.ts')
+      const recent = memoryState.memories.filter((m: any) =>
+        m && (m.injectionEngagement ?? 0) > 0 && now - (m.lastAccessed || 0) < 48 * 3600000
+      )
+      for (const m of recent.slice(0, 5)) {
+        m.injectionEngagement = (m.injectionEngagement ?? 0) + 1
+      }
+    }
+  } catch {}
+}
+
+/**
+ * 记录本轮注入的记忆内容（由 buildAndSelectAugments 调用）
+ */
+export function trackInjectedMemories(contents: string[]): void {
+  _lastInjectedMemoryContents = contents
+}
+
+/**
+ * P1a: 记忆级 engagement 反馈
+ * 对比用户回复与每条注入记忆的 trigram 相似度，判定 engaged/ignored
+ * 短确认回复（<8字且匹配 POSITIVE_RE）跳过，不计入
+ */
+export function feedbackMemoryEngagement(userReply: string): void {
+  if (_lastInjectedMemoryContents.length === 0) return
+
+  // 短回复保护：确认性短回复不计
+  if (userReply.length < 8 && POSITIVE_RE.test(userReply.trim())) {
+    _lastInjectedMemoryContents = []
+    return
+  }
+
+  const { memoryState } = require('./memory.ts')
+  const replyTri = trigrams(userReply)
+
+  // 用 _memLookup 精确查找，避免 content 前 40 字相同的误匹配
+  const { _memLookup } = require('./memory-recall.ts')
+  let engagedTotal = 0
+  let matchedTotal = 0
+
+  for (const injectedContent of _lastInjectedMemoryContents) {
+    // 精确查找：遍历 _memLookup 找 content 完全匹配
+    let mem: any = null
+    for (const [, m] of _memLookup) {
+      if (m && m.content === injectedContent) { mem = m; break }
+    }
+    // fallback：模糊匹配（兼容 content 被压缩的情况）
+    if (!mem) {
+      mem = memoryState.memories.find((m: any) =>
+        m && m.content && injectedContent.includes(m.content.slice(0, 40))
+      )
+    }
+    if (!mem) continue
+
+    matchedTotal++
+    const memTri = trigrams(mem.content)
+    const overlap = trigramSimilarity(replyTri, memTri)
+
+    if (overlap > 0.3) {
+      mem.injectionEngagement = (mem.injectionEngagement ?? 0) + 1
+      engagedTotal++
+    } else if (overlap < 0.1) {
+      mem.injectionMiss = (mem.injectionMiss ?? 0) + 1
+    }
+    // 0.1~0.3：不确定，不计
+  }
+
+  // P3: 记录 A/B 实验 engagement（复用上面的计算结果，不重复遍历）
+  const engagementRatio = matchedTotal > 0 ? engagedTotal / matchedTotal : 0
+  try {
+    const { recordABEngagement } = require('./memory-recall.ts')
+    recordABEngagement(engagementRatio)
+  } catch {}
+
+  _lastInjectedMemoryContents = []
+}
 
 /**
  * 蒸馏反馈闭环：根据回复质量反馈 topic node 的准确性
@@ -82,7 +176,7 @@ export function feedbackDistillQuality(qualityScore: number) {
 // LLM reranker cache: async results from previous turn
 let _cachedRerankedMemories: Memory[] = []
 let _cachedRerankedQuery = ''
-import { trigrams, trigramSimilarity } from './memory.ts'
+// trigrams, trigramSimilarity — moved to top-level import from './memory.ts'
 // ── Lazy-loaded sqlite-store for context reminders ──
 let _sqliteStoreMod: any = null
 function getSqliteStoreMod() {
@@ -100,12 +194,45 @@ const SCOPE_LABELS: Record<string, string> = {
   preference: '偏好', fact: '事实', event: '经历', opinion: '观点', topic: '话题',
   correction: '纠正', task: '任务', discovery: '发现', reflection: '思考',
 }
+
+/**
+ * 语义新鲜度标注（原创：不只看日历，还看话题相关性）
+ * 3 天前的记忆如果跟当前话题强相关 → 标为"仍然相关"
+ * 1 小时前的记忆如果话题已切走 → 标为"之前提到"
+ */
+function annotateMemoryFreshness(content: string, mem: Memory, currentMsg?: string): string {
+  const ageDays = (Date.now() - mem.ts) / 86400000
+  if (ageDays < 0.02) return content  // <30 分钟，不标注
+
+  // 语义新鲜度：如果有当前消息，用 trigram 判断话题是否仍相关
+  let semanticFresh = false
+  if (currentMsg && currentMsg.length > 4) {
+    const memTri = trigrams(mem.content)
+    const msgTri = trigrams(currentMsg)
+    semanticFresh = trigramSimilarity(memTri, msgTri) > 0.15
+  }
+
+  if (semanticFresh && ageDays >= 1) {
+    // 话题仍相关但时间久了 → 标"仍然相关"
+    const ageStr = ageDays < 7 ? `${Math.round(ageDays)}天前` : `${Math.round(ageDays / 7)}周前`
+    return `[${ageStr},仍相关] ${content}`
+  }
+
+  // 话题不相关或无法判断 → 退化到时间标注
+  if (ageDays < 1) return content
+  const ageStr = ageDays < 2 ? '昨天'
+    : ageDays < 7 ? `${Math.round(ageDays)}天前`
+    : ageDays < 30 ? `${Math.round(ageDays / 7)}周前`
+    : `${Math.round(ageDays / 30)}月前`
+  return `[${ageStr}] ${content}`
+}
+
 function distillMemories(memories: Memory[]): string {
   const groups = new Map<string, string[]>()
   for (const m of memories) {
     const key = m.scope || 'other'
     if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(m.content)
+    groups.get(key)!.push(annotateMemoryFreshness(m.content, m))
   }
   const paragraphs: string[] = []
   for (const [scope, contents] of groups) {
@@ -121,7 +248,15 @@ function distillMemories(memories: Memory[]): string {
 const AUGMENT_FEEDBACK_PATH = resolve(DATA_DIR, 'augment_feedback.json')
 const TRACKED_AUGMENTS = ['举一反三', '预测', '情绪外显', '思维盲点'] as const
 type AugFeedback = Record<string, { useful: number; ignored: number }>
-const augmentFeedback: AugFeedback = loadJson<AugFeedback>(AUGMENT_FEEDBACK_PATH, {})
+// 优先从 SQLite 加载，fallback JSON
+let augmentFeedback: AugFeedback
+try {
+  const _sqlMod = require('./sqlite-store.ts')
+  const dbFb = _sqlMod?.dbLoadAugmentFeedback?.()
+  augmentFeedback = (dbFb && Object.keys(dbFb).length > 0) ? dbFb : loadJson<AugFeedback>(AUGMENT_FEEDBACK_PATH, {})
+} catch {
+  augmentFeedback = loadJson<AugFeedback>(AUGMENT_FEEDBACK_PATH, {})
+}
 const POSITIVE_RE = /^(好的?|谢谢|ok|嗯|收到|明白|懂了|了解|thx|thanks|got it)/i
 
 function recordAugmentFeedbackFromUser(lastAugments: string[], userMsg: string) {
@@ -137,6 +272,24 @@ function recordAugmentFeedbackFromUser(lastAugments: string[], userMsg: string) 
     // 同步更新连续反馈模型：engaged → 0.8 分，ignored → 0.2 分
     recordAugmentQuality(t, engaged ? 0.8 : 0.2)
   }
+  // SQLite 主存储
+  try {
+    const sqlMod = require('./sqlite-store.ts')
+    for (const t of tracked) {
+      if (sqlMod?.dbSaveAugmentFeedback) {
+        const fb = augmentFeedback[t]
+        const state = _augmentFeedback.get(t)
+        sqlMod.dbSaveAugmentFeedback(t, {
+          useful: fb?.useful ?? 0,
+          ignored: fb?.ignored ?? 0,
+          totalScore: state?.totalScore ?? 0,
+          count: state?.count ?? 0,
+          recentScores: state?.recentScores ?? [],
+        })
+      }
+    }
+  } catch {}
+  // JSON backup
   debouncedSave(AUGMENT_FEEDBACK_PATH, augmentFeedback)
 }
 
@@ -455,6 +608,15 @@ export async function buildAndSelectAugments(params: {
 }): Promise<{ selected: string[]; augments: Augment[] }> {
   const { userMsg, session, senderId, channelId, cog, flow, flowKey, followUpHints, workingMemKey } = params
 
+  // P5e: retention 信号检查
+  if (senderId) checkRetentionSignal(senderId)
+
+  // 行为相空间：记录当前状态到轨迹
+  try {
+    const { recordState } = require('./behavioral-phase-space.ts')
+    recordState(userMsg, body?.mood ?? 0, session)
+  } catch {}
+
   // ── Message-level recall cache (avoids redundant recall for same query in same turn) ──
   const _recallCache = new Map<string, Memory[]>()
   function cachedRecall(msg: string, topN: number, userId?: string, channelId?: string, moodCtx?: any): Memory[] {
@@ -528,6 +690,16 @@ export async function buildAndSelectAugments(params: {
   {
     const hoursSinceLastMessage = (Date.now() - innerState.lastActivityTime) / 3600000
     const isFirstAfterGap = hoursSinceLastMessage >= 8 && stats.totalMessages > 50
+
+    // P5e: 用户回来了 → 上次 session 的注入记忆是成功的，轻微提升 engagement 分
+    if (isFirstAfterGap && hoursSinceLastMessage < 48 && senderId) {
+      for (const m of memoryState.memories) {
+        if (m && m.injectionEngagement && m.injectionEngagement > 0 && m.lastAccessed &&
+            m.lastAccessed > Date.now() - 48 * 3600000) {
+          m.injectionEngagement += 0.05  // retention boost
+        }
+      }
+    }
 
     if (isFirstAfterGap) {
       const briefingParts: string[] = ['[早安简报] 请在回复开头自然地提到以下信息：']
@@ -755,9 +927,50 @@ export async function buildAndSelectAugments(params: {
     }
   }
 
-  // ── Unified user profile (merged: mental model + profile + relationship + rhythm) ──
+  // ── User Projector（原创算法）：按 Intent Spectrum 驱动多场景投影 ──
+  // 不合并 5 个画像为 1 个超级画像，而是按需投影
   if (senderId) {
     const parts: string[] = []
+    const spectrum = cog.spectrum ?? { information: 0.3, action: 0.1, emotional: 0.1, validation: 0.1, exploration: 0.1 }
+
+    // 技术投影：domainExpertise + techStack + identity
+    if (spectrum.information > 0.4 || spectrum.action > 0.4) {
+      const pm = getPersonModel()
+      if (pm?.domainExpertise) {
+        const expertise = Object.entries(pm.domainExpertise).filter(([_, v]) => v !== 'beginner').map(([k, v]) => `${k}:${v}`).join(', ')
+        if (expertise) parts.push(`[技术画像] ${expertise}`)
+      }
+    }
+
+    // 情感投影：stressLevel + dynamics + relationship
+    if (spectrum.emotional > 0.4) {
+      try {
+        const pressureCtx = getCoupledPressureContext()
+        if (pressureCtx) parts.push(pressureCtx)
+      } catch {}
+      try {
+        const { getMentalModel } = require('./distill.ts')
+        const model = getMentalModel(senderId)
+        // 只取 dynamics 部分（情感相关）
+        if (model && model.includes?.('\n')) {
+          const lines = model.split('\n')
+          const dynamicsLine = lines.find((l: string) => /情绪|压力|焦虑|状态/.test(l))
+          if (dynamicsLine) parts.push(`[近期状态] ${dynamicsLine.trim()}`)
+        }
+      } catch {}
+    }
+
+    // 闲聊投影：avatar + style + languageDna
+    if (spectrum.exploration > 0.3 || (spectrum.information < 0.3 && spectrum.action < 0.3)) {
+      try {
+        const profile = getProfile(senderId)
+        if (profile?.languageDna?.samples >= 10) {
+          parts.push(`[表达风格] 均长${profile.languageDna.avgLength}字`)
+        }
+      } catch {}
+    }
+
+    // 基础画像（总是加，但如果上面已经加了细分投影则降低优先级）
     const unifiedCtx = getUnifiedUserContext(userMsg, senderId)
     if (unifiedCtx) {
       parts.push(unifiedCtx)
@@ -850,26 +1063,32 @@ export async function buildAndSelectAugments(params: {
         const isHistorical = m.validUntil && m.validUntil > 0 && m.validUntil < Date.now()
         const temporalPrefix = isHistorical
           ? `[历史] ${m.content} (截至 ${new Date(m.validUntil!).toLocaleDateString('zh-CN')})`
-          : m.content
+          : annotateMemoryFreshness(m.content, m, userMsg)  // 语义新鲜度：话题相关则标"仍相关"
         const reasoningTag = m.reasoning
           ? ` (推理: 因为${m.reasoning.context}所以${m.reasoning.conclusion}, 置信度 ${m.reasoning.confidence})`
+          : ''
+        // 四档置信度语气（原创：Bayes C 连续谱 → 四档自然语气，比二值 verified/hint 更像人类回忆）
+        // C > 0.8  → 确定（"我记得你说过"）
+        // C 0.5-0.8 → 一般（不加标签，默认语气）
+        // C 0.3-0.5 → 不确定（"你之前好像提过"）
+        // C < 0.3  → 模糊（不注入，已在 recall 阶段被过滤）
+        const bayesC = (m.bayesAlpha ?? 2) / ((m.bayesAlpha ?? 2) + (m.bayesBeta ?? 1))
+        const recallFreq = m.recallCount ?? 0
+        const trustTag = bayesC > 0.8 && recallFreq >= 3
+          ? ' [确信,用"我记得你说过"的语气]'
+          : bayesC > 0.8 ? ' [可信]'
+          : bayesC < 0.5 && m.source !== 'user_said'
+            ? ' [不确定,用"你之前好像提过"的语气,等用户确认]'
           : ''
         const sourceTag = m.source === 'user_said' ? ' [用户亲述]'
           : m.source === 'ai_inferred' ? ' [AI推断,需验证]'
           : ''
         const becauseTag = m.because ? ` （因为: ${m.because}）` : ''
-        return temporalPrefix + emotionTag + reasoningTag + sourceTag + becauseTag
+        return temporalPrefix + emotionTag + reasoningTag + sourceTag + trustTag + becauseTag
       }).join('; ')
     augments.push({ content, priority: 8, tokens: estimateTokens(content) })
 
-    // ── Tip-of-the-Tongue: low-confidence memories → honest partial recall ──
-    // Instead of stating uncertain memories as facts, say "我好像记得..."
-    const fuzzyMemories = recalled.filter(m => (m.confidence ?? 0.7) < 0.4 && m.source !== 'user_said')
-    if (fuzzyMemories.length > 0) {
-      const fuzzyHint = '[模糊记忆] 以下信息不确定，如果要用请说"我好像记得"而非直接断言：' +
-        fuzzyMemories.slice(0, 2).map(m => m.content.slice(0, 50)).join('；')
-      augments.push({ content: fuzzyHint, priority: 7, tokens: estimateTokens(fuzzyHint) })
-    }
+    // Tip-of-the-Tongue 已合并进四档置信度语气标签（trustTag），不再需要单独 augment
 
     // ── 因果链注入: 当召回的记忆包含纠正类时，追溯因果并注入上下文 ──
     const corrRecalled = recalled.filter(m => m.scope === 'correction' || m.scope === 'event')
@@ -1163,7 +1382,7 @@ export async function buildAndSelectAugments(params: {
   // because behavior is context-specific (current situation), persona is identity-level.
   // persona = "用什么身份说话", behavior = "怎么说"
   try {
-    const { getBehaviorEngineHint } = await import('./behavior-engine.ts')
+    const { getBehaviorEngineHint } = await import('./behavioral-phase-space.ts')
     const beHint = getBehaviorEngineHint(userMsg, body.mood, session)
     if (beHint) {
       // Find persona augment and ensure behavior priority is higher by 1
@@ -1389,6 +1608,16 @@ export async function buildAndSelectAugments(params: {
       if (summary && (!entityCtx.length || !entityCtx.some(c => c.includes(name)))) {
         augments.push({ content: `[实体摘要] ${summary}`, priority: 6, tokens: estimateTokens(summary) })
       }
+      // P5d: contextualEntityRank — 用引力排名补充相关实体
+      try {
+        const { rankEntitiesByContext } = require('./graph.ts')
+        const relatedEntities = rankEntitiesByContext(name, 3)
+        for (const re of relatedEntities) {
+          if (!entityCtx.some(c => c.includes(re.name))) {
+            augments.push({ content: `[关联实体] ${re.name} (引力=${re.gravity.toFixed(2)})`, priority: 4, tokens: 10 })
+          }
+        }
+      } catch {}
     }
   }
 
@@ -1471,6 +1700,12 @@ export async function buildAndSelectAugments(params: {
   const flowCtx = getFlowContext(flowKey)
   if (flowCtx) {
     augments.push({ content: flowCtx, priority: 6, tokens: estimateTokens(flowCtx) })
+  }
+
+  // 耦合压力振荡器注入
+  const pressureCtx = getCoupledPressureContext()
+  if (pressureCtx) {
+    augments.push({ content: pressureCtx, priority: 8, tokens: estimateTokens(pressureCtx) })
   }
 
   // Associative recall
@@ -1816,6 +2051,38 @@ export async function buildAndSelectAugments(params: {
     }
   } catch {}
 
+  // ── MicroCompact（学自 Claude Code）：零 LLM 成本的 augment 清理 ──
+  // 删除过旧的 augment（>1小时且低优先级）、截断过长的 augment、去重
+  {
+    const now = Date.now()
+    const ONE_HOUR = 3600000
+    const seen = new Set<string>()
+
+    for (let i = augments.length - 1; i >= 0; i--) {
+      const aug = augments[i]
+
+      // 去重：相同前 40 字的 augment 只保留优先级最高的
+      const dedupeKey = aug.content.slice(0, 40)
+      if (seen.has(dedupeKey)) {
+        augments.splice(i, 1)
+        continue
+      }
+      seen.add(dedupeKey)
+
+      // 过旧低优先级 augment 直接删除
+      if ((aug as any).ts && now - (aug as any).ts > ONE_HOUR && aug.priority < 5) {
+        augments.splice(i, 1)
+        continue
+      }
+
+      // 过长 augment 截断（单条 > 500 tokens 且非核心记忆）
+      if (aug.tokens > 500 && aug.priority < 8) {
+        aug.content = aug.content.slice(0, 400) + '...'
+        aug.tokens = Math.ceil(aug.content.length * 0.8)
+      }
+    }
+  }
+
   // ── Apply augment feedback learning adjustments ──
   for (const aug of augments) {
     const tm = aug.content.match(/^\[([^\]]+)\]/)
@@ -1825,18 +2092,78 @@ export async function buildAndSelectAugments(params: {
       const d = continuous !== 0 ? continuous : getAugmentFeedbackDelta(tm[1])
       if (d) aug.priority = Math.max(1, aug.priority + d)
     }
+
+    // P1a: 记忆级 engagement rate 调整优先级
+    // 从 augment content 中匹配到对应记忆，用其 engagement rate 微调
+    try {
+      const contentSlice = aug.content.slice(0, 60)
+      const matchedMem = memoryState.memories.find((m: any) =>
+        m && m.content && contentSlice.includes(m.content.slice(0, 30)) &&
+        ((m.injectionEngagement ?? 0) + (m.injectionMiss ?? 0)) >= 3
+      )
+      if (matchedMem) {
+        const eng = matchedMem.injectionEngagement ?? 0
+        const miss = matchedMem.injectionMiss ?? 0
+        const rate = eng / Math.max(1, eng + miss)
+        // rate > 0.5 → boost; rate < 0.3 → penalty
+        const engBoost = (rate - 0.4) * 3  // range: [-1.2, +1.8]
+        aug.priority = Math.max(1, aug.priority + Math.max(-1, Math.min(1.5, engBoost)))
+      }
+    } catch {}
   }
 
-  // ── Select augments within budget ──
+  // ── Select augments within budget (自适应 context window) ──
+  let effectiveAugmentBudget = getParam('prompt.augment_budget')
+  try {
+    const { computeBudget, getAugmentCompressionConfig } = require('./context-budget.ts')
+    const budget = computeBudget()
+    const config = getAugmentCompressionConfig(budget)
+
+    effectiveAugmentBudget = budget.augmentBudget
+
+    // 跳过低优先级 augment 类型（小模型场景）
+    if (config.skipTypes.length > 0) {
+      for (let i = augments.length - 1; i >= 0; i--) {
+        const type = augments[i].content.match(/^\[([^\]]+)\]/)?.[1]
+        if (type && config.skipTypes.includes(type)) {
+          augments.splice(i, 1)
+        }
+      }
+    }
+
+    // 限制 augment 总数
+    if (augments.length > config.maxAugments) {
+      augments.sort((a, b) => b.priority - a.priority)
+      augments.length = config.maxAugments
+    }
+
+    // 强制压缩（小模型时全部过一遍压缩器）
+    if (config.forceCompression) {
+      try {
+        const { summarize, compressFact } = require('./context-compress.ts')
+        const compressor = config.forceCompression === 'summary' ? summarize : compressFact
+        for (const aug of augments) {
+          if (aug.tokens > config.maxAugmentTokens) {
+            aug.content = compressor(aug.content)
+            aug.tokens = Math.ceil(aug.content.length * 0.8)
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+
   const hour = new Date().getHours()
   const isLateNight = hour >= 23 || hour < 6
   const turnDecay = Math.max(0.5, 1 - (flow.turnCount * 0.03))
   const timeDecay = isLateNight ? 0.7 : 1.0
   const attentionMultiplier = bparams.maxTokensMultiplier * turnDecay * timeDecay * ctxBudgetMul
-  const selected = selectAugments(augments, getParam('prompt.augment_budget'), attentionMultiplier)
+  const selected = selectAugments(augments, effectiveAugmentBudget, attentionMultiplier)
 
   // Snapshot augments for post-hoc attribution
   snapshotAugments(selected)
+
+  // P1a: 追踪本轮注入的记忆内容（用于 engagement 反馈）
+  trackInjectedMemories(selected.filter(s => /^\[(?:记忆|偏好|事实|经历|纠正|核心记忆)]/.test(s)))
 
   // ── Track compression metrics ──
   {

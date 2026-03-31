@@ -115,8 +115,12 @@ async function handleAction(action: string, body: any): Promise<any> {
       return { handled: directHandled, reply: directHandled ? '(done)' : '(not a command)' }
     }
 
-    case 'health':
-      return { status: 'ok', port: SOUL_API_PORT, version: '2.5.0' }
+    case 'health': {
+      // P5h: 加入 workload 成本统计
+      let workloadCosts = {}
+      try { const { getWorkloadCosts } = require('./cli.ts'); workloadCosts = getWorkloadCosts() } catch {}
+      return { status: 'ok', port: SOUL_API_PORT, version: '2.5.0', workloadCosts }
+    }
 
     default:
       return { error: `unknown action: "${action}"`, actions: ['process', 'feedback', 'soul', 'profile', 'features', 'config', 'command', 'health'] }

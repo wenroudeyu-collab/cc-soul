@@ -117,6 +117,15 @@ export interface Memory {
   fsrs?: { stability: number; difficulty: number; reps: number; lapses: number }
   // ── Living Memory Network: micro-links accumulated from recall co-occurrences ──
   microLinks?: { query: string; memoryRef: string; sharedKeywords: string[]; ts: number }[]
+  // ── P1a: Memory-level injection competition ──
+  injectionEngagement?: number  // 被注入后用户 engaged 的次数（trigram overlap > 0.3）
+  injectionMiss?: number        // 被注入后用户 ignored 的次数（trigram overlap < 0.1）
+  // ── P2a: 日期双写（懒生成）──
+  contentNormalized?: string    // 日期归一化版本（"昨天" → "2026-03-30"）。召回/注入用此字段
+  // ── P0a: Graveyard metadata ──
+  _graveyardOriginalScope?: string
+  _graveyardTs?: number
+  _needsVerification?: boolean
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

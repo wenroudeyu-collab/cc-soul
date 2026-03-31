@@ -396,11 +396,40 @@ export function activationRecall(
     }
   } catch {}
 
-  // 主路径：激活场计算
-  const results = computeActivationField(memories, query, mood, alertness, expanded, topN)
+  // ── P5c: cascadeRecall 管线式集成 ──
+  // Step 1: AAM 扩展查询词（增强召回率）
+  let cascadeExpanded = expanded
+  try {
+    const aamMod = require('./aam.ts')
+    const aamExpansion = aamMod.expandQuery(
+      (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()),
+      3  // 最多扩展 3 个词，PMI > 1.5 过滤（expandQuery 内部处理）
+    )
+    if (aamExpansion.length > 0) {
+      // 合并 AAM 扩展词到查询词集
+      for (const exp of aamExpansion) {
+        if (!cascadeExpanded.includes(exp.word)) {
+          cascadeExpanded.push(exp.word)
+        }
+      }
+    }
+  } catch {}
 
-  if (results.length > 0) {
-    console.log(`[activation-field] ${results.length} memories surfaced (top=${results[0].activation.toFixed(3)})`)
+  // Step 2: 激活场计算（用扩展后的查询，候选集更完整）
+  const results = computeActivationField(memories, query, mood, alertness, cascadeExpanded, topN * 2)
+  // 过采样 2x，给 Step 3 的 rerank 留空间
+
+  // Step 3: CIN 已内置于 computeActivationField 的 6 信号中（contextMatch + interferenceSuppress）
+  // 不需要额外 rerank，激活场本身就是多信号融合
+
+  // Step 4: CWRF — 如果有多个独立通道结果，用置信度加权融合
+  // （activation field 是统一路径，CWRF 应用于 recallWithScores 的 5 通道融合中）
+
+  // 截断到 topN
+  const topResults = results.slice(0, topN)
+
+  if (topResults.length > 0) {
+    console.log(`[activation-field] cascade: ${cascadeExpanded.length} expanded words → ${results.length} candidates → ${topResults.length} selected`)
   }
 
   // 学习：每条消息都喂入 AAM 关联网络
@@ -409,7 +438,7 @@ export function activationRecall(
     aamMod.learnAssociation(query)
   } catch {}
 
-  return results.map(r => r.memory)
+  return topResults.map(r => r.memory)
 }
 
 // ═══════════════════════════════════════════════════════════════

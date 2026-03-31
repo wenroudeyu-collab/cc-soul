@@ -205,37 +205,6 @@ export function autoCreateSkill(description: string, example: string) {
 // PLANNER — complex task decomposition
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function decomposePlan(task: string, callback: (plan: Plan) => void) {
-  spawnCLI(
-    `把以下任务分解成3-7个具体可执行的步骤。每步一行，格式: "步骤N: 具体操作"。\n\n任务: ${task.slice(0, 500)}`,
-    (output) => {
-      const steps = output.split('\n')
-        .map((line) => line.replace(/^步骤\d+[:：]\s*/, '').trim())
-        .filter(l => l.length > 3)
-        .map((desc, i) => ({ id: i + 1, desc, status: 'pending' as const }))
-
-      if (steps.length >= 2) {
-        const plan: Plan = { goal: task.slice(0, 200), steps, createdAt: Date.now() }
-        taskState.activePlans.push(plan)
-        if (taskState.activePlans.length > 20) taskState.activePlans = taskState.activePlans.slice(-15)
-        debouncedSave(PLANS_PATH, taskState.activePlans)
-        callback(plan)
-      } else {
-        const fallback: Plan = { goal: task.slice(0, 200), steps: [{ id: 1, desc: task.slice(0, 200), status: 'pending' }], createdAt: Date.now() }
-        callback(fallback)
-      }
-    }
-  )
-}
-
-export function formatPlan(plan: Plan): string {
-  const stepLines = plan.steps.map(s => {
-    const icon = s.status === 'done' ? '✅' : s.status === 'running' ? '⏳' : s.status === 'failed' ? '❌' : '⬜'
-    return `${icon} ${s.id}. ${s.desc}`
-  }).join('\n')
-  return `📋 任务: ${plan.goal}\n${stepLines}`
-}
-
 export function getActivePlanHint(): string {
   const active = taskState.activePlans.filter(p => Array.isArray(p.steps) && p.steps.some(s => s.status === 'pending' || s.status === 'running'))
   if (active.length === 0) return ''

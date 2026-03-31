@@ -350,7 +350,7 @@ All automatic. No setup, no toggles. Works from the first message.
 - Habit/goal/reminder tracking
 - Cost tracking — token usage per conversation
 
-**7 optional features** (user can toggle): `dream_mode` · `auto_daily_review` · `self_correction` · `memory_session_summary` · `absence_detection` · `behavior_prediction` · `auto_mood_care`
+**6 optional features** (user can toggle): `auto_daily_review` · `self_correction` · `memory_session_summary` · `absence_detection` · `behavior_prediction` · `auto_mood_care`
 
 ---
 
@@ -437,7 +437,7 @@ All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data
 
 ---
 
-**NAM memory engine · 50+ commands · 40 feature toggles · 15 API endpoints · 11 personas · 7-dimension user model · no external models needed**
+**NAM memory engine · 50+ commands · 49 feature toggles · 15 API endpoints · 11 personas · 7-dimension user model · no external models needed**
 
 [npm](https://www.npmjs.com/package/@cc-soul/openclaw) · [GitHub](https://github.com/wenroudeyu-collab/cc-soul) · Issues: [github.com/wenroudeyu-collab/cc-soul/issues](https://github.com/wenroudeyu-collab/cc-soul/issues) · wenroudeyu@gmail.com
 

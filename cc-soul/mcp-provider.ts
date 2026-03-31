@@ -31,6 +31,8 @@ export interface MCPTool {
   description: string
   parameters: Record<string, any>
   handler: (params: any) => any
+  // 风险分级（学自 Claude Code 四级权限系统）
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH'
 }
 
 export function getMCPTools(): MCPTool[] {
@@ -38,6 +40,7 @@ export function getMCPTools(): MCPTool[] {
     // ── memory_search: override OpenClaw native tool so model calls go through cc-soul recall ──
     {
       name: 'memory_search',
+      riskLevel: 'LOW',  // 只读操作
       description: 'Search memories by keyword. Returns relevant memories from cc-soul cognitive memory system.',
       parameters: {
         query: { type: 'string', required: true },
@@ -62,6 +65,7 @@ export function getMCPTools(): MCPTool[] {
     },
     {
       name: 'cc_memory_search',
+      riskLevel: 'LOW',  // 只读操作
       description: 'Search cc-soul memories by keyword (alias)',
       parameters: {
         query: { type: 'string', required: true },
@@ -75,6 +79,7 @@ export function getMCPTools(): MCPTool[] {
     },
     {
       name: 'cc_memory_add',
+      riskLevel: 'MEDIUM',  // 写入操作
       description: 'Add a memory to cc-soul',
       parameters: {
         content: { type: 'string', required: true },
@@ -88,6 +93,7 @@ export function getMCPTools(): MCPTool[] {
     },
     {
       name: 'cc_soul_state',
+      riskLevel: 'LOW',  // 只读状态查询
       description: 'Get cc-soul current state (energy, mood, memory count)',
       parameters: {},
       handler: () => {
@@ -103,6 +109,7 @@ export function getMCPTools(): MCPTool[] {
     },
     {
       name: 'cc_persona_info',
+      riskLevel: 'LOW',  // 只读人设查询
       description: 'Get cc-soul active persona details',
       parameters: {},
       handler: () => {

@@ -21,14 +21,13 @@ import { loadJson, debouncedSave, DATA_DIR } from './persistence.ts'
 import { isAuditCommand, formatAuditLog } from './audit.ts'
 import { dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
 import { handleFeatureCommand } from './features.ts'
-import { getVectorStatus, installVectorSearch } from './embedder.ts'
+// embedder.ts removed — vector search retired
 import {
   memoryState, recall, addMemory, addMemoryWithEmotion, saveMemories,
   queryMemoryTimeline, ensureMemoriesLoaded, restoreArchivedMemories,
   trigrams, trigramSimilarity,
 } from './memory.ts'
 import { generateMoodReport, formatEmotionAnchors } from './body.ts'
-import { generateMemoryChain } from './reports.ts'
 import { getCapabilityScore } from './epistemic.ts'
 import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } from './user-dashboard.ts'
 // ── Optional modules (absent in public build) ──
@@ -235,10 +234,7 @@ export function routeCommand(
 • 审计日志 / audit log            — 查看操作审计链
 • 开始实验 <描述>                 — 启动 A/B 实验
 
-━━ 向量搜索（可选） ━━
-• 安装向量                         — 一键安装语义搜索（自动下载模型+运行时）
-• 向量状态                         — 查看安装状态
-不安装也完全正常工作，只是用关键词匹配。`
+向量搜索已退役，NAM 记忆引擎已覆盖语义匹配。`
     cmdReply(ctx, event, session, helpText, userMsg)
     return true
   }
@@ -381,46 +377,9 @@ export function routeCommand(
     return true
   }
 
-  // ── 向量搜索安装/状态命令 ──
+  // ── 向量搜索已退役（v2.9.0 NAM 替代） ──
   if (/^(安装向量|install vector|向量状态|vector status)$/i.test(userMsg.trim())) {
-    try {
-      const status = getVectorStatus()
-      if (/^(向量状态|vector status)$/i.test(userMsg.trim())) {
-        const readyLabel = status.ready ? '✅ 已启用' : (status.installed ? '⏳ 已安装，下次对话自动启用' : '❌ 未启用')
-        const lines = [
-          '向量搜索状态',
-          `  模型: ${status.hasModel ? '✅ 已安装' : '❌ 未安装'}`,
-          `  运行时: ${status.hasRuntime ? '✅ 已安装' : '❌ 未安装'}`,
-          `  就绪: ${readyLabel}`,
-        ]
-        if (!status.installed) {
-          lines.push('')
-          lines.push('━━ 自动安装 ━━')
-          lines.push('发送"安装向量"即可一键安装（需网络，约 2 分钟）')
-          lines.push('')
-          lines.push('━━ 手动安装 ━━')
-          lines.push('1. 下载模型到 ~/.openclaw/plugins/cc-soul/data/models/minilm/')
-          lines.push('   curl -L -o model.onnx "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx"')
-          lines.push('   curl -L -o vocab.json "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json"')
-          lines.push('2. 安装运行时')
-          lines.push('   cd ~/.openclaw/plugins/cc-soul && npm i onnxruntime-node')
-          lines.push('3. 重启 gateway 自动生效')
-          lines.push('')
-          lines.push('不安装也完全正常工作，只是搜索用关键词匹配而非语义匹配。')
-        }
-        cmdReply(ctx, event, session, lines.join('\n'), userMsg)
-        return true
-      }
-      if (status.installed && status.ready) {
-        cmdReply(ctx, event, session, '✅ 向量搜索已安装并启用，无需重复操作。', userMsg)
-        return true
-      }
-      cmdReply(ctx, event, session, '📦 开始安装向量搜索，请稍候（约 2 分钟）...', userMsg)
-      const messages: string[] = []
-      installVectorSearch((msg: string) => messages.push(msg)).then(() => {
-        import('./notify.ts').then(({ notifyOwnerDM }: any) => notifyOwnerDM(messages.join('\n'))).catch((e: any) => { console.error(`[cc-soul] module load failed (notify): ${e.message}`) })
-      })
-    } catch (e: any) { cmdReply(ctx, event, session, `向量安装失败: ${e.message}`, userMsg) }
+    cmdReply(ctx, event, session, '向量搜索已退役，NAM 记忆引擎已覆盖语义匹配，无需额外安装。', userMsg)
     return true
   }
 
@@ -1313,4 +1272,37 @@ export async function handleCommandInbound(
     console.error(`[cc-soul][handleCommandInbound] error: ${e.message}`)
     return false
   }
+}
+
+// ── generateMemoryChain (inlined from deleted reports.ts) ──
+
+function generateMemoryChain(keyword: string): string {
+  const db = getDb()
+  if (!db) return `🔗 记忆链路「${keyword}」\n数据库初始化中，请稍后重试。`
+  const kw = `%${keyword.toLowerCase()}%`
+  let memories: any[] = []
+  try {
+    memories = db.prepare(
+      "SELECT content, scope, ts, tags FROM memories WHERE scope != 'expired' AND scope != 'decayed' AND (LOWER(content) LIKE ? OR LOWER(tags) LIKE ?) ORDER BY ts ASC LIMIT 30"
+    ).all(kw, kw) as any[]
+  } catch { return `🔗 记忆链路「${keyword}」\n查询失败。` }
+  if (memories.length === 0) return `🔗 记忆链路「${keyword}」\n没有找到相关记忆。`
+  const lines: string[] = [`🔗 记忆链路「${keyword}」`]
+  const scopeDepth: Record<string, number> = {
+    'preference': 0, 'fact': 0, 'event': 0, 'topic': 0,
+    'correction': 1, 'discovery': 1, 'proactive': 1,
+    'reflection': 2, 'reflexion': 2,
+  }
+  let prevDate = ''
+  for (const m of memories) {
+    const date = new Date(m.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+    const depth = scopeDepth[m.scope] ?? 0
+    const indent = '  '.repeat(depth)
+    const connector = depth > 0 ? '└→ ' : ''
+    const snippet = (m.content || '').slice(0, 50).replace(/\n/g, ' ')
+    const dateTag = date !== prevDate ? ` (${date})` : ''
+    prevDate = date
+    lines.push(`  ${indent}${connector}[${snippet}${m.content.length > 50 ? '...' : ''}] ${m.scope}${dateTag}`)
+  }
+  return lines.join('\n')
 }

@@ -312,17 +312,34 @@ function saveProfile(userId: string) {
  * Auto-extract avatar data from user message. Called from handleSent.
  * Runs silently in background — user never notices.
  */
+// Dedup: track last collected message per user to prevent double-collection
+const _lastCollected = new Map<string, { msg: string; ts: number }>()
+
 export function collectAvatarData(userMsg: string, botReply: string, userId: string) {
   if (!userMsg || userMsg.length < 3 || !userId) return
   if (userMsg.startsWith('/')) return // skip commands
 
+  // Strip platform envelopes that may leak through
+  let cleanMsg = userMsg
+    .replace(/^\[Feishu[^\]]*\]\s*/i, '')
+    .replace(/^\[message_id:\s*\S+\]\s*/i, '')
+    .replace(/^[a-zA-Z0-9_\u4e00-\u9fff]{1,20}:\s*/, '')
+    .replace(/^\n+/, '').trim()
+  if (!cleanMsg || cleanMsg.length < 3) return
+
+  // Dedup: skip if same message collected within 30s
+  const last = _lastCollected.get(userId)
+  if (last && last.msg === cleanMsg && Date.now() - last.ts < 30000) return
+  _lastCollected.set(userId, { msg: cleanMsg, ts: Date.now() })
+
   const profile = loadAvatarProfile(userId)
 
   // ── 1. Expression samples (categorized, max 15 per category) ──
-  if (userMsg.length >= 5 && userMsg.length <= 200) {
-    const category = classifyMessageCategory(userMsg)
+  if (cleanMsg.length >= 5 && cleanMsg.length <= 200) {
+    const category = classifyMessageCategory(cleanMsg)
     const bucket = profile.expression.samples[category]
-    bucket.push(userMsg)
+    // Dedup within bucket
+    if (!bucket.includes(cleanMsg)) bucket.push(cleanMsg)
     if (bucket.length > 15) bucket.shift()
 
     // Update avg message length from all samples
@@ -347,7 +364,7 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
   const knownNames = new Set(Object.keys(profile.social))
 
   // Split into clauses by common Chinese/English punctuation
-  const clauses = userMsg.split(/[，。！？；、,\.!\?;\n]+/).filter(c => c.trim().length >= 4)
+  const clauses = cleanMsg.split(/[，。！？；、,\.!\?;\n]+/).filter(c => c.trim().length >= 4)
 
   const candidatePhrases = new Set<string>()
   for (const clause of clauses) {
@@ -399,11 +416,11 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
   // Cold start: every message >15 chars goes to LLM for decision detection (expensive but necessary)
   // After vocabulary is learned: only matched messages go to LLM
   const decisionWords = profile.vocabulary?.decisions || []
-  const hasDecisionFast = decisionWords.length > 0 && decisionWords.some(w => userMsg.includes(w))
-  const inColdStart = decisionWords.length === 0 && userMsg.length > 15
+  const hasDecisionFast = decisionWords.length > 0 && decisionWords.some(w => cleanMsg.includes(w))
+  const inColdStart = decisionWords.length === 0 && cleanMsg.length > 15
   if ((hasDecisionFast || inColdStart) && profile.decisions.traces.length < 20) {
     spawnCLI(
-      `从这句话中提取决策信息。如果有决策，输出 JSON: {"scenario":"场景","chose":"选了什么","reason":"为什么","rejected":"排除了什么"}。没有决策就回答 "null"。\n\n"${userMsg.slice(0, 200)}"`,
+      `从这句话中提取决策信息。如果有决策，输出 JSON: {"scenario":"场景","chose":"选了什么","reason":"为什么","rejected":"排除了什么"}。没有决策就回答 "null"。\n\n"${cleanMsg.slice(0, 200)}"`,
       (output) => {
         if (!output || output.includes('null')) return
         try {
@@ -427,10 +444,10 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
     let mentionedKnown = false
     for (const [name, contact] of Object.entries(profile.social)) {
       const sc = contact as SocialContact
-      if (userMsg.includes(name)) {
+      if (cleanMsg.includes(name)) {
         mentionedKnown = true
         if (!sc.samples) sc.samples = []
-        const sample = userMsg.slice(0, 100)
+        const sample = cleanMsg.slice(0, 100)
         if (!sc.samples.includes(sample)) {
           sc.samples.push(sample)
           if (sc.samples.length > 15) sc.samples.shift()
@@ -440,8 +457,8 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
 
     // If message seems to mention a person (CJK name-like pattern) and it's not a known contact
     // → ask LLM to extract the relationship
-    const nameCandidate = userMsg.match(/[\u4e00-\u9fff]{2,4}(?:说|问|回|发|给|叫|让|找|约|跟|和|对|是我)/)
-      || userMsg.match(/我[\u4e00-\u9fff]{2,6}[\u4e00-\u9fff]{2,3}/)  // "我同事阿昊" pattern
+    const nameCandidate = cleanMsg.match(/[\u4e00-\u9fff]{2,4}(?:说|问|回|发|给|叫|让|找|约|跟|和|对|是我)/)
+      || cleanMsg.match(/我[\u4e00-\u9fff]{2,6}[\u4e00-\u9fff]{2,3}/)  // "我同事阿昊" pattern
     if (nameCandidate && !mentionedKnown && Object.keys(profile.social).length < 30) {
       spawnCLI(
         `从这句话中提取人物关系。要求：
@@ -449,7 +466,7 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
 2. 如果只有称呼没有人名，回答 "null"
 3. 输出 JSON: {"name":"具体人名","relation":"关系","context":"简要背景"}
 
-"${userMsg.slice(0, 200)}"`,
+"${cleanMsg.slice(0, 200)}"`,
         (output) => {
           if (!output || output.includes('null')) return
           try {
@@ -457,8 +474,8 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
             if (parsed && parsed.name && parsed.relation && !profile.social[parsed.name]) {
               profile.social[parsed.name] = {
                 relation: parsed.relation,
-                context: (parsed.context || userMsg.slice(0, 60)).slice(0, 60),
-                samples: [userMsg.slice(0, 100)],
+                context: (parsed.context || cleanMsg.slice(0, 60)).slice(0, 60),
+                samples: [cleanMsg.slice(0, 100)],
               }
               saveProfile(userId)
               console.log(`[cc-soul][avatar] social relation (LLM): ${parsed.name} (${parsed.relation})`)
@@ -475,11 +492,11 @@ export function collectAvatarData(userMsg: string, botReply: string, userId: str
   // Use learned vocabulary if available, otherwise skip (LLM will catch it in periodic analysis)
   const learnedEmotions = profile.vocabulary?.emotions || {}
   for (const [emotion, words] of Object.entries(learnedEmotions)) {
-    if ((words as string[]).some(w => userMsg.includes(w))) {
+    if ((words as string[]).some(w => cleanMsg.includes(w))) {
       if (!profile.emotional_patterns.triggers[emotion]) {
         profile.emotional_patterns.triggers[emotion] = []
       }
-      const trigger = userMsg.slice(0, 40)
+      const trigger = cleanMsg.slice(0, 40)
       if (!profile.emotional_patterns.triggers[emotion].includes(trigger)) {
         profile.emotional_patterns.triggers[emotion].push(trigger)
         if (profile.emotional_patterns.triggers[emotion].length > 5) {

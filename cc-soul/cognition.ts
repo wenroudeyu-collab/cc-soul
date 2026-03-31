@@ -328,201 +328,98 @@ export function detectConversationPace(
   return { speed, avgMsgLength: avgLen, msgsPerMinute, hint }
 }
 
-// ── Online Naive Bayes Intent Classifier ──
+// ═══════════════════════════════════════════════════════════════════════════════
+// P5b: Intent Momentum（替换 NB + PA 分类器）
+// 对话惯性：连续同类意图 → 该维度加强，突然切换 → reset
+// ═══════════════════════════════════════════════════════════════════════════════
 
-interface NBClassState {
-  classes: Record<string, { wordCounts: Record<string, number>; totalWords: number; docCount: number }>
-  totalDocs: number
-}
+const MOMENTUM_WINDOW = 5  // 看最近 5 轮的意图历史
+const MOMENTUM_BOOST = 0.2  // 惯性加成
+const MOMENTUM_THRESHOLD = 3  // 连续 3 次同类才触发惯性
 
-const NB_PATH = resolve(DATA_DIR, 'nb_classifier.json')
-let nbClassifier: NBClassState = loadJson<NBClassState>(NB_PATH, { classes: {}, totalDocs: 0 })
+let _recentIntentTypes: string[] = []  // 最近的 attention types
 
-function nbTokenize(msg: string): string[] {
-  return (msg.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
-}
-
-/** Online update: add a confirmed intent sample */
-export function updateNBClassifier(msg: string, cls: string) {
-  const words = nbTokenize(msg)
-  if (words.length === 0) return
-  if (!nbClassifier.classes[cls]) {
-    nbClassifier.classes[cls] = { wordCounts: {}, totalWords: 0, docCount: 0 }
+/** 记录本轮意图类型，维护滑动窗口 */
+function recordIntentType(type: string): void {
+  _recentIntentTypes.push(type)
+  if (_recentIntentTypes.length > MOMENTUM_WINDOW) {
+    _recentIntentTypes = _recentIntentTypes.slice(-MOMENTUM_WINDOW)
   }
-  const c = nbClassifier.classes[cls]
-  c.docCount++
-  nbClassifier.totalDocs++
-  for (const w of words) {
-    c.wordCounts[w] = (c.wordCounts[w] || 0) + 1
-    c.totalWords++
-  }
-  debouncedSave(NB_PATH, nbClassifier)
 }
 
-/** Predict intent probabilities via Naive Bayes with Laplace smoothing */
-function predictNB(msg: string): Record<string, number> {
-  if (nbClassifier.totalDocs < 50) return {}  // need enough data before overriding rule-based classification
-  const words = nbTokenize(msg)
-  if (words.length === 0) return {}
+/**
+ * P5b: applyIntentMomentum — 对话惯性调制 Intent Spectrum
+ *
+ * 连续 3 条同类意图 → 该维度惯性 +0.2
+ * 突然话题切换（当前类型与最近 3 条都不同）→ 全维度 reset to base
+ */
+export function applyIntentMomentum(spectrum: IntentSpectrum, currentType: string): IntentSpectrum {
+  recordIntentType(currentType)
 
-  const scores: Record<string, number> = {}
-  for (const [cls, c] of Object.entries(nbClassifier.classes)) {
-    let logProb = Math.log(c.docCount / nbClassifier.totalDocs)
-    const vocab = c.totalWords + 1000  // Laplace smoothing denominator
-    for (const w of words) {
-      const count = c.wordCounts[w] || 0
-      logProb += Math.log((count + 1) / vocab)
+  if (_recentIntentTypes.length < MOMENTUM_THRESHOLD) return spectrum
+
+  const recent = _recentIntentTypes.slice(-MOMENTUM_THRESHOLD)
+  const allSame = recent.every(t => t === currentType)
+
+  if (allSame) {
+    // 连续同类 → 惯性加成
+    const result = { ...spectrum }
+    const spectrumKey = intentTypeToSpectrumKey(currentType)
+    if (spectrumKey && spectrumKey in result) {
+      result[spectrumKey] = Math.min(1, result[spectrumKey] + MOMENTUM_BOOST)
     }
-    scores[cls] = logProb
+    return result
   }
-  return scores
+
+  // 检测突然切换：当前类型与最近几条完全不同
+  const recentTypes = new Set(_recentIntentTypes.slice(-3))
+  if (!recentTypes.has(currentType) && recentTypes.size === 1) {
+    // 突然从一个稳定话题切换 → 不加惯性，保持 base spectrum
+    return spectrum
+  }
+
+  return spectrum
 }
 
-/** Apply NB correction to attention gate result */
-function nbCorrectAttention(baseType: string, msg: string): string {
-  const nbScores = predictNB(msg)
-  if (Object.keys(nbScores).length === 0) return baseType
-
-  // Find NB's top prediction
-  let bestCls = baseType, bestScore = -Infinity
-  for (const [cls, score] of Object.entries(nbScores)) {
-    if (score > bestScore) { bestScore = score; bestCls = cls }
-  }
-
-  // Only override if NB is significantly more confident than base
-  // (NB score for base type is much lower than NB's top)
-  const baseScore = nbScores[baseType]
-  if (baseScore !== undefined && bestScore - baseScore > 2.0 && bestCls !== baseType) {
-    return bestCls
-  }
-  return baseType
-}
-
-// ── Online Passive-Aggressive Classifier (PA-I) ──
-// 替代硬编码意图权重，只在犯错时更新，比 NB 更节约计算
-
-interface PAClassifier {
-  weights: Record<string, Record<string, number>>  // class → feature → weight
-  C: number  // aggressiveness parameter
-  samples: number  // total update count
-}
-
-const PA_PATH = resolve(DATA_DIR, 'pa_classifier.json')
-let paClassifier: PAClassifier = loadJson<PAClassifier>(PA_PATH, { weights: {}, C: 0.5, samples: 0 })
-
-function paPredict(pa: PAClassifier, features: Record<string, number>): string {
-  let bestClass = 'general'
-  let bestScore = -Infinity
-  for (const [cls, w] of Object.entries(pa.weights)) {
-    let score = 0
-    for (const [feat, val] of Object.entries(features)) {
-      score += (w[feat] || 0) * val
-    }
-    if (score > bestScore) { bestScore = score; bestClass = cls }
-  }
-  return bestClass
-}
-
-function paUpdate(pa: PAClassifier, features: Record<string, number>, trueClass: string, predictedClass: string) {
-  if (trueClass === predictedClass) return  // 正确，不更新
-  // PA-I update
-  const featureNorm = Object.values(features).reduce((s, v) => s + v * v, 0)
-  if (featureNorm === 0) return
-
-  // 计算 hinge loss
-  let trueScore = 0, predScore = 0
-  const wTrue = pa.weights[trueClass] || {}
-  const wPred = pa.weights[predictedClass] || {}
-  for (const [f, v] of Object.entries(features)) {
-    trueScore += (wTrue[f] || 0) * v
-    predScore += (wPred[f] || 0) * v
-  }
-  const loss = Math.max(0, 1 - (trueScore - predScore))
-  const tau = Math.min(pa.C, loss / (2 * featureNorm))
-
-  // 更新权重
-  if (!pa.weights[trueClass]) pa.weights[trueClass] = {}
-  if (!pa.weights[predictedClass]) pa.weights[predictedClass] = {}
-  for (const [f, v] of Object.entries(features)) {
-    pa.weights[trueClass][f] = (pa.weights[trueClass][f] || 0) + tau * v
-    pa.weights[predictedClass][f] = (pa.weights[predictedClass][f] || 0) - tau * v
-  }
-  pa.samples++
-  debouncedSave(PA_PATH, pa)
-}
-
-/** Extract feature vector from message for PA classifier */
-function extractPAFeatures(msg: string): Record<string, number> {
-  const m = msg.toLowerCase()
-  const correctionHits = CORRECTION_WORDS.filter(w => m.includes(w)).length
-  const emotionHits = EMOTION_ALL.filter(w => m.includes(w)).length
-  const negEmotionHits = EMOTION_NEGATIVE.filter(w => m.includes(w)).length
-  const techHits = TECH_WORDS.filter(w => m.includes(w)).length
-  const casualHits = CASUAL_WORDS.filter(w => m === w || m === w + '的').length
-  const len = msg.length
-  return {
-    correctionHits,
-    emotionHits,
-    negEmotionHits,
-    techHits,
-    casualHits,
-    lenShort: len < 15 ? 1 : 0,
-    lenMedium: len >= 15 && len <= 100 ? 1 : 0,
-    lenLong: len > 100 ? 1 : 0,
-    lenVeryShort: len < 8 ? 1 : 0,
+function intentTypeToSpectrumKey(type: string): keyof IntentSpectrum | null {
+  switch (type) {
+    case 'technical': return 'information'
+    case 'emotional': return 'emotional'
+    case 'casual': return 'exploration'
+    case 'correction': return 'validation'
+    default: return null
   }
 }
 
-/** PA-corrected attention type: weighted fusion with Bayesian gate */
-function paCorrectAttention(baseType: string, msg: string): string {
-  const features = extractPAFeatures(msg)
-  const paPrediction = paPredict(paClassifier, features)
-
-  // 加权融合：PA 积累够样本后权重升高
-  // PA < 50 samples: PA 0.4 + Bayesian 0.6
-  // PA >= 50 samples: PA 0.6 + Bayesian 0.4
-  const paWeight = paClassifier.samples >= 50 ? 0.6 : 0.4
-
-  // 如果 PA 和 Bayesian 一致，直接用
-  if (paPrediction === baseType) return baseType
-
-  // PA 权重足够高且有足够样本时覆盖 Bayesian
-  if (paWeight >= 0.6 && paClassifier.samples >= 50) return paPrediction
-
-  // 否则保持 Bayesian 结果
-  return baseType
+// 向后兼容：updateNBClassifier 的外部调用者（如果有）
+export function updateNBClassifier(_msg: string, _cls: string) {
+  // NB 已被 intentMomentum 替代，此函数保留为空操作以防外部依赖
 }
 
 // ── Main Entry ──
 
 export function cogProcess(msg: string, lastResponseContent: string, lastPrompt: string, senderId?: string): CogResult {
-  const attention = attentionGate(msg)
-  // NB correction: refine attention type using online-learned classifier
-  attention.type = nbCorrectAttention(attention.type, msg)
-  // PA correction: weighted fusion with Bayesian gate
-  const paFeatures = extractPAFeatures(msg)
-  const paPredicted = paPredict(paClassifier, paFeatures)
-  attention.type = paCorrectAttention(attention.type, msg)
+  // Intent Superposition：先算连续光谱，再从光谱派生离散标签（兼容旧消费者）
   const intent = detectIntent(msg)
   const intentSpectrum = computeIntentSpectrum(msg)
+
+  // 从光谱派生 attention type（替代独立的 attentionGate 分类）
+  // 保留 attentionGate 处理 correction 检测（关键词精确匹配比光谱更可靠）
+  const attention = attentionGate(msg)
+  // 光谱叠加：如果光谱最强维度跟 attentionGate 不一致，用光谱的
+  const spectrumDims = Object.entries(intentSpectrum) as [string, number][]
+  spectrumDims.sort((a, b) => b[1] - a[1])
+  const spectrumType = spectrumKeyToAttentionType(spectrumDims[0][0])
+  // correction 由 attentionGate 权威判定（关键词精确匹配），其他维度由 spectrum 判定
+  if (attention.type !== 'correction' && spectrumType && spectrumDims[0][1] > 0.5) {
+    attention.type = spectrumType
+  }
+
+  // P5b: 对话惯性调制
+  const modulatedSpectrum = applyIntentMomentum(intentSpectrum, attention.type)
   const complexity = Math.min(1, msg.length / 500)
   const strategy = decideStrategy(attention, intent, msg.length)
   const hints: string[] = []
-
-  // NB online learning: correction → train NB with correct label
-  if (attention.type === 'correction') {
-    updateNBClassifier(lastResponseContent || msg, 'correction')
-  } else if (attention.type === 'emotional') {
-    updateNBClassifier(msg, 'emotional')
-  } else if (attention.type === 'technical') {
-    updateNBClassifier(msg, 'technical')
-  } else if (attention.type === 'casual') {
-    updateNBClassifier(msg, 'casual')
-  }
-
-  // PA online learning: update PA classifier when Bayesian gate gives a confident label
-  // PA only updates on mistakes, so feed it the Bayesian-determined label as ground truth
-  paUpdate(paClassifier, paFeatures, attention.type, paPredicted)
 
   // Correction handling — weighted by user tier
   if (attention.type === 'correction') {
@@ -601,5 +498,5 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
     }
   }
 
-  return { hints, intent, strategy, attention: attention.type, complexity, spectrum: intentSpectrum, entropyFeedback }
+  return { hints, intent, strategy, attention: attention.type, complexity, spectrum: modulatedSpectrum, entropyFeedback }
 }

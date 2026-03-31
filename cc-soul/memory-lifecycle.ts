@@ -9,7 +9,7 @@ import { DATA_DIR, loadJson, debouncedSave, adaptiveCooldown } from './persisten
 import { getParam } from './auto-tune.ts'
 import { spawnCLI } from './cli.ts'
 import {
-  sqliteCleanupExpired, backfillEmbeddings, hasVectorSearch,
+  sqliteCleanupExpired,
   sqliteFindByContent, sqliteUpdateMemory, sqliteUpdateRawLine, getDb, sqliteCount,
 } from './sqlite-store.ts'
 import { findMentionedEntities, getRelatedEntities } from './graph.ts'
@@ -292,6 +292,9 @@ export function consolidateMemories() {
               rebuildRecallIndex(memoryState.memories)
               saveMemories()
               invalidateIDF()
+              // P6-学习#4: 巩固后同步更新关联索引（学自 Claude Code postCompactCleanup）
+              try { const { invalidateEntityMemoryIndex } = require('./graph.ts'); invalidateEntityMemoryIndex() } catch {}
+              try { const { clearStaleActivations } = require('./activation-field.ts'); clearStaleActivations?.() } catch {}
               consolidating = false
             }
           } catch (e: any) {
@@ -1551,16 +1554,30 @@ export function resolveNetworkConflicts() {
 export async function sqliteMaintenance() {
   if (!useSQLite) return
   sqliteCleanupExpired()
-  if (hasVectorSearch()) {
-    await backfillEmbeddings(20)
-  }
+  // VACUUM：每天最多执行一次，防止 DB 文件膨胀
+  try {
+    const now = Date.now()
+    if (now - _lastVacuumTs > 86400000) {  // 24 小时间隔
+      const sqlMod = require('./sqlite-store.ts')
+      if (sqlMod?.isSQLiteReady?.()) {
+        // VACUUM 会重建数据库文件，回收被删除数据占用的空间
+        const db = (globalThis as any).__ccSoulSqlite?.db
+        if (db) {
+          db.exec('VACUUM')
+          _lastVacuumTs = now
+          console.log('[cc-soul][sqlite] VACUUM completed')
+        }
+      }
+    }
+  } catch {}
 }
+let _lastVacuumTs = 0
 
 /** Expose storage backend status for diagnostics */
 export function getStorageStatus(): { backend: 'sqlite' | 'json'; vectorSearch: boolean } {
   return {
     backend: useSQLite ? 'sqlite' : 'json',
-    vectorSearch: hasVectorSearch(),
+    vectorSearch: false,  // retired — activation field handles recall
   }
 }
 

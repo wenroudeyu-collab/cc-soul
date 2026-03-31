@@ -16,11 +16,13 @@ import { DATA_DIR, loadJson, saveJson, debouncedSave, adaptiveCooldown } from '.
 import { memoryState, addMemory, buildCoreMemoryContext } from './memory.ts'
 import { spawnCLI } from './cli.ts'
 import type { Memory } from './types.ts'
+import { logDecision } from './decision-log.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PATHS & CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Legacy JSON paths (kept for migration, not for primary storage)
 const MENTAL_MODELS_PATH = resolve(DATA_DIR, 'mental_models.json')
 const TOPIC_NODES_PATH = resolve(DATA_DIR, 'topic_nodes.json')
 const DISTILL_STATE_PATH = resolve(DATA_DIR, 'distill_state.json')
@@ -46,14 +48,33 @@ interface TopicNode {
   sourceCount: number      // how many raw memories contributed
   lastUpdated: number
   userId?: string          // per-user or global
+  // ── 蒸馏淘汰赛字段（P0b）──
+  hitCount?: number        // 被 getRelevantTopics() 命中且注入 prompt 的次数
+  missCount?: number       // 相关话题出现但该 node 未被命中的次数
+  lastHitTs?: number       // 上次命中时间
+  stale?: boolean          // 标记为需要重蒸馏
+  confidence?: number      // 置信度 [0.1, 0.95]
 }
 
 interface MentalModel {
   userId: string
-  model: string            // natural language: "这个人是..."
+  model: string            // natural language: "这个人是..."（兼容旧数据）
   topics: string[]         // top topic references
   lastUpdated: number
   version: number
+  // ── P1c: 分区增量更新 ──
+  sections?: {
+    identity: string       // 身份/职业/技术栈（cooldown 7天）
+    style: string          // 沟通风格/偏好/雷区（cooldown 3天）
+    facts: string          // 稳定偏好/习惯/家庭/关键事实（cooldown 1天）
+    dynamics: string       // 近期状态：情绪基线、当前关注话题、行为变化（cooldown 3小时）
+  }
+  sectionUpdated?: {
+    identity: number
+    style: number
+    facts: number
+    dynamics: number
+  }
 }
 
 interface DistillState {
@@ -61,6 +82,8 @@ interface DistillState {
   lastL2toL3: number
   lastL3Refresh: number
   totalDistills: number
+  // P2c: 溢出队列持久化
+  pendingDecayDistill?: Array<{ contents: string[]; clusteredAt: number }>
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -76,27 +99,82 @@ let distillState: DistillState = { lastL1toL2: 0, lastL2toL3: 0, lastL3Refresh: 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function loadDistillState() {
-  topicNodes = loadJson<TopicNode[]>(TOPIC_NODES_PATH, [])
-  distillState = loadJson<DistillState>(DISTILL_STATE_PATH, distillState)
-  const raw = loadJson<Record<string, MentalModel>>(MENTAL_MODELS_PATH, {})
-  mentalModels.clear()
-  for (const [id, m] of Object.entries(raw)) {
-    mentalModels.set(id, m)
+  // 优先从 SQLite 加载，fallback 到 JSON
+  let sqlMod: any = null
+  try { sqlMod = require('./sqlite-store.ts') } catch {}
+
+  if (sqlMod?.dbLoadTopicNodes) {
+    const dbNodes = sqlMod.dbLoadTopicNodes()
+    if (dbNodes.length > 0) {
+      topicNodes = dbNodes
+    } else {
+      // JSON fallback + 迁移
+      topicNodes = loadJson<TopicNode[]>(TOPIC_NODES_PATH, [])
+      for (const n of topicNodes) { try { sqlMod.dbSaveTopicNode(n) } catch {} }
+    }
+  } else {
+    topicNodes = loadJson<TopicNode[]>(TOPIC_NODES_PATH, [])
   }
+
+  if (sqlMod?.dbLoadDistillState) {
+    distillState = sqlMod.dbLoadDistillState(distillState)
+  } else {
+    distillState = loadJson<DistillState>(DISTILL_STATE_PATH, distillState)
+  }
+
+  if (sqlMod?.dbLoadMentalModels) {
+    const dbModels = sqlMod.dbLoadMentalModels()
+    if (dbModels.size > 0) {
+      mentalModels = dbModels
+    } else {
+      // JSON fallback + 迁移
+      const raw = loadJson<Record<string, MentalModel>>(MENTAL_MODELS_PATH, {})
+      mentalModels.clear()
+      for (const [id, m] of Object.entries(raw)) {
+        mentalModels.set(id, m)
+        try { sqlMod.dbSaveMentalModel(m) } catch {}
+      }
+    }
+  } else {
+    const raw = loadJson<Record<string, MentalModel>>(MENTAL_MODELS_PATH, {})
+    mentalModels.clear()
+    for (const [id, m] of Object.entries(raw)) {
+      mentalModels.set(id, m)
+    }
+  }
+
   console.log(`[cc-soul][distill] loaded: ${topicNodes.length} topics, ${mentalModels.size} mental models`)
 }
 
 function saveTopicNodes() {
+  let sqlMod: any = null
+  try { sqlMod = require('./sqlite-store.ts') } catch {}
+  if (sqlMod?.dbSaveTopicNode) {
+    for (const n of topicNodes) { try { sqlMod.dbSaveTopicNode(n) } catch {} }
+  }
+  // JSON backup（过渡期保留，后续可删）
   debouncedSave(TOPIC_NODES_PATH, topicNodes, 5000)
 }
 
 function saveMentalModels() {
+  let sqlMod: any = null
+  try { sqlMod = require('./sqlite-store.ts') } catch {}
+  if (sqlMod?.dbSaveMentalModel) {
+    for (const [_, m] of mentalModels) { try { sqlMod.dbSaveMentalModel(m) } catch {} }
+  }
+  // JSON backup
   const obj: Record<string, MentalModel> = {}
   for (const [id, m] of mentalModels) obj[id] = m
   debouncedSave(MENTAL_MODELS_PATH, obj, 5000)
 }
 
 function saveDistillState_() {
+  let sqlMod: any = null
+  try { sqlMod = require('./sqlite-store.ts') } catch {}
+  if (sqlMod?.dbSaveDistillState) {
+    try { sqlMod.dbSaveDistillState(distillState) } catch {}
+  }
+  // JSON backup
   saveJson(DISTILL_STATE_PATH, distillState)
 }
 
@@ -111,6 +189,17 @@ function saveDistillState_() {
 export function distillL1toL2() {
   const now = Date.now()
   if (now - distillState.lastL1toL2 < L1_TO_L2_COOLDOWN) return
+
+  // ── 会话门（学自 Claude Code Auto Dream）：至少 3 个有效会话后才允许蒸馏 ──
+  // 防止用户不活跃时浪费 LLM 调用
+  const MIN_SESSIONS_FOR_DISTILL = 3
+  try {
+    const { getSessionState, getLastActiveSessionKey } = require('./handler-state.ts')
+    const sess = getSessionState(getLastActiveSessionKey())
+    const sessionCount = sess?.sessionCount ?? sess?.turnCount ?? 0
+    if (sessionCount < MIN_SESSIONS_FOR_DISTILL) return
+  } catch {}
+
   distillState.lastL1toL2 = now
 
   // Get active, non-expired memories
@@ -246,37 +335,51 @@ export function distillL1toL2() {
 // LAYER 2 → LAYER 3: Topic nodes → Mental model
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ── P1c: L3 分区 cooldown ──
+const SECTION_COOLDOWNS: Record<string, number> = {
+  identity: 7 * 86400000,     // 7 天
+  style: 3 * 86400000,        // 3 天
+  facts: 86400000,            // 1 天
+  dynamics: 3 * 3600000,      // 3 小时
+}
+
+const SECTION_PROMPTS: Record<string, { name: string; desc: string }> = {
+  identity: { name: '身份', desc: '身份、职业、技术栈、专业背景' },
+  style: { name: '沟通风格', desc: '沟通偏好、说话风格、雷区、喜好' },
+  facts: { name: '关键事实', desc: '稳定偏好、习惯、家庭情况、长期目标' },
+  dynamics: { name: '近期状态', desc: '当前情绪基线、正在关注的话题/项目、近期行为变化' },
+}
+
+// dynamics 分区的衰减：14 天未更新的内容应被清除
+const DYNAMICS_STALE_THRESHOLD = 14 * 86400000
+
 /**
- * Synthesize topic nodes + user profile into a concise mental model.
- * One model per user. This is the "I know this person" summary.
+ * P1c: 分区增量更新 — 每个分区独立 cooldown + 变更检测
+ * 只更新有变化的分区，其他分区保持不变
  */
 export function distillL2toL3() {
   const now = Date.now()
-  if (now - distillState.lastL2toL3 < L2_TO_L3_COOLDOWN) return
+  // 不再用全局 cooldown 挡住所有 section — 每个 section 有独立 cooldown
+  // 只记录上次尝试时间用于 stats，不做 early return
   distillState.lastL2toL3 = now
 
-  // Collect unique userIds from topic nodes and memories
   const userIds = new Set<string>()
   for (const n of topicNodes) {
     if (n.userId) userIds.add(n.userId)
   }
-  // Also check memories for users without topic nodes yet
   for (const m of memoryState.memories) {
     if (m.userId && m.scope !== 'expired') userIds.add(m.userId)
   }
-
-  // Also generate a global model (for owner / default)
   userIds.add('_global')
 
+  let cliCalls = 0
+  const MAX_CLI_L3 = 4  // 每轮最多 4 个 section LLM 调用
+
   for (const userId of userIds) {
+    if (cliCalls >= MAX_CLI_L3) break
     const isGlobal = userId === '_global'
 
-    // Gather this user's topic nodes
-    const userTopics = topicNodes.filter(n =>
-      isGlobal ? !n.userId : n.userId === userId
-    )
-
-    // Gather user-specific memories (recent preferences, corrections)
+    const userTopics = topicNodes.filter(n => isGlobal ? !n.userId : n.userId === userId)
     const userMems = memoryState.memories.filter(m =>
       (isGlobal ? !m.userId : m.userId === userId) &&
       m.scope !== 'expired' && m.scope !== 'archived' &&
@@ -285,40 +388,107 @@ export function distillL2toL3() {
 
     if (userTopics.length === 0 && userMems.length < 3) continue
 
-    // Get existing model for incremental update
     const existing = mentalModels.get(userId)
 
-    const prompt = [
-      `用2-3段自然语言描述你对这个${isGlobal ? '主要用户' : '用户'}的理解。`,
-      '像心理学家写案例笔记，不要列清单。包含：',
-      '1. 这个人是谁（身份、职业、技术水平）',
-      '2. 沟通偏好（风格、雷区、喜好）',
-      '3. 关键事实（重要偏好、习惯、在意的事）',
-      `不超过${MAX_MODEL_LENGTH}字。`,
-      '',
-      userTopics.length > 0 ? '已知的主题理解:' : '',
-      ...userTopics.slice(0, 20).map(n => `- [${n.topic}] ${n.summary}`),
-      '',
-      userMems.length > 0 ? '关键记忆:' : '',
-      ...userMems.map(m => `- [${m.scope}] ${m.content.slice(0, 100)}`),
-      '',
-      existing ? `上一版理解（需要更新，不是照抄）:\n${existing.model}` : '',
-    ].filter(Boolean).join('\n')
-
-    spawnCLI(prompt, (output) => {
-      if (!output || output.length < 30) return
-
-      const model: MentalModel = {
-        userId,
-        model: output.slice(0, MAX_MODEL_LENGTH),
-        topics: userTopics.slice(0, 10).map(n => n.topic),
-        lastUpdated: Date.now(),
-        version: (existing?.version ?? 0) + 1,
+    // 如果旧模型没有 sections，先从 model 字段做一次性迁移
+    if (existing && !existing.sections) {
+      existing.sections = {
+        identity: existing.model.slice(0, 150),
+        style: '',
+        facts: '',
+        dynamics: '',
       }
-      mentalModels.set(userId, model)
-      saveMentalModels()
-      console.log(`[cc-soul][distill] L2→L3: ${isGlobal ? 'global' : userId.slice(0, 8)} model v${model.version} (${output.length} chars)`)
-    }, 60000)
+      existing.sectionUpdated = {
+        identity: 0, style: 0, facts: 0, dynamics: 0,
+      }
+    }
+
+    const sections = existing?.sections ?? { identity: '', style: '', facts: '', dynamics: '' }
+    const sectionUpdated = existing?.sectionUpdated ?? { identity: 0, style: 0, facts: 0, dynamics: 0 }
+
+    // dynamics 衰减：14 天未更新则清空
+    if (sections.dynamics && now - sectionUpdated.dynamics > DYNAMICS_STALE_THRESHOLD) {
+      sections.dynamics = ''
+    }
+
+    for (const sectionKey of ['identity', 'style', 'facts', 'dynamics'] as const) {
+      if (cliCalls >= MAX_CLI_L3) break
+
+      // cooldown 检查
+      const cooldown = SECTION_COOLDOWNS[sectionKey]
+      if (now - sectionUpdated[sectionKey] < cooldown) continue
+
+      // 构建 section 专用 prompt
+      const sectionInfo = SECTION_PROMPTS[sectionKey]
+      const currentContent = sections[sectionKey] || '（空）'
+
+      // 收集该 section 相关的证据
+      const evidence: string[] = []
+      for (const t of userTopics.slice(0, 10)) {
+        evidence.push(`[${t.topic}] ${t.summary}`)
+      }
+      for (const m of userMems.slice(-10)) {
+        evidence.push(`[${m.scope}] ${m.content.slice(0, 80)}`)
+      }
+      if (evidence.length === 0) continue
+
+      const prompt = [
+        `当前对用户「${sectionInfo.name}」的理解：`,
+        '---',
+        currentContent,
+        '---',
+        '',
+        '新的证据：',
+        ...evidence.map(e => `- ${e}`),
+        '',
+        '请基于新证据更新上面的理解。规则：',
+        '1. 保留仍然成立的旧内容',
+        '2. 用新证据修正或补充',
+        '3. 如果证据与旧内容矛盾，以新证据为准并标注变化',
+        `4. 范围限定：只写${sectionInfo.desc}相关的内容`,
+        '5. 不超过 150 字',
+        '6. 只输出更新后的内容，不要元说明',
+      ].join('\n')
+
+      cliCalls++
+      spawnCLI(prompt, (output) => {
+        if (!output || output.length < 10) return
+
+        const newContent = output.slice(0, 150)
+
+        // 变更检测：如果新旧内容几乎相同则跳过
+        if (currentContent !== '（空）' && currentContent.length > 0) {
+          const oldWords = new Set((currentContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+          const newWords = new Set((newContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+          let overlap = 0
+          for (const w of oldWords) { if (newWords.has(w)) overlap++ }
+          const sim = overlap / Math.max(1, Math.max(oldWords.size, newWords.size))
+          if (sim > 0.92) {
+            // LLM 照抄 → 跳过更新
+            sectionUpdated[sectionKey] = now
+            return
+          }
+        }
+
+        sections[sectionKey] = newContent
+        sectionUpdated[sectionKey] = now
+
+        // 同步 model 字段（向后兼容）
+        const model: MentalModel = {
+          userId,
+          model: [sections.identity, sections.style, sections.facts, sections.dynamics]
+            .filter(Boolean).join('\n').slice(0, MAX_MODEL_LENGTH),
+          sections,
+          sectionUpdated,
+          topics: userTopics.slice(0, 10).map(n => n.topic),
+          lastUpdated: now,
+          version: (existing?.version ?? 0) + 1,
+        }
+        mentalModels.set(userId, model)
+        saveMentalModels()
+        console.log(`[cc-soul][distill] L2→L3: ${isGlobal ? 'global' : userId.slice(0, 8)} section=${sectionKey} v${model.version}`)
+      }, 60000)
+    }
   }
 
   saveDistillState_()
@@ -343,11 +513,14 @@ export function getMentalModel(userId?: string): string {
 
 /**
  * Get topic nodes relevant to a message (for Layer 2 augment).
+ * 同时记录 hitCount/missCount 用于蒸馏淘汰赛。
  */
 export function getRelevantTopics(msg: string, userId?: string, maxNodes = 5): TopicNode[] {
   if (topicNodes.length === 0) return []
 
+  const RELEVANCE_THRESHOLD = 0.2
   const scored: { node: TopicNode; score: number }[] = []
+
   for (const node of topicNodes) {
     // Filter by user if specified
     if (userId && node.userId && node.userId !== userId) continue
@@ -359,7 +532,97 @@ export function getRelevantTopics(msg: string, userId?: string, maxNodes = 5): T
   }
 
   scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, maxNodes).map(s => s.node)
+
+  // ── 淘汰赛：记录命中/未命中 ──
+  const hits = scored.filter(s => s.score >= RELEVANCE_THRESHOLD)
+  for (const h of hits) {
+    h.node.hitCount = (h.node.hitCount ?? 0) + 1
+    h.node.lastHitTs = Date.now()
+  }
+
+  // 未命中但话题相关（有实体重叠）的 → missCount++
+  const misses = scored.filter(s =>
+    s.score > 0.1 && s.score < RELEVANCE_THRESHOLD
+  )
+  for (const m of misses) {
+    m.node.missCount = (m.node.missCount ?? 0) + 1
+  }
+
+  if (hits.length > 0 || misses.length > 0) {
+    saveTopicNodes()
+  }
+
+  return hits.slice(0, maxNodes).map(s => s.node)
+}
+
+/**
+ * 蒸馏淘汰赛审计：标记 stale nodes，触发重蒸馏，晋升优秀节点
+ * 从 heartbeat 的 runDistillPipeline() 调用
+ */
+export function auditTopicNodes(): { staleCount: number; promoted: number; orphanMemories: number } {
+  const now = Date.now()
+  let staleCount = 0
+  let promoted = 0
+
+  for (const node of topicNodes) {
+    const total = (node.hitCount ?? 0) + (node.missCount ?? 0)
+    const ratio = total > 0 ? (node.hitCount ?? 0) / total : 0
+    const ageDays = (now - node.lastUpdated) / 86400000
+
+    // stale 判定：ratio < 0.2 且 age > 7天 且 total >= 3
+    if (ratio < 0.2 && ageDays > 7 && total >= 3) {
+      node.stale = true
+      staleCount++
+      logDecision('stale_topic', node.topic,
+        `ratio=${ratio.toFixed(2)}, age=${ageDays.toFixed(0)}d, hits=${node.hitCount ?? 0}/${total}`)
+    }
+
+    // 晋升判定：hitCount > 10 且 ratio > 0.6 → 提升为 core memory
+    if ((node.hitCount ?? 0) > 10 && ratio > 0.6) {
+      try {
+        addMemory(
+          `[蒸馏晋升] ${node.topic}: ${node.summary}`,
+          'consolidated',
+          node.userId,
+          'global'
+        )
+        promoted++
+        logDecision('promote_topic', node.topic,
+          `ratio=${ratio.toFixed(2)}, hits=${node.hitCount}`)
+      } catch {}
+    }
+  }
+
+  // orphan memories：找不到匹配 topic node 的新记忆
+  const recentMemories = memoryState.memories.filter(m =>
+    m.scope !== 'expired' && m.scope !== 'archived' &&
+    Date.now() - m.ts < 7 * 86400000 &&  // 最近 7 天
+    m.content.length > 10
+  )
+  let orphanMemories = 0
+  for (const m of recentMemories) {
+    const hasMatch = topicNodes.some(n => {
+      if (m.userId && n.userId && n.userId !== m.userId) return false
+      return keywordOverlap(m.content, `${n.topic} ${n.summary}`) > 0.2
+    })
+    if (!hasMatch) orphanMemories++
+  }
+
+  // 触发重蒸馏条件
+  const staleRatio = topicNodes.length > 0 ? staleCount / topicNodes.length : 0
+  if (staleRatio > 0.3 || orphanMemories >= 5) {
+    // 重置 stale nodes 的 lastUpdated 使其在下次 L1→L2 时被重新处理
+    for (const node of topicNodes) {
+      if (node.stale) {
+        node.lastUpdated = 0
+        node.stale = false  // 清除标记，等待重蒸馏
+      }
+    }
+    saveTopicNodes()
+    console.log(`[cc-soul][distill] audit triggered re-distill: staleRatio=${staleRatio.toFixed(2)}, orphans=${orphanMemories}`)
+  }
+
+  return { staleCount, promoted, orphanMemories }
 }
 
 /**
@@ -385,12 +648,37 @@ export function buildMentalModelAugment(userId?: string): string {
  * Run the full distillation pipeline (called from heartbeat).
  */
 export function runDistillPipeline() {
+  // ── P6f: 消费 pending_distill 队列（遗忘即蒸馏的溢出）──
+  try {
+    const sqlMod = require('./sqlite-store.ts')
+    if (sqlMod?.dbPopPendingDistill) {
+      const pending = sqlMod.dbPopPendingDistill(3)
+      for (const p of pending) {
+        if (p.contents.length >= 2) {
+          const result = zeroLLMDistill(p.contents)
+          if (result && result.length > 10) {
+            const node: TopicNode = {
+              topic: result.slice(0, 20),
+              summary: result.slice(0, 200),
+              sourceCount: p.contents.length,
+              lastUpdated: Date.now(),
+              hitCount: 0, missCount: 0,
+            }
+            topicNodes.push(node)
+            saveTopicNodes()
+            console.log(`[cc-soul][distill] pending decay distill: "${node.topic}"`)
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // ── 蒸馏淘汰赛审计（先审计再蒸馏，确保 stale nodes 被重置）──
+  auditTopicNodes()
+
   distillL1toL2()
-  // L2→L3 runs less frequently
-  const now = Date.now()
-  if (now - distillState.lastL2toL3 >= L2_TO_L3_COOLDOWN) {
-    distillL2toL3()
-  }
+  // L2→L3：每个 section 有独立 cooldown，不需要全局频率限制
+  distillL2toL3()
 }
 
 /**
@@ -409,45 +697,138 @@ export function getDistillStats() {
 // 省 100% 的蒸馏 token，速度快 10x
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * 结构蒸馏 v2（零 LLM）— 利用 graph + fact-store + AAM 做结构化蒸馏
+ * 不再输出 "关键词: X | 特征: Y" 格式，而是输出实体关系 + 行为模式 + 变化轨迹
+ *
+ * cc-soul 原创核心算法 — P1b
+ */
 function zeroLLMDistill(memories: string[]): string {
-  const allWords = new Map<string, number>()
-  const traits: string[] = []
+  const parts: string[] = []
 
-  for (const content of memories) {
-    // 词频统计
-    const words = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
-    for (const w of words) allWords.set(w, (allWords.get(w) || 0) + 1)
+  // ── 第一层：fact-store 结构化三元组提取 ──
+  let extractFacts: ((c: string) => any[]) | null = null
+  try { extractFacts = require('./fact-store.ts').extractFacts } catch {}
 
-    // 特征提取
-    if (/每天|经常|习惯|总是/.test(content)) traits.push('有规律性')
-    if (/喜欢|爱|偏好/.test(content)) {
-      const obj = content.match(/喜欢(.{2,8})/)?.[1]
-      if (obj) traits.push(`偏好:${obj.replace(/[，。！？\s]+$/, '')}`)
+  const allFacts: Array<{ subject: string; predicate: string; object: string }> = []
+  if (extractFacts) {
+    for (const content of memories) {
+      const facts = extractFacts(content)
+      for (const f of facts) {
+        allFacts.push({ subject: f.subject, predicate: f.predicate, object: f.object })
+      }
     }
-    if (/讨厌|不喜欢|受不了/.test(content)) {
-      const obj = content.match(/(?:讨厌|不喜欢)(.{2,8})/)?.[1]
-      if (obj) traits.push(`反感:${obj.replace(/[，。！？\s]+$/, '')}`)
-    }
-    if (/焦虑|压力|担心|紧张/.test(content)) traits.push('有压力')
-    if (/学|研究|探索/.test(content)) traits.push('学习型')
-    if (/快|效率|优化/.test(content)) traits.push('效率导向')
   }
 
-  // 取 top 5 高频关键词
-  const topWords = [...allWords.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([w]) => w)
+  // 去重三元组
+  const uniqueFacts = allFacts.filter((f, i) =>
+    allFacts.findIndex(x => x.subject === f.subject && x.predicate === f.predicate && x.object === f.object) === i
+  ).slice(0, 3)
 
-  // 去重特征
-  const uniqueTraits = [...new Set(traits)].slice(0, 5)
+  if (uniqueFacts.length > 0) {
+    parts.push(uniqueFacts.map(f => `${f.subject}${f.predicate}${f.object}`).join('，'))
+  }
 
-  // 组合摘要
-  const parts: string[] = []
-  if (topWords.length > 0) parts.push(`关键词: ${topWords.join(', ')}`)
-  if (uniqueTraits.length > 0) parts.push(`特征: ${uniqueTraits.join(', ')}`)
+  // ── 第二层：entity graph 共现实体 ──
+  let findMentionedEntities: ((msg: string) => string[]) | null = null
+  try { findMentionedEntities = require('./graph.ts').findMentionedEntities } catch {}
 
-  return parts.join(' | ') || memories[0]?.slice(0, 60) || ''
+  if (findMentionedEntities) {
+    const entityCounts = new Map<string, number>()
+    for (const content of memories) {
+      const entities = findMentionedEntities(content)
+      for (const e of entities) entityCounts.set(e, (entityCounts.get(e) ?? 0) + 1)
+    }
+    // 在 2+ 条记忆中出现的实体
+    const coreEntities = [...entityCounts.entries()]
+      .filter(([_, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name]) => name)
+    if (coreEntities.length > 0 && parts.length === 0) {
+      parts.push(`涉及：${coreEntities.join('、')}`)
+    }
+  }
+
+  // ── 第三层：行为模式提取（改进版规则，输出自然语言而非标签）──
+  const behaviors: string[] = []
+  const allText = memories.join(' ')
+
+  // 偏好提取（带具体对象）
+  const likeMatch = allText.match(/(?:喜欢|爱|偏好)(.{2,15}?)(?=[，。！？\s]|$)/g)
+  if (likeMatch) {
+    for (const m of likeMatch.slice(0, 2)) {
+      behaviors.push(m.replace(/[，。！？\s]+$/, ''))
+    }
+  }
+  const dislikeMatch = allText.match(/(?:讨厌|不喜欢|受不了)(.{2,15}?)(?=[，。！？\s]|$)/g)
+  if (dislikeMatch) {
+    for (const m of dislikeMatch.slice(0, 2)) {
+      behaviors.push(m.replace(/[，。！？\s]+$/, ''))
+    }
+  }
+
+  // 习惯提取
+  const habitMatch = allText.match(/(?:每天|经常|习惯|总是)(.{2,20}?)(?=[，。！？\s]|$)/g)
+  if (habitMatch) {
+    behaviors.push(habitMatch[0].replace(/[，。！？\s]+$/, ''))
+  }
+
+  if (behaviors.length > 0) {
+    parts.push(behaviors.join('；'))
+  }
+
+  // ── 第四层：时序矛盾检测 ──
+  // 简单版：检测同主题的极性翻转
+  for (let i = 0; i < memories.length; i++) {
+    for (let j = i + 1; j < memories.length; j++) {
+      const a = memories[i], b = memories[j]
+      if (/喜欢|爱/.test(a) && /讨厌|不喜欢/.test(b)) {
+        // 检查是否关于同一实体
+        const wordsA = new Set((a.match(/[\u4e00-\u9fff]{2,4}/g) || []))
+        const wordsB = new Set((b.match(/[\u4e00-\u9fff]{2,4}/g) || []))
+        let shared = 0
+        for (const w of wordsA) { if (wordsB.has(w)) shared++ }
+        if (shared >= 1) {
+          parts.push(`观点变化：从正面转负面`)
+          // P6c: 矛盾检测 → 降低较早记忆的 Bayes 可信度
+          try {
+            const { penalizeTruthfulness } = require('./smart-forget.ts')
+            // 找到对应的 Memory 对象并降低可信度
+            const olderContent = a  // memories 数组中 i < j，a 是较早的
+            const matchedMem = memoryState.memories.find((m: any) => m && m.content === olderContent)
+            if (matchedMem) {
+              penalizeTruthfulness(matchedMem, `矛盾检测：与"${b.slice(0, 20)}"冲突`)
+            }
+          } catch {}
+          break
+        }
+      }
+    }
+    if (parts.length >= 4) break
+  }
+
+  // ── Fallback：如果以上都没提取到，用改进版词频（过滤停用词）──
+  if (parts.length === 0) {
+    const STOP_WORDS = new Set('的了是在我你他她它不有这那就也和但都要会可以如果因为所以然后已经还没到被把从用于关于对于提到'.match(/[\u4e00-\u9fff]/g) || [])
+    const allWords = new Map<string, number>()
+    for (const content of memories) {
+      const words = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      for (const w of words) {
+        // 过滤：纯停用字组成的词（如"的了"、"是在"）
+        const chars = w.match(/[\u4e00-\u9fff]/g) || []
+        if (chars.length > 0 && chars.every(c => STOP_WORDS.has(c))) continue
+        allWords.set(w, (allWords.get(w) || 0) + 1)
+      }
+    }
+    const topWords = [...allWords.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([w]) => w)
+    if (topWords.length > 0) parts.push(`关于${topWords.slice(0, 3).join('、')}的讨论`)
+  }
+
+  return parts.join('；').slice(0, 200) || memories[0]?.slice(0, 60) || ''
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -460,12 +841,14 @@ function zeroLLMDistill(memories: string[]): string {
 export function adjustTopicConfidence(topicName: string, delta: number) {
   const node = topicNodes.find(n => n.topic === topicName)
   if (!node) return
-  const confidence = ((node as any).confidence ?? 0.5) + delta
-  ;(node as any).confidence = Math.max(0.1, Math.min(0.95, confidence))
-  // confidence 过低 → 标记需要重新蒸馏（下次 L1→L2 时会重新处理）
-  if ((node as any).confidence < 0.3) {
-    node.lastUpdated = 0  // 重置 lastUpdated 使其在下次蒸馏时被重新处理
-    console.log(`[cc-soul][distill] topic "${topicName}" confidence too low (${(node as any).confidence.toFixed(2)}), marked for re-distill`)
+  const confidence = (node.confidence ?? 0.5) + delta
+  node.confidence = Math.max(0.1, Math.min(0.95, confidence))
+  // confidence 过低 → 标记需要重新蒸馏
+  if (node.confidence < 0.3) {
+    node.lastUpdated = 0
+    node.stale = true
+    logDecision('stale_topic', topicName,
+      `confidence=${node.confidence.toFixed(2)}<0.3, delta=${delta}`)
   }
   saveTopicNodes()
 }

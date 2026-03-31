@@ -39,11 +39,6 @@ const DEFAULTS: Record<string, boolean> = {
   absence_detection: true,      // "你好久没提X"，有人觉得被监视
   behavior_prediction: true,    // 行为预测，有人觉得 creepy
   auto_mood_care: true,         // 情绪低落主动关心，有人觉得多余
-
-  // v2.3+ auto-trigger features (user might want to toggle)
-  auto_mood_care: true,            // Emotional care when mood is consistently low
-  behavior_prediction: true,        // Predict user's next behavior from historical patterns
-  absence_detection: true,          // Detect topics user stopped mentioning and hint AI to ask
 }
 
 // ── State ──

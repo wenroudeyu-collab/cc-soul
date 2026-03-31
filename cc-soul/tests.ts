@@ -587,61 +587,7 @@ test('habit: 首次打卡 streak=1', () => {
   assertEquals(streak, 1, '首次打卡 streak 应为 1')
 })
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TEST SUITE: reports.ts — 晨报 / 周报 / 定时触发
-// ══════════════════════════════════════════════════════════════════════════════
-
-import { generateMorningReport, generateWeeklyReport, checkScheduledReports } from './reports.ts'
-
-test('reports: generateMorningReport returns string with header', () => {
-  const report = generateMorningReport()
-  assert(typeof report === 'string', 'should return string')
-  assert(report.includes('晨报'), 'should contain 晨报 header')
-  assert(report.includes('昨日对话'), 'should contain 对话 section')
-  assert(report.includes('今日提醒'), 'should contain 提醒 section')
-  assert(report.includes('活跃目标'), 'should contain 目标 section')
-  assert(report.includes('情绪趋势'), 'should contain 情绪 section')
-  assert(report.includes('待关注'), 'should contain 纠正 section')
-})
-
-test('reports: generateWeeklyReport returns string with header', () => {
-  const report = generateWeeklyReport()
-  assert(typeof report === 'string', 'should return string')
-  assert(report.includes('周报'), 'should contain 周报 header')
-  assert(report.includes('对话统计'), 'should contain 对话统计 section')
-  assert(report.includes('记忆变化'), 'should contain 记忆变化 section')
-  assert(report.includes('目标进度'), 'should contain 目标进度 section')
-  assert(report.includes('能力评分'), 'should contain 能力评分 section')
-  assert(report.includes('规则'), 'should contain 规则 section')
-})
-
-test('reports: checkScheduledReports returns null outside 8:00-9:00', () => {
-  // checkScheduledReports checks current hour — outside 8:00 it should return null
-  const hour = new Date().getHours()
-  const result = checkScheduledReports()
-  if (hour < 8 || hour > 8) {
-    assertEquals(result, null, 'should return null outside 8:00-8:59')
-  }
-  // If it IS 8:00, it may return a report — that's also correct behavior
-})
-
-test('reports: morning report handles db unavailable gracefully', () => {
-  // Even if db is not available, should not throw
-  const report = generateMorningReport()
-  assert(report.length > 0, 'should return non-empty string even without db')
-})
-
-test('reports: weekly report handles db unavailable gracefully', () => {
-  const report = generateWeeklyReport()
-  assert(report.length > 0, 'should return non-empty string even without db')
-})
-
-test('reports: progressBar helper via morning report output', () => {
-  const report = generateMorningReport()
-  // If there are goals, should contain progress bar chars
-  // If no goals, should contain "无活跃目标" — both are valid
-  assert(report.includes('░') || report.includes('▓') || report.includes('无活跃目标'), 'should show progress bar or no-goals message')
-})
+// reports.ts removed — 晨报/周报/复盘已删除，generateMemoryChain 内联到 handler-commands.ts
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEST SUITE: 后台自动功能 — persona / smart-forget / episodic / decay

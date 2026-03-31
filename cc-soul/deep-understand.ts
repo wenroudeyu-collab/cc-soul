@@ -297,11 +297,25 @@ function synthesizeProfile(): string {
   if (g.direction === 'growing') parts.push('上升期')
   else if (g.direction === 'struggling') parts.push('瓶颈期')
   if (s.stressLevel > 0.5) parts.push(`压力高(${s.signals.join('+')})`)
-  // 认知负荷波动模型
-  const stressDyn = analyzeStressDynamics(memoryState.chatHistory)
-  if (stressDyn.phase === 'accumulating') parts.push(`压力积累中(${(stressDyn.level*100).toFixed(0)}%)`)
-  if (stressDyn.turnsToBreakdown !== null) parts.push(`预计${stressDyn.turnsToBreakdown}轮后可能爆发`)
-  if (stressDyn.phase === 'releasing') parts.push('压力释放中')
+  // 认知负荷波动模型（优先用耦合压力振荡器，fallback 到独立 stress dynamics）
+  let pressureAdded = false
+  try {
+    const { getCoupledPressure } = require('./flow.ts')
+    const cp = getCoupledPressure()
+    if (cp && (cp.frustration > 0.3 || cp.stress > 0.3)) {
+      if (cp.phase === 'building' || cp.phase === 'critical') parts.push(`压力${cp.phase === 'critical' ? '临界' : '积累中'}(挫败${(cp.frustration*100).toFixed(0)}%,压力${(cp.stress*100).toFixed(0)}%,耦合${(cp.couplingStrength*100).toFixed(0)}%)`)
+      if (cp.turnsToBreakdown !== null) parts.push(`预计${cp.turnsToBreakdown}轮后可能爆发`)
+      if (cp.phase === 'recovering') parts.push('压力释放中')
+      pressureAdded = true
+    }
+  } catch {}
+  if (!pressureAdded) {
+    // Fallback: 独立 stress dynamics
+    const stressDyn = analyzeStressDynamics(memoryState.chatHistory)
+    if (stressDyn.phase === 'accumulating') parts.push(`压力积累中(${(stressDyn.level*100).toFixed(0)}%)`)
+    if (stressDyn.turnsToBreakdown !== null) parts.push(`预计${stressDyn.turnsToBreakdown}轮后可能爆发`)
+    if (stressDyn.phase === 'releasing') parts.push('压力释放中')
+  }
   // 学习曲线拟合
   const lc = fitLearningCurve(memoryState.chatHistory)
   if (lc.prediction && lc.prediction !== '数据不足') parts.push(lc.prediction)

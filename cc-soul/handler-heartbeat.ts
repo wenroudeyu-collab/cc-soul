@@ -20,7 +20,7 @@ import {
   compressOldMemories,
 } from './memory.ts'
 import { cleanupPlans } from './inner-life.ts'
-import { computePageRank, decayActivations } from './graph.ts'
+import { computePageRank, decayActivations, invalidateStaleEntities, invalidateStaleRelations, enrichCausalFromMemories } from './graph.ts'
 import { isEnabled } from './features.ts'
 import { checkAutoTune } from './auto-tune.ts'
 import { resampleHardExamples } from './quality.ts'
@@ -90,6 +90,11 @@ export function runHeartbeat() {
       safeCLI('distill', () => runDistillPipeline(), safe)
       safe('pageRank', () => computePageRank())
       safe('activationDecay', () => decayActivations())
+      // 清理过期实体和关系（90天没提到的）
+      safe('staleEntities', () => invalidateStaleEntities())
+      safe('staleRelations', () => invalidateStaleRelations())
+      // 从记忆 because 字段补充因果边
+      safe('enrichCausal', () => enrichCausalFromMemories())
       safeCLI('personModel', () => distillPersonModel(), safe)
       // person synthesis runs inside distillPersonModel() every 5th distill — no separate call needed
 
@@ -98,7 +103,7 @@ export function runHeartbeat() {
 
       // ── 行为模式学习 ──
       safe('behaviorLearn', async () => {
-        const { learnFromObservations } = await import('./behavior-engine.ts')
+        const { learnFromObservations } = await import('./behavioral-phase-space.ts')
         learnFromObservations()
       })
 

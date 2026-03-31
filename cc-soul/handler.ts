@@ -101,8 +101,7 @@ let checkPersonaDrift: (replyText: string, personaId: string, personaName: strin
 let getPersonaDriftReinforcement: () => string | null = () => null
 let getDriftCount: () => number = () => 0
 let smartForgetSweep: (...args: any[]) => any = () => ({ toForget: [], toConsolidate: [] })
-let handleCronCommand: (...args: any[]) => any = () => false
-let tickCron: () => void = () => {}
+// cron-agent.ts removed — no users were using scheduled tasks
 let compressAugments: (...args: any[]) => any[] = (a: any[]) => a
 let buildDebateAugment: (...args: any[]) => any = () => null
 let updateBeliefFromMessage: (...args: any[]) => void = () => {}
@@ -113,7 +112,7 @@ let recordTurnUsage: (inputText: string, outputText: string, augmentTokenCount: 
 import('./cost-tracker.ts').then(m => { recordTurnUsage = m.recordTurnUsage }).catch((e: any) => { console.error(`[cc-soul] module load failed (cost-tracker): ${e.message}`) })
 import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle; getPersonaDriftWarning = m.getPersonaDriftWarning; checkPersonaDrift = m.checkPersonaDrift; getPersonaDriftReinforcement = m.getPersonaDriftReinforcement; getDriftCount = m.getDriftCount }).catch((e: any) => { console.error(`[cc-soul] module load failed (persona-drift): ${e.message}`) })
 import('./smart-forget.ts').then(m => { smartForgetSweep = m.smartForgetSweep }).catch((e: any) => { console.error(`[cc-soul] module load failed (smart-forget): ${e.message}`) })
-import('./cron-agent.ts').then(m => { handleCronCommand = m.handleCronCommand; tickCron = m.tickCron }).catch((e: any) => { console.error(`[cc-soul] module load failed (cron-agent): ${e.message}`) })
+// cron-agent import removed
 import('./context-compress.ts').then(m => { compressAugments = m.compressAugments }).catch((e: any) => { console.error(`[cc-soul] module load failed (context-compress): ${e.message}`) })
 // debate.ts removed — multi-persona debate was too expensive (5x token per question)
 import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage; getToMContext = m.getToMContext; detectMisconception = m.detectMisconception }).catch((e: any) => { console.error(`[cc-soul] module load failed (theory-of-mind): ${e.message}`) })
@@ -173,8 +172,7 @@ export function initializeSoul(): void {
 
   // Initialize SQLite early — ensure db connection is ready for command handlers
   try { ensureSQLiteReady() } catch (e: any) { console.error('[cc-soul] SQLite early init failed:', e.message) }
-  // Initialize embedder early (non-blocking)
-  import('./embedder.ts').then(m => m.initEmbedder()).catch((e: any) => { console.error(`[cc-soul] module load failed (embedder): ${e.message}`) })
+  // embedder removed — activation field handles all recall
 
   // All data loading deferred — recall() queries SQLite/JSON directly
   try { loadFeatures() } catch (_) {}
@@ -454,9 +452,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
     }
   }
 
-  // ── Cron command routing (before general command router) ──
-  try { if (handleCronCommand(userMsg, ctx, event)) return } catch (_) {}
-  try { tickCron() } catch (_) {}
+  // cron routing removed
 
   // ── Command routing ──
   if (routeCommand(userMsg, ctx, session, senderId, channelId, event)) {

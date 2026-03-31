@@ -14,7 +14,7 @@ import {
   sqliteRecall as sqliteRecallAsync, tagRecall as sqliteTagRecall,
   sqliteFindByContent, sqliteUpdateMemory,
   sqliteRecallByTime as _sqliteRecallByTime,
-  isSQLiteReady, hasVectorSearch,
+  isSQLiteReady,
 } from './sqlite-store.ts'
 import { findMentionedEntities, getRelatedEntities, graphWalkRecall } from './graph.ts'
 import {
@@ -29,6 +29,34 @@ import {
   SYNONYM_MAP,
 } from './memory-utils.ts'
 import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
+
+// ── P2a: 日期归一化（懒生成）──
+const DATE_PATTERNS: Array<{ re: RegExp; replacer: (match: string, ...args: string[]) => string }> = [
+  { re: /昨天/g, replacer: () => { const d = new Date(Date.now() - 86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /前天/g, replacer: () => { const d = new Date(Date.now() - 2*86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /今天/g, replacer: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /明天/g, replacer: () => { const d = new Date(Date.now() + 86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /上周/g, replacer: () => '7天前' },
+  { re: /上个月/g, replacer: () => '30天前' },
+]
+
+/** 懒生成日期归一化内容。原始 content 不变，contentNormalized 用于召回和注入 */
+export function getContentForRecall(mem: Memory): string {
+  if (mem.contentNormalized !== undefined) return mem.contentNormalized
+  // 检查是否包含相对日期
+  let text = mem.content
+  let changed = false
+  for (const { re, replacer } of DATE_PATTERNS) {
+    if (re.test(text)) {
+      text = text.replace(re, replacer as any)
+      changed = true
+    }
+  }
+  if (changed) {
+    mem.contentNormalized = text
+  }
+  return mem.contentNormalized ?? mem.content
+}
 
 // ── Persistent recall indices (avoid O(n) rebuild each recall) ──
 const _contentMap = new Map<string, Memory>()      // content → Memory
@@ -47,6 +75,54 @@ export function rebuildRecallIndex(memories: Memory[]) {
   for (const m of memories) {
     _contentMap.set(m.content, m)
     _memLookup.set(`${m.content}\0${m.ts}`, m)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P3: A/B 通道实验 — 每 20 次召回随机降权一个通道 50%，评估通道效用
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const AB_INTERVAL = 20
+const AB_TESTABLE_CHANNELS = ['rrfGraph', 'rrfDirichlet', 'rrfScope'] as const
+let _abCounter = 0
+let _abDisabledChannel: string | null = null
+let _abEngagementWithChannel: number[] = []
+let _abEngagementWithout: number[] = []
+
+export function getABDisabledChannel(): string | null {
+  return _abDisabledChannel
+}
+
+/** 每次 recall 调用时推进 A/B 计数器 */
+function tickABExperiment(): void {
+  _abCounter++
+  if (_abCounter % AB_INTERVAL === 0) {
+    // 结束上一轮实验
+    if (_abDisabledChannel && _abEngagementWithout.length >= 5) {
+      const withAvg = _abEngagementWithChannel.length > 0
+        ? _abEngagementWithChannel.reduce((s, v) => s + v, 0) / _abEngagementWithChannel.length : 0.5
+      const withoutAvg = _abEngagementWithout.reduce((s, v) => s + v, 0) / _abEngagementWithout.length
+      const diff = withAvg - withoutAvg
+      try {
+        const { logDecision } = require('./decision-log.ts')
+        logDecision('ab_test', _abDisabledChannel,
+          `with=${withAvg.toFixed(3)}, without=${withoutAvg.toFixed(3)}, diff=${diff.toFixed(3)}, ${Math.abs(diff) < 0.05 ? '不显著' : diff > 0 ? '通道有用' : '通道可能有害'}`)
+      } catch {}
+    }
+
+    // 开始新一轮：随机选通道降权 50%
+    _abDisabledChannel = AB_TESTABLE_CHANNELS[Math.floor(Math.random() * AB_TESTABLE_CHANNELS.length)]
+    _abEngagementWithChannel = []
+    _abEngagementWithout = []
+  }
+}
+
+/** 记录 A/B 实验期间的 engagement（由 P1a 的 feedbackMemoryEngagement 调用） */
+export function recordABEngagement(engagementScore: number): void {
+  if (_abDisabledChannel) {
+    _abEngagementWithout.push(engagementScore)
+  } else {
+    _abEngagementWithChannel.push(engagementScore)
   }
 }
 
@@ -189,7 +265,7 @@ function buildIDF(): Map<string, number> {
   const N = memoryState.memories.length || 1
   let totalDocLen = 0
   for (const mem of memoryState.memories) {
-    const words = bm25Tokenize(mem.content)
+    const words = bm25Tokenize(getContentForRecall(mem))
     totalDocLen += words.length
     const unique = new Set(words)
     for (const w of unique) {
@@ -232,52 +308,33 @@ function _getDocTokens(doc: string): { words: string[]; tf: Map<string, number> 
 /** Invalidate BM25 token cache (call when memories change significantly) */
 export function invalidateBM25TokenCache() { _bm25TokenCache.clear() }
 
-function bm25Score(queryWords: Set<string>, doc: string, avgDocLen: number): number {
-  const { words: docWords, tf } = _getDocTokens(doc)
-  const docLen = docWords.length
-  if (docLen === 0) return 0
-
-  let score = 0
-  for (const qw of queryWords) {
-    // Check synonyms too
-    const expandedTerms = [qw, ...(SYNONYM_MAP[qw] || [])]
-    for (const term of expandedTerms) {
-      const termFreq = tf.get(term) || 0
-      if (termFreq === 0) continue
-      const idfVal = idfCache?.get(term) || 1.0
-      // BM25 formula
-      const k1 = getBM25K1(), b = getBM25B()
-      const numerator = termFreq * (k1 + 1)
-      const denominator = termFreq + k1 * (1 - b + b * (docLen / avgDocLen))
-      // BM25+ (Lv & Zhai 2011): delta=1 下界防止短文档被过度惩罚
-      const delta = 1
-      score += idfVal * (numerator / denominator + delta)
-      break // only count best synonym match per query word
-    }
-  }
-  return score
-}
+// [DELETED] bm25Score — 被 P5g CMR 替换（词覆盖率 + AAM 语义扩展 + 上下文亲和度）
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Recall: tag-based (primary) + TF-IDF (fallback for untagged)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** MMR (Maximal Marginal Relevance) — 去除召回结果中的语义重复 */
-function mmrRerank(candidates: (Memory & { score: number })[], topN: number, lambda = 0.7): (Memory & { score: number })[] {
+/**
+ * P5i: Topic-based dedup（替换 MMR）
+ * O(n) 而非 O(n²)。CMR 的 context affinity 已经隐式做了多样性。
+ * 用 scope + 首词做 topic 签名，每个 topic 最多保留 3 条。
+ */
+function mmrRerank(candidates: (Memory & { score: number })[], topN: number, _lambda = 0.7): (Memory & { score: number })[] {
   if (candidates.length <= topN) return candidates
+  const MAX_PER_TOPIC = 3
+  const topicCounts = new Map<string, number>()
+
   const selected: (Memory & { score: number })[] = []
-  const remaining = [...candidates]
-  while (selected.length < topN && remaining.length > 0) {
-    let bestIdx = 0, bestMMR = -Infinity
-    for (let i = 0; i < remaining.length; i++) {
-      const relevance = remaining[i].score
-      const maxSim = selected.length > 0
-        ? Math.max(...selected.map(s => trigramSimilarity(trigrams(s.content), trigrams(remaining[i].content))))
-        : 0
-      const mmr = lambda * relevance - (1 - lambda) * maxSim
-      if (mmr > bestMMR) { bestMMR = mmr; bestIdx = i }
-    }
-    selected.push(remaining.splice(bestIdx, 1)[0])
+  // candidates 已按 score 降序排列
+  for (const mem of candidates) {
+    if (selected.length >= topN) break
+    // topic 签名 = scope + 内容前 10 字（同 topic 的记忆内容开头通常相似）
+    const topicKey = (mem.scope || 'other') + '|' + (mem.content || '').slice(0, 10)
+    const count = topicCounts.get(topicKey) || 0
+    if (count >= MAX_PER_TOPIC) continue  // 同 topic 已够，跳过
+    topicCounts.set(topicKey, count + 1)
+    selected.push(mem)
   }
   return selected
 }
@@ -344,7 +401,14 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   const activeMemories: Memory[] = []
   for (const [scope, mems] of scopeIndex) {
     if (SKIP_SCOPES.has(scope)) continue
-    for (const m of mems) activeMemories.push(m)
+    for (const m of mems) {
+      // 学习型排除（原创）：被注入多次但用户从不理会 → 自动降权
+      // 比规则排除更智能：每个用户的排除模式不同，从行为中学习
+      const eng = m.injectionEngagement ?? 0
+      const miss = m.injectionMiss ?? 0
+      if (miss >= 5 && eng === 0) continue  // 注入 5 次全被忽视 → 跳过
+      activeMemories.push(m)
+    }
   }
 
   // Cache getParam results outside loop to avoid per-memory calls
@@ -374,44 +438,73 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     // If no channelId provided (e.g. DM), include private + global (skip channel-scoped from other channels)
     let sim = 0
 
+    // ═══════════════════════════════════════════════════════════════
+    // P5g: CMR (Contextual Memory Retrieval) — 替换 BM25+Trigram+Dirichlet
+    // 专为短文本对话记忆设计，不用 BM25 的文档长度归一化
+    // ═══════════════════════════════════════════════════════════════
+
+    // CMR Layer 1: 词覆盖率（替换 BM25，短文本不需要文档长度归一化）
+    const memContent = getContentForRecall(mem)
+    const memWords = new Set(
+      (memContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+    )
+
     if (mem.tags && mem.tags.length > 0) {
-      // ── Layer 1: Tag-based matching: semantic overlap between query words and tags ──
-      // Optimized: pre-join tags into a single string for fast substring check
+      // Tag 匹配：tag 命中算精确覆盖
       const tagStr = mem.tags.join('|').toLowerCase()
-      let hits = 0
+      let tagHits = 0
       for (const qw of queryWords) {
-        if (tagStr.includes(qw)) { hits++; continue }
-        // Reverse check: any tag is substring of query word
-        if (mem.tags.some(t => qw.includes(t))) hits++
+        if (tagStr.includes(qw)) { tagHits++; continue }
+        if (mem.tags.some(t => qw.includes(t))) tagHits++
       }
-      sim = hits / Math.max(1, queryWords.size)
+      sim = tagHits / Math.max(1, queryWords.size)
+    }
 
-      // ── Layer 2: Trigram fuzzy boost — catches typos, partial matches, morphological variants ──
-      if (sim < 0.3) {
-        // Tag matching missed, try trigram on content directly
-        if (!queryTrigrams) queryTrigrams = trigrams(msg)
-        const memTrigrams = trigrams(mem.content)
-        const triSim = trigramSimilarity(queryTrigrams, memTrigrams)
-        // Blend: take the better of tag sim and trigram sim (weighted down slightly)
-        sim = Math.max(sim, triSim * 0.8)
+    // 词覆盖率（IDF 加权）：不管有没有 tag 都算
+    if (sim < 0.3) {
+      if (!idf) { idf = buildIDF(); avgDocLen = avgDocLenCache || 1 }
+      let matchedWeight = 0, totalWeight = 0
+      for (const qw of queryWords) {
+        const w = idf.get(qw) ?? 1.0
+        totalWeight += w
+        if (memWords.has(qw)) matchedWeight += w
       }
-    } else {
-      // ── Layer 2: Trigram matching for untagged memories (before expensive TF-IDF) ──
-      if (!queryTrigrams) queryTrigrams = trigrams(msg)
-      const memTrigrams = trigrams(mem.content)
-      const triSim = trigramSimilarity(queryTrigrams, memTrigrams)
+      const coverage = totalWeight > 0 ? matchedWeight / totalWeight : 0
+      sim = Math.max(sim, coverage)
+    }
 
-      if (triSim > 0.1) {
-        sim = triSim * 0.8
-      } else {
-        // ── Layer 3: BM25 fallback for untagged memories with no trigram match ──
-        if (!idf) {
-          idf = buildIDF()
-          avgDocLen = avgDocLenCache || 1
+    // CMR Layer 2: AAM 语义扩展（替换 Trigram 暴力匹配）
+    // AAM 联想："Python" → "pip","venv"；trigram 做不到
+    if (sim < 0.2) {
+      try {
+        const aamMod = require('./aam.ts')
+        const queryTerms = [...queryWords].slice(0, 5)
+        const expanded = aamMod.expandQuery(queryTerms, 3)
+        let semanticMatch = 0
+        for (const exp of expanded) {
+          if (memWords.has(exp.word)) {
+            semanticMatch += exp.weight * (idf?.get(exp.word) ?? 0.5)
+          }
         }
-        if (!bm25QueryTokens) bm25QueryTokens = new Set(bm25Tokenize(msg))
-        sim = bm25Score(bm25QueryTokens, mem.content, avgDocLen)
-      }
+        const semanticCoverage = expanded.length > 0 ? semanticMatch / expanded.length : 0
+        sim = Math.max(sim, semanticCoverage * 0.8)
+      } catch {}
+    }
+
+    // CMR Layer 3: 上下文亲和度（BM25/Trigram/Dirichlet 都没有的）
+    // 利用记忆的 situationCtx 做语境匹配
+    if (mem.situationCtx && moodCtx) {
+      const moodDelta = Math.abs((mem.situationCtx.mood ?? 0) - (moodCtx.mood ?? 0))
+      const ctxBonus = moodDelta < 0.3 ? 0.1 : 0  // 情绪相近 → 小加成
+      sim += ctxBonus
+    }
+
+    // Trigram 兜底（极端情况：查询和记忆共享字符但不共享词）
+    if (sim < 0.05) {
+      if (!queryTrigrams) queryTrigrams = trigrams(msg)
+      const memTri = trigrams(memContent)
+      const triSim = trigramSimilarity(queryTrigrams, memTri)
+      sim = Math.max(sim, triSim * 0.6)  // trigram 降权到 0.6（不再是主力）
     }
 
     // ── Reasoning field matching: context + conclusion also participate in scoring ──
@@ -698,18 +791,27 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       rankMaps.push(rm)
     }
 
-    // RRF fusion: score = Σ 1/(k + rank_i)
+    // P5c: CWRF (Confidence-Weighted Rank Fusion) — 替换 RRF
+    // 通道置信度 = top1/top2 分数比。分数差距大 → 该通道权重放大
     const RRF_K = 60
-    for (let i = 0; i < scored.length; i++) {
-      let rrfScore = 0
-      for (const rm of rankMaps) {
-        const rank = rm.get(i) ?? scored.length
-        rrfScore += 1 / (RRF_K + rank)
+    const channelConfidences: number[] = []
+    for (const channel of [ch1, ch2, ch3, ch4, ch5]) {
+      if (channel.length >= 3) {
+        const top1 = Math.max(0.001, channel[0]?.score ?? 0.001)
+        const top2 = Math.max(0.001, channel[1]?.score ?? 0.001)
+        channelConfidences.push(Math.min(3, top1 / top2))
+      } else {
+        channelConfidences.push(1.0)  // 样本不足，不加权
       }
-      // Blend: 60% original logScore ranking + 40% RRF (avoid completely overriding tuned weights)
-      const originalRank = i  // already sorted by logScore
-      const originalRRF = 1 / (RRF_K + originalRank)
-      scored[i].score = 0.6 * scored[i].score + 0.4 * (rrfScore * 1000) // scale RRF to comparable range
+    }
+
+    for (let i = 0; i < scored.length; i++) {
+      let cwrfScore = 0
+      for (let c = 0; c < rankMaps.length; c++) {
+        const rank = rankMaps[c].get(i) ?? scored.length
+        cwrfScore += channelConfidences[c] / (RRF_K + rank)
+      }
+      scored[i].score = 0.6 * scored[i].score + 0.4 * (cwrfScore * 1000)
     }
     scored.sort((a, b) => b.score - a.score)
   }
@@ -1040,6 +1142,9 @@ function system1FastRecall(msg: string, topN: number, _userId?: string): Memory[
 export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }): Memory[] {
   if (!msg || memoryState.memories.length === 0) return []
 
+  // P3: 推进 A/B 通道实验计数器
+  tickABExperiment()
+
   // ── 统一激活场：唯一的召回路径 ──
   try {
     const { activationRecall } = require('./activation-field.ts')
@@ -1050,6 +1155,17 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
       moodCtx?.mood || 0,
       moodCtx?.alertness || 0.5,
     )
+
+    // ── Graveyard 复活：当结果不足时 fallback 查 graveyard ──
+    if (results.length < 3) {
+      try {
+        const { reviveFromGraveyard } = require('./smart-forget.ts')
+        const revived = reviveFromGraveyard(msg, memoryState.memories, 3 - results.length)
+        if (revived.length > 0) {
+          results.push(...revived)
+        }
+      } catch {}
+    }
 
     // 更新召回统计
     recallStats.total++
@@ -1243,21 +1359,8 @@ export async function recallFused(msg: string, topN = 3, userId?: string, channe
   // Strategy 1: existing text-based recall (tag + trigram + BM25) — with scores for fusion ranking
   const textResults = recallWithScores(msg, topN * 2, userId, channelId)
 
-  // Strategy 2: SQLite vector search (async, optional)
-  let vectorResults: Memory[] = []
-  if (hasVectorSearch() && isSQLiteReady()) {
-    try {
-      vectorResults = await sqliteRecallAsync(msg, topN * 2, userId, channelId)
-    } catch {
-      // vector search failed — continue with text-only results
-    }
-  }
-
-  if (vectorResults.length === 0) {
-    return textResults.slice(0, topN)
-  }
-
-  // Fusion: merge results from both strategies and re-rank
+  // Vector search removed — activation field handles semantic recall
+  return textResults.slice(0, topN)
   const fusionMap = new Map<string, { memory: Memory; textScore: number; vecScore: number; sources: number }>()
 
   // Normalize scores relative to each strategy's top result

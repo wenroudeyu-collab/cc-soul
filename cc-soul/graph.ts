@@ -86,7 +86,7 @@ function ensureEntityMemoryIndex(memories: { content: string; scope?: string }[]
 }
 
 /** Invalidate inverted index (call when entities change) */
-function invalidateEntityMemoryIndex() { _entityToMemIdx = null; _indexedMemCount = 0 }
+export function invalidateEntityMemoryIndex() { _entityToMemIdx = null; _indexedMemCount = 0 }
 
 // ── PageRank dirty flag ──
 let _pageRankDirty = true
@@ -448,45 +448,21 @@ export function graphWalkRecallScored(
   maxDepth = 2,
   maxResults = 8,
 ): { content: string; graphScore: number }[] {
-  // ── Spreading Activation: replaces PPR for query-biased entity scoring ──
-  const saRanks = spreadingActivation(startEntities, graphState, 3, 0.5)
+  // ── Personalized PageRank 替代 BFS 平权遍历 ──
+  // PPR 以 startEntities 为种子做有偏随机游走，天然偏向查询相关实体
+  const pprRanks = personalizedPageRank(startEntities, 0.15, Math.min(maxDepth * 5, 20))
 
-  // Weighted BFS for depth-limited exploration, blended with spreading activation
+  // 融合 PPR 排名 + 2-hop 缓存中的引力
   const entityScores = new Map<string, number>()
   for (const start of startEntities) entityScores.set(start, 1.0)
-  let frontier = [...startEntities]
 
-  for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
-    const hopDecay = 1 / (depth + 2) // hop 0→0.5, hop 1→0.33
-    const next: string[] = []
-    for (const entity of frontier) {
-      for (const r of graphState.relations) {
-        if (r.invalid_at !== null) continue
-        const neighbor = r.source === entity ? r.target : r.target === entity ? r.source : null
-        if (!neighbor || entityScores.has(neighbor)) continue
-
-        // Score: hop decay × relation freshness × entity mentions × relation type weight
-        const freshnessMs = Date.now() - (r.valid_at || r.ts || 0)
-        const freshness = Math.exp(-freshnessMs / (90 * 86400000)) // 90-day half-life
-        const entityNode = graphState.entities.find(e => e.name === neighbor && e.invalid_at === null)
-        const mentionBoost = entityNode ? Math.min(2.0, 1 + Math.log2(entityNode.mentions + 1) * 0.3) : 1.0
-        // Activation boost: recently mentioned entities score higher
-        const activationBoost = entityNode?.activation ? (1.0 + entityNode.activation * 0.5) : 1.0
-        // Relation type weight + stored weight/confidence
-        const relTypeWeight = RELATION_WEIGHTS[r.type] ?? 0.8
-        const relWeight = (r.weight ?? 1.0) * (r.confidence ?? 0.7) * relTypeWeight
-
-        const bfsScore = hopDecay * freshness * mentionBoost * activationBoost * relWeight
-        // Spreading Activation contribution: blend BFS score with SA ranks
-        const saScore = saRanks.get(neighbor) ?? 0
-        const combinedScore = bfsScore * 0.5 + saScore * 0.5  // SA already in comparable range
-        entityScores.set(neighbor, combinedScore)
-        next.push(neighbor)
-        if (entityScores.size >= maxResults * 3) break
-      }
-      if (entityScores.size >= maxResults * 3) break
-    }
-    frontier = next
+  for (const [entity, pprScore] of pprRanks) {
+    if (entityScores.has(entity)) continue
+    // PPR 得分 + 引力加成（来自 contextualEntityRank 的 2-hop 缓存）
+    const gravityBoost = _neighborCache.has(startEntities[0])
+      && _neighborCache.get(startEntities[0])!.has(entity) ? 0.3 : 0
+    entityScores.set(entity, pprScore + gravityBoost)
+    if (entityScores.size >= maxResults * 3) break
   }
 
   // Remove start entities from results
@@ -532,42 +508,6 @@ export function generateEntitySummary(entityName: string): string | null {
   return parts.join(' | ')
 }
 
-/** BFS to find shortest path between two entities (max 3 hops) */
-export function queryGraphPath(from: string, to: string, maxHops = 3): string[] | null {
-  if (from === to) return [from]
-  const visited = new Map<string, string>([[from, '']])
-  let frontier = [from]
-  for (let hop = 0; hop < maxHops && frontier.length > 0; hop++) {
-    const next: string[] = []
-    for (const node of frontier) {
-      for (const r of graphState.relations) {
-        if (r.invalid_at !== null) continue
-        const neighbor = r.source === node ? r.target : r.target === node ? r.source : null
-        if (neighbor && !visited.has(neighbor)) {
-          visited.set(neighbor, node)
-          if (neighbor === to) {
-            // Reconstruct path
-            const path = [to]
-            let cur = to
-            let steps = 0
-            while (cur !== from && steps < 100) {
-              const prev = visited.get(cur)
-              if (prev == null) break
-              cur = prev
-              path.unshift(cur)
-              steps++
-            }
-            return path
-          }
-          next.push(neighbor)
-        }
-      }
-    }
-    frontier = next
-  }
-  return null
-}
-
 export function queryEntityContext(msg: string): string[] {
   // Find mentioned entities for personalized PageRank seeding
   const mentionedNames: string[] = []
@@ -610,61 +550,76 @@ export function queryEntityContext(msg: string): string[] {
  * Called from heartbeat to periodically recompute node importance.
  * Skips recomputation if graph hasn't changed since last run (dirty flag).
  */
+/**
+ * P5d: contextualEntityRank — 替换 PageRank
+ *
+ * 以当前查询实体为中心，计算 2-hop 邻居的引力。
+ * 同一实体在不同对话中重要性不同（语境感知）。
+ *
+ * 同时兼容 heartbeat 调用（无查询时计算全局质量 M(e)）。
+ */
+
+// 2-hop 邻居缓存（heartbeat 时预计算）
+const _neighborCache = new Map<string, Set<string>>()
+
+/**
+ * computeEntityRanks — 计算每个实体的质量 M(e) 和 2-hop 邻居缓存
+ *
+ * 不是标准 PageRank（不做幂迭代传播）。对几百实体的小图，
+ * 直接用 M(e) = mentions × recencyFactor × emotionalCharge 比迭代更有效。
+ *
+ * 保留旧函数名 computePageRank 作为别名（handler-heartbeat.ts 在调用）。
+ */
+export function computeEntityRanks(): void {
+  computePageRank()
+}
 export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
   if (!_pageRankDirty && graphState.ranks.size > 0) return
   const activeEntities = graphState.entities.filter(e => e.invalid_at === null)
   const N = activeEntities.length
   if (N === 0) { graphState.ranks.clear(); return }
 
+  const now = Date.now()
   const names = new Set(activeEntities.map(e => e.name))
+
+  // ── Step 1: 计算每个实体的质量 M(e) = mentions × recencyFactor × emotionalCharge ──
   const ranks = new Map<string, number>()
+  for (const entity of activeEntities) {
+    const refTs = entity.lastActivatedAt || entity.firstSeen || entity.valid_at || now
+    const ageDays = Math.max(0, (now - refTs) / 86400000)
+    const recencyFactor = Math.exp(-ageDays / 30)  // 30天半衰期
+    const emotionalCharge = 1 + (entity.activation ?? 0) * 0.5
+    const M = Math.max(0.01, entity.mentions * recencyFactor * emotionalCharge)
+    ranks.set(entity.name, M)
+  }
 
-  // Initial rank = 1/N
-  for (const name of names) ranks.set(name, 1 / N)
-
-  // Build adjacency: outDegree per node and neighbor lists
-  const outDegree = new Map<string, number>()
-  const inEdges = new Map<string, string[]>() // node -> list of neighbors pointing to it
-  for (const name of names) { outDegree.set(name, 0); inEdges.set(name, []) }
+  // ── Step 2: 预计算 2-hop 邻居表（缓存，供 rankEntitiesByContext 使用）──
+  _neighborCache.clear()
+  const adjacency = new Map<string, Set<string>>()
+  for (const name of names) adjacency.set(name, new Set())
 
   for (const r of graphState.relations) {
     if (r.invalid_at !== null) continue
     if (!names.has(r.source) || !names.has(r.target)) continue
-    // Directed graph: source → target only
-    outDegree.set(r.source, (outDegree.get(r.source) || 0) + 1)
-    inEdges.get(r.target)!.push(r.source)
+    adjacency.get(r.source)!.add(r.target)
+    adjacency.get(r.target)!.add(r.source)  // 无向处理
   }
 
-  // Iterative PageRank
-  for (let iter = 0; iter < iterations; iter++) {
-    const newRanks = new Map<string, number>()
-    for (const name of names) {
-      let sum = 0
-      const neighbors = inEdges.get(name) || []
-      for (const neighbor of neighbors) {
-        const neighborOut = outDegree.get(neighbor) || 1
-        sum += (ranks.get(neighbor) || 0) / neighborOut
+  for (const name of names) {
+    const hop1 = adjacency.get(name) || new Set()
+    const hop2 = new Set<string>(hop1)
+    for (const n1 of hop1) {
+      const n1Neighbors = adjacency.get(n1) || new Set()
+      for (const n2 of n1Neighbors) {
+        if (n2 !== name) hop2.add(n2)
       }
-      newRanks.set(name, (1 - dampingFactor) / N + dampingFactor * sum)
     }
-    // Apply time-decayed mention boost: recent mentions matter more
-    const now = Date.now()
-    for (const entity of activeEntities) {
-      const base = newRanks.get(entity.name) || 0
-      // Time decay: use lastActivatedAt or firstSeen as reference
-      const refTs = entity.lastActivatedAt || entity.firstSeen || entity.valid_at || now
-      const ageDays = Math.max(0, (now - refTs) / 86400000)
-      const timeDecayedMentions = entity.mentions * Math.exp(-ageDays / 30)
-      const mentionBoost = 1 + Math.log1p(timeDecayedMentions) * 0.2
-      newRanks.set(entity.name, base * mentionBoost)
-    }
-    // Copy to ranks for next iteration
-    for (const [k, v] of newRanks) ranks.set(k, v)
+    _neighborCache.set(name, hop2)
   }
 
   graphState.ranks = ranks
   _pageRankDirty = false
-  console.log(`[cc-soul][graph] PageRank computed for ${N} entities`)
+  console.log(`[cc-soul][graph] contextualEntityRank: ${N} entities, ${_neighborCache.size} neighbor caches`)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -672,21 +627,7 @@ export function computePageRank(iterations = 3, dampingFactor = 0.85): void {
 // (merged from social-graph.ts)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const SOCIAL_PATH = resolve(DATA_DIR, 'social_graph.json')
-
-interface SocialStyle { tone: string; typical_mood: string }
-
-interface SocialNode {
-  name: string
-  mentions: number
-  lastMentioned: number
-  emotionSum: number  // positive = good vibes, negative = stress
-  emotions: { positive: number; negative: number; neutral: number }  // categorized emotion counts
-  recentTopics: string[]
-  style?: SocialStyle
-}
-
-let socialGraph: SocialNode[] = loadJson<SocialNode[]>(SOCIAL_PATH, [])
+// [DELETED] 独立的 socialGraph 数组 — 社交信息已融入知识图谱（Entity type='person'）
 
 const ROLE_PATTERNS = /老板|领导|boss|同事|colleague|朋友|女朋友|男朋友|老婆|老公|爸|妈|哥|姐|弟|妹|老师|客户/g
 
@@ -697,80 +638,107 @@ export function detectMentionedPeople(msg: string): string[] {
   return [...new Set([...roles, ...names])]
 }
 
+/**
+ * 社交图谱融入知识图谱（原创改造）
+ * 人物 = Entity(type='person')，社交关系 = Relation
+ * 不再维护独立的 socialGraph 数组
+ */
 export function updateSocialGraph(msg: string, mood: number) {
   const people = detectMentionedPeople(msg)
   for (const name of people) {
-    let node = socialGraph.find(n => n.name === name)
-    if (!node) {
-      node = { name, mentions: 0, lastMentioned: 0, emotionSum: 0, emotions: { positive: 0, negative: 0, neutral: 0 }, recentTopics: [] }
-      socialGraph.push(node)
+    // 人物作为 Entity 存入知识图谱
+    let entity = graphState.entities.find(e => e.name === name && e.type === 'person')
+    if (!entity) {
+      entity = {
+        name, type: 'person', attrs: [],
+        firstSeen: Date.now(), mentions: 0,
+        valid_at: Date.now(), invalid_at: null,
+      }
+      graphState.entities.push(entity)
+      _pageRankDirty = true
     }
-    node.mentions++
-    node.lastMentioned = Date.now()
-    node.emotionSum += mood
-    if (!node.emotions) node.emotions = { positive: 0, negative: 0, neutral: 0 }
-    if (mood > 0.2) node.emotions.positive++
-    else if (mood < -0.2) node.emotions.negative++
-    else node.emotions.neutral++
-    // Detect communication style: formal vs casual
-    const formalRe = /请问|您|汇报|报告|会议|安排|deadline|项目|审批|review|领导|老板|boss|客户/i
-    const casualRe = /哈哈|lol|hhh|😂|🤣|卧槽|牛逼|nb|6{2,}|awsl|yyds|绝了|离谱|xswl|兄弟|哥们|姐妹|朋友/i
-    const isFormal = formalRe.test(msg)
-    const isCasual = casualRe.test(msg)
-    const detectedTone = isFormal && !isCasual ? 'formal' : isCasual && !isFormal ? 'casual' : 'mixed'
-    const moodLabel = mood > 0.2 ? '放松' : mood < -0.2 ? '焦虑' : '平稳'
-    if (!node.style) node.style = { tone: detectedTone, typical_mood: moodLabel }
-    else {
-      // Blend: only update if consistent signal (avoid flip-flopping)
-      if (detectedTone !== 'mixed') node.style.tone = detectedTone
-      node.style.typical_mood = moodLabel
-    }
-    // Extract topic keyword
+    entity.mentions++
+    entity.lastActivatedAt = Date.now()
+    entity.activation = Math.min(1, (entity.activation ?? 0) + 0.3)
+
+    // 情绪归因到具体关系边，而非粗暴加到人物上
+    // "老板夸我" → Relation { source: "老板", target: "用户", type: "praised", mood: 0.5 }
+    const moodLabel = mood > 0.2 ? 'positive_interaction' : mood < -0.2 ? 'negative_interaction' : 'neutral_interaction'
     const topic = msg.replace(new RegExp(name, 'g'), '').match(/[\u4e00-\u9fff]{2,4}/)?.[0]
-    if (topic && !node.recentTopics.includes(topic)) {
-      node.recentTopics.push(topic)
-      if (node.recentTopics.length > 5) node.recentTopics.shift()
+
+    // 存情绪关系到 attrs（轻量，不为每次提及建一条 relation）
+    if (!entity.attrs.includes(moodLabel)) entity.attrs.push(moodLabel)
+    if (entity.attrs.length > 10) entity.attrs = entity.attrs.slice(-10)
+
+    // 检测通讯风格
+    const formalRe = /请问|您|汇报|报告|会议|安排|deadline|项目|审批|review|领导|老板|boss|客户/i
+    const casualRe = /哈哈|lol|hhh|卧槽|牛逼|nb|6{2,}|yyds|绝了|离谱|兄弟|哥们|姐妹|朋友/i
+    if (formalRe.test(msg) && !entity.attrs.includes('tone:formal')) entity.attrs.push('tone:formal')
+    if (casualRe.test(msg) && !entity.attrs.includes('tone:casual')) entity.attrs.push('tone:casual')
+
+    // 称呼合并：如果消息中同时出现两个人物名，可能是别名
+    // "我女朋友小雨" → addRelation("女朋友", "小雨", "alias_of")
+    if (people.length >= 2) {
+      for (const other of people) {
+        if (other === name) continue
+        const hasAlias = graphState.relations.some(r =>
+          r.type === 'alias_of' && ((r.source === name && r.target === other) || (r.source === other && r.target === name))
+        )
+        if (!hasAlias && msg.includes(name) && msg.includes(other) && Math.abs(msg.indexOf(name) - msg.indexOf(other)) < 10) {
+          addRelation(name, other, 'alias_of')
+        }
+      }
+    }
+
+    // 话题关联
+    if (topic) {
+      const hasTopicRel = graphState.relations.some(r =>
+        r.source === name && r.target === topic && r.type === 'mentioned_with'
+      )
+      if (!hasTopicRel) addRelation(name, topic, 'mentioned_with')
     }
   }
-  if (people.length > 0) debouncedSave(SOCIAL_PATH, socialGraph)
+  if (people.length > 0) saveGraph()
 }
 
 export function getSocialContext(msg: string): string | null {
   const people = detectMentionedPeople(msg)
   if (people.length === 0) return null
   const hints: string[] = []
+
   for (const name of people) {
-    const node = socialGraph.find(n => n.name === name)
-    if (!node || node.mentions < 2) continue
-    const emotions = node.emotions || { positive: 0, negative: 0, neutral: 0 }
-    const total = emotions.positive + emotions.negative + emotions.neutral
-    const emotionLabel = total < 2 ? '数据不足'
-      : emotions.negative > emotions.positive * 2 ? '明显焦虑/压力'
-      : emotions.positive > emotions.negative * 2 ? '积极/开心'
+    // 从知识图谱查询人物实体
+    const entity = graphState.entities.find(e => e.name === name && e.type === 'person')
+    if (!entity || entity.mentions < 2) continue
+
+    // 情绪统计从 attrs 中提取
+    const posCount = entity.attrs.filter(a => a === 'positive_interaction').length
+    const negCount = entity.attrs.filter(a => a === 'negative_interaction').length
+    const emotionLabel = posCount + negCount < 2 ? '数据不足'
+      : negCount > posCount * 2 ? '明显焦虑/压力'
+      : posCount > negCount * 2 ? '积极/开心'
       : '混合情绪'
-    const styleHint = node.style
-      ? `，语境${node.style.tone === 'formal' ? '正式' : node.style.tone === 'casual' ? '轻松' : '混合'}/${node.style.typical_mood}`
+
+    const tone = entity.attrs.includes('tone:formal') ? '正式'
+      : entity.attrs.includes('tone:casual') ? '轻松' : '混合'
+
+    // 2-hop 关联：通过知识图谱发现关联实体
+    const related = _neighborCache.get(name)
+    const relatedHint = related && related.size > 0
+      ? `，关联：${[...related].slice(0, 3).join('/')}`
       : ''
-    hints.push(`${name}：提到${node.mentions}次，情绪倾向${emotionLabel}${styleHint}`)
+
+    hints.push(`${name}：提到${entity.mentions}次，情绪${emotionLabel}，语境${tone}${relatedHint}`)
   }
+
   if (hints.length === 0) return null
-  // Build style-aware guidance
-  const styleGuides: string[] = []
-  for (const name of people) {
-    const node = socialGraph.find(n => n.name === name)
-    if (!node?.style || node.mentions < 2) continue
-    const { tone, typical_mood } = node.style
-    if (tone === 'formal' || typical_mood === '焦虑')
-      styleGuides.push(`[社交语境] 用户提到${name}时通常比较${typical_mood}，回复要更稳重`)
-    else if (tone === 'casual')
-      styleGuides.push(`[社交语境] 用户提到${name}时比较放松，回复可以轻松一些`)
-  }
-  const base = `[关系图谱] ${hints.join('；')}`
-  return styleGuides.length > 0 ? `${base}\n${styleGuides.join('\n')}` : `${base}。回复时参考情绪背景`
+  return `[关系图谱] ${hints.join('；')}`
 }
 
 /** Reset graph state (for testing) */
-export function _resetSocialGraph() { socialGraph.length = 0 }
+export function _resetSocialGraph() {
+  graphState.entities = graphState.entities.filter(e => e.type !== 'person')
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Causal Chain — 沿 caused_by 方向做有向 BFS，返回因果链上的实体
@@ -780,35 +748,111 @@ export function _resetSocialGraph() { socialGraph.length = 0 }
  * Trace causal chain from given entities along caused_by/triggers/depends_on edges.
  * Returns chain of entity names with direction arrows for augment display.
  */
+/**
+ * 双向因果图追踪（原创改造）
+ *
+ * 向上追因：为什么发生？(caused_by, depends_on)  → target→source 方向
+ * 向下追果：导致了什么？(triggers, leads_to)      → source→target 方向
+ *
+ * 每条因果边有隐式强度（关系 confidence × weight）
+ */
+const CAUSE_TYPES = new Set(['caused_by', 'depends_on', 'learned_from'])
+const EFFECT_TYPES = new Set(['triggers', 'leads_to'])
+
+function traceDirection(
+  start: string,
+  relTypes: Set<string>,
+  direction: 'up' | 'down',
+  maxHops: number,
+): Array<{ entity: string; type: string; strength: number }> {
+  const visited = new Set<string>([start])
+  const results: Array<{ entity: string; type: string; strength: number }> = []
+  let frontier = [start]
+
+  for (let hop = 0; hop < maxHops && frontier.length > 0; hop++) {
+    const next: string[] = []
+    for (const current of frontier) {
+      for (const r of graphState.relations) {
+        if (r.invalid_at !== null) continue
+        if (!relTypes.has(r.type)) continue
+
+        // 方向：向上追因 → 从 target 找 source；向下追果 → 从 source 找 target
+        let neighbor: string | null = null
+        if (direction === 'up' && r.target === current && !visited.has(r.source)) {
+          neighbor = r.source
+        } else if (direction === 'down' && r.source === current && !visited.has(r.target)) {
+          neighbor = r.target
+        }
+        if (!neighbor) continue
+
+        const strength = (r.confidence ?? 0.7) * (r.weight ?? 1.0) / (hop + 1)  // hop 衰减
+        visited.add(neighbor)
+        results.push({ entity: neighbor, type: r.type, strength })
+        next.push(neighbor)
+      }
+    }
+    frontier = next
+  }
+
+  return results.sort((a, b) => b.strength - a.strength)
+}
+
 export function traceCausalChain(startEntities: string[], maxHops = 3): string[] {
-  const CAUSAL_TYPES = new Set(['caused_by', 'triggers', 'depends_on', 'learned_from'])
   const chains: string[] = []
 
   for (const start of startEntities.slice(0, 3)) {
-    const visited = new Set<string>([start])
-    const path = [start]
-    let current = start
-
-    for (let hop = 0; hop < maxHops; hop++) {
-      let best: { target: string; type: string; ts: number } | null = null
-      for (const r of graphState.relations) {
-        if (r.invalid_at !== null) continue
-        if (!CAUSAL_TYPES.has(r.type)) continue
-        // Follow source→target direction for causal edges
-        if (r.source === current && !visited.has(r.target)) {
-          if (!best || r.ts > best.ts) best = { target: r.target, type: r.type, ts: r.ts }
-        }
-      }
-      if (!best) break
-      visited.add(best.target)
-      path.push(`-[${best.type}]→`, best.target)
-      current = best.target
+    // 向上追因
+    const causes = traceDirection(start, CAUSE_TYPES, 'up', maxHops)
+    if (causes.length > 0) {
+      const causeStr = causes.slice(0, 3).map(c => `${c.entity}(${c.type},s=${c.strength.toFixed(2)})`).join(' ← ')
+      chains.push(`${start} 的原因：${causeStr}`)
     }
 
-    if (path.length > 1) chains.push(path.join(' '))
+    // 向下追果
+    const effects = traceDirection(start, EFFECT_TYPES, 'down', maxHops)
+    if (effects.length > 0) {
+      const effectStr = effects.slice(0, 3).map(e => `${e.entity}(${e.type},s=${e.strength.toFixed(2)})`).join(' → ')
+      chains.push(`${start} 的影响：${effectStr}`)
+    }
   }
 
   return chains
+}
+
+/**
+ * 从记忆的 because 字段补充图谱中缺失的因果边
+ * heartbeat 时调用
+ */
+export function enrichCausalFromMemories(): void {
+  try {
+    const { memoryState } = require('./memory.ts')
+    const memories = memoryState?.memories
+    if (!memories) return
+
+    let added = 0
+    for (const m of memories) {
+      if (!m.because || m.scope === 'expired') continue
+      const effectEntities = findMentionedEntities(m.content)
+      const causeEntities = findMentionedEntities(m.because)
+      if (effectEntities.length === 0 || causeEntities.length === 0) continue
+
+      for (const cause of causeEntities) {
+        for (const effect of effectEntities) {
+          if (cause === effect) continue
+          // 检查是否已有这条因果边
+          const exists = graphState.relations.some(r =>
+            r.source === effect && r.target === cause && r.type === 'caused_by' && r.invalid_at === null
+          )
+          if (!exists) {
+            addRelation(effect, cause, 'caused_by')
+            added++
+          }
+        }
+      }
+      if (added >= 10) break  // 每轮最多补充 10 条，防止一次性太多
+    }
+    if (added > 0) console.log(`[cc-soul][graph] enriched ${added} causal edges from memory.because`)
+  } catch {}
 }
 
 export const graphModule: SoulModule = {

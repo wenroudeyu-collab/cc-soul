@@ -20,9 +20,7 @@ import {
   sqliteAddMemory, sqliteUpdateMemory,
   sqliteFindByContent, sqliteCount, sqliteGetAll,
   sqliteAddChatTurn, sqliteGetRecentHistory, sqliteTrimHistory,
-  backfillEmbeddings, hasVectorSearch,
 } from './sqlite-store.ts'
-import { initEmbedder } from './embedder.ts'
 import { appendAudit } from './audit.ts'
 import { addRelation } from './graph.ts'
 
@@ -194,6 +192,11 @@ export const memoryState = {
   chatHistory: [] as ChatTurn[],
 }
 
+// ── 写入去重集合（5分钟 TTL，防止同一内容短时间内重复存储）──
+const _recentWriteHashes = new Set<string>()
+// 5 分钟后自动清除（通过 heartbeat 或 setTimeout）
+setInterval(() => { _recentWriteHashes.clear() }, 300000)
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MEMORY INDEX — O(1) lookup by scope (maintained on add/remove)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -361,19 +364,6 @@ export function promoteToCore(content: string, category: CoreMemory['category'],
 }
 
 /**
- * Remove from core memory.
- */
-export function demoteFromCore(keyword: string): boolean {
-  const idx = coreMemories.findIndex(m => m.content.toLowerCase().includes(keyword.toLowerCase()))
-  if (idx >= 0) {
-    coreMemories.splice(idx, 1)
-    saveCoreMemories()
-    return true
-  }
-  return false
-}
-
-/**
  * Build core memory context for prompt injection (always included, no recall needed).
  */
 export function buildCoreMemoryContext(): string {
@@ -464,21 +454,34 @@ export function addToHistory(user: string, assistant: string) {
   debouncedSave(HISTORY_PATH, memoryState.chatHistory)
 }
 
-export function buildHistoryContext(maxTokens = 4000): string {
+export function buildHistoryContext(maxTokens?: number): string {
   if (memoryState.chatHistory.length === 0) return ''
 
-  const recent = memoryState.chatHistory.slice(-INJECT_HISTORY)
+  // 自适应 context budget：根据后端 window 动态决定历史轮数和截断
+  let trimmed = memoryState.chatHistory
+  let historyBudget = maxTokens ?? 4000
+
+  try {
+    const { computeBudget, trimHistory } = require('./context-budget.ts')
+    const budget = computeBudget()
+    trimmed = trimHistory(memoryState.chatHistory, budget)
+    historyBudget = budget.historyBudget
+  } catch {
+    // fallback：用旧的硬编码逻辑
+    trimmed = memoryState.chatHistory.slice(-INJECT_HISTORY)
+  }
+
   const lines: string[] = []
   let totalTokens = 0
 
   // Build from most recent backward, stop when budget exceeded
-  for (let i = recent.length - 1; i >= 0; i--) {
-    const t = recent[i]
+  for (let i = trimmed.length - 1; i >= 0; i--) {
+    const t = trimmed[i]
     const timeStr = new Date(t.ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     const line = `[${timeStr}] 用户: ${t.user.slice(0, 200)}\n助手: ${t.assistant.slice(0, 400)}`
-    const lineTokens = Math.ceil(line.length * 0.8) // rough char-to-token estimate
-    if (totalTokens + lineTokens > maxTokens) break
-    lines.unshift(line) // prepend (we're going backward)
+    const lineTokens = Math.ceil(line.length * 0.8)
+    if (totalTokens + lineTokens > historyBudget) break
+    lines.unshift(line)
     totalTokens += lineTokens
   }
 
@@ -643,8 +646,6 @@ export function batchTagUntaggedMemories() {
  *
  * Inspired by mem0's AUDN cycle but with rule-first approach to minimize LLM calls.
  */
-export type AUDNAction = 'add' | 'update' | 'delete' | 'noop'
-
 export function decideMemoryAction(newContent: string, scope?: string): { action: 'add' | 'update' | 'skip'; targetIndex: number } {
   if (memoryState.memories.length === 0) return { action: 'add', targetIndex: -1 }
 
@@ -881,14 +882,7 @@ export function loadMemories() {
 
     console.log(`[cc-soul][memory] loaded ${fromDb.length} memories from SQLite`)
 
-    // Async: init embedder for vector search (non-blocking)
-    initEmbedder().then(ready => {
-      if (ready) {
-        console.log(`[cc-soul][memory] embedder ready — vector search enabled`)
-        // Backfill embeddings for existing memories in background
-        backfillEmbeddings(50).catch(() => {}) // intentionally silent — background task
-      }
-    }).catch((e: any) => { console.error(`[cc-soul] embedder init failed: ${e.message}`) })
+    // vector embedder removed — activation field handles semantic recall
   } else {
     // JSON fallback
     const loaded = loadJson<Memory[]>(MEMORIES_PATH, [])
@@ -1106,6 +1100,42 @@ export function addMemory(content: string, scope: string, userId?: string, visib
 
   if (!content || content.length < 3) return
 
+  // ── 排除性设计：What NOT to save（学自 Claude Code memdir）──
+  // 纯确认性回复、临时信息、太短无信息量的内容不值得存储
+  const REJECT_CONTENT_PATTERNS = [
+    /^(嗯|好的?|ok|收到|谢谢|thx|thanks|明白|懂了|了解|got it|知道了|可以|行|对|没问题|好吧)[\s。！!.]*$/i,
+    /^.{0,4}$/,  // 太短（<5字）无信息量
+  ]
+  if (scope !== 'correction' && scope !== 'preference') {
+    for (const pat of REJECT_CONTENT_PATTERNS) {
+      if (pat.test(content.trim())) {
+        return  // 静默拒绝，不打日志（太频繁）
+      }
+    }
+  }
+
+  // ── scope 白名单验证（学自 Claude Code 闭合分类法）──
+  const VALID_SCOPES = new Set([
+    'preference', 'fact', 'event', 'opinion', 'topic', 'correction',
+    'consolidated', 'discovery', 'task', 'reflexion', 'gratitude',
+    'visual', 'dream', 'curiosity', 'reflection', 'proactive', 'insight',
+  ])
+  if (!VALID_SCOPES.has(scope)) scope = 'fact'  // 未知 scope 降级为 fact
+
+  // ── 写入去重互斥（学自 Claude Code extractMemories UUID 游标）──
+  const dedupeKey = content.slice(0, 60) + '|' + scope
+  if (_recentWriteHashes.has(dedupeKey)) return  // 5 分钟内相同内容不重复存
+  _recentWriteHashes.add(dedupeKey)
+  if (_recentWriteHashes.size > 500) {
+    // 防止集合无限增长
+    const iterator = _recentWriteHashes.values()
+    for (let i = 0; i < 100; i++) iterator.next()  // 删除最早的 100 个
+    // Set 没有 shift，用 clear + 重建
+    const remaining = [..._recentWriteHashes].slice(-400)
+    _recentWriteHashes.clear()
+    for (const k of remaining) _recentWriteHashes.add(k)
+  }
+
   // Reject system augment content that was accidentally fed back as memory
   const SYSTEM_PREFIXES = ['[Working Memory', '[当前面向:', '[隐私模式]', '[System]', '[安全警告]', '[元认知警告]']
   if (SYSTEM_PREFIXES.some(p => content.includes(p))) {
@@ -1184,7 +1214,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     recallCount: 0,
     source: autoSource,
     emotionIntensity: autoEmotionIntensity,
-    importance: surprise, surprise,
+    importance: surprise,
     ...(FACT_SCOPES.includes(scope) ? { validFrom: Date.now(), validUntil: 0 } : {}),
     ...extractReasoning(content),
     ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),
@@ -1192,6 +1222,17 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   // ── Decision causal recording: extract WHY from causal keywords ──
   const causalMatch = content.match(/(?:because|因为|由于|是因为|之所以.*?是|所以选.*?是因为)\s*[,，:：]?\s*(.{4,80}?)(?:[。.!！;；]|$)/i)
   if (causalMatch) newMem.because = causalMatch[1].trim()
+
+  // 写入后才更新索引（学自 Claude Code strict write discipline）
+  // SQLite 写入优先，失败则不更新内存索引
+  if (useSQLite) {
+    try {
+      sqliteAddMemory(newMem)
+    } catch (e: any) {
+      console.error(`[cc-soul][memory-crud] SQLite write failed, skipping memory: ${e.message}`)
+      return  // SQLite 写失败 → 不添加到内存，保持一致性
+    }
+  }
 
   memoryState.memories.push(newMem)
   updateRecallIndex(newMem)
@@ -1207,11 +1248,6 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     try {
       import('./aam.ts').then(m => m.learnAssociation(content)).catch(() => {})
     } catch {}
-
-    // Write to SQLite if available
-    if (useSQLite) {
-      sqliteAddMemory(newMem)
-    }
 
     // ── 即时冲突感知：检测新记忆是否和已有特征矛盾 ──
     // 例："用户不运动了" vs 已有"运动型" → 冲突 → 更新旧记忆
