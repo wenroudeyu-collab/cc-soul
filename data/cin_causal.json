@@ -2,22 +2,22 @@
   {
     "trigger": "延期",
     "effect": "熬夜",
-    "count": 13,
-    "avgDelay": 14544712.23076923,
-    "lastSeen": 1774914634480
+    "count": 14,
+    "avgDelay": 13604978.714285715,
+    "lastSeen": 1774915182183
   },
   {
     "trigger": "学习",
     "effect": "实践",
     "count": 2,
     "avgDelay": 42300657,
-    "lastSeen": 1774914634481
+    "lastSeen": 1774915182184
   },
   {
     "trigger": "焦虑",
     "effect": "失眠",
-    "count": 11,
-    "avgDelay": 28730730.818181816,
-    "lastSeen": 1774914634480
+    "count": 19,
+    "avgDelay": 17425595.157894738,
+    "lastSeen": 1774915182183
   }
 ]

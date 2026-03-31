@@ -1,198 +1,227 @@
 [
   {
-    "topic": "[WAL事实] 我有",
-    "summary": "关键词: wal, 事实, 我喜欢用, 我有个很, 复杂的问 | 特征: 偏好:用 Go 写后端, 偏好:打篮球，讨厌跑步, 反感:跑步, 偏好:吃什么吗, 偏好:吃火锅，讨厌吃寿",
+    "topic": "用户询问Python",
+    "summary": "关键词: gil, python, 对话, 用户, global | 特征: 偏好:什么编程语言吗, 反感: **PHP**",
     "sourceCount": 12,
-    "lastUpdated": 1774914634452,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
-  },
-  {
-    "topic": "[对话] 用户: 哈",
-    "summary": "关键词: 对话, 用户, 张三, 收到, 记下了 | 特征: 有规律性, 偏好:用 Go 写后端, 偏好:打篮球，讨厌跑步, 反感:跑步 → AI:",
-    "sourceCount": 12,
-    "lastUpdated": 1774914634454,
+    "lastUpdated": 1774915182156,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Docker清理命令",
     "summary": "关键词: docker, prune, image, system, 清理所有",
     "sourceCount": 11,
-    "lastUpdated": 1774914634454,
+    "lastUpdated": 1774915182157,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "美团后端，Go 技术",
+    "summary": "关键词: 技术栈, vue, 对话, 用户, angular | 特征: 偏好:吃火锅，讨厌吃寿, 反感:吃寿司和 Ang, 偏好:），讨厌, 偏好:用 Vue，讨厌, 反感: Angular",
+    "sourceCount": 7,
+    "lastUpdated": 1774915182157,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
+    "confidence": 0.55
+  },
+  {
+    "topic": "用户时区为 Euro",
+    "summary": "关键词: europe, paris, gmt, 大哥, 用户时区",
+    "sourceCount": 6,
+    "lastUpdated": 1774915182158,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "CPU并行计算可用m",
+    "summary": "关键词: cpu, asyncio, 并行计算, multiprocessing, 异步",
+    "sourceCount": 5,
+    "lastUpdated": 1774915182158,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Apache支持.h",
     "summary": "关键词: apache, nginx, htaccess, 处理静态, 支持 | 特征: 效率导向",
     "sourceCount": 5,
-    "lastUpdated": 1774914634454,
+    "lastUpdated": 1774915182158,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
-    "topic": "CPU并行计算可用m",
-    "summary": "关键词: cpu, 可用, asyncio, 并行计算, multiprocessing",
+    "topic": "Kafka 削峰能力",
+    "summary": "关键词: kafka, rabbitmq, 削峰能力, 极强, 堆积无压 | 特征: 有压力",
     "sourceCount": 5,
-    "lastUpdated": 1774914634455,
+    "lastUpdated": 1774915182159,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "wang 当前面临项",
+    "summary": "关键词: wang, 用户, 的对话从, 今天开始, 当前面临 | 特征: 有压力",
+    "sourceCount": 5,
+    "lastUpdated": 1774915182160,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "[焦虑或恐惧] 对技",
     "summary": "关键词: rdb, aof, bun, node, redis | 特征: 有压力, 效率导向",
     "sourceCount": 4,
-    "lastUpdated": 1774914634455,
+    "lastUpdated": 1774915182160,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "GIL在I/O密集型",
+    "summary": "关键词: 密集型任, gil, 网络请求, 文件读写, 等待时会",
+    "sourceCount": 3,
+    "lastUpdated": 1774915182160,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "AOF机制记录每个写",
     "summary": "关键词: aof, 文件大随, 时间膨胀, 默认配置, 机制记录",
     "sourceCount": 3,
-    "lastUpdated": 1774914634456,
+    "lastUpdated": 1774915182161,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "[对话] 用户: 帮",
+    "summary": "关键词: 单体, 微服务, 服务, 对话, 用户 | 特征: 效率导向",
+    "sourceCount": 3,
+    "lastUpdated": 1774915182161,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "用户关注Rust和T",
     "summary": "关键词: rust, typescript, 用户关注, 用户在关, 或学习 | 特征: 学习型",
     "sourceCount": 3,
-    "lastUpdated": 1774914634456,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
-  },
-  {
-    "topic": "GIL在I/O密集型",
-    "summary": "关键词: gil, 密集型任, 网络请求, 文件读写, 等待时会",
-    "sourceCount": 3,
-    "lastUpdated": 1774914634457,
+    "lastUpdated": 1774915182162,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "TypeScript",
     "summary": "关键词: interface, type, typescript, 支持声明, 合并",
     "sourceCount": 3,
-    "lastUpdated": 1774914634457,
+    "lastUpdated": 1774915182162,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "用户沟通风格偏好直接",
     "summary": "关键词: 简洁, 直接, 用户的沟, 通风格偏, 用户沟通",
     "sourceCount": 3,
-    "lastUpdated": 1774914634458,
+    "lastUpdated": 1774915182162,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "常见优化手段：无索引",
     "summary": "关键词: 常见优化, 检查, where, 字段类型, 匹配 | 特征: 效率导向",
     "sourceCount": 3,
-    "lastUpdated": 1774914634458,
+    "lastUpdated": 1774915182163,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "分析执行计划使用EX",
     "summary": "关键词: 分析执行, explain, analyze, 关注, type",
     "sourceCount": 3,
-    "lastUpdated": 1774914634458,
+    "lastUpdated": 1774915182163,
+    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
+  },
+  {
+    "topic": "应对手机成瘾的立即可",
+    "summary": "关键词: 物理隔离, 契约代替, 命令, 应对手机, 成瘾的立 | 特征: 学习型",
+    "sourceCount": 2,
+    "lastUpdated": 1774915182164,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "go tool pp",
     "summary": "关键词: pprof, goroutine, tool, 命令可以, 堆栈进行",
     "sourceCount": 2,
-    "lastUpdated": 1774914634459,
+    "lastUpdated": 1774915182164,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "[职业身份认同] 通",
     "summary": "关键词: 职业身份, 认同, redis, nginx, 通过重复",
     "sourceCount": 2,
-    "lastUpdated": 1774914634459,
+    "lastUpdated": 1774915182165,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Nginx负载均衡在",
     "summary": "关键词: proxy, nginx, upstream, 负载均衡, server",
     "sourceCount": 2,
-    "lastUpdated": 1774914634460,
+    "lastUpdated": 1774915182165,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "[情绪表达习惯] 在",
     "summary": "关键词: 情绪表达, 习惯, 倾向于重, 复陈述事, 而非直接 | 特征: 有规律性",
     "sourceCount": 2,
-    "lastUpdated": 1774914634460,
+    "lastUpdated": 1774915182166,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "RDB机制是定时快照",
     "summary": "关键词: rdb, 机制是定, 时快照保, 存全量数, 文件紧凑 | 特征: 效率导向",
     "sourceCount": 2,
-    "lastUpdated": 1774914634461,
+    "lastUpdated": 1774915182166,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Bun 在 2024",
     "summary": "关键词: bun, npm, 年存在部, 包兼容问, 题和边缘 | 特征: 效率导向",
     "sourceCount": 2,
-    "lastUpdated": 1774914634461,
+    "lastUpdated": 1774915182166,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "[承诺] 五要做年度",
     "summary": "关键词: 承诺, 五要做年, 度技术分, 得好好, 第一次养",
     "sourceCount": 2,
-    "lastUpdated": 1774914634462,
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e"
-  },
-  {
-    "topic": "用户喜欢用Pytho",
-    "summary": "关键词: 用户喜欢, python, 进行数据, 分析, 语言编写 | 特征: 偏好:用Python进, 偏好:用Go语言编写后",
-    "sourceCount": 2,
-    "lastUpdated": 1774914634462,
+    "lastUpdated": 1774915182167,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "RESTful AP",
     "summary": "关键词: get, users, restful, api, url",
     "sourceCount": 2,
-    "lastUpdated": 1774914634462,
+    "lastUpdated": 1774915182167,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Redis是Key-",
     "summary": "关键词: redis, key, value, 内存数据, 适合缓存",
     "sourceCount": 2,
-    "lastUpdated": 1774914634463,
+    "lastUpdated": 1774915182168,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "腰疼伴随发烧可能是感",
     "summary": "关键词: 腰疼伴随, 需要立即, 就医, 发烧可能, 是感染",
     "sourceCount": 2,
-    "lastUpdated": 1774914634463,
+    "lastUpdated": 1774915182168,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "用户曾问过Go的HT",
     "summary": "关键词: channel, mutex, 用户曾问, http, 服务器",
     "sourceCount": 2,
-    "lastUpdated": 1774914634464,
+    "lastUpdated": 1774915182169,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "定位慢查询可通过查看",
     "summary": "关键词: 定位慢查, 询可通过, 查看慢查, 询日志配, 实时查看",
     "sourceCount": 2,
-    "lastUpdated": 1774914634464,
+    "lastUpdated": 1774915182169,
     "userId": "ou_db9ed11831f16364610ed6eefcff963e"
   },
   {
     "topic": "Python处理大文",
     "summary": "关键词: python, pandas, 分块读取, 处理大文, 件时可以",
     "sourceCount": 2,
-    "lastUpdated": 1774914634465,
+    "lastUpdated": 1774915182170,
     "userId": "test"
   },
   {
     "topic": "[承诺] 面试怎么比",
     "summary": "关键词: 承诺, 面试怎么, 比较好, 三有个面, 有点紧张 | 特征: 有压力",
     "sourceCount": 2,
-    "lastUpdated": 1774914634465,
+    "lastUpdated": 1774915182170,
     "userId": "test"
   }
 ]

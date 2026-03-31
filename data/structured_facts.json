@@ -178,5 +178,15 @@
     "ts": 1774913097335,
     "validUntil": 0,
     "memoryRef": "Bun 内置包管理工具安装速度比 npm 快 10-20 倍"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "上海浦东",
+    "confidence": 0.7,
+    "source": "system",
+    "ts": 1774915685268,
+    "validUntil": 0,
+    "memoryRef": "[WAL事实] 我住在上海浦东，每天坐地铁2号线上班"
   }
 ]

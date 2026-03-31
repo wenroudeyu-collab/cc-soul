@@ -10,16 +10,17 @@
     "family": [],
     "habits": [
       "都到12点才回家",
-      "对着电脑十几个小时"
+      "对着电脑十几个小时",
+      "坐地铁2号线上班"
     ]
   },
   "traits": [
     {
       "trait": "有规律性",
-      "confidence": 0.45,
-      "evidence": 2,
+      "confidence": 0.5,
+      "evidence": 3,
       "firstSeen": 1774910371334,
-      "lastSeen": 1774912283159
+      "lastSeen": 1774915730343
     }
   ],
   "timeline": [
@@ -32,6 +33,6 @@
     }
   ],
   "predictions": [],
-  "version": 3,
-  "lastUpdated": 1774912283160
+  "version": 4,
+  "lastUpdated": 1774915730343
 }

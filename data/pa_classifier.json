@@ -6,7 +6,7 @@
       "negEmotionHits": -0.19791666666666666,
       "techHits": -0.5625,
       "casualHits": 0,
-      "lenShort": -0.010416666666666657,
+      "lenShort": 0.48958333333333337,
       "lenMedium": -0.5,
       "lenLong": 0,
       "lenVeryShort": 0.25
@@ -39,12 +39,12 @@
       "negEmotionHits": 0.3819444444444444,
       "techHits": 0,
       "casualHits": 0,
-      "lenShort": 0.19791666666666666,
+      "lenShort": -0.30208333333333337,
       "lenMedium": 0.1840277777777778,
       "lenLong": 0,
       "lenVeryShort": 0
     }
   },
   "C": 0.5,
-  "samples": 7
+  "samples": 8
 }

@@ -524,9 +524,9 @@
         "style": "balanced",
         "hint": "用户深夜，历史4次互动表明平衡回答效果最好"
       },
-      "hits": 31,
+      "hits": 38,
       "misses": 0,
-      "lastHit": 1774914468629,
+      "lastHit": 1774915870122,
       "createdAt": 1774909219823,
       "source": "learned"
     },
@@ -541,9 +541,9 @@
         "style": "balanced",
         "hint": "用户深夜、聊python，历史2次互动表明平衡回答效果最好"
       },
-      "hits": 17,
+      "hits": 24,
       "misses": 0,
-      "lastHit": 1774914468629,
+      "lastHit": 1774915870122,
       "createdAt": 1774911839999,
       "source": "learned"
     },
@@ -575,9 +575,9 @@
         "style": "balanced",
         "hint": "用户深夜、聊devops，历史1次互动表明平衡回答效果最好"
       },
-      "hits": 8,
+      "hits": 15,
       "misses": 0,
-      "lastHit": 1774914468629,
+      "lastHit": 1774915870122,
       "createdAt": 1774911839999,
       "source": "learned"
     },
@@ -1701,6 +1701,83 @@
       "userReaction": "neutral",
       "responseStyle": "balanced",
       "ts": 1774914468629
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "python",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914781669
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774914949356
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "relationship",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915030510
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "health",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915118654
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "finance",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915185864
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915730346
+    },
+    {
+      "situation": {
+        "timeSlot": "late_night",
+        "topicDomain": "general",
+        "mood": "neutral",
+        "dayType": "weekday"
+      },
+      "userReaction": "neutral",
+      "responseStyle": "balanced",
+      "ts": 1774915870122
     }
   ],
   "lastLearningRun": 1774913884949

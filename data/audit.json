@@ -2842,5 +2842,209 @@
     "action": "memory_version",
     "detail": "[fact] \"CPU并行计算可使用multiprocessing多进程，异步I/O可使用asyncio，真并行线程\" → \"CPU并行计算可用multiprocessing多进程方案，异步I/O可用asyncio，真并行线程\"",
     "hash": "18ab4b77c0cfdfc7838f6e1e7377e664640ca9c2350d911657d9671b6621fee9"
+  },
+  {
+    "ts": 1774914781630,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: Python 的 GIL 是什么？ → AI: 这个刚回答过，还有什么不清楚的？\n\n或者换个角度：GIL 对张三的工作有什么具体影响？Java 后端 + Python ",
+    "hash": "dc8ba482242be915930427b7845de7056e3498b31c5491a279e5c4292a10c460"
+  },
+  {
+    "ts": 1774914791831,
+    "action": "memory_add",
+    "detail": "[event] 用户询问Python GIL",
+    "hash": "f68a4a14c35523f2c78a7341ad97be026d45469d13cecba06d963543bf32bae9"
+  },
+  {
+    "ts": 1774914791839,
+    "action": "memory_add",
+    "detail": "[preference] 用户可能从事Java后端和Python数据分析工作",
+    "hash": "13eb59e4088091022312df7638ef1c69dc9e28625f5665ccbf7888d7b85ed7c1"
+  },
+  {
+    "ts": 1774914791844,
+    "action": "memory_add",
+    "detail": "[event] 用户在数据分析场景遇到性能瓶颈",
+    "hash": "df797de376a8e4633f9f2213262e62acd7922a569593ebce05d4654b9206efad"
+  },
+  {
+    "ts": 1774914949319,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 怎么用 awk 处理 CSV 文件？ → AI: **awk 处理 CSV 常用操作：**\n\n---\n\n**基础用法**\n\n```bash\n# 打印指定列（默认空格/制表",
+    "hash": "3d87933cb5ba7a9c07c39b2c9e2380f83ce1e55003482eaae805df505101c90c"
+  },
+  {
+    "ts": 1774914957531,
+    "action": "memory_add",
+    "detail": "[fact] awk处理CSV文件时需要使用-F参数指定逗号为分隔符，例如awk -F','",
+    "hash": "55c5b37baf4dcbcc03e72aef909d9ec85ef9879b8978f2e336c28977687a2974"
+  },
+  {
+    "ts": 1774914957537,
+    "action": "memory_add",
+    "detail": "[fact] NR>1可以跳过CSV文件的表头行进行数据处理",
+    "hash": "045f6ff535f848507b7652cee66b1cd25d6d1b5454ac21a53ac1a74fa5290591"
+  },
+  {
+    "ts": 1774914957543,
+    "action": "memory_add",
+    "detail": "[fact] awk可以用于CSV文件的列打印、条件过滤、统计计算和分组统计等操作",
+    "hash": "928664d7fc707cc031828e0dece8bbacb42fd1ecac25ddb90b1bcef0fc557c3d"
+  },
+  {
+    "ts": 1774915030505,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 孩子沉迷手机游戏怎么管？ → AI: **孩子沉迷手机，管比不管难，但不管更糟。**\n\n---\n\n**先判断程度**\n\n| 表现 | 程度 | 应对 |\n|-",
+    "hash": "02730407d595464f206a2889170ac529b881d7be4a2b8e081744073f6be445de"
+  },
+  {
+    "ts": 1774915041280,
+    "action": "memory_add",
+    "detail": "[opinion] 孩子沉迷手机游戏的管理方法：先判断程度（正常/轻度沉迷/重度依赖），再采取物理隔离、契约代替命令、填满时间等措施，避免完全禁止、家长双标、手机当奖励等坑",
+    "hash": "3bb6de4b382bae647ba7eb29c495f423e32a666ff83bf5b2801228f18230af57"
+  },
+  {
+    "ts": 1774915041288,
+    "action": "memory_add",
+    "detail": "[fact] 判断孩子沉迷手机程度的三个等级：正常（完成作业后玩1-2小时）、轻度沉迷（偷偷玩、熬夜玩、成绩下降）、重度依赖（不给玩就暴怒、拒绝上学、社交退缩）",
+    "hash": "5eb8f71e9997f8c39cce39496541b3bd3fc473e0ef92b12d11dbf38a7689ae02"
+  },
+  {
+    "ts": 1774915041295,
+    "action": "memory_add",
+    "detail": "[fact] 管理孩子手机使用的立即可做措施：物理隔离（学习时手机放另一房间、路由器设置断网时段、用老人机限时替代）、契约代替命令（约定时间表、让孩子自定并签字）、填满时间（安排外出运动、创造无屏幕时间）",
+    "hash": "f585fa33024cde1e1d1d4e04219e8db3c30aca00f45ccca4f4182ec9dd3b3ca2"
+  },
+  {
+    "ts": 1774915041300,
+    "action": "memory_add",
+    "detail": "[opinion] 管理孩子手机使用应避免的坑：完全禁止会反弹（青春期尤其危险）、家长自己刷手机却要求孩子别玩缺乏说服力、把手机当奖励（如考好了给你买）",
+    "hash": "58c9006ac2f5a42d462b2b95238de317d97521814f6ffdd8e711013ab25914cd"
+  },
+  {
+    "ts": 1774915118650,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 最近失眠严重，有什么好的助眠方法？ → AI: **失眠先找原因，再对症解决。**\n\n---\n\n**先自查（最近有吗？）**\n\n| 因素 | 表现 | 调整 |\n|--",
+    "hash": "a1993c794d30f0ea63235d5a371e346f79035439ef83bdc98c2c31193fe2c981"
+  },
+  {
+    "ts": 1774915129768,
+    "action": "memory_add",
+    "detail": "[fact] 咖啡因摄入时间建议中午前截止，下午2点后饮用可能影响睡眠",
+    "hash": "85d5cb87d309f7ccf07817b80d2b2c5d796cf442578a0109ab5b6c6fb89fea93"
+  },
+  {
+    "ts": 1774915129777,
+    "action": "memory_add",
+    "detail": "[fact] 酒精助眠会导致后半夜易醒，影响睡眠连续性",
+    "hash": "6a6978fe87bd98048b9a7a02657e76d55e7c7e99d30bae6822d01a66d6fa7c31"
+  },
+  {
+    "ts": 1774915129783,
+    "action": "memory_add",
+    "detail": "[fact] 睡前1小时减少蓝光暴露（调暗灯光或使用防蓝光眼镜）有助于睡眠",
+    "hash": "bac92c2a3d5598f46828e9352dc5a835c5c09dd3a4dcaaa870f3cc65c3ed87da"
+  },
+  {
+    "ts": 1774915129788,
+    "action": "memory_add",
+    "detail": "[fact] 固定起床时间比入睡时间对调节睡眠节律更重要",
+    "hash": "e79ee084b72476f678c198e6cab0114d733eaadc58c50dc4caa81069b07b8d6b"
+  },
+  {
+    "ts": 1774915129793,
+    "action": "memory_add",
+    "detail": "[fact] 4-7-8呼吸法（吸气4秒，憋气7秒，呼气8秒）可作为助眠技巧",
+    "hash": "973bcb4896c70dc8218db76e03c4a735befc25912439dc3079e6fa997e08e674"
+  },
+  {
+    "ts": 1774915185858,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 年终奖20万怎么理财比较好？ → AI: **20 万年终奖，先防守再进攻。**\n\n---\n\n**第一步：安全垫（1-2 周完成）**\n\n| 动作 | 金额 | ",
+    "hash": "687ef87a273ad965937f377cb546412dbd6e6fd0e585599165d4dd3ffb576465"
+  },
+  {
+    "ts": 1774915201235,
+    "action": "memory_add",
+    "detail": "[event] 用户有20万年终奖需要理财建议",
+    "hash": "1a37815897069ce96f222b0113415cd9fbabcf99f6d7ae068e3aac262ecd74b6"
+  },
+  {
+    "ts": 1774915201248,
+    "action": "memory_add",
+    "detail": "[opinion] 理财建议：先还高息负债、准备应急资金、补充保险，再按风险偏好分配资产",
+    "hash": "c5fd600b80b643fb4a27dd6d29a4d3e2bc556781bdeb5120da763744c899add3"
+  },
+  {
+    "ts": 1774915201255,
+    "action": "memory_add",
+    "detail": "[opinion] 应急资金建议为3-6个月支出，约6-12万，放货币基金",
+    "hash": "31cbb7bd04e3cec74d231c35debcd865a22b48ced1e12b09d067caadaf5879f6"
+  },
+  {
+    "ts": 1774915201259,
+    "action": "memory_add",
+    "detail": "[opinion] 资产分配按保守型、平衡型、进取型给出不同比例建议",
+    "hash": "8add6c4901c2c2830a5d6461bc53df97be7d926fd7198c0b0fcd8dcb7b3fc46d"
+  },
+  {
+    "ts": 1774915685270,
+    "action": "memory_add",
+    "detail": "[wal] [WAL事实] 我住在上海浦东，每天坐地铁2号线上班",
+    "hash": "c0b955c29abab15a585a4b29c987763a3f1afe06a5abcc7b915ea4ca58a45e99"
+  },
+  {
+    "ts": 1774915730319,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: 我住在上海浦东，每天坐地铁2号线上班 → AI: 收到，张三。\n\n（记下了：住上海浦东，地铁2号线上班）\n\n2号线人很多吧？早晚高峰挤吗？",
+    "hash": "57fe5b4d2865f976d8fc2cae8f5056c69fadb4951233b3a2e0b8c9a2fed191a7"
+  },
+  {
+    "ts": 1774915738019,
+    "action": "memory_add",
+    "detail": "[fact] 住在上海浦东",
+    "hash": "3036aeb6c9fadd5dbaea356a44e10b3e694a1725b65ed481966895acd2d947ad"
+  },
+  {
+    "ts": 1774915738025,
+    "action": "memory_add",
+    "detail": "[fact] 每天坐地铁2号线上班",
+    "hash": "b73be7043b947c146570d7dddad82634fc54c2dba2fa53a107d12e83313f787e"
+  },
+  {
+    "ts": 1774915870117,
+    "action": "memory_add",
+    "detail": "[fact] [对话] 用户: PPT 做了一半了，技术分享的内容还没想好用什么主题 → AI: 张三，技术分享多长时间？听众什么背景？\n\n几个方向供参考：\n\n---\n\n**方向1：架构实战（推荐）**\n- 主题：",
+    "hash": "d2cc6ad3f7a1dfbd306acfb25e2307bb70c39ba95c584dc4d566c69d30c35a93"
+  },
+  {
+    "ts": 1774915881913,
+    "action": "memory_add",
+    "detail": "[event] 用户正在准备技术分享PPT",
+    "hash": "7094f189ca494c2cee001e15a9f94f1130914ca4a22ae982a59dec06a34473d4"
+  },
+  {
+    "ts": 1774915881923,
+    "action": "memory_add",
+    "detail": "[event] 用户技术分享内容主题未确定",
+    "hash": "b6b8b8ff4de80b31def4f1b63c0bc9fc59d3380929f5a61ec73575fdd168e8cc"
+  },
+  {
+    "ts": 1774915881932,
+    "action": "memory_add",
+    "detail": "[opinion] 技术分享主题选择方向：架构实战、工具效率、跨界经验",
+    "hash": "637ce57f4b4d74ae035829f5b42568bf9656d7289e6f5e7f3d063663c1f23448"
+  },
+  {
+    "ts": 1774915881939,
+    "action": "memory_add",
+    "detail": "[opinion] 架构实战主题推荐《百万用户单体Java系统的优化之路》",
+    "hash": "a63de72304f4d537181e6946cc880a20f991c229f318692e439e70c03f4300c7"
+  },
+  {
+    "ts": 1774915881944,
+    "action": "memory_add",
+    "detail": "[opinion] 工具效率主题推荐《命令行效率工具链：从awk到Python》",
+    "hash": "67351a859e13bca668e5589b082a844f44edf964a985aa3976ced49d5ca77828"
   }
 ]

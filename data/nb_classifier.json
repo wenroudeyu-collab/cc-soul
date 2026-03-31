@@ -23,10 +23,16 @@
         "测试": 1,
         "第一次养": 1,
         "猫需要准": 1,
-        "备什么": 1
+        "备什么": 1,
+        "孩子沉迷": 1,
+        "手机游戏": 1,
+        "怎么管": 1,
+        "年终奖": 1,
+        "万怎么理": 1,
+        "财比较好": 1
       },
-      "totalWords": 26,
-      "docCount": 12
+      "totalWords": 32,
+      "docCount": 14
     },
     "technical": {
       "wordCounts": {
@@ -412,10 +418,14 @@
         "泄漏怎么": 2,
         "排查": 2,
         "gil": 3,
-        "是什么": 3
+        "是什么": 3,
+        "vue": 1,
+        "react": 1,
+        "选哪个": 1,
+        "新项目": 1
       },
-      "totalWords": 463,
-      "docCount": 24
+      "totalWords": 467,
+      "docCount": 25
     },
     "emotional": {
       "wordCounts": {
@@ -434,5 +444,5 @@
       "docCount": 3
     }
   },
-  "totalDocs": 39
+  "totalDocs": 42
 }

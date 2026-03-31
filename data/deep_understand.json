@@ -6,7 +6,7 @@
       14
     ],
     "stressDay": "周二",
-    "lateNightFrequency": 0.32
+    "lateNightFrequency": 0.36
   },
   "sayDo": {
     "gaps": []
@@ -50,5 +50,5 @@
     ]
   },
   "dynamicProfile": "活跃1/20/14时；夜猫子；平台期，可能需要新挑战；潜在需求:职场；我的核心驱动力是对“可控的优雅”的追求。我痴迷于Python装饰器这类语法糖，因为它用简洁的规则封装了复杂逻辑，这映射了",
-  "updatedAt": 1774914634476
+  "updatedAt": 1774915182180
 }

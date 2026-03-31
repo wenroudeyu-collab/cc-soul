@@ -210,9 +210,8 @@ async function handleProcess(body: any): Promise<any> {
     const dedupKey = message.slice(0, 100).toLowerCase().trim()
     const prev = dedup[dedupKey]
     if (prev && Date.now() - prev.ts < 3600000) {
-      // 重复消息：强制在 system_prompt 开头加指令
-      const prevReplyHint = prev.reply ? `上次你的回复是："${prev.reply.slice(0, 150)}"。` : ''
-      soulPrompt = `⚠️ 重要：用户重复发了同一条消息。${prevReplyHint}\n你必须换一种完全不同的方式回答。可以说"这个刚回答过，还有什么不清楚的？"或从另一个角度展开。绝对不能重复上次的内容。\n\n` + soulPrompt
+      // 重复消息提醒（简短，不塞回复摘要，避免 SOUL.md 膨胀）
+      soulPrompt = `⚠️ 用户重复发了同一条消息，换角度回答或说"刚回答过"。\n\n` + soulPrompt
     }
   } catch {}
 

@@ -1,20 +1,15 @@
 {
-  "ts": 1774914634274,
+  "ts": 1774915181969,
   "duplicates": [
     {
-      "a": "CPU并行计算可用multiprocessing多进程方案，异步I/O可用asyncio，真并行线程可用Cython/n",
-      "b": "CPU并行计算可用multiprocessing多进程方案，异步I/O可用asyncio，真并行线程可用Cython/n",
-      "sim": 1
-    },
-    {
-      "a": "GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此不是问题",
-      "b": "GIL在I/O密集型任务（网络请求、文件读写）等待时会释放，因此不是问题",
-      "sim": 1
-    },
-    {
       "a": "[对话] 用户: 是Python 的 GIL 是什么 → AI: **GIL（Global Interpreter Lo",
-      "b": "[对话] 用户: 是Python 的 GIL 是什么 → AI: **GIL（Global Interpreter Lo",
-      "sim": 1
+      "b": "[对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpreter Lock）",
+      "sim": 0.91
+    },
+    {
+      "a": "[对话] 用户: Python 的 GIL 是什么？ → AI: **GIL（Global Interpreter Lo",
+      "b": "[对话] 用户: Python GIL 是什么 → AI: **GIL（Global Interpreter Lock）",
+      "sim": 0.91
     },
     {
       "a": "decay_test_old_memory_for_unit_test",
@@ -49,9 +44,9 @@
     "用户最近压力特别大",
     "小王讨厌吃寿司"
   ],
-  "untagged": 465,
+  "untagged": 472,
   "lowConfidence": 0,
   "zombie": 0,
-  "staleExpiry": 4,
-  "suggestions": "建议合并 5 组重复记忆；建议清理 33 条过短记忆；465 条记忆缺少标签，建议批量打标；4 条记忆已过 validUntil 但未过期，建议清理"
+  "staleExpiry": 0,
+  "suggestions": "建议合并 4 组重复记忆；建议清理 33 条过短记忆；472 条记忆缺少标签，建议批量打标"
 }

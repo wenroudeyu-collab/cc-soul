@@ -1115,8 +1115,8 @@
     "domain": "通用",
     "createdAt": 1774913039018,
     "expiresAt": 1775517839018,
-    "status": "pending",
-    "hitAt": null,
+    "status": "hit",
+    "hitAt": 1774915825088,
     "confidence": 0.9
   },
   {
@@ -1165,8 +1165,8 @@
     "domain": "闲聊",
     "createdAt": 1774913925434,
     "expiresAt": 1775518725434,
-    "status": "pending",
-    "hitAt": null,
+    "status": "hit",
+    "hitAt": 1774914904280,
     "confidence": 0.9
   },
   {
@@ -1175,6 +1175,76 @@
     "domain": "devops",
     "createdAt": 1774914357452,
     "expiresAt": 1775519157452,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现4次闲聊相关话题（贝叶斯概率: 83%）",
+    "domain": "闲聊",
+    "createdAt": 1774914904280,
+    "expiresAt": 1775519704280,
+    "status": "hit",
+    "hitAt": 1774914985474,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现4次闲聊相关话题（贝叶斯概率: 90%）",
+    "domain": "闲聊",
+    "createdAt": 1774914985474,
+    "expiresAt": 1775519785474,
+    "status": "hit",
+    "hitAt": 1774915073630,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现4次闲聊相关话题（贝叶斯概率: 93%）",
+    "domain": "闲聊",
+    "createdAt": 1774915073630,
+    "expiresAt": 1775519873630,
+    "status": "hit",
+    "hitAt": 1774915140828,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现5次闲聊相关话题（贝叶斯概率: 95%）",
+    "domain": "闲聊",
+    "createdAt": 1774915140829,
+    "expiresAt": 1775519940829,
+    "status": "hit",
+    "hitAt": 1774915572895,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现6次闲聊相关话题（贝叶斯概率: 97%）",
+    "domain": "闲聊",
+    "createdAt": 1774915572896,
+    "expiresAt": 1775520372896,
+    "status": "hit",
+    "hitAt": 1774915685283,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论闲聊，预计下次会问更深入的闲聊问题",
+    "basis": "最近20条消息中出现6次闲聊相关话题（贝叶斯概率: 97%）",
+    "domain": "闲聊",
+    "createdAt": 1774915685284,
+    "expiresAt": 1775520485284,
+    "status": "pending",
+    "hitAt": null,
+    "confidence": 0.9
+  },
+  {
+    "prediction": "用户近期频繁讨论通用，预计下次会问更深入的通用问题",
+    "basis": "最近20条消息中出现2次通用相关话题（贝叶斯概率: 96%）",
+    "domain": "通用",
+    "createdAt": 1774915825089,
+    "expiresAt": 1775520625089,
     "status": "pending",
     "hitAt": null,
     "confidence": 0.9
