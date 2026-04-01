@@ -45,7 +45,7 @@ export interface FSRSState {
 }
 
 /** FSRS-7 default weights (extended from FSRS-4.5 with w[17] same-day review discount, w[18] curve shape) */
-let FSRS_W = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61, 0.12, 0.1]
+const FSRS_W = [0.4, 0.6, 2.4, 5.8, 4.93, 0.94, 0.86, 0.01, 1.49, 0.14, 0.94, 2.18, 0.05, 0.34, 1.26, 0.29, 2.61, 0.12, 0.1]
 
 /** Retrievability: probability of recall after elapsedDays, given stability S.
  *  R(t,S) = (1 + t/(9·S))^(-1)  — power-law decay, not exponential. */
@@ -116,107 +116,31 @@ function bcmAdaptiveThreshold(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FSRS 个性化权重优化 — 从用户 recall hit/miss 数据中学习
-// 每个人的遗忘曲线不同，FSRS-5 核心创新：从用户自己的复习数据中优化参数
-// ═══════════════════════════════════════════════════════════════════════════════
-
-interface FSRSTrainingExample {
-  elapsedDays: number
-  stability: number
-  recalled: boolean  // 用户是否成功回忆了这条记忆
-}
-
-const FSRS_TRAINING_PATH = resolve(DATA_DIR, 'fsrs_training.json')
-let fsrsTraining: FSRSTrainingExample[] = []
-let _fsrsTrainingLoaded = false
-
-function ensureFSRSTrainingLoaded() {
-  if (_fsrsTrainingLoaded) return
-  _fsrsTrainingLoaded = true
-  try {
-    const sqlMod = require('./sqlite-store.ts')
-    if (sqlMod?.dbLoadFSRSTraining) {
-      fsrsTraining = sqlMod.dbLoadFSRSTraining()
-      if (fsrsTraining.length > 0) return
-    }
-  } catch {}
-  fsrsTraining = loadJson<FSRSTrainingExample[]>(FSRS_TRAINING_PATH, [])
-}
-
-/** 记录一次 recall 结果用于 FSRS 训练 */
-export function recordFSRSTraining(elapsedDays: number, stability: number, recalled: boolean) {
-  ensureFSRSTrainingLoaded()
-  fsrsTraining.push({ elapsedDays, stability, recalled })
-  if (fsrsTraining.length > 500) fsrsTraining = fsrsTraining.slice(-500)
-  // SQLite 存储
-  try {
-    const sqlMod = require('./sqlite-store.ts')
-    if (sqlMod?.dbAddFSRSTraining) sqlMod.dbAddFSRSTraining(elapsedDays, stability, recalled)
-  } catch {}
-}
-
-/**
- * 优化 FSRS 权重：每 100 条训练数据后执行一次
- * 只优化影响最大的 3 个参数（w[0], w[1], w[8]）
- * w[0]: 初始 stability 的基础
- * w[1]: 初始 stability 的难度调节
- * w[8]: 成功回忆后 stability 增长率
- */
-export function optimizeFSRSWeights() {
-  if (fsrsTraining.length < 50) return  // 数据不够
-
-  const FSRS_W_LOCAL = [...FSRS_W]  // 复制一份本地权重
-  const lr = 0.001  // 学习率
-  const epochs = 5
-
-  for (let epoch = 0; epoch < epochs; epoch++) {
-    let totalLoss = 0
-
-    for (const example of fsrsTraining) {
-      const predictedR = Math.pow(1 + example.elapsedDays / (9 * example.stability), -1)
-      const actualR = example.recalled ? 1 : 0
-      const error = predictedR - actualR
-      totalLoss += error * error
-
-      // 对 w[8]（stability 增长率）做梯度更新
-      // predicted 太高但没被回忆 → w[8] 该降低（stability 增长太乐观）
-      // predicted 太低但被回忆了 → w[8] 该升高（stability 增长太保守）
-      FSRS_W_LOCAL[8] -= lr * error * 0.1
-    }
-
-    const rmse = Math.sqrt(totalLoss / fsrsTraining.length)
-    if (rmse < 0.2) break  // 足够好了
-  }
-
-  // 更新全局权重（保守：只调整 ±20%）
-  for (let i = 0; i < FSRS_W.length; i++) {
-    if (FSRS_W[i] === 0) continue  // 避免除零
-    const ratio = FSRS_W_LOCAL[i] / FSRS_W[i]
-    if (ratio > 0.8 && ratio < 1.2) {
-      FSRS_W[i] = FSRS_W_LOCAL[i]
-    }
-  }
-
-  console.log(`[cc-soul][fsrs] personalized weights optimized (n=${fsrsTraining.length}, w[8]=${FSRS_W[8].toFixed(4)})`)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface MemoryInput {
-  /** Creation timestamp (ms since epoch) */
   ts: number
-  /** Number of times this memory has been recalled / accessed */
   recallCount: number
-  /** Last access timestamp (ms since epoch) */
   lastAccessed: number
-  /** Memory scope: 'fact', 'preference', 'correction', 'episode', etc. */
   scope: string
-  /** Optional confidence 0-1 (defaults to 0.5) */
   confidence?: number
-  /** FSRS state — new memories use FSRS, old memories without this field fall back to Weibull */
   fsrs?: FSRSState
+  // 扩展字段（减少 as any 强转）
+  content?: string
+  bayesAlpha?: number
+  bayesBeta?: number
+  network?: 'world' | 'experience' | 'opinion' | 'entity'
+  emotionIntensity?: number
+  importance?: number
+  surprise?: number
+  reasoning?: { context: string; conclusion: string; confidence: number }
+  because?: string
+  emotion?: string
+  userId?: string
+  injectionEngagement?: number
+  injectionMiss?: number
+  prospective?: { trigger: string; expiresAt: number; action: string }
 }
 
 interface SweepResult {
@@ -353,14 +277,6 @@ export function recordRecallHit(scope?: string, mem?: any) {
   _decayParams.lastAdjustTs = Date.now()
   saveDecayParams()
 
-  // ── FSRS 个性化训练数据收集 ──
-  try {
-    if (mem && mem.fsrs) {
-      const elapsedDays = (Date.now() - (mem.lastAccessed || mem.ts)) / 86400000
-      recordFSRSTraining(elapsedDays, mem.fsrs.stability, true)
-      if (fsrsTraining.length >= 50 && fsrsTraining.length % 100 === 0) optimizeFSRSWeights()
-    }
-  } catch {}
 }
 
 /** Record a recall miss (recalled memory was ignored by user) */
@@ -378,14 +294,6 @@ export function recordRecallMiss(scope?: string, mem?: any) {
   _decayParams.lastAdjustTs = Date.now()
   saveDecayParams()
 
-  // ── FSRS 个性化训练数据收集 ──
-  try {
-    if (mem && mem.fsrs) {
-      const elapsedDays = (Date.now() - (mem.lastAccessed || mem.ts)) / 86400000
-      recordFSRSTraining(elapsedDays, mem.fsrs.stability, false)
-      if (fsrsTraining.length >= 50 && fsrsTraining.length % 100 === 0) optimizeFSRSWeights()
-    }
-  } catch {}
 }
 
 /** Get current adaptive lambda multiplier */
@@ -571,7 +479,7 @@ export function computeForgetScore(mem: MemoryInput): number {
   // ── 统一 FSRS 路径：所有记忆（含旧记忆）都走 FSRS ──
   const fsrs = ensureFSRS(mem)
   // LECTOR: 语义干扰折扣 — 相似记忆越多，stability 越低
-  const interference = semanticInterference((mem as any).content || '')
+  const interference = semanticInterference(mem.content || '')
   const effectiveStability = fsrs.stability * interference
   const survival = fsrsRetrievability(ageDays, effectiveStability)
 
@@ -643,7 +551,7 @@ export function computeStructuralImportance(mem: any): number {
   else if (mem.scope === 'preference' || mem.scope === 'fact') I *= 1.3
 
   // Hindsight 认知网络加权：不同网络衰减策略不同
-  const network = (mem as any).network
+  const network = mem.network
   if (network === 'world') I = Math.max(I, 0.5)          // 客观事实不轻易忘
   else if (network === 'experience') I *= 0.8              // 经历衰减较快
   // opinion 不加权（由 Bayes C 值控制）
@@ -749,9 +657,9 @@ const GRAVEYARD_PURGE_AGE = 180 * 86400000   // 180 天彻底清除
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function computeDerivability(mem: MemoryInput): number {
-  const content = (mem as any).content || ''
+  const content = mem.content || ''
   if (!content || content.length < 5) return 0.5
-  if ((mem as any).scope === 'correction') return 0  // 纠正永远不可推导
+  if (mem.scope === 'correction') return 0  // 纠正永远不可推导
 
   let d = 0
 
@@ -777,14 +685,14 @@ function computeDerivability(mem: MemoryInput): number {
   // 3. topic node 已覆盖？
   try {
     const { getRelevantTopics } = require('./distill.ts')
-    const topics = getRelevantTopics(content, (mem as any).userId, 1)
+    const topics = getRelevantTopics(content, mem.userId, 1)
     if (topics.length > 0) d += 0.2
   } catch {}
 
   // 4. L3 mental model 已包含？
   try {
     const { getMentalModel } = require('./distill.ts')
-    const model = getMentalModel((mem as any).userId)
+    const model = getMentalModel(mem.userId)
     if (model) {
       const modelWords = new Set((model.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
       const memWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
@@ -816,8 +724,8 @@ export function decideForget(mem: MemoryInput, activityLevel: number): ForgetDec
   const R = Math.min(1, I * 0.3 + B * 0.7)
 
   // ── C: Bayes truthfulness（是不是真的）──
-  const alpha = (mem as any).bayesAlpha ?? 2
-  const beta = (mem as any).bayesBeta ?? 1
+  const alpha = mem.bayesAlpha ?? 2
+  const beta = mem.bayesBeta ?? 1
   const C = alpha / (alpha + beta)
 
   // ── θ: BCM adaptive threshold（标准多严）──
@@ -1204,6 +1112,8 @@ export const smartForgetModule: SoulModule = {
           m._graveyardTs = Date.now()
           m.tier = 'graveyard'
           m.scope = 'expired'
+          // 溯源链
+          try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'gisted', ts: Date.now(), delta: `→graveyard, from:${(m.content||'').length}` }) } catch {}
           // Grace period: 前 7 天保留完整 content，之后压缩到 50 字
           if (!isGracePeriod) {
             m.content = (m.content || '').slice(0, 50)

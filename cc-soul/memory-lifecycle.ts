@@ -269,6 +269,14 @@ export function consolidateMemories() {
 
             // When ALL callbacks complete, apply removals and additions in one batch
             if (pendingCLICalls <= 0) {
+              // 稳定性继承：在删除前计算源记忆中最大的 engagement/recallCount
+              let maxEngagement = 0, maxRecallCount = 0
+              for (const mem of memoryState.memories) {
+                if (allContentToRemove.has(`${mem.content}\0${mem.ts}`)) {
+                  maxEngagement = Math.max(maxEngagement, mem.injectionEngagement ?? 0)
+                  maxRecallCount = Math.max(maxRecallCount, mem.recallCount ?? 0)
+                }
+              }
               // Reverse-splice all collected removals at once (keyed by content+ts to avoid same-content collisions)
               for (let i = memoryState.memories.length - 1; i >= 0; i--) {
                 if (allContentToRemove.has(`${memoryState.memories[i].content}\0${memoryState.memories[i].ts}`)) {
@@ -283,7 +291,8 @@ export function consolidateMemories() {
                   ts: Date.now(),
                   visibility: entry.visibility,
                   confidence: 0.8,
-                  recallCount: 0,
+                  recallCount: maxRecallCount,
+                  injectionEngagement: maxEngagement,
                   lastAccessed: Date.now(),
                   tier: 'long_term',
                 })
@@ -1219,6 +1228,9 @@ export function processMemoryDecay() {
     // Skip already expired/consolidated/decayed/pinned/archived
     if (mem.scope === 'expired' || mem.scope === 'decayed' || mem.scope === 'pinned' || mem.scope === 'archived') continue
 
+    // 72h 巩固免疫：刚合并产出的记忆需要时间被用户验证，避免立刻衰减
+    if (mem.scope === 'consolidated' && (now - (mem.ts || 0)) < 72 * 60 * 60 * 1000) continue
+
     const tier = mem.tier || 'short_term'
     const age = now - (mem.ts || mem.lastAccessed || now)
     const recallCount = mem.recallCount ?? 0
@@ -1253,7 +1265,10 @@ export function processMemoryDecay() {
     }
 
     if (tier === 'short_term' && age > SHORT_TERM_THRESHOLD) {
-      if (recallCount >= RECALL_UPGRADE_COUNT) {
+      // 升级条件：有效召回（用户 engaged）比次数更重要
+      // 审核结论：recallCount ≥ 1 太低，偶然的 spreading activation 会误升级
+      const effectiveRecall = (mem.injectionEngagement ?? 0) >= 1 || recallCount >= RECALL_UPGRADE_COUNT
+      if (effectiveRecall) {
         // Promoted: actively used memory → mid_term
         mem.tier = 'mid_term'
         upgraded++
@@ -1359,6 +1374,8 @@ export function compressOldMemories() {
 
   for (const mem of memoryState.memories) {
     if (SKIP_SCOPES.has(mem.scope)) continue
+    // 闪光灯记忆永不压缩（detailLevel: 'full'）
+    if (mem.flashbulb?.detailLevel === 'full') continue
     const age = now - mem.ts
 
     // Level 1: >7 days, >100 chars → summarize
@@ -1375,15 +1392,31 @@ export function compressOldMemories() {
       }
     }
 
-    // Level 2: >30 days, still >60 chars → extract key facts only
+    // Level 2: >30 days, still >60 chars → 用 fact-store 三元组替代粗暴截断
+    // 审核结论：正则提取语义不靠谱，SPO 三元组更精确
     if (age > THIRTY_DAYS && mem.content.length > 60 && mem.tier !== 'long_term') {
       const original = mem.content
-      // Keep only first 40 chars as compressed fact
       if (!mem.history) mem.history = []
       if (!mem.history.some(h => h.content === original)) {
         mem.history.push({ content: original, ts: now })
       }
-      mem.content = mem.content.slice(0, 40) + '…'
+
+      // 优先用 fact-store 三元组作为 gist（零 LLM，语义准确）
+      let gist = ''
+      try {
+        const { extractFacts } = require('./fact-store.ts')
+        const facts = extractFacts(original)
+        if (facts.length > 0) {
+          gist = facts.slice(0, 3).map((f: any) => `${f.subject}${f.predicate}${f.object}`).join('，')
+        }
+      } catch {}
+
+      // 没有三元组 → 退化为关键词标签（承认有损，不叫"特征理解"）
+      if (!gist) {
+        gist = original.slice(0, 40) + '…'
+      }
+
+      mem.content = gist
       mem.tier = 'long_term'
       compressed++
     }
@@ -1560,7 +1593,8 @@ export async function sqliteMaintenance() {
       const sqlMod = require('./sqlite-store.ts')
       if (sqlMod?.isSQLiteReady?.()) {
         // VACUUM 会重建数据库文件，回收被删除数据占用的空间
-        const db = (globalThis as any).__ccSoulSqlite?.db
+        let db: any = null
+        try { db = require('./sqlite-store.ts').getDb?.() } catch {}
         if (db) {
           db.exec('VACUUM')
           _lastVacuumTs = now

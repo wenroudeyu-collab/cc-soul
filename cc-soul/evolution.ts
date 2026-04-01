@@ -47,6 +47,9 @@ const MAX_RULES = 50
 export let rules: Rule[] = []
 export let hypotheses: Hypothesis[] = []
 
+/** Getter for cross-module access (avoids circular import issues) */
+export function getRules(): Rule[] { return rules }
+
 function md5(s: string): string {
   return createHash('md5').update(s).digest('hex').slice(0, 16)
 }
@@ -55,7 +58,6 @@ function md5(s: string): string {
 
 export function loadRules() {
   rules = loadJson<Rule[]>(RULES_PATH, [])
-  ;(globalThis as any).__ccSoulRules = rules
 }
 
 function saveRules() {

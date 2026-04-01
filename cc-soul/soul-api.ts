@@ -66,6 +66,13 @@ export function stopSoulEngine() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function handleAction(action: string, body: any): Promise<any> {
+  // 入参验证（不合法直接 400，不进业务逻辑）
+  try {
+    const { validateAction } = require('./validate.ts')
+    const error = validateAction(action, body)
+    if (error) return { error: `validation failed: ${error}` }
+  } catch {}
+
   switch (action) {
     case 'process':
       return (await import('./soul-process.ts')).handleProcess(body)
@@ -118,9 +125,42 @@ async function handleAction(action: string, body: any): Promise<any> {
     case 'health': {
       let workloadCosts = {}
       let recentEvents: any[] = []
-      try { const { getWorkloadCosts } = require('./cli.ts'); workloadCosts = getWorkloadCosts() } catch {}
-      try { const { getRecentEvents } = require('./flow.ts'); recentEvents = getRecentEvents(3) } catch {}
-      return { status: 'ok', port: SOUL_API_PORT, version: '2.5.0', workloadCosts, recentEvents }
+      let sqliteStatus = 'unknown'
+      let memoryCount = 0
+      let factCount = 0
+      let featureStats = {}
+
+      try { workloadCosts = require('./cli.ts').getWorkloadCosts() } catch {}
+      try { recentEvents = require('./flow.ts').getRecentEvents(3) } catch {}
+      try {
+        const db = (globalThis as any).__ccSoulSqlite?.db
+        if (db) {
+          sqliteStatus = 'connected'
+          memoryCount = db.prepare('SELECT COUNT(*) as c FROM memories').get()?.c ?? 0
+          factCount = db.prepare('SELECT COUNT(*) as c FROM structured_facts').get()?.c ?? 0
+        } else {
+          sqliteStatus = 'disconnected'
+        }
+      } catch { sqliteStatus = 'error' }
+      try {
+        const { getAllFeatures } = require('./features.ts')
+        const all = getAllFeatures?.() ?? {}
+        const entries = Object.entries(all)
+        featureStats = { total: entries.length, enabled: entries.filter(([_, v]) => v).length }
+      } catch {}
+
+      return {
+        status: 'ok',
+        version: '2.9.2',
+        port: SOUL_API_PORT,
+        uptime: Math.floor(process.uptime()),
+        sqlite: sqliteStatus,
+        memoryCount,
+        factCount,
+        workloadCosts,
+        recentEvents,
+        features: featureStats,
+      }
     }
 
     default:
@@ -250,6 +290,47 @@ export function startSoulApi() {
     if (e.code === 'EADDRINUSE') console.log(`[cc-soul] port ${SOUL_API_PORT} in use`)
     else console.error(`[cc-soul] error: ${e.message}`)
   })
+
+  // ── 优雅关闭（多维度考虑）──
+  let shuttingDown = false
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return  // 防止重复触发
+    shuttingDown = true
+    console.log(`[cc-soul] ${signal} received, shutting down...`)
+
+    // 硬超时 5 秒：不管 flush 有没有完成都退出
+    const forceExit = setTimeout(() => {
+      console.error(`[cc-soul] forced exit after 5s timeout`)
+      process.exit(1)
+    }, 5000)
+
+    // 1. 停止接新请求
+    try { server.close() } catch {}
+
+    // 2. 停 heartbeat
+    try { stopSoulEngine() } catch {}
+
+    // 3. flush 所有 debounced saves
+    try { require('./persistence.ts').flushAll() } catch {}
+
+    // 4. 保存记忆到 SQLite
+    try { require('./memory.ts').saveMemories() } catch {}
+
+    // 5. SQLite WAL checkpoint + 关闭
+    try {
+      const db = (globalThis as any).__ccSoulSqlite?.db
+      if (db) { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); db.close() }
+    } catch {}
+
+    // 6. 触发缓存事件让所有模块知道要停了
+    try { require('./memory-utils.ts').emitCacheEvent('consolidation') } catch {}
+
+    clearTimeout(forceExit)
+    console.log(`[cc-soul] graceful shutdown complete`)
+    process.exit(0)
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('SIGINT', () => shutdown('SIGINT'))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -106,7 +106,6 @@ export function loadStats() {
   } else {
     stats.firstSeen = Date.now()
   }
-  ;(globalThis as any).__ccSoulStats = stats
 }
 
 export function saveStats() {
@@ -169,22 +168,16 @@ export function getSessionState(sessionKey: string): SessionState {
   if (!state) {
     state = { lastPrompt: '', lastResponseContent: '', lastSenderId: '', lastChannelId: '', lastAugmentsUsed: [], lastRecalledContents: [], lastMatchedRuleTexts: [], lastAccessed: Date.now(), turnCount: 0, lastTopicKeywords: [], lastQualityScore: -1 }
     sessionStates.set(sessionKey, state)
-    // P0-4: Evict least-recently-used session (not FIFO)
-    // Guard: re-check size after iteration to avoid race with concurrent async callers
+    // LRU evict: Map front = least recently used (oldest insertion/re-set order)
     if (sessionStates.size > MAX_SESSIONS) {
-      let lruKey: string | undefined
-      let lruTime = Infinity
-      for (const [k, v] of sessionStates) {
-        if (k === sessionKey) continue // never evict the session we just created
-        if (v.lastAccessed < lruTime) {
-          lruTime = v.lastAccessed
-          lruKey = k
-        }
-      }
-      if (lruKey && sessionStates.size > MAX_SESSIONS) sessionStates.delete(lruKey)
+      const oldestKey = sessionStates.keys().next().value
+      if (oldestKey !== undefined && oldestKey !== sessionKey) sessionStates.delete(oldestKey)
     }
   } else {
+    // LRU: move to end of Map insertion order
+    sessionStates.delete(sessionKey)
     state.lastAccessed = Date.now()
+    sessionStates.set(sessionKey, state)
   }
   return state
 }

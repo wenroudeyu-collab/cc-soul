@@ -3,6 +3,10 @@
   "version": "2.9.2",
   "type": "module",
   "main": "cc-soul/plugin-entry.ts",
+  "scripts": {
+    "test": "node --test cc-soul/tests/*.test.mjs",
+    "test:integration": "node --test cc-soul/tests/integration.test.mjs"
+  },
   "openclaw": {
     "extensions": [
       "./cc-soul/plugin-entry.ts"

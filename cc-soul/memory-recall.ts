@@ -34,6 +34,9 @@ import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
 onCacheEvent('memory_added', () => { idfCache = null; lastIdfBuildTs = 0 })
 onCacheEvent('memory_deleted', () => { idfCache = null; lastIdfBuildTs = 0; _bm25TokenCache.clear() })
 onCacheEvent('consolidation', () => { idfCache = null; lastIdfBuildTs = 0; _bm25TokenCache.clear() })
+onCacheEvent('identity_changed', () => { idfCache = null; lastIdfBuildTs = 0 })
+onCacheEvent('fact_updated', () => { idfCache = null; lastIdfBuildTs = 0 })
+onCacheEvent('correction_received', () => { _bm25TokenCache.clear() })
 
 // ── P2a: 日期归一化（懒生成）──
 const DATE_PATTERNS: Array<{ re: RegExp; replacer: (match: string, ...args: string[]) => string }> = [
@@ -66,6 +69,23 @@ export function getContentForRecall(mem: Memory): string {
 // ── Persistent recall indices (avoid O(n) rebuild each recall) ──
 const _contentMap = new Map<string, Memory>()      // content → Memory
 export const _memLookup = new Map<string, Memory>()       // "content\0ts" → Memory
+
+// ── 启动效应缓存（Priming Cache）──
+// 最近 5 分钟内用户提到的词 → 降低相关记忆的识别阈值
+export const _primingCache = new Map<string, number>()  // word → last mentioned timestamp
+
+/** 更新启动缓存：从用户消息中提取词，记录提及时间 */
+export function updatePrimingCache(userMsg: string): void {
+  const now = Date.now()
+  const words = (userMsg.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+  for (const w of words) _primingCache.set(w.toLowerCase(), now)
+  // 清理过期条目（>10 分钟）
+  if (_primingCache.size > 200) {
+    for (const [k, ts] of _primingCache) {
+      if (now - ts > 10 * 60 * 1000) _primingCache.delete(k)
+    }
+  }
+}
 
 /** Call when a new memory is added to keep recall indices in sync */
 export function updateRecallIndex(mem: Memory) {
@@ -292,18 +312,23 @@ const _bm25TokenCache = new Map<string, { words: string[]; tf: Map<string, numbe
 
 function _getDocTokens(doc: string): { words: string[]; tf: Map<string, number> } {
   const cached = _bm25TokenCache.get(doc)
-  if (cached) return cached
+  if (cached) {
+    // LRU: move to end of Map insertion order
+    _bm25TokenCache.delete(doc)
+    _bm25TokenCache.set(doc, cached)
+    return cached
+  }
   const words = bm25Tokenize(doc)
   const tf = new Map<string, number>()
   for (const w of words) tf.set(w, (tf.get(w) || 0) + 1)
   const entry = { words, tf }
   _bm25TokenCache.set(doc, entry)
-  // Evict when too large (batch 20%)
+  // LRU evict: delete oldest entries (front of Map) when over capacity
   if (_bm25TokenCache.size > 2000) {
-    const keys = _bm25TokenCache.keys()
     const evict = Math.floor(_bm25TokenCache.size * 0.2)
+    const iter = _bm25TokenCache.keys()
     for (let i = 0; i < evict; i++) {
-      const k = keys.next().value
+      const k = iter.next().value
       if (k !== undefined) _bm25TokenCache.delete(k)
     }
   }
@@ -436,10 +461,15 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   const scored: (Memory & { score: number })[] = []
   for (const mem of activeMemories) {
     // ── Visibility filter ──
-    // Existing memories without visibility field → treat as 'global' (backward compat)
     const vis = mem.visibility || 'global'
     if (vis === 'channel' && channelId && mem.channelId && mem.channelId !== channelId) continue
     if (vis === 'private' && userId && mem.userId && mem.userId !== userId) continue
+
+    // ── 事实版本链：被取代的记忆默认不参与 recall ──
+    // 除非用户问"之前/以前/曾经"（触发 historical 通道）
+    if (mem.supersededBy && mem.scope === 'historical') {
+      if (!/之前|以前|曾经|过去|原来|上次/.test(msg)) continue
+    }
     // If no channelId provided (e.g. DM), include private + global (skip channel-scoped from other channels)
     let sim = 0
 
@@ -466,16 +496,30 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     }
 
     // 词覆盖率（IDF 加权）：不管有没有 tag 都算
+    // 过滤疑问词（"什么""吗""呢"不应算入覆盖率分母）
     if (sim < 0.3) {
       if (!idf) { idf = buildIDF(); avgDocLen = avgDocLenCache || 1 }
+      const QUESTION_STOPWORDS = new Set(['什么', '怎么', '哪个', '哪里', '多少', '为什么', '是否', '有没有', '是不是', '还', '记得', '知道', '叫'])
       let matchedWeight = 0, totalWeight = 0
       for (const qw of queryWords) {
+        if (QUESTION_STOPWORDS.has(qw)) continue  // 跳过疑问词
         const w = idf.get(qw) ?? 1.0
         totalWeight += w
         if (memWords.has(qw)) matchedWeight += w
       }
       const coverage = totalWeight > 0 ? matchedWeight / totalWeight : 0
       sim = Math.max(sim, coverage)
+
+      // 反向覆盖：记忆中的关键词在查询中出现（"小雨"在问"女朋友叫什么"时不会出现，但"女朋友"会）
+      // 如果正向覆盖低，试反向：记忆词命中查询词的比例
+      if (sim < 0.3 && memWords.size > 0) {
+        let reverseHits = 0
+        for (const mw of memWords) {
+          if (queryWords.has(mw)) reverseHits++
+        }
+        const reverseCoverage = reverseHits / memWords.size
+        sim = Math.max(sim, reverseCoverage * 0.7)  // 反向覆盖打 0.7 折
+      }
     }
 
     // CMR Layer 2: AAM 语义扩展（替换 Trigram 暴力匹配）
@@ -714,6 +758,26 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
         if (activation > 0) {
           s.score *= (1 + Math.min(activation * 0.1, 0.5)) // IDF-weighted activation boost, capped +50%
         }
+      }
+    }
+  }
+
+  // ── 启动效应（Priming Effect）──
+  // 人脑原理：刚看到"医生"，识别"护士"会更快（无意识激活扩散）
+  // cc-soul 原创：最近 5 分钟内用户提到的词降低识别阈值，不是搜索而是启动
+  const PRIMING_WINDOW_MS = 5 * 60 * 1000  // 5 分钟窗口
+  const now = Date.now()
+  if (_primingCache.size > 0) {
+    for (const s of scored) {
+      const sWords = (s.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      let primingHits = 0
+      for (const w of sWords) {
+        const primedAt = _primingCache.get(w)
+        if (primedAt && now - primedAt < PRIMING_WINDOW_MS) primingHits++
+      }
+      if (primingHits > 0 && sWords.length > 0) {
+        const primingBoost = Math.min(0.3, primingHits / sWords.length)  // 最多 +30%
+        s.score *= (1 + primingBoost)
       }
     }
   }
@@ -1164,6 +1228,9 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
   // P3: 推进 A/B 通道实验计数器
   tickABExperiment()
 
+  // 启动效应：记录用户刚提到的词，降低相关记忆的识别阈值
+  updatePrimingCache(msg)
+
   // ── 统一激活场：唯一的召回路径 ──
   try {
     const { activationRecall } = require('./activation-field.ts')
@@ -1217,6 +1284,32 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
         syncToSQLite(original, { confidence: original.confidence, recallCount: original.recallCount, lastAccessed: original.lastAccessed, lastRecalled: original.lastRecalled })
       }
     }
+    // ── 检索诱发遗忘（Retrieval-Induced Forgetting）──
+    // 人脑原理：回忆 A 会抑制跟 A 相关但未被选中的 B（Anderson et al. 1994）
+    // cc-soul 原创：召回的记忆变强，竞争者轻微降权，让记忆库自然分化
+    if (results.length > 0) {
+      const recalledContents = new Set(results.map(r => r.content))
+      const recalledWords = new Set<string>()
+      for (const r of results) {
+        const words = (r.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+        for (const w of words) recalledWords.add(w.toLowerCase())
+      }
+      // 对未被选中但关键词重叠的记忆轻微抑制
+      for (const m of memoryState.memories) {
+        if (!m || !m.content || recalledContents.has(m.content)) continue
+        if (m.scope === 'core_memory' || m.scope === 'correction') continue  // 核心和纠正不抑制
+        const mWords = (m.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+        let overlap = 0
+        for (const w of mWords) { if (recalledWords.has(w.toLowerCase())) overlap++ }
+        if (overlap >= 3 && mWords.length > 0 && overlap / mWords.length > 0.4) {
+          // 高度相关但未被选中 → 轻微抑制（-0.02 confidence）
+          const oldConf = m.confidence ?? 0.7
+          m.confidence = Math.max(0.1, oldConf - 0.02)
+          try { require('./decision-log.ts').logDecision('rif_suppress', (m.content || '').slice(0, 30) + '|' + m.ts, `conf=${oldConf.toFixed(2)}→${m.confidence.toFixed(2)}, overlap=${overlap}/${mWords.length}`) } catch {}
+        }
+      }
+    }
+
     if (results.length > 0) saveMemories()
 
     return results

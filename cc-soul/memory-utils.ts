@@ -4,14 +4,19 @@
  */
 
 import type { Memory } from './types.ts'
-import { getParam } from './auto-tune.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Event-Driven Cache Coherence（原创算法）
 // 各缓存注册自己关心的事件，事件发生时自动失效
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type CacheEvent = 'memory_added' | 'memory_deleted' | 'memory_updated' | 'consolidation' | 'heartbeat'
+export type CacheEvent =
+  | 'memory_added' | 'memory_deleted' | 'memory_updated' | 'consolidation' | 'heartbeat'
+  // 用户画像事件广播（保持分层但通气）
+  | 'identity_changed'   // 身份信息变更（公司/城市/职业）
+  | 'fact_updated'       // 事实更新（任何 fact-store 变更）
+  | 'emotion_shifted'    // 情绪状态变化（压力/情绪切换）
+  | 'correction_received' // 收到纠正
 
 const _cacheListeners = new Map<CacheEvent, Array<() => void>>()
 
@@ -32,12 +37,67 @@ export function emitCacheEvent(event: CacheEvent): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Memory ID + Lineage 工具
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** 生成唯一 memoryId（轻量，不依赖 nanoid） */
+export function generateMemoryId(): string {
+  return `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** 追加 lineage 记录。cap 按 scope 分级：short_term=5, long_term/core=20, 其他=10 */
+export function appendLineage(mem: any, entry: { action: string; ts: number; trigger?: string; delta?: string; from?: number; to?: number }): void {
+  try {
+    if (!mem.lineage) mem.lineage = []
+    mem.lineage.push(entry)
+
+    // Cap 按 scope 分级
+    const cap = mem.scope === 'short_term' ? 5
+      : (mem.scope === 'core_memory' || mem.tier === 'long_term') ? 20
+      : 10
+
+    if (mem.lineage.length > cap) {
+      const created = mem.lineage.find((e: any) => e.action === 'created')
+      const recent = mem.lineage.slice(-(cap - 1))
+      mem.lineage = created ? [created, ...recent] : recent
+    }
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 排他性谓语表（事实版本链用）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** 排他性谓语：同一主语只能有一个有效值。变化时建 supersedes 链 */
+const EXCLUSIVE_PREDICATES = new Set([
+  'name', '名字',
+  'lives_in', '住在',
+  'works_at', '工作',
+  'occupation', '职业',
+  'relationship', '配偶', '伴侣',
+  'age', '年龄',
+  'uses_phone', '手机',
+  'educated_at', '学校',
+  'salary', '薪资',
+])
+
+/** 判断冲突类型：supersede（取代）还是 supplement（补充） */
+export function classifyConflict(oldFacts: any[], newFacts: any[]): 'supersede' | 'supplement' | 'refine' {
+  for (const nf of newFacts) {
+    const conflicting = oldFacts.find((of: any) =>
+      of.subject === nf.subject && of.predicate === nf.predicate && of.object !== nf.object
+    )
+    if (conflicting && EXCLUSIVE_PREDICATES.has(nf.predicate)) {
+      return 'supersede'  // 排他性谓语 + 同主语同谓语不同宾语 = 取代
+    }
+  }
+  return 'supplement'  // 默认安全：不建链
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Constants — now backed by auto-tune, with legacy const for backward compat
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function getMaxMemories(): number { return getParam('memory.max_memories') }
-export function getMaxHistory(): number { return getParam('memory.max_history') }
-export function getInjectHistory(): number { return getParam('memory.inject_history') }
 // 保留旧的 const 作为向后兼容
 export const MAX_MEMORIES = 10000
 export const MAX_HISTORY = 100      // 保留最近 100 轮完整历史
@@ -61,71 +121,31 @@ export function shuffleArray<T>(arr: T[]): T[] {
 // Trigram Fuzzy Matching — fills the gap between exact-tag and TF-IDF
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Extract character trigrams from text (works for CJK + Latin) — LRU cached (max 2000, batch evict 20%) */
-const _trigramCache = new Map<string, { set: Set<string>; ts: number }>()
+/** Extract character trigrams from text (works for CJK + Latin) — LRU cached (max 2000, evict oldest on overflow) */
+const _trigramCache = new Map<string, Set<string>>()
 export function trigrams(text: string): Set<string> {
   const s = text.toLowerCase().replace(/\s+/g, ' ').trim()
   const cached = _trigramCache.get(s)
-  if (cached) { cached.ts = Date.now(); return cached.set }
+  if (cached) {
+    // LRU: move to end of Map insertion order
+    _trigramCache.delete(s)
+    _trigramCache.set(s, cached)
+    return cached
+  }
   const set = new Set<string>()
   for (let i = 0; i <= s.length - 3; i++) {
     set.add(s.slice(i, i + 3))
   }
+  // LRU evict: delete oldest entries (front of Map) when over capacity
   if (_trigramCache.size >= 2000) {
-    // Batch evict 20% (400 entries) — sorted by oldest access time
-    const entries = [..._trigramCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
     const evictCount = Math.ceil(_trigramCache.size * 0.2)
-    for (let i = 0; i < evictCount && i < entries.length; i++) {
-      _trigramCache.delete(entries[i][0])
+    const iter = _trigramCache.keys()
+    for (let i = 0; i < evictCount; i++) {
+      const k = iter.next().value
+      if (k !== undefined) _trigramCache.delete(k)
     }
   }
-  _trigramCache.set(s, { set, ts: Date.now() })
-  return set
-}
-
-/**
- * 多粒度 n-gram 分词（CJK 2-4gram + Latin 3gram）
- * 比纯 trigram 更适合中文：
- * - "机器学习算法" → ["机器", "器学", "学习", "习算", "算法", "机器学", "器学习", "学习算", "习算法", "机器学习", "器学习算", "学习算法"]
- * - English words use standard trigrams
- */
-const _ngramCache = new Map<string, { set: Set<string>; ts: number }>()
-export function multiGramTokenize(text: string): Set<string> {
-  const s = text.toLowerCase().replace(/\s+/g, ' ').trim()
-  const cached = _ngramCache.get(s)
-  if (cached) { cached.ts = Date.now(); return cached.set }
-
-  const set = new Set<string>()
-
-  // CJK segments: extract 2-gram, 3-gram, 4-gram
-  const cjkSegs = s.match(/[\u4e00-\u9fff]+/g) || []
-  for (const seg of cjkSegs) {
-    for (let n = 2; n <= Math.min(4, seg.length); n++) {
-      for (let i = 0; i <= seg.length - n; i++) {
-        set.add(seg.slice(i, i + n))
-      }
-    }
-  }
-
-  // Latin: standard trigrams
-  const latinSegs = s.match(/[a-z]+/g) || []
-  for (const seg of latinSegs) {
-    if (seg.length < 3) continue
-    for (let i = 0; i <= seg.length - 3; i++) {
-      set.add(seg.slice(i, i + 3))
-    }
-  }
-
-  // Cache management (same as trigrams cache)
-  const maxCache = 2000
-  if (_ngramCache.size >= maxCache) {
-    const entries = [..._ngramCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
-    const evictCount = Math.floor(maxCache * 0.2)
-    for (let i = 0; i < evictCount && i < entries.length; i++) {
-      _ngramCache.delete(entries[i][0])
-    }
-  }
-  _ngramCache.set(s, { set, ts: Date.now() })
+  _trigramCache.set(s, set)
   return set
 }
 
@@ -161,7 +181,7 @@ export function trigramSimilarity(a: Set<string>, b: Set<string>, idf?: Map<stri
  * "用户住北京" vs "用户住在北京朝阳" → 词级重叠 = {"住":1, "北京":1} / total = 高
  * 补充 trigramSimilarity 对短文本的不足
  */
-export function wordOverlapSimilarity(textA: string, textB: string): number {
+function wordOverlapSimilarity(textA: string, textB: string): number {
   const wordsA = new Set((textA.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
   const wordsB = new Set((textB.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
   if (wordsA.size === 0 || wordsB.size === 0) return 0
@@ -246,21 +266,6 @@ export function contextAwareSimilarity(a: Memory, b: Memory): number {
   return textSim * 0.4 + timeSim * 0.1 + moodSim * 0.2 + entitySim * 0.3
 }
 
-/** Build IDF map from a trigram corpus: trigram → log(N / (1 + df)) */
-export function buildTrigramIDF(allTrigrams: Set<string>[]): Map<string, number> {
-  const df = new Map<string, number>()
-  for (const tSet of allTrigrams) {
-    for (const t of tSet) {
-      df.set(t, (df.get(t) || 0) + 1)
-    }
-  }
-  const N = allTrigrams.length || 1
-  const idf = new Map<string, number>()
-  for (const [tri, count] of df) {
-    idf.set(tri, Math.log(N / (1 + count)))
-  }
-  return idf
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Synonym Map — lightweight semantic expansion for tag matching
@@ -295,13 +300,6 @@ export const SYNONYM_MAP: Record<string, string[]> = {
   'test': ['测试', 'unittest', 'pytest', 'vitest', '单元测试'],
 }
 
-/** 中文高频停用词（出现在几乎所有文本中，对区分度无贡献） */
-export const CJK_STOPWORDS = new Set([
-  '的', '了', '是', '在', '我', '你', '他', '她', '它', '们',
-  '这', '那', '有', '和', '就', '不', '也', '都', '要', '会',
-  '到', '说', '对', '去', '能', '没', '把', '让', '被', '从',
-  '上', '下', '出', '来', '还', '可', '以', '很', '着', '过',
-])
 
 export function expandQueryWithSynonyms(words: Set<string>): Set<string> {
   const expanded = new Set(words)
@@ -476,43 +474,3 @@ export function adaptiveDecay(
   return Math.max(0, Math.min(1, retention))
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Bayesian Belief — 通用贝叶斯信念更新（Beta-Bernoulli 模型）
-// 供 theory-of-mind.ts / behavior-prediction.ts / epistemic.ts 共用
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export interface BayesianBelief {
-  alpha: number    // 成功次数 + 先验
-  beta: number     // 失败次数 + 先验
-  lastSeen: number // 上次更新时间戳
-}
-
-export function createBelief(prior: number = 1): BayesianBelief {
-  return { alpha: prior, beta: prior, lastSeen: Date.now() }
-}
-
-export function updateBelief(belief: BayesianBelief, success: boolean): void {
-  if (success) belief.alpha++
-  else belief.beta++
-  belief.lastSeen = Date.now()
-}
-
-export function beliefPosterior(belief: BayesianBelief): number {
-  return belief.alpha / (belief.alpha + belief.beta)
-}
-
-export function beliefConfidence(belief: BayesianBelief): number {
-  // Wilson score lower bound (95% CI)
-  const n = belief.alpha + belief.beta - 2
-  if (n < 2) return 0.5
-  const p = (belief.alpha - 1) / n
-  const z = 1.96
-  return (p + z * z / (2 * n) - z * Math.sqrt((p * (1 - p) + z * z / (4 * n)) / n)) / (1 + z * z / n)
-}
-
-/** 时间衰减：旧的证据逐渐失效 */
-export function decayBelief(belief: BayesianBelief, halfLifeMs: number = 30 * 86400000): void {
-  const ageFactor = Math.exp(-(Date.now() - belief.lastSeen) * Math.LN2 / halfLifeMs)
-  belief.alpha = Math.max(1, belief.alpha * ageFactor)
-  belief.beta = Math.max(1, belief.beta * ageFactor)
-}

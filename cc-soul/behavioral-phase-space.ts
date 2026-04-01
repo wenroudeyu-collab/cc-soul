@@ -520,6 +520,6 @@ export function updateAllDomainBeliefs(detectedDomain: string | null): void {
   if (detectedDomain) updateDomainBelief(detectedDomain)
 }
 
-export { detectSituation } from './behavior-engine.ts'
+// detectSituation 已内联到本模块的 recordState 中，不再从旧文件 re-export
 export function getPatternCount(): number { return patterns.length }
 export function getLearnedPatternCount(): number { return patterns.filter(p => p.source === 'learned').length }

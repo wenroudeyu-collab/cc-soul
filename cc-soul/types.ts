@@ -107,6 +107,13 @@ export interface Memory {
   source?: 'user_said' | 'ai_inferred' | 'ai_observed' | 'system'
   // ── Emotional intensity at creation (高情绪记忆衰减更慢) ──
   emotionIntensity?: number  // 0-1, used by smart-forget to slow decay
+  // ── 闪光灯记忆（Flashbulb Memory）：高情绪事件深度编码 ──
+  flashbulb?: {
+    surroundingContext: string  // 前后对话摘要
+    bodyState: { mood: number; energy: number }  // 创建时的身体状态
+    mentionedPeople: string[]  // 当时提到的人
+    detailLevel: 'full'        // 标记：不压缩，永久保留原文
+  }
   importance?: number    // 1-10, 预期违背评分 (surprise score)
   surprise?: number      // 同 importance，别名
   because?: string           // causal reason: WHY this decision/preference was made
@@ -122,13 +129,30 @@ export interface Memory {
   injectionMiss?: number        // 被注入后用户 ignored 的次数（trigram overlap < 0.1）
   // ── P2a: 日期双写（懒生成）──
   contentNormalized?: string    // 日期归一化版本（"昨天" → "2026-03-30"）。召回/注入用此字段
+  // ── 记忆唯一 ID ──
+  memoryId?: string  // 创建时生成，永不变
+
+  // ── 记忆溯源链（Memory Lineage）──
+  lineage?: Array<{
+    action: 'created' | 'reshaped' | 'compressed' | 'gisted' | 'promoted' | 'demoted' | 'merged' | 'superseded'
+    ts: number
+    trigger?: string
+    delta?: string
+    from?: number
+    to?: number
+  }>
+
+  // ── 事实版本链（Fact Supersession Chain）──
+  supersedes?: string      // 本记忆取代了哪条旧记忆的 memoryId
+  supersededBy?: string    // 本记忆被哪条新记忆取代的 memoryId
+
   // ── Hindsight 认知网络分类 ──
   network?: 'world' | 'experience' | 'opinion' | 'entity'
   // ── 前瞻锚定（Prospective Anchoring）──
   prospective?: {
-    trigger: string       // 触发正则，如 "面试|紧张|准备"
-    expiresAt: number     // 过期时间戳
-    action: string        // 触发时的提示，如 "主动问面试准备得怎么样"
+    trigger: string
+    expiresAt: number
+    action: string
   }
   // ── P0a: Graveyard metadata ──
   _graveyardOriginalScope?: string

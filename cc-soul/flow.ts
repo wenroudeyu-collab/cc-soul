@@ -152,19 +152,30 @@ export function updateCoupledPressure(
   }
 
   // ── 阶段判定 ──
+  const prevPhase = p.phase
   const maxPressure = Math.max(p.frustration, p.stress)
   if (maxPressure > 0.7) p.phase = 'critical'
   else if (maxPressure > 0.4 && (p.frustrationVelocity > 0 || p.stressVelocity > 0)) p.phase = 'building'
   else if (maxPressure > 0.3 && p.stressVelocity < -0.05) p.phase = 'recovering'
   else p.phase = 'calm'
 
+  // 阶段变化时广播情绪事件
+  if (p.phase !== prevPhase) {
+    try { const { emitCacheEvent } = require('./memory-utils.ts'); emitCacheEvent('emotion_shifted') } catch {}
+  }
+
   // ── 爆发预测 ──
-  const maxVelocity = Math.max(p.frustrationVelocity, p.stressVelocity)
-  if (maxVelocity > 0.03 && maxPressure > 0.3) {
-    p.turnsToBreakdown = Math.ceil((0.8 - maxPressure) / maxVelocity)
-    if (p.turnsToBreakdown > 10 || p.turnsToBreakdown < 0) p.turnsToBreakdown = null
+  // 已经 critical 时跳过预测，直接输出干预信号（turnsToBreakdown = 0）
+  if (p.phase === 'critical') {
+    p.turnsToBreakdown = 0
   } else {
-    p.turnsToBreakdown = null
+    const maxVelocity = Math.max(p.frustrationVelocity, p.stressVelocity)
+    if (maxVelocity > 0.03 && maxPressure > 0.3) {
+      p.turnsToBreakdown = Math.ceil((0.8 - maxPressure) / maxVelocity)
+      if (p.turnsToBreakdown > 10 || p.turnsToBreakdown < 0) p.turnsToBreakdown = null
+    } else {
+      p.turnsToBreakdown = null
+    }
   }
 
   return { ...p }
@@ -174,12 +185,28 @@ export function getCoupledPressure(): CoupledPressureState { return { ..._couple
 
 export function getCoupledPressureContext(): string | null {
   const p = _coupledPressure
-  if (p.phase === 'calm') return null
-  const parts: string[] = [`压力阶段：${p.phase}`]
-  if (p.frustration > 0.5) parts.push(`挫败感${(p.frustration * 100).toFixed(0)}%`)
-  if (p.stress > 0.5) parts.push(`长期压力${(p.stress * 100).toFixed(0)}%`)
-  if (p.couplingStrength > 0.5) parts.push(`压力耦合强(${(p.couplingStrength * 100).toFixed(0)}%)`)
-  if (p.turnsToBreakdown) parts.push(`预计${p.turnsToBreakdown}轮后临界`)
+  // 即使 calm 也检查：如果 frustration 或 stress 有轻微升高，也给提示
+  if (p.phase === 'calm' && p.frustration < 0.15 && p.stress < 0.15) return null
+
+  const parts: string[] = []
+  if (p.phase !== 'calm') parts.push(`压力阶段：${p.phase}`)
+
+  if (p.frustration > 0.3) parts.push(`挫败感${(p.frustration * 100).toFixed(0)}%`)
+  else if (p.frustration > 0.15) parts.push(`轻微受挫`)
+
+  if (p.stress > 0.3) parts.push(`长期压力${(p.stress * 100).toFixed(0)}%`)
+  else if (p.stress > 0.15) parts.push(`有点疲惫`)
+
+  if (p.couplingStrength > 0.5) parts.push(`压力耦合强`)
+  if (p.turnsToBreakdown === 0) parts.push(`已临界，立即干预`)
+  else if (p.turnsToBreakdown !== null) parts.push(`预计${p.turnsToBreakdown}轮后临界`)
+
+  // 即使数值低，也给一个共情提示
+  if (parts.length === 0 && (p.frustration > 0.1 || p.stress > 0.1)) {
+    parts.push('情绪：略低')
+  }
+
+  if (parts.length === 0) return null
   return `[压力动态] ${parts.join('，')}`
 }
 

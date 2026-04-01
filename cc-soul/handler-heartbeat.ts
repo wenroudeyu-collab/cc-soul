@@ -35,18 +35,39 @@ import { heartbeatScanAbsence } from './absence-detection.ts'
 import { scanBlindSpotQuestions } from './epistemic.ts'
 import { updateDeepUnderstand } from './deep-understand.ts'
 
-// ── CLI concurrency semaphore: limit parallel CLI-spawning heartbeat tasks ──
+// ── CLI concurrency semaphore + 熔断器 ──
 let _cliSemaphore = 0
 const MAX_CLI_CONCURRENT = 3
+// 熔断器：连续失败 3 次 → 停 1 小时。按 CLI 可用性熔断（共享），不按业务操作分
+let _cliFailures = 0
+let _cliCircuitOpenAt = 0
 
 function safeCLI(name: string, fn: () => void, safeFn: (name: string, fn: () => void) => void) {
+  // 熔断检查
+  if (_cliFailures >= 3) {
+    if (Date.now() - _cliCircuitOpenAt < 3600_000) {
+      return  // 熔断中，静默跳过
+    }
+    // 冷却期过了，半开状态
+    console.log(`[cc-soul][heartbeat] CLI circuit half-open, attempting ${name}`)
+  }
   if (_cliSemaphore >= MAX_CLI_CONCURRENT) {
-    console.log(`[cc-soul][heartbeat] skipping ${name} — CLI concurrency limit (${MAX_CLI_CONCURRENT})`)
     return
   }
   _cliSemaphore++
   safeFn(name, () => {
-    try { fn() } finally { _cliSemaphore-- }
+    try {
+      fn()
+      if (_cliFailures > 0) { _cliFailures = 0 }  // 成功 → 重置
+    } catch (e: any) {
+      _cliFailures++
+      if (_cliFailures >= 3) {
+        _cliCircuitOpenAt = Date.now()
+        console.error(`[cc-soul][heartbeat] CLI circuit OPEN (${name}: ${e.message})`)
+        try { require('./decision-log.ts').logDecision('circuit_open', 'cli', `failures=${_cliFailures}, ${name}: ${e.message}`) } catch {}
+      }
+      throw e
+    } finally { _cliSemaphore-- }
   })
 }
 
@@ -91,6 +112,7 @@ export function runHeartbeat() {
             if (rate > 0.6 && eng >= 5 && m.scope !== 'core_memory') {
               m.scope = 'core_memory'
               try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_promote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}`) } catch {}
+              try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'promoted', ts: Date.now(), delta: `→core_memory, rate=${rate.toFixed(2)}` }) } catch {}
             }
 
             // core 但长期无 engagement → 降级（engagement 减半防震荡）
@@ -99,12 +121,14 @@ export function runHeartbeat() {
               m.injectionEngagement = Math.floor(eng / 2)
               m.injectionMiss = Math.floor(miss / 2)
               try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_demote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}→${m.injectionEngagement}`) } catch {}
+              try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'demoted', ts: Date.now(), delta: `→fact, rate=${rate.toFixed(2)}` }) } catch {}
             }
           }
         } catch {}
       })
       safe('workingCleanup', () => cleanupWorkingMemory())
       safe('memoryDecay', () => processMemoryDecay())
+      safe('aamDecay', () => { try { require('./aam.ts').decayCooccurrence() } catch {} })
       safe('batchTag', () => batchTagUntaggedMemories()) // local extraction, no LLM
       safe('pruneExpired', () => pruneExpiredMemories())
       safe('reviveDecayed', () => reviveDecayedMemories())

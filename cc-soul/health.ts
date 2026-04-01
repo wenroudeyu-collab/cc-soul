@@ -185,12 +185,12 @@ const CLEANUP_COOLDOWN = 60000 // 最多每分钟检查一次
  * agent 说完话就释放并发，下次消息来再 spawn 新的。
  * 不碰用户自己的终端窗口（有控制终端 s000/s001 等）。
  */
-export function postReplyCleanup() {
+export async function postReplyCleanup() {
   // Use killGatewayClaude from cli.ts — identifies gateway processes by CWD (.openclaw/hooks)
   // Safe: never touches user terminal claude processes
   try {
-    import('./cli.ts').then(m => m.killGatewayClaude?.()).catch((e: any) => { console.error(`[cc-soul] module load failed (cli): ${e.message}`) }); return
-    killGatewayClaude()
+    const m = await import('./cli.ts')
+    m.killGatewayClaude?.()
   } catch {
     // Fallback: direct implementation if import fails
     try {

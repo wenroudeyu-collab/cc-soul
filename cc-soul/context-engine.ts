@@ -40,24 +40,14 @@ function syncResponseToSession(sessionKey: string | undefined, content: string) 
   } catch (_) {}
 }
 
-// ── State — use globalThis to ensure single instance across module boundaries ──
+// ── State (module-level) ──
 
-const _g = globalThis as any
-if (!_g.__ccSoulState) {
-  _g.__ccSoulState = {
-    lastUserMsg: '',
-    lastBotResponse: '',
-    lastSenderId: '',
-    lastAugments: [] as string[],
-    _sessionFile: '',
-  }
-}
-const _state = _g.__ccSoulState as {
-  lastUserMsg: string
-  lastBotResponse: string
-  lastSenderId: string
-  lastAugments: string[]
-  _sessionFile: string
+const _state = {
+  lastUserMsg: '',
+  lastBotResponse: '',
+  lastSenderId: '',
+  lastAugments: [] as string[],
+  _sessionFile: '',
 }
 
 /** Called from hook handler to pass sender context */
@@ -180,6 +170,20 @@ export function createCcSoulContextEngine() {
 
       _afterTurnCalled = true
       console.log(`[cc-soul][context-engine] afterTurn: post-response analysis (${userMsg.slice(0, 30)}...)`)
+
+      // ── 泄漏检测：AI 回复中是否包含内部分析泄漏 ──
+      const LEAK_PATTERNS = [
+        /^.*?(?:用户说|用户在|用户想|用户需要|用户问).{2,30}(?:这是|说明|表明|意味)/m,
+        /^.*?这是(?:一个|在).{2,20}(?:请求|时刻|场景|测试|信号)/m,
+        /^.*?我应该(?:先|表示|给予|提供)/m,
+      ]
+      for (const pat of LEAK_PATTERNS) {
+        if (pat.test(botResponse)) {
+          console.error(`[cc-soul][LEAK] 检测到回复泄漏内部分析: "${botResponse.match(pat)?.[0]?.slice(0, 60)}"`)
+          try { (await import('./decision-log.ts')).logDecision('response_leak', botResponse.match(pat)?.[0]?.slice(0, 40) || '?', `pattern=${pat.source.slice(0, 30)}`) } catch {}
+          break
+        }
+      }
 
       // Sync session state so handleSent-dependent code works
       try {

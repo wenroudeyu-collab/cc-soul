@@ -30,7 +30,6 @@ import { execFile } from 'child_process'
 import { platform, homedir } from 'os'
 import { resolve } from 'path'
 
-import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import type { Augment } from './types.ts'
 import {
   metrics, stats, loadStats, saveStats,
@@ -38,7 +37,6 @@ import {
   getSessionState, setLastActiveSessionKey, getLastActiveSessionKey,
   getPrivacyMode, setPrivacyMode,
   getReadAloudPending, setReadAloudPending,
-  getInitialized, setInitialized,
   getHeartbeatInterval, setHeartbeatInterval,
   CJK_TOPIC_REGEX, CJK_WORD_REGEX,
   refreshNarrativeAsync,
@@ -160,33 +158,8 @@ let agentBusyTimer: ReturnType<typeof setTimeout> | null = null
 /**
  * Initialize all cc-soul subsystems. Safe to call multiple times (idempotent).
  */
-export function initializeSoul(): void {
-  if (getInitialized()) return
-  setInitialized(true)
-
-  // Lightweight init only — no memory loading, no brain modules
-  // Memory is accessed via SQLite queries on demand, not loaded to memory
-  ensureDataDir()
-  loadAIConfig()
-  try { loadBodyState() } catch (_) {}
-
-  // Initialize SQLite early — ensure db connection is ready for command handlers
-  try { ensureSQLiteReady() } catch (e: any) { console.error('[cc-soul] SQLite early init failed:', e.message) }
-  // embedder removed — activation field handles all recall
-
-  // All data loading deferred — recall() queries SQLite/JSON directly
-  try { loadFeatures() } catch (_) {}
-  try { loadStats() } catch (_) {}
-  try { loadProfiles() } catch (_) {}
-  // Auto-import historical conversations on first install (runs once, async, non-blocking)
-  try { autoImportHistory() } catch (_) {}
-  // Load distillation state (topic nodes + mental models)
-  try { loadDistillState() } catch (_) {}
-  // Load absence detection state
-  try { loadAbsenceState() } catch (_) {}
-
-  console.log(`[cc-soul] initializeSoul done (lightweight, no memory loading)`)
-}
+// initializeSoul 已迁移到 init.ts — 这里做 re-export 保持向后兼容
+export { initializeSoul, getInitialized, setInitialized } from './init.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXPORTED EVENT HANDLERS
@@ -713,17 +686,18 @@ export async function handlePreprocessed(event: any): Promise<void> {
       ? '\n\n## 内部指令（仅本轮有效）\n' + cleanedSelected.join('\n')
       : ''
 
-    // 举一反三: combine association chain memories + static tips
-    const staticTips = generatePrebuiltTips(userMsg)
-    // If association chain found related memories, use them as tip material
+    // 举一反三: 临时关闭，隔离测试种子扩展。删除 false 恢复
     let tipsSection = ''
-    if (associated && associated.length > 0) {
-      const assocTips = associated.slice(0, 3).map((m: any, i: number) =>
-        `${i + 1}. ${m.content.slice(0, 80)}`
-      ).join('\n')
-      tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落（基于用户历史记忆生成）\n顺便说一下：\n${assocTips}`
-    } else if (staticTips) {
-      tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落\n${staticTips}`
+    if (false) {
+      const staticTips = generatePrebuiltTips(userMsg)
+      if (associated && associated.length > 0) {
+        const assocTips = associated.slice(0, 3).map((m: any, i: number) =>
+          `${i + 1}. ${m.content.slice(0, 80)}`
+        ).join('\n')
+        tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落（基于用户历史记忆生成）\n顺便说一下：\n${assocTips}`
+      } else if (staticTips) {
+        tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落\n${staticTips}`
+      }
     }
 
     writeFileSync(soulPath, baseSoul + augmentSection + tipsSection, 'utf-8')
@@ -859,7 +833,7 @@ export function handleSent(event: any): void {
   if (!getInitialized()) initializeSoul()
   setAgentBusy(false)
   killGatewayClaude()
-  postReplyCleanup()
+  postReplyCleanup().catch(() => { /* cleanup failure is non-fatal */ })
 
   const sentSessionKey = event.sessionKey || getLastActiveSessionKey()
   const session = getSessionState(sentSessionKey)

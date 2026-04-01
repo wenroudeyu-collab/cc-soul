@@ -31,6 +31,15 @@ interface ExtractionRule {
 }
 
 const RULES: ExtractionRule[] = [
+  // "我叫X" / "我是X" / "我名字叫X" / "大家叫我X" → name
+  { pattern: /(?:我叫|我名字(?:是|叫)|大家(?:都)?叫我|我的名字(?:是|叫)?)\s*([^\s，。！？,;；\n]{1,8})/, extract: (m) => {
+    const name = m[1].trim()
+    // 排除疑问句："我叫什么名字" / "我叫什么" 不是在告诉名字
+    if (/^(什么|啥|谁|哪|吗|呢|嘛)/.test(name)) return null
+    if (name.length < 1) return null
+    return { subject: 'user', predicate: 'name', object: name,
+      confidence: 0.95, source: 'user_said', ts: Date.now(), validUntil: 0 }
+  }},
   // "我喜欢X" / "我爱X" / "我偏好X" — stop at punctuation or conjunctions
   { pattern: /我(?:喜欢|爱|偏好|特别喜欢|超喜欢)(?:用)?\s*([^，。！？,;；\n]{2,15})/, extract: (m) => ({
     subject: 'user', predicate: 'likes', object: m[1].trim(),
@@ -198,6 +207,7 @@ export function addFacts(newFacts: StructuredFact[]) {
   if (newFacts.length > 0) {
     saveFacts()
     console.log(`[cc-soul][facts] added ${newFacts.length} structured facts`)
+    try { const { emitCacheEvent } = require('./memory-utils.ts'); emitCacheEvent('fact_updated') } catch {}
   }
 }
 

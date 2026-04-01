@@ -195,7 +195,7 @@ export function computeBudget(contextWindow?: number): ContextBudget {
   }
 
   const available = Math.max(0, totalWindow - systemPromptTokens - strategy.outputReserve)
-  const augmentBudget = Math.floor(available * strategy.augmentRatio)
+  const augmentBudget = Math.floor(available * strategy.augmentRatio * _budgetFactor)
   const historyBudget = Math.floor(available * strategy.historyRatio)
   const historyTurns = Math.max(1, Math.floor(historyBudget / strategy.tokensPerTurn))
 
@@ -305,6 +305,44 @@ function applyPerTurnLimits(turns: ChatTurn[], budget: ContextBudget): ChatTurn[
     assistant: t.assistant.slice(0, limit.assistant),
     ts: t.ts,
   }))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUDGET FEEDBACK LOOP — 双向自适应
+// 超预算 → 收紧；收紧后质量下降 → 放松。防止单向调节走极端
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _budgetFactor = 1.0
+let _overBudgetCount = 0
+let _qualityDropCount = 0
+
+/** 记录实际 token 使用 vs 预算（由 prompt-builder 调用） */
+export function recordBudgetUsage(actualTokens: number, budgetTokens: number): void {
+  const ratio = budgetTokens > 0 ? actualTokens / budgetTokens : 0
+  if (ratio > 0.9) {
+    _overBudgetCount++
+    if (_overBudgetCount >= 3) {
+      _budgetFactor = Math.max(0.5, _budgetFactor * 0.85)
+      _overBudgetCount = 0
+      console.log(`[cc-soul][budget] tightened: factor=${_budgetFactor.toFixed(2)} (3× over 90%)`)
+    }
+  } else {
+    _overBudgetCount = Math.max(0, _overBudgetCount - 1)  // 没超就缓慢恢复计数
+  }
+}
+
+/** 记录质量反馈（由 quality.ts 调用）：收紧后质量下降 → 放松 */
+export function recordBudgetQuality(qualityScore: number): void {
+  if (qualityScore < 4 && _budgetFactor < 1.0) {
+    _qualityDropCount++
+    if (_qualityDropCount >= 3) {
+      _budgetFactor = Math.min(1.0, _budgetFactor * 1.1)
+      _qualityDropCount = 0
+      console.log(`[cc-soul][budget] relaxed: factor=${_budgetFactor.toFixed(2)} (3× quality < 4)`)
+    }
+  } else {
+    _qualityDropCount = Math.max(0, _qualityDropCount - 1)
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -258,7 +258,7 @@ export interface PersonModel {
   distillCount: number       // how many times distilled
 }
 
-let personModel: PersonModel = loadJson<PersonModel>(PERSON_MODEL_PATH, {
+const DEFAULT_PERSON_MODEL: PersonModel = {
   identity: '',
   thinkingStyle: '',
   values: [],
@@ -269,10 +269,12 @@ let personModel: PersonModel = loadJson<PersonModel>(PERSON_MODEL_PATH, {
   reasoningProfile: { style: 'unknown', evidence: 'unknown', certainty: 'unknown', disagreement: 'unknown', _counts: { style: {}, evidence: {}, certainty: {}, disagreement: {}, total: 0 } },
   updatedAt: 0,
   distillCount: 0,
-})
+}
+// 字段兜底：JSON 可能是 {} 或缺少部分字段，确保每个字段都有默认值
+const _rawPm = loadJson<Partial<PersonModel>>(PERSON_MODEL_PATH, DEFAULT_PERSON_MODEL)
+let personModel: PersonModel = { ...DEFAULT_PERSON_MODEL, ..._rawPm }
 
 export function getPersonModel(): PersonModel { return personModel }
-;(globalThis as any).__ccSoulPersonModel = personModel
 
 /**
  * 分阶段人格蒸馏：

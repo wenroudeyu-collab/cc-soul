@@ -29,7 +29,7 @@ import {
   trigrams, trigramSimilarity, timeDecay,
   MAX_MEMORIES, MAX_HISTORY, INJECT_HISTORY,
   compressMemory, detectMemoryPoisoning, extractReasoning, defaultVisibility,
-  emitCacheEvent,
+  emitCacheEvent, generateMemoryId, appendLineage, classifyConflict, contextAwareSimilarity,
 } from './memory-utils.ts'
 import { invalidateIDF, incrementalIDFUpdate, updateRecallIndex, rebuildRecallIndex } from './memory-recall.ts'
 
@@ -249,17 +249,20 @@ const workingMemory = new Map<string, WorkingMemoryEntry[]>()
  */
 export function addWorkingMemory(content: string, sessionKey: string) {
   if (!content || content.length < 5) return
+  // 真 LRU：每次访问 delete + re-set（Map 按插入顺序迭代，最近 set 的在末尾）
   let entries = workingMemory.get(sessionKey)
-  if (!entries) {
+  if (entries) {
+    workingMemory.delete(sessionKey)  // 先删
+  } else {
     entries = []
-    workingMemory.set(sessionKey, entries)
   }
+  workingMemory.set(sessionKey, entries)  // 重插到末尾（= 最近访问）
   // Dedup
   if (entries.some(e => e.content === content)) return
   entries.push({ content, sessionKey, addedAt: Date.now() })
   // Trim per-session entries
   if (entries.length > MAX_WORKING) entries.splice(0, entries.length - MAX_WORKING)
-  // P0-2: LRU eviction — cap total sessions
+  // LRU eviction — cap total sessions（keys().next() 现在是真正最久没访问的）
   if (workingMemory.size > MAX_WORKING_SESSIONS) {
     const oldest = workingMemory.keys().next().value
     if (oldest) workingMemory.delete(oldest)
@@ -273,6 +276,9 @@ export function addWorkingMemory(content: string, sessionKey: string) {
 export function buildWorkingMemoryContext(sessionKey: string): string {
   const entries = workingMemory.get(sessionKey)
   if (!entries || entries.length === 0) return ''
+  // LRU touch：读取也算访问
+  workingMemory.delete(sessionKey)
+  workingMemory.set(sessionKey, entries)
   return `[Working Memory — this session]\n${entries.map(e => `- ${e.content}`).join('\n')}`
 }
 
@@ -712,7 +718,7 @@ export function decideMemoryAction(newContent: string, scope?: string): { action
 
   // Context-Aware Similarity 增强：trigram 候选用语境相似度精排
   try {
-    const { contextAwareSimilarity } = require('./memory-utils.ts')
+    // contextAwareSimilarity imported at top level
     for (const c of candidates.slice(0, 5)) {
       const mem = memoryState.memories[c.idx]
       if (mem) {
@@ -775,6 +781,16 @@ export function updateMemory(index: number, newContent: string) {
   mem.ts = Date.now()
   mem.lastAccessed = Date.now()
   mem.tags = undefined // re-tag on next cycle
+
+  // 溯源链：记录 reshape
+  try {
+    // appendLineage imported at top level
+    const delta = newContent.length > oldContent.length
+      ? `+${newContent.replace(oldContent, '').slice(0, 40)}`
+      : `~${newContent.slice(0, 40)}`
+    appendLineage(mem, { action: 'reshaped', ts: Date.now(), delta })
+  } catch {}
+
   invalidateIDF()
   rebuildScopeIndex()
   saveMemories()
@@ -1207,22 +1223,38 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     return
   }
 
-  // ── 写入时内联冲突解决（从 Mem0 借鉴，零 LLM）──
-  // 用 fact-store 三元组精确匹配检测矛盾，不等 heartbeat
+  // ── 写入时冲突解决 + 事实版本链（Mem0 借鉴 + Zep 启发，零 LLM）──
+  // supersede: 排他性谓语变化 → 建版本链（旧→historical）
+  // supplement: 非排他性 → 旧的 reshape 降权
+  let _supersededMemId: string | undefined
   try {
     const { extractFacts, queryFacts } = require('./fact-store.ts')
+    // classifyConflict imported at top level
     const newFacts = extractFacts(content)
     for (const f of newFacts) {
       const existing = queryFacts({ subject: f.subject, predicate: f.predicate })
       if (existing.length > 0 && existing[0].object !== f.object) {
-        // 检查时间方向：新记忆比旧事实更早（导入历史数据）→ 不 penalize 旧的
         if (existing[0].ts && Date.now() < existing[0].ts) continue
-        // 同 subject+predicate 不同 object → 立即降权旧记忆
-        const oldMem = memoryState.memories.find(m => m.content && m.content.includes(existing[0].object) && m.scope === scope)
-        if (oldMem) {
+        const oldMem = memoryState.memories.find((m: any) => m.content && m.content.includes(existing[0].object))
+        if (!oldMem) continue
+
+        const conflictType = classifyConflict([{ subject: f.subject, predicate: f.predicate, object: existing[0].object }], [f])
+
+        if (conflictType === 'supersede') {
+          // 排他性取代 → 建版本链
+          _supersededMemId = oldMem.memoryId
+          oldMem.supersededBy = 'pending'  // 新记忆创建后回填
+          oldMem.scope = 'historical'
+          try {
+            // appendLineage imported at top level
+            appendLineage(oldMem, { action: 'superseded', ts: Date.now(), delta: `被取代: ${f.object} 替代 ${existing[0].object}` })
+          } catch {}
+          try { const { logDecision } = require('./decision-log.ts'); logDecision('supersede', (oldMem.content||'').slice(0,30), `${f.predicate}: ${existing[0].object}→${f.object}`) } catch {}
+        } else {
+          // 非排他性 → 降权（保留原有行为）
           try {
             const { penalizeTruthfulness } = require('./smart-forget.ts')
-            penalizeTruthfulness(oldMem, `被新事实覆盖: ${f.object} 替代 ${existing[0].object}`)
+            penalizeTruthfulness(oldMem, `被新事实补充: ${f.object}`)
           } catch {}
         }
       }
@@ -1280,13 +1312,17 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     : (scope === 'reflexion' || scope === 'insight' || scope === 'consolidated') ? 0.6        // 系统生成的
     : 0.7  // 默认
 
+  // generateMemoryId, appendLineage imported at top level
+
   const newMem: Memory = {
+    memoryId: generateMemoryId(),
     content, scope, ts: Date.now(), userId, visibility: resolvedVisibility, channelId,
     bayesAlpha: BAYES_DEFAULT_ALPHA, bayesBeta: BAYES_DEFAULT_BETA,
     confidence: generationBoost,
     lastAccessed: Date.now(),
     tier: 'short_term',
     recallCount: 0,
+    lineage: [{ action: 'created', ts: Date.now(), trigger: autoSource, delta: scope }],
     source: autoSource,
     network: autoNetwork,
     emotionIntensity: autoEmotionIntensity,
@@ -1295,6 +1331,24 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     ...extractReasoning(content),
     ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),
   }
+  // ── 闪光灯记忆（Flashbulb Memory）：高情绪事件深度编码 ──
+  // 人脑原理：极端情绪事件形成超详细记忆（911 你记得你在做什么）
+  // cc-soul 原创：emotionIntensity ≥ 0.7 自动触发，零 LLM，存当时完整上下文
+  if (autoEmotionIntensity >= 0.7) {
+    let _bodyMod: any = null
+    try { _bodyMod = require('./body.ts') } catch {}
+    const recentCtx = memoryState.chatHistory.slice(-3).map(h => h.user.slice(0, 40)).join(' → ')
+    let people: string[] = []
+    try { people = require('./graph.ts').findMentionedEntities(content).slice(0, 5) } catch {}
+    try { require('./decision-log.ts').logDecision('flashbulb', content.slice(0, 30), `emotionIntensity=${autoEmotionIntensity.toFixed(2)}, mood=${_bodyMod?.body?.mood?.toFixed(2) ?? '?'}`) } catch {}
+    newMem.flashbulb = {
+      surroundingContext: recentCtx || '(无上下文)',
+      bodyState: { mood: _bodyMod?.body?.mood ?? 0, energy: _bodyMod?.body?.energy ?? 0.5 },
+      mentionedPeople: people,
+      detailLevel: 'full',
+    }
+  }
+
   // ── Decision causal recording: extract WHY from causal keywords ──
   const causalMatch = content.match(/(?:because|因为|由于|是因为|之所以.*?是|所以选.*?是因为)\s*[,，:：]?\s*(.{4,80}?)(?:[。.!！;；]|$)/i)
   if (causalMatch) newMem.because = causalMatch[1].trim()
@@ -1328,6 +1382,15 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   memoryState.memories.push(newMem)
   updateRecallIndex(newMem)
   emitCacheEvent('memory_added')
+
+  // 事实版本链：回填 supersedes 关系
+  if (_supersededMemId && newMem.memoryId) {
+    newMem.supersedes = _supersededMemId
+    const oldMem = memoryState.memories.find((m: any) => m.memoryId === _supersededMemId)
+    if (oldMem) oldMem.supersededBy = newMem.memoryId
+    // 身份信息变更广播：通知各缓存层（如 L3、entity crystal）失效
+    emitCacheEvent('identity_changed')
+  }
 
   try {
     // #15 记忆图谱化：自动建立记忆间关系边

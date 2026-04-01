@@ -13,6 +13,12 @@ import { createHash } from 'crypto'
 
 const SOUL_API = process.env.SOUL_API || 'http://localhost:18800'
 
+// ── Dedup state (module-level, no need for globalThis) ──
+let _lastProcessed = ''
+let _lastProcessedTs = 0
+let _lastMsg = ''
+let _lastSenderId = ''
+
 // ── Feedback dedup: track sent feedback by content hash ──
 const _sentFeedbackHashes = new Set<string>()
 const FEEDBACK_DEDUP_MAX = 200
@@ -117,9 +123,9 @@ export default {
         // Dedup: skip if this exact event was processed within 3s
         const msgKey = rawMsg.slice(0, 50) + ':' + senderId
         const now = Date.now()
-        if ((globalThis as any).__ccSoulLastProcessed === msgKey && now - ((globalThis as any).__ccSoulLastProcessedTs || 0) < 3000) return
-        ;(globalThis as any).__ccSoulLastProcessed = msgKey
-        ;(globalThis as any).__ccSoulLastProcessedTs = now
+        if (_lastProcessed === msgKey && now - _lastProcessedTs < 3000) return
+        _lastProcessed = msgKey
+        _lastProcessedTs = now
 
         // Pass sender context to context-engine
         try {
@@ -181,8 +187,8 @@ export default {
           }
 
           // Store for feedback
-          ;(globalThis as any).__ccSoulLastMsg = rawMsg
-          ;(globalThis as any).__ccSoulLastSenderId = senderId
+          _lastMsg = rawMsg
+          _lastSenderId = senderId
         } catch (e: any) {
           console.log(`[cc-soul] process: ${e.message}`)
         }
@@ -194,8 +200,8 @@ export default {
         if (_contextEngineRegistered) return
 
         const content = (event.context?.content || event.content || event.text || '') as string
-        const lastMsg = (globalThis as any).__ccSoulLastMsg || ''
-        const lastSenderId = (globalThis as any).__ccSoulLastSenderId || ''
+        const lastMsg = _lastMsg
+        const lastSenderId = _lastSenderId
         if (!lastMsg || !content || content.length < 5) return
 
         if (!_markFeedbackSent(lastMsg, content)) return

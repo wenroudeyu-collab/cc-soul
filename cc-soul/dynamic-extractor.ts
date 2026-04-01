@@ -50,7 +50,7 @@ const SEED_STRUCTURES: StructureWord[] = [
   // 习惯
   { words: ['每天', '习惯', '经常', '总是', '一般都'], slot: 'habit', predicate: 'habit', seedStrength: 'medium' },
   // 学习
-  { words: ['在学', '在研究', '开始学', '入门', '最近在看'], slot: 'learning', predicate: 'learning', seedStrength: 'medium' },
+  { words: ['在学', '在研究', '开始学', '入门', '最近在看', '想学', '准备学', '打算学'], slot: 'learning', predicate: 'learning', seedStrength: 'medium' },
   // 引用（弱信号）
   { words: ['提到', '说过', '聊到', '听说'], slot: 'mention', predicate: 'mentioned', seedStrength: 'weak' },
   // 比较偏好
@@ -145,6 +145,11 @@ export function dynamicExtract(content: string, userId?: string): ExtractionResu
         const idx = content.indexOf(word)
         if (idx < 0) continue
 
+        // 主语检查：结构词前面如果是第三人称（老板/他/她/同事），subject 不是 user
+        const beforeWord = content.slice(Math.max(0, idx - 6), idx)
+        const thirdPerson = /老板|同事|他|她|朋友|对方|客户/.test(beforeWord)
+        if (thirdPerson && structure.predicate !== 'relationship') continue  // 跳过非用户主语
+
         // 提取结构词后面的内容词（到标点/空格/句末截止）
         const afterWord = content.slice(idx + word.length).trim()
         const contentWord = afterWord.match(/^([^\s，。！？,;；\n]{1,15})/)?.[1]
@@ -155,8 +160,15 @@ export function dynamicExtract(content: string, userId?: string): ExtractionResu
         const threshold = structure.seedStrength === 'strong' ? 0.3 : structure.seedStrength === 'medium' ? 0.5 : 0.7
 
         if (strength >= threshold) {
+          let object = contentWord.replace(/[，。！？\s]+$/, '')
+          // relationship 特殊处理：结构词（女朋友/老婆等）+ 名字
+          if (structure.slot === 'relationship') {
+            // "女朋友小雨" → "女朋友：小雨"；"女朋友叫小雨" → "女朋友：小雨"
+            object = object.replace(/^叫/, '')
+            object = `${word}：${object}`
+          }
           results.push({
-            subject: 'user', predicate: structure.predicate, object: contentWord.replace(/[，。！？\s]+$/, ''),
+            subject: 'user', predicate: structure.predicate, object,
             confidence: Math.min(0.95, strength), source: 'user_said',
             structureWord: word, slot: structure.slot,
           })

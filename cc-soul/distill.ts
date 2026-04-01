@@ -84,6 +84,9 @@ interface DistillState {
   totalDistills: number
   // P2c: 溢出队列持久化
   pendingDecayDistill?: Array<{ contents: string[]; clusteredAt: number }>
+  // PMI orphan tracking
+  orphanMemoryContents?: string[]
+  orphanAccumulatedAt?: number
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -221,6 +224,8 @@ export function distillL1toL2() {
   // Limit total CLI calls to avoid queue overflow (CLI queue max = 10)
   let cliCallsThisRound = 0
   const MAX_CLI_PER_DISTILL = 8
+  // Track unclustered memories per user for PMI assignment pass
+  const unclusteredByUser = new Map<string, Memory[]>()
 
   for (const [userId, memories] of byUser) {
     if (memories.length < 5) continue
@@ -228,6 +233,12 @@ export function distillL1toL2() {
 
     // Simple topic clustering: group by scope + keyword overlap
     const clusters = clusterByKeywords(memories)
+
+    // Collect unclustered memories for PMI pass
+    const clusteredSet = new Set<string>()
+    for (const cl of clusters) { if (cl.length >= 2) for (const m of cl) clusteredSet.add(m.content) }
+    const unc = memories.filter(m => !clusteredSet.has(m.content))
+    if (unc.length > 0) unclusteredByUser.set(userId, unc)
 
     // Emotion-weighted L2 promotion: sort clusters so emotionally significant ones get priority
     clusters.sort((a, b) => {
@@ -327,6 +338,73 @@ export function distillL1toL2() {
     }
   }
 
+  // ── PMI-based incremental assignment for unclustered memories ──
+  for (const [userId, unclustered] of unclusteredByUser) {
+    const uid = userId === '_global' ? undefined : userId
+    const orphans = distillState.orphanMemoryContents ??= []
+
+    for (const m of unclustered) {
+      const matched = assignMemoryToNode(m.content, topicNodes, uid)
+      if (matched) {
+        // Increment source count — memory is now represented by this node
+        matched.sourceCount++
+        matched.lastUpdated = now
+      } else {
+        // Orphan — no existing node matches
+        if (!orphans.includes(m.content.slice(0, 200))) {
+          orphans.push(m.content.slice(0, 200))
+          distillState.orphanAccumulatedAt ??= now
+        }
+      }
+    }
+
+    // Orphan graduation: cluster orphans when enough accumulate
+    if (orphans.length >= 5) {
+      const PMI_THRESHOLD = 0.5
+      const viable = clusterOrphansByPMI(orphans, PMI_THRESHOLD)
+
+      for (const oc of viable) {
+        const topicName = oc[0].slice(0, 10).replace(/[，。！？\s]+$/, '') || '未分类'
+        const summary = zeroLLMDistill(oc) || oc.map(s => s.slice(0, 40)).join('；')
+        topicNodes.push({
+          topic: topicName.slice(0, 20),
+          summary: summary.slice(0, 200),
+          sourceCount: oc.length,
+          lastUpdated: now,
+          userId: uid,
+        })
+        // Remove graduated orphans
+        for (const content of oc) {
+          const idx = orphans.indexOf(content)
+          if (idx >= 0) orphans.splice(idx, 1)
+        }
+      }
+
+      // Force group by 24h time window if orphans pile up with no viable cluster
+      if (orphans.length >= 20) {
+        const topicName = '杂项话题'
+        const summary = zeroLLMDistill(orphans.slice(0, 15)) || orphans.slice(0, 5).map(s => s.slice(0, 30)).join('；')
+        topicNodes.push({
+          topic: topicName,
+          summary: summary.slice(0, 200),
+          sourceCount: orphans.length,
+          lastUpdated: now,
+          userId: uid,
+        })
+        orphans.length = 0
+        distillState.orphanAccumulatedAt = undefined
+        console.log(`[cc-soul][distill] PMI orphans force-grouped into fallback node`)
+      }
+
+      // Cap total nodes
+      if (topicNodes.length > MAX_TOPIC_NODES) {
+        topicNodes.sort((a, b) => b.lastUpdated - a.lastUpdated)
+        topicNodes.length = MAX_TOPIC_NODES
+      }
+      saveTopicNodes()
+    }
+  }
+
   distillState.totalDistills++
   saveDistillState_()
 }
@@ -411,12 +489,29 @@ export function distillL2toL3() {
       sections.dynamics = ''
     }
 
+    // ── 紧急刷新触发器：检测重大变更信号，跳过 cooldown ──
+    // 审核结论：identity 7天太慢，用户说"换工作了"应该立即刷新
+    const URGENT_TRIGGERS: Record<string, RegExp> = {
+      identity: /换工作|辞职|转行|改名|毕业|入职|退休|创业/,
+      facts: /搬家|搬到|分手|结婚|生了|买了房|换了手机/,
+      style: /以后.*别|不要再|换个方式|太啰嗦|说重点/,
+    }
+    const recentMsgs = memoryState.chatHistory.slice(-5).map(h => h.user).join(' ')
+    const urgentSections = new Set<string>()
+    for (const [sec, re] of Object.entries(URGENT_TRIGGERS)) {
+      if (re.test(recentMsgs)) urgentSections.add(sec)
+    }
+
     for (const sectionKey of ['identity', 'style', 'facts', 'dynamics'] as const) {
       if (cliCalls >= MAX_CLI_L3) break
 
-      // cooldown 检查
+      // cooldown 检查（紧急触发时跳过）
       const cooldown = SECTION_COOLDOWNS[sectionKey]
-      if (now - sectionUpdated[sectionKey] < cooldown) continue
+      const isUrgent = urgentSections.has(sectionKey)
+      if (!isUrgent && now - sectionUpdated[sectionKey] < cooldown) continue
+      if (isUrgent) {
+        try { require('./decision-log.ts').logDecision('urgent_refresh', sectionKey, `trigger matched in recent msgs`) } catch {}
+      }
 
       // 构建 section 专用 prompt
       const sectionInfo = SECTION_PROMPTS[sectionKey]
@@ -856,6 +951,67 @@ export function adjustTopicConfidence(topicName: string, delta: number) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // INTERNAL UTILITIES
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ── PMI-based incremental assignment (enhancement over keyword overlap) ──
+
+const CJK_WORD_RE = /[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi
+
+function extractWords(text: string): string[] {
+  return (text.match(CJK_WORD_RE) || []).map(w => w.toLowerCase())
+}
+
+/** Average positive PMI between keyword sets from two texts */
+function memoryPMISimilarity(memContent: string, nodeText: string): number {
+  let aamPmi: ((w1: string, w2: string) => number) | null = null
+  try { aamPmi = require('./aam.ts').pmi } catch { return 0 }
+  if (!aamPmi) return 0
+
+  const mWords = [...new Set(extractWords(memContent))]
+  const nWords = [...new Set(extractWords(nodeText))]
+  if (mWords.length === 0 || nWords.length === 0) return 0
+
+  let sum = 0, count = 0
+  for (const mw of mWords) {
+    for (const nw of nWords) {
+      if (mw === nw) { sum += 3; count++; continue } // exact match → high synthetic PMI
+      const p = aamPmi(mw, nw)
+      if (p > 0) { sum += p; count++ }
+    }
+  }
+  return count > 0 ? sum / count : 0
+}
+
+/** Find best matching TopicNode for a memory using PMI similarity. Returns null if orphan. */
+function assignMemoryToNode(memContent: string, nodes: TopicNode[], userId?: string): TopicNode | null {
+  let best: TopicNode | null = null, bestScore = 0
+  for (const n of nodes) {
+    if (n.userId !== userId) continue
+    const score = memoryPMISimilarity(memContent, `${n.topic} ${n.summary}`)
+    if (score > bestScore) { bestScore = score; best = n }
+  }
+  return bestScore > 0.3 ? best : null
+}
+
+/** Cluster orphan memory contents using PMI. Returns clusters with avg intra-PMI > threshold. */
+function clusterOrphansByPMI(orphans: string[], threshold: number): string[][] {
+  const clusters: string[][] = []
+  const assigned = new Set<number>()
+
+  for (let i = 0; i < orphans.length; i++) {
+    if (assigned.has(i)) continue
+    const cluster = [orphans[i]]
+    assigned.add(i)
+    for (let j = i + 1; j < orphans.length; j++) {
+      if (assigned.has(j)) continue
+      if (memoryPMISimilarity(orphans[i], orphans[j]) > threshold) {
+        cluster.push(orphans[j])
+        assigned.add(j)
+      }
+    }
+    if (cluster.length >= 2) clusters.push(cluster)
+  }
+  return clusters
+}
 
 /**
  * Simple keyword-based clustering. Groups memories that share >40% keywords.

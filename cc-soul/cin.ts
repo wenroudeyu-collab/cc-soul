@@ -339,10 +339,10 @@ function generateStrategyHint(dims: CINPrediction['dimensions'], state: Cognitiv
   // 状态提示
   const stateHints: Record<CognitiveState, string> = {
     normal: '',
-    pressure: '用户当前压力大，回复简洁直接，不抛新话题',
-    relaxed: '用户状态轻松，可以随意聊，适合推荐新东西',
-    excited: '用户兴奋中，顺着他的劲，别泼冷水',
-    low: '用户情绪低，先共情再建议，别说教',
+    pressure: '状态：压力大',
+    relaxed: '状态：轻松',
+    excited: '状态：兴奋',
+    low: '状态：情绪低',
   }
   if (stateHints[state]) hints.push(stateHints[state])
 

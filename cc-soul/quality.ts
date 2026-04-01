@@ -14,15 +14,15 @@ import { extractJSON } from './utils.ts'
 import { resolve } from 'path'
 
 // ── Contrastive feature context: track previous reply and next user message ──
-let _lastReply = ''
-let _nextUserMsgLen = -1  // -1 = not available yet
+const _lastReplyByUser = new Map<string, string>()
+const _nextUserMsgLenByUser = new Map<string, number>()  // per-user isolation
 
-/** Call after each bot reply to track for repetition detection */
-export function trackLastReply(reply: string) { _lastReply = reply }
-/** Call when next user message arrives — used for engagement feature */
-export function trackNextUserMsg(msg: string) { _nextUserMsgLen = msg.length }
+/** Call after each bot reply to track for repetition detection (per-user) */
+export function trackLastReply(reply: string, userId = 'default') { _lastReplyByUser.set(userId, reply) }
+/** Call when next user message arrives — used for engagement feature (per-user) */
+export function trackNextUserMsg(msg: string, userId = 'default') { _nextUserMsgLenByUser.set(userId, msg.length) }
 /** Reset next user msg tracking (called after features are extracted) */
-function consumeNextUserMsg(): number { const v = _nextUserMsgLen; _nextUserMsgLen = -1; return v }
+function consumeNextUserMsg(userId = 'default'): number { const v = _nextUserMsgLenByUser.get(userId) ?? -1; _nextUserMsgLenByUser.delete(userId); return v }
 
 // ── Quality Features & Logistic Regression Weights ──
 
@@ -71,14 +71,15 @@ function _quickTrigramSim(a: string, b: string): number {
   }
 }
 
-function extractFeatures(question: string, answer: string): QualityFeatures {
+function extractFeatures(question: string, answer: string, userId = 'default'): QualityFeatures {
   const qLen = question.length, aLen = answer.length
   const qWords = new Set((question.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase()))
   const aWords = (answer.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
   const overlap = qWords.size > 0 ? aWords.filter(w => qWords.has(w)).length / Math.max(1, qWords.size) : 0
 
   // Contrastive feature: repetition penalty (similarity to previous reply)
-  const repSim = _quickTrigramSim(answer.slice(0, 500), _lastReply.slice(0, 500))
+  const lastReply = _lastReplyByUser.get(userId) || ''
+  const repSim = _quickTrigramSim(answer.slice(0, 500), lastReply.slice(0, 500))
   const repetitionPenalty = repSim > 0.7 ? 1 : 0
 
   // Contrastive feature: information gain (unique words in reply beyond query)
@@ -87,7 +88,7 @@ function extractFeatures(question: string, answer: string): QualityFeatures {
   const informationGain = infoGainRatio > 2 ? 1 : 0
 
   // Contrastive feature: user engagement (next user message length as proxy)
-  const nextLen = consumeNextUserMsg()
+  const nextLen = consumeNextUserMsg(userId)
   const userEngagement = nextLen < 0 ? 0 : (nextLen > 20 ? 1 : (nextLen < 5 ? -1 : 0))
 
   return {
@@ -187,8 +188,8 @@ export function trackMemoryRecall(found: boolean) {
 
 // ── Scoring ──
 
-export function scoreResponse(question: string, answer: string): number {
-  const features = extractFeatures(question, answer)
+export function scoreResponse(question: string, answer: string, userId = 'default'): number {
+  const features = extractFeatures(question, answer, userId)
 
   let logit = qw.bias
   for (const key of FEATURE_KEYS) {
@@ -210,8 +211,8 @@ export function scoreResponse(question: string, answer: string): number {
  * P5h: engagement 信号驱动的质量权重更新
  * 除了 positive/correction 二值反馈，还接受 P1a 的 engagement 分数
  */
-export function updateQualityFromEngagement(question: string, answer: string, engagementRate: number) {
-  const features = extractFeatures(question, answer)
+export function updateQualityFromEngagement(question: string, answer: string, engagementRate: number, userId = 'default') {
+  const features = extractFeatures(question, answer, userId)
   const target = engagementRate  // 0-1 连续值
   let logit = qw.bias
   for (const key of FEATURE_KEYS) logit += (qw.weights[key] || 0) * features[key]
@@ -230,8 +231,8 @@ export function updateQualityFromEngagement(question: string, answer: string, en
   debouncedSave(WEIGHTS_PATH, qw)
 }
 
-export function updateQualityWeights(question: string, answer: string, feedback: 'positive' | 'correction') {
-  const features = extractFeatures(question, answer)
+export function updateQualityWeights(question: string, answer: string, feedback: 'positive' | 'correction', userId = 'default') {
+  const features = extractFeatures(question, answer, userId)
   const target = feedback === 'positive' ? 0.9 : 0.2
 
   let logit = qw.bias

@@ -35,26 +35,72 @@ const domains = new Map<string, DomainConfidence>()
 // DOMAIN DETECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// 缓存：同一条消息不重复检测
+let _domainCache: { msg: string; result: string } | null = null
+
+// 领域关键词表（种子，按特异性排序——越具体的越前面）
+const DOMAIN_KEYWORDS: Array<{ domain: string; words: string[]; specificity: number }> = [
+  { domain: 'ios-reverse', words: ['frida', 'hook', 'ida', 'mach-o', 'dyld', 'arm64', 'objc', '逆向', '砸壳', 'tweak', 'substrate', 'theos', 'cycript'], specificity: 0.95 },
+  { domain: 'rust', words: ['rust', 'cargo', '.rs', 'lifetime', 'borrow checker'], specificity: 0.9 },
+  { domain: 'swift', words: ['swift', 'xcode', 'swiftui', 'uikit', 'cocoa', 'appkit'], specificity: 0.85 },
+  { domain: 'golang', words: ['go ', 'golang', 'goroutine', '.go', 'func '], specificity: 0.85 },
+  { domain: 'python', words: ['python', 'pip', 'flask', 'django', 'def ', 'import ', '.py', 'asyncio', 'pandas'], specificity: 0.7 },
+  { domain: 'javascript', words: ['typescript', 'javascript', 'node', 'react', 'vue', '.ts', '.js', 'npm', 'pnpm', 'bun'], specificity: 0.7 },
+  { domain: 'devops', words: ['docker', 'k8s', 'kubernetes', 'nginx', 'linux', 'bash', 'shell', 'systemd', 'ssh'], specificity: 0.75 },
+  { domain: 'database', words: ['sql', 'mysql', 'postgres', 'mongodb', '数据库', 'redis', 'sqlite'], specificity: 0.8 },
+  { domain: '图片识别', words: ['图片', 'ocr', '识别', '照片', '截图', '看看这个', '这张图'], specificity: 0.85 },
+  { domain: 'git', words: ['git', 'github', 'pr', 'merge', 'branch', 'commit', 'rebase'], specificity: 0.8 },
+]
+
 export function detectDomain(msg: string): string {
+  // 缓存命中
+  if (_domainCache?.msg === msg) return _domainCache.result
+
   const m = msg.toLowerCase()
 
-  // Technical domains (order: specific → general)
-  if (['frida', 'hook', 'ida', 'mach-o', 'dyld', 'arm64', 'objc', '逆向', '砸壳', 'tweak', 'substrate', 'theos'].some(w => m.includes(w))) return 'ios-reverse'
-  if (['swift', 'xcode', 'swiftui', 'uikit', 'cocoa', 'appkit'].some(w => m.includes(w))) return 'swift'
-  if (['python', 'pip', 'flask', 'django', 'def ', 'import ', '.py', 'asyncio', 'pandas'].some(w => m.includes(w))) return 'python'
-  if (['typescript', 'javascript', 'node', 'react', 'vue', '.ts', '.js', 'npm', 'pnpm', 'bun'].some(w => m.includes(w))) return 'javascript'
-  if (['docker', 'k8s', 'kubernetes', 'nginx', 'linux', 'bash', 'shell', 'systemd', 'ssh'].some(w => m.includes(w))) return 'devops'
-  if (['sql', 'mysql', 'postgres', 'mongodb', '数据库', 'redis', 'sqlite'].some(w => m.includes(w))) return 'database'
-  if (['图片', 'ocr', '识别', '照片', '截图', '看看这个', '这张图'].some(w => m.includes(w))) return '图片识别'
-  if (['git', 'github', 'pr', 'merge', 'branch', 'commit', 'rebase'].some(w => m.includes(w))) return 'git'
-  if (['rust', 'cargo', '.rs', 'lifetime', 'borrow checker'].some(w => m.includes(w))) return 'rust'
-  if (['go ', 'golang', 'goroutine', '.go', 'func '].some(w => m.includes(w))) return 'golang'
+  // IDF 特异性优先：多个领域都匹配时，取特异性最高的
+  let bestDomain = '通用'
+  let bestScore = 0
 
-  // Non-technical
-  if (msg.length < 20) return '闲聊'
-  if (['怎么看', '你觉得', '建议', '应该', '推荐'].some(w => m.includes(w))) return '咨询'
+  for (const { domain, words, specificity } of DOMAIN_KEYWORDS) {
+    const hits = words.filter(w => m.includes(w)).length
+    if (hits > 0) {
+      const score = hits * specificity  // 命中数 × 特异性
+      if (score > bestScore) {
+        bestScore = score
+        bestDomain = domain
+      }
+    }
+  }
 
-  return '通用'
+  // AAM 动态补充：查共现网络里跟已知领域词高频共现的新词
+  if (bestDomain === '通用') {
+    try {
+      const { getCooccurrence } = require('./aam.ts')
+      // 提取消息中的关键词
+      const msgWords = (m.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      for (const mw of msgWords) {
+        for (const { domain, words } of DOMAIN_KEYWORDS) {
+          for (const dw of words.slice(0, 3)) {  // 只查前 3 个种子词
+            if (getCooccurrence(mw, dw) >= 5) {  // 高共现
+              bestDomain = domain
+              break
+            }
+          }
+          if (bestDomain !== '通用') break
+        }
+        if (bestDomain !== '通用') break
+      }
+    } catch {}
+  }
+
+  if (bestDomain === '通用') {
+    if (msg.length < 20) bestDomain = '闲聊'
+    else if (['怎么看', '你觉得', '建议', '应该', '推荐'].some(w => m.includes(w))) bestDomain = '咨询'
+  }
+
+  _domainCache = { msg, result: bestDomain }
+  return bestDomain
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -96,7 +142,7 @@ function recompute(d: DomainConfidence) {
     ? Math.round(d.qualitySum / d.totalResponses * 10) / 10
     : 5
   d.correctionRate = d.totalResponses > 0
-    ? Math.round(d.corrections / d.totalResponses * 1000) / 10
+    ? Math.round((d.corrections + 1) / (d.totalResponses + 2) * 1000) / 10
     : 0
 }
 
@@ -149,7 +195,8 @@ export function computeKnowledgeDecay(domain: string, domainData: any): Knowledg
   const base = 1 / (1 + Math.exp(-(avgQuality - 5) * 0.8))
 
   // 半衰期：纠正率越高，半衰期越短（知识越不稳定）
-  const correctionRate = total > 0 ? corrections / total : 0
+  // Beta(1,1) prior smoothing: avoids high variance with small samples
+  const correctionRate = total > 0 ? (corrections + 1) / (total + 2) : 0
   const halfLife = Math.max(3, 30 * (1 - correctionRate))  // 3-30 天
 
   // 衰减：距上次纠正越久，恢复越多
@@ -288,13 +335,13 @@ export interface GrowthVector {
  * No extra storage needed — all computed from existing data.
  */
 export function getGrowthVectors(): GrowthVector[] {
-  // Get dependencies from globalThis or dynamic refs to avoid circular deps + ESM require issue
+  // Lazy imports to avoid circular deps (evolution/person-model import from epistemic)
   let rules: any[] = []
   let stats: any = { totalMessages: 0, corrections: 0 }
-  let getDb: any = () => null
-  try { rules = (globalThis as any).__ccSoulRules || [] } catch {}
-  try { stats = (globalThis as any).__ccSoulStats || stats } catch {}
-  try { getDb = (globalThis as any).__ccSoulSqlite?.db ? () => (globalThis as any).__ccSoulSqlite.db : getDb } catch {}
+  let getDbFn: any = () => null
+  try { rules = require('./evolution.ts').getRules?.() || [] } catch {}
+  try { stats = require('./handler-state.ts').stats || stats } catch {}
+  try { const { getDb } = require('./sqlite-store.ts'); getDbFn = getDb } catch {}
 
   const vectors: GrowthVector[] = []
   const now = Date.now()
@@ -302,7 +349,7 @@ export function getGrowthVectors(): GrowthVector[] {
 
   // 1. correction_rate: 7-day window vs previous 7-day window
   try {
-    const db = getDb()
+    const db = getDbFn()
     if (db) {
       const cur7d = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE scope = 'correction' AND ts > ?").get(now - WEEK) as any)?.c || 0
       const prev7d = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE scope = 'correction' AND ts > ? AND ts <= ?").get(now - 2 * WEEK, now - WEEK) as any)?.c || 0
@@ -335,7 +382,7 @@ export function getGrowthVectors(): GrowthVector[] {
 
   // 3. memory_quality: average confidence of active memories
   try {
-    const db = getDb()
+    const db = getDbFn()
     if (db) {
       const curAvg = (db.prepare("SELECT AVG(confidence) as avg FROM memories WHERE scope != 'expired' AND scope != 'decayed' AND ts > ?").get(now - WEEK) as any)?.avg
       const prevAvg = (db.prepare("SELECT AVG(confidence) as avg FROM memories WHERE scope != 'expired' AND scope != 'decayed' AND ts > ? AND ts <= ?").get(now - 2 * WEEK, now - WEEK) as any)?.avg
@@ -354,7 +401,7 @@ export function getGrowthVectors(): GrowthVector[] {
 
   // 4. recall_accuracy: ratio of recalled memories that were subsequently accessed again (proxy for accuracy)
   try {
-    const db = getDb()
+    const db = getDbFn()
     if (db) {
       const totalRecalled = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE recallCount > 0 AND scope != 'expired'").get() as any)?.c || 0
       const highRecall = (db.prepare("SELECT COUNT(*) as c FROM memories WHERE recallCount >= 3 AND scope != 'expired'").get() as any)?.c || 0
@@ -424,8 +471,9 @@ let pendingQuestions: PendingQuestion[] = loadJson<PendingQuestion[]>(PENDING_Q_
 
 /** Heartbeat: scan domains for blind spots, generate up to 3 pending questions */
 export function scanBlindSpotQuestions() {
-  // Only import at call time to avoid circular deps
-  const pm = (globalThis as any).__ccSoulPersonModel
+  // Lazy require to avoid circular deps (person-model imports from epistemic)
+  let pm: any = null
+  try { pm = require('./person-model.ts').getPersonModel?.() } catch {}
   const knownText = pm ? JSON.stringify(pm).toLowerCase() : ''
 
   const active = [...domains.values()]

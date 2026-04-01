@@ -24,6 +24,51 @@ import type { Memory } from './types.ts'
 import { trigrams, trigramSimilarity } from './memory-utils.ts'
 
 // ═══════════════════════════════════════════════════════════════
+// ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
+// ═══════════════════════════════════════════════════════════════
+
+export interface TraceStep {
+  stage: 'candidate_selection' | 'signal_boost' | 'signal_suppress'
+  via: string  // 'bm25' | 'aam_hop1' | 'aam_hop2' | 'graph' | 'cin' | 'system1_fact' | 'priming' | 'emotion' | 'recency' | 'interference' | 'mmr' | 'base_activation' | 'temporal' | 'confidence' | 'importance'
+  word?: string
+  rawScore: number
+}
+
+export interface ActivationTrace {
+  memory: Memory
+  score: number
+  path: TraceStep[]
+}
+
+export interface RejectionRecord {
+  content: string
+  originalRank: number
+  finalRank: number
+  reason: 'interference' | 'mmr_dedup' | 'below_threshold' | 'budget_cut'
+}
+
+// 内存缓存：最近 3 轮的 trace，用 Date.now() 作 key
+const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: RejectionRecord[] }>()
+
+/** 获取最近 30 秒内的 trace（供 feedback 回溯用） */
+export function getRecentTrace(): { traces: ActivationTrace[]; rejections: RejectionRecord[] } | null {
+  const now = Date.now()
+  const recent = [..._traceBuffer.entries()]
+    .filter(([ts]) => now - ts < 30_000)
+    .sort(([a], [b]) => b - a)
+  return recent[0]?.[1] ?? null
+}
+
+/** 清理过期 trace（保留最近 3 轮） */
+function pruneTraceBuffer() {
+  if (_traceBuffer.size <= 3) return
+  const sorted = [..._traceBuffer.keys()].sort((a, b) => a - b)
+  while (sorted.length > 3) {
+    _traceBuffer.delete(sorted.shift()!)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ACTIVATION STATE — 每条记忆的实时激活值
 // ═══════════════════════════════════════════════════════════════
 
@@ -218,6 +263,7 @@ export interface ActivationResult {
     interference: number
     temporal: number
   }
+  path?: TraceStep[]
 }
 
 /**
@@ -246,7 +292,7 @@ export function computeActivationField(
   const currentTop: Memory[] = []  // 用于干扰抑制
 
   // 第一遍：计算原始激活值（不含干扰抑制）
-  const rawResults: { mem: Memory; raw: number; signals: any }[] = []
+  const rawResults: { mem: Memory; raw: number; signals: any; path: TraceStep[] }[] = []
 
   for (const mem of memories) {
     if (mem.scope === 'expired' || mem.scope === 'decayed') continue
@@ -270,10 +316,22 @@ export function computeActivationField(
 
     const finalRaw = raw * confScale * impBoost
 
+    // 构建 trace path
+    const path: TraceStep[] = [
+      { stage: 'candidate_selection', via: s2 > 0.3 ? 'aam_context' : 'bm25', rawScore: s2 },
+      { stage: 'signal_boost', via: 'base_activation', rawScore: s1 },
+    ]
+    if (s3 > 0.6) path.push({ stage: 'signal_boost', via: 'emotion', rawScore: s3 })
+    if (s4 > 0.05) path.push({ stage: 'signal_boost', via: 'spread', rawScore: s4 })
+    if (s6 > 0.7) path.push({ stage: 'signal_boost', via: 'temporal', rawScore: s6 })
+    if (confScale > 0.8) path.push({ stage: 'signal_boost', via: 'confidence', rawScore: confScale })
+    if (impBoost > 1.0) path.push({ stage: 'signal_boost', via: 'importance', rawScore: impBoost })
+
     if (finalRaw > 0.01) {  // 极低的直接跳过
       rawResults.push({
         mem, raw: finalRaw,
-        signals: { base: s1, context: s2, emotion: s3, spread: s4, interference: 1.0, temporal: s6 }
+        signals: { base: s1, context: s2, emotion: s3, spread: s4, interference: 1.0, temporal: s6 },
+        path,
       })
     }
   }
@@ -287,6 +345,9 @@ export function computeActivationField(
     const activation = r.raw * s5
     r.signals.interference = s5
 
+    // trace: 记录干扰抑制
+    if (s5 < 1.0) r.path.push({ stage: 'signal_suppress', via: 'interference', rawScore: s5 })
+
     // 更新激活值缓存
     setActivation(r.mem, activation)
 
@@ -295,12 +356,36 @@ export function computeActivationField(
         memory: r.mem,
         activation,
         signals: r.signals,
+        path: r.path,
       })
       currentTop.push(r.mem)
     }
 
     if (results.length >= topN) break
   }
+
+  // 记录 trace + rejection log
+  const turnTs = Date.now()
+  const traces: ActivationTrace[] = results.map(r => ({
+    memory: r.memory, score: r.activation, path: r.path || []
+  }))
+
+  // Rejection log：top-20 中没进 results 的
+  const rejections: RejectionRecord[] = []
+  const selectedSet = new Set(results.map(r => memKey(r.memory)))
+  for (let i = 0; i < Math.min(20, rawResults.length); i++) {
+    if (!selectedSet.has(memKey(rawResults[i].mem))) {
+      rejections.push({
+        content: (rawResults[i].mem.content || '').slice(0, 30),
+        originalRank: i + 1,
+        finalRank: -1,
+        reason: rawResults[i].signals.interference < 1.0 ? 'interference' : 'below_threshold',
+      })
+    }
+  }
+
+  _traceBuffer.set(turnTs, { traces, rejections })
+  pruneTraceBuffer()
 
   return results
 }
@@ -371,26 +456,34 @@ export function activationRecall(
   try {
     const factStore = getFactStoreMod()
     // 检测查询是否适合 fact-store 直接命中
-    const factPatterns: { test: RegExp; predicate?: string }[] = [
-      { test: /叫什么|我是谁|名字/, predicate: undefined },
+    const factPatterns: { test: RegExp; predicate: string }[] = [
+      { test: /叫什么|我是谁|名字/, predicate: 'name' },
       { test: /工作|公司|上班/, predicate: 'works_at' },
       { test: /住哪|住在/, predicate: 'lives_in' },
       { test: /喜欢|偏好/, predicate: 'likes' },
       { test: /讨厌|不喜欢/, predicate: 'dislikes' },
       { test: /宠物|猫|狗|养/, predicate: 'has_pet' },
       { test: /家人|女儿|儿子|孩子|老婆/, predicate: 'has_family' },
+      { test: /女朋友|男朋友|伴侣|对象/, predicate: 'relationship' },
     ]
     for (const fp of factPatterns) {
       if (fp.test.test(query)) {
-        const facts = factStore.queryFacts(fp.predicate ? { subject: 'user', predicate: fp.predicate } : { subject: 'user' })
+        const facts = factStore.queryFacts({ subject: 'user', predicate: fp.predicate })
         if (facts.length > 0) {
-          // 把 fact 转为 Memory 格式返回
+          // 把 fact 转为 Memory 格式返回，但不短路——追加到激活场结果中
           const factMems = facts.slice(0, 3).map((f: any) => ({
-            content: `${f.predicate === 'likes' ? '喜欢' : f.predicate === 'dislikes' ? '讨厌' : f.predicate === 'works_at' ? '在' : f.predicate === 'lives_in' ? '住在' : ''}${f.object}`,
+            content: `${f.predicate === 'likes' ? '喜欢' : f.predicate === 'dislikes' ? '讨厌' : f.predicate === 'works_at' ? '在' : f.predicate === 'lives_in' ? '住在' : f.predicate === 'name' ? '叫' : ''}${f.object}`,
             scope: 'fact', ts: f.ts || Date.now(), confidence: f.confidence || 0.9, source: 'activation_field_s1',
           } as Memory))
-          console.log(`[activation-field] System 1 hit: ${factMems.length} facts`)
-          return factMems
+          console.log(`[activation-field] System 1 hit: ${fp.predicate} → ${factMems.length} facts`)
+          // System 1 做增强不做短路：精确命中的 facts 直接返回，但继续走激活场补充更多结果
+          const fieldResults = computeActivationField(memories, query, mood, alertness, expanded, topN)
+          // facts 优先 + 激活场补充（去重）
+          const seen = new Set(factMems.map(m => m.content))
+          for (const r of fieldResults) {
+            if (!seen.has(r.memory.content)) { factMems.push(r.memory); seen.add(r.memory.content) }
+          }
+          return factMems.slice(0, topN)
         }
       }
     }
@@ -424,6 +517,29 @@ export function activationRecall(
 
   // Step 4: CWRF — 如果有多个独立通道结果，用置信度加权融合
   // （activation field 是统一路径，CWRF 应用于 recallWithScores 的 5 通道融合中）
+
+  // ── 启动效应（Priming Effect）：最近提到的词降低识别阈值 ──
+  try {
+    const { _primingCache } = require('./memory-recall.ts') as { _primingCache: Map<string, number> }
+    if (_primingCache && _primingCache.size > 0) {
+      const now = Date.now()
+      const PRIMING_WINDOW = 5 * 60 * 1000
+      for (const r of results) {
+        const words = (r.memory.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+        let hits = 0
+        for (const w of words) {
+          const ts = _primingCache.get(w.toLowerCase())
+          if (ts && now - ts < PRIMING_WINDOW) hits++
+        }
+        if (hits > 0 && words.length > 0) {
+          const boost = Math.min(0.3, hits / words.length)
+          r.score *= (1 + boost)
+          try { require('./decision-log.ts').logDecision('priming', (r.memory.content || '').slice(0, 30), `hits=${hits}/${words.length}, boost=${boost.toFixed(2)}`) } catch {}
+        }
+      }
+      results.sort((a, b) => b.score - a.score)
+    }
+  } catch {}
 
   // 截断到 topN
   const topResults = results.slice(0, topN)

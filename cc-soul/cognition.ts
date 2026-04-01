@@ -482,10 +482,10 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
   if (attention.type === 'emotional') {
     const neg = EMOTION_NEGATIVE.some(w => msg.includes(w))
     if (neg) {
-      hints.push('用户情绪不好，先共情再回答，不要急着给建议')
+      hints.push('情绪信号：低落')
       body.mood = Math.max(-1, body.mood - 0.15)
     } else {
-      hints.push('用户情绪积极，可以轻松互动')
+      hints.push('情绪信号：积极')
       body.mood = Math.min(1, body.mood + 0.1)
     }
   }
@@ -494,7 +494,7 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
   if (strategy === 'direct') hints.push('简短回答即可')
   if (strategy === 'opinion_with_reasoning') hints.push('给出明确立场和理由，不说"各有优劣"')
   if (strategy === 'action_oriented') hints.push('先给代码/方案，再解释')
-  if (strategy === 'empathy_first') hints.push('先共情，再提供帮助')
+  if (strategy === 'empathy_first') hints.push('策略：共情优先')
   if (strategy === 'acknowledge_and_retry') hints.push('先承认错误，再给出正确答案')
 
   // SYNC implicit feedback (fast, for immediate body state)

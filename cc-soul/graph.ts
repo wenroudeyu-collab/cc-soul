@@ -14,6 +14,8 @@ import { onCacheEvent } from './memory-utils.ts'
 // Event-Driven Cache Coherence：注册缓存失效
 onCacheEvent('memory_deleted', () => invalidateEntityMemoryIndex())
 onCacheEvent('consolidation', () => { invalidateEntityMemoryIndex(); _pageRankDirty = true })
+onCacheEvent('identity_changed', () => { invalidateEntityMemoryIndex(); _pageRankDirty = true })
+onCacheEvent('correction_received', () => { _pageRankDirty = true })
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { resolve } from 'path'
 import {
@@ -681,9 +683,9 @@ export function updateSocialGraph(msg: string, mood: number) {
     const moodLabel = mood > 0.2 ? 'positive_interaction' : mood < -0.2 ? 'negative_interaction' : 'neutral_interaction'
     const topic = msg.replace(new RegExp(name, 'g'), '').match(/[\u4e00-\u9fff]{2,4}/)?.[0]
 
-    // 存情绪关系到 attrs（轻量，不为每次提及建一条 relation）
-    if (!entity.attrs.includes(moodLabel)) entity.attrs.push(moodLabel)
-    if (entity.attrs.length > 10) entity.attrs = entity.attrs.slice(-10)
+    // 存情绪关系到 attrs（每次都 push，不去重——getSocialContext 靠计数判断情绪倾向）
+    entity.attrs.push(moodLabel)
+    if (entity.attrs.length > 20) entity.attrs = entity.attrs.slice(-20)
 
     // 检测通讯风格
     const formalRe = /请问|您|汇报|报告|会议|安排|deadline|项目|审批|review|领导|老板|boss|客户/i
@@ -713,7 +715,14 @@ export function updateSocialGraph(msg: string, mood: number) {
       if (!hasTopicRel) addRelation(name, topic, 'mentioned_with')
     }
   }
-  if (people.length > 0) saveGraph()
+  // 持久化到 SQLite（实体已在内存 graphState 中更新）
+  if (people.length > 0) {
+    for (const name of people) {
+      const entity = graphState.entities.find(e => e.name === name && e.type === 'person')
+      if (entity) try { dbUpdateEntity(entity.name, { mentions: entity.mentions, attrs: entity.attrs }) } catch {}
+    }
+    _pageRankDirty = true
+  }
 }
 
 export function getSocialContext(msg: string): string | null {

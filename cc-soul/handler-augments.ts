@@ -7,6 +7,7 @@
 import type { Augment, Memory } from './types.ts'
 import type { SessionState } from './handler-state.ts'
 import { stats, getPrivacyMode, CJK_WORD_REGEX, metricsRecordAugmentTokens } from './handler-state.ts'
+import { onCacheEvent } from './memory-utils.ts'
 import { brain } from './brain.ts'
 import { estimateTokens, selectAugments, checkNarrativeCacheTTL } from './prompt-builder.ts'
 import { isEnabled } from './features.ts'
@@ -60,10 +61,10 @@ const _usedTopicNodes = new Set<string>()
 let _lastInjectedMemoryContents: string[] = []
 
 // ── P5e: retention 信号 — 用户 48 小时内回来 → 上次 session 记忆注入有效 ──
-let _lastRetentionCheckTs = 0
+var _lastRetentionCheckTs = 0  // var 避免 TDZ（模块加载顺序问题）
 export function checkRetentionSignal(userId: string): void {
   const now = Date.now()
-  if (now - _lastRetentionCheckTs < 3600000) return  // 每小时最多检查一次
+  if (now - _lastRetentionCheckTs < 3600000) return
   _lastRetentionCheckTs = now
   try {
     const { getProfile } = require('./user-profiles.ts')
@@ -176,6 +177,11 @@ export function feedbackDistillQuality(qualityScore: number) {
 // LLM reranker cache: async results from previous turn
 let _cachedRerankedMemories: Memory[] = []
 let _cachedRerankedQuery = ''
+
+// Event-Driven Cache Coherence：身份/事实/情绪变化时清空 augment 缓存
+onCacheEvent('identity_changed', () => { _cachedRerankedMemories = []; _cachedRerankedQuery = '' })
+onCacheEvent('fact_updated', () => { _cachedRerankedMemories = []; _cachedRerankedQuery = '' })
+onCacheEvent('emotion_shifted', () => { _cachedRerankedMemories = []; _cachedRerankedQuery = '' })
 // trigrams, trigramSimilarity — moved to top-level import from './memory.ts'
 // ── Lazy-loaded sqlite-store for context reminders ──
 let _sqliteStoreMod: any = null
@@ -473,6 +479,7 @@ export function detectInjection(msg: string): boolean {
  * Generates a context-aware 举一反三 augment based on message content and type.
  */
 function buildExtraThinkAugment(msg: string, attentionType: string, senderId?: string): Augment | null {
+  return null  // 临时关闭：隔离测试种子扩展。删除本行恢复举一反三
   if (attentionType === 'correction') return null
   // casual/emotional: still generate hints but at lower priority (was: return null)
   const isSoft = attentionType === 'casual' || attentionType === 'emotional'
@@ -785,7 +792,7 @@ export async function buildAndSelectAugments(params: {
       const evidenceCount = 1 + corrections.length + rules.length + (primary.emotion && primary.emotion !== 'neutral' ? 1 : 0)
       const conf = primary.confidence ?? 0.7
       lines.push(`→ 结论：基于以上${evidenceCount}条证据链，置信度${(conf * 100).toFixed(0)}%`)
-      lines.push('请在回复中展示这条推理链，让用户看到你的思考过程')
+      lines.push('（以上推理链供参考）')
       const archContent = lines.join('\n')
       augments.push({ content: archContent, priority: 10, tokens: estimateTokens(archContent) })
     }
@@ -813,7 +820,7 @@ export async function buildAndSelectAugments(params: {
     }
 
     if (isFirstAfterGap) {
-      const briefingParts: string[] = ['[早安简报] 请在回复开头自然地提到以下信息：']
+      const briefingParts: string[] = ['[早安简报]']
 
       // Mood trend summary (via unified getMoodState)
       {
@@ -1156,8 +1163,8 @@ export async function buildAndSelectAugments(params: {
   // 直接取 top 12
   let recalled = recalledRaw.slice(0, 12)
 
-  // ── Layer A: Synchronous association (graph + topics + chain) ──
-  const associated = associateSync(userMsg, recalled, senderId, channelId)
+  // ── Layer A: Synchronous association — 临时关闭，隔离测试。删除 [] 恢复
+  const associated: any[] = [] // associateSync(userMsg, recalled, senderId, channelId)
   // Associated memories are merged into recalled (not separate augment)
   // They feed into 举一反三 below as "顺便说一下" material
   if (associated.length > 0) {
@@ -1210,8 +1217,18 @@ export async function buildAndSelectAugments(params: {
       }
     }
 
-    // Memory reference + natural citation merged into 相关记忆 content above
-    // (deleted 2 standalone augments — their formatting is now part of the recall content)
+    // ── 闪光灯记忆：高情绪记忆展示完整上下文 ──
+    const flashbulbMems = recalled.filter(m => m.flashbulb)
+    if (flashbulbMems.length > 0) {
+      const fbParts = flashbulbMems.slice(0, 2).map(m => {
+        const fb = m.flashbulb!
+        const people = fb.mentionedPeople.length > 0 ? `，当时提到${fb.mentionedPeople.join('/')}` : ''
+        const mood = fb.bodyState.mood < -0.3 ? '当时情绪很低' : fb.bodyState.mood > 0.3 ? '当时心情不错' : ''
+        return `${m.content.slice(0, 50)}（上下文：${fb.surroundingContext}${people}${mood ? '，' + mood : ''}）`
+      })
+      const fbContent = '[深刻记忆] ' + fbParts.join('；')
+      augments.push({ content: fbContent, priority: 9, tokens: estimateTokens(fbContent) })
+    }
 
     // ── Feature 6: 矛盾主动指出 — 当前消息和记忆矛盾时提示 AI ──
     {
@@ -1233,7 +1250,7 @@ export async function buildAndSelectAugments(params: {
           const overlapRatio = memBg.size > 0 ? shared / memBg.size : 0
           // 记忆 bigram 的 30%+ 在用户消息中出现 → 话题高度相关
           if (overlapRatio > 0.3 && overlapRatio < 0.95) {
-            const contContent = `[矛盾提示] 用户之前说过「${mem.content.slice(0, 60)}」，但现在说了「${userMsg.slice(0, 60)}」，请在回复中礼貌地指出这个变化并确认`
+            const contContent = `[矛盾提示] 之前：「${mem.content.slice(0, 60)}」，现在：「${userMsg.slice(0, 60)}」`
             augments.push({ content: contContent, priority: 8, tokens: estimateTokens(contContent) })
             break
           }
@@ -1302,11 +1319,11 @@ export async function buildAndSelectAugments(params: {
     const moodState = getMoodState()
     // 连续 2+ 天日均情绪 < -0.3 → 触发关怀
     if (moodState.recentLowDays >= 2) {
-      const careContent = `[情绪关怀] 用户最近 ${moodState.recentLowDays} 天情绪持续偏低，请在回复开头自然地关心一下（"最近感觉怎么样？"/"看起来你最近比较累"），不要机械地问，要像朋友一样`
+      const careContent = `[情绪关怀] 用户最近 ${moodState.recentLowDays} 天情绪持续偏低`
       augments.push({ content: careContent, priority: 8, tokens: estimateTokens(careContent) })
     } else if (isTodayMoodAllLow()) {
       // Same-day consecutive low messages
-      const careContent = '[情绪关怀] 用户今天连续几条消息情绪都偏低，在回复中自然地关心一下'
+      const careContent = '[情绪关怀] 用户今天连续低情绪'
       augments.push({ content: careContent, priority: 8, tokens: estimateTokens(careContent) })
     }
   }
@@ -1361,8 +1378,8 @@ export async function buildAndSelectAugments(params: {
       const conclusion = nearbyMems[0]
       const dateStr = new Date(mem.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
       const repeatContent = conclusion
-        ? `[重复问题] 用户在 ${dateStr} 问过类似的问题，当时的结论是：${conclusion.content.slice(0, 100)}。请在回复中提及"你之前问过类似的"并给出更新后的回答`
-        : `[重复问题] 用户在 ${dateStr} 问过类似的问题：${mem.content.slice(0, 80)}。请在回复中提及"你之前问过"，让用户感觉你记得`
+        ? `[重复问题] ${dateStr}问过类似问题，结论：${conclusion.content.slice(0, 100)}`
+        : `[重复问题] ${dateStr}问过类似问题：${mem.content.slice(0, 80)}`
       augments.push({ content: repeatContent, priority: 9, tokens: estimateTokens(repeatContent) })
     }
   }
@@ -1455,7 +1472,6 @@ export async function buildAndSelectAugments(params: {
   }
 
   // 举一反三 — merged with association results
-  // Association memories become concrete "顺便说一下" material
   const extraThinkHint = buildExtraThinkAugment(userMsg, cog.attention, senderId)
   if (extraThinkHint) {
     if (associated.length > 0) {
@@ -1562,10 +1578,10 @@ export async function buildAndSelectAugments(params: {
   // ── Cognition augment (认知分析注入) ──
   if (cog && cog.attention !== 'general') {
     const parts: string[] = []
-    if (cog.attention === 'technical') parts.push('技术问题，优先给代码/命令')
-    else if (cog.attention === 'emotional') parts.push('用户有情绪，先共情再解决')
-    else if (cog.attention === 'correction') parts.push('用户在纠正你，虚心接受，不要辩解')
-    else if (cog.attention === 'casual') parts.push('闲聊，轻松自然')
+    if (cog.attention === 'technical') parts.push('场景：技术')
+    else if (cog.attention === 'emotional') parts.push('场景：情感')
+    else if (cog.attention === 'correction') parts.push('场景：纠正')
+    else if (cog.attention === 'casual') parts.push('场景：闲聊')
     if (cog.intent === 'wants_action') parts.push('用户要你动手做')
     else if (cog.intent === 'wants_explanation') parts.push('用户想理解原理')
     else if (cog.intent === 'wants_opinion') parts.push('用户要你的判断，给明确观点')
@@ -1607,7 +1623,7 @@ export async function buildAndSelectAugments(params: {
         }
         const currentDomainCount = domainCorrections.get(msgDomain) || 0
         if (currentDomainCount >= 2) {
-          const hint = `[思维盲点] 用户在${msgDomain}领域有${currentDomainCount}次被纠正的记录，回复时主动提醒这个领域常见的坑和容易忽略的点`
+          const hint = `[思维盲点] ${msgDomain}领域纠正${currentDomainCount}次`
           augments.push({ content: hint, priority: 8, tokens: estimateTokens(hint) })
         }
       }
@@ -1833,8 +1849,8 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content: pressureCtx, priority: 8, tokens: estimateTokens(pressureCtx) })
   }
 
-  // Associative recall
-  {
+  // Associative recall — 临时关闭，隔离测试。删除 false 恢复
+  if (false) {
     const association = getAssociativeRecall()
     if (association) {
       augments.push({ content: association, priority: 7, tokens: estimateTokens(association) })

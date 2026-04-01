@@ -214,3 +214,22 @@ export const CASUAL_WORDS = ['嗯', '好', '哦', '行', '可以', 'ok', '明白
 // patterns.ts classification lists (superset of above for some categories)
 export const TECH_CLASSIFY = ['代码', 'code', '函数', 'bug', 'error', '实现', '怎么写', 'function', 'class', '报错']
 export const EMOTION_CLASSIFY = ['烦', '累', '难过', '开心', '焦虑', '压力', '郁闷', '崩溃']
+
+/**
+ * classifyQuick — 公共轻量消息分类（cognition + avatar 共用）
+ * 不跑完整的 cogProcess，只做关键词匹配
+ */
+export function classifyQuick(msg: string): 'technical' | 'emotional' | 'casual' | 'general' {
+  const m = msg.toLowerCase()
+  const techHits = TECH_WORDS.filter(w => m.includes(w)).length
+  const emotionHits = EMOTION_ALL.filter(w => m.includes(w)).length
+  const casualHits = CASUAL_WORDS.filter(w => m === w || m === w + '的').length
+
+  // 得分最高的类别
+  if (techHits >= 2 || (techHits >= 1 && msg.length > 30)) return 'technical'
+  if (emotionHits >= 2) return 'emotional'
+  if (casualHits >= 1 && msg.length < 15) return 'casual'
+  if (msg.length < 8) return 'casual'
+
+  return 'general'
+}

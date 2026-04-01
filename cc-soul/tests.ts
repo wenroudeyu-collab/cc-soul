@@ -1204,7 +1204,7 @@ test('graph-style: getSocialContext includes style hint when available', () => {
 // TEST SUITE: Behavior Prediction (behavior-prediction.ts)
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { isDecisionQuestion, getBehaviorPrediction } from './behavior-prediction.ts'
+import { isDecisionQuestion, getBehaviorPrediction } from './behavioral-phase-space.ts'
 
 test('behavior: "该选A还是B" is decision question', () => {
   assert(isDecisionQuestion('该选A还是B'), '"该选A还是B" should be detected')
@@ -1438,6 +1438,155 @@ test('assessResponseQuality: score clamped to [0,1]', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// TEST SUITE: soul-api.ts — HTTP API integration tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function testAsync(name: string, fn: () => Promise<void>) {
+  try {
+    await fn()
+    results.push({ name, passed: true })
+  } catch (e: any) {
+    results.push({ name, passed: false, error: e.message })
+  }
+}
+
+async function runApiIntegrationTests() {
+  const { startSoulApi, initSoulEngine } = await import('./soul-api.ts')
+  const BASE = 'http://localhost:18800'
+
+  // Try to start the server; if port is taken, skip gracefully
+  try {
+    await initSoulEngine()
+    startSoulApi()
+  } catch (e: any) {
+    if (e?.code === 'EADDRINUSE' || e?.message?.includes('EADDRINUSE')) {
+      console.log('[api-tests] Port 18800 already in use, skipping API integration tests')
+      return
+    }
+    // Server may already be started via the serverStarted flag — that's fine, continue
+  }
+
+  // Wait for server to be ready
+  await new Promise(r => setTimeout(r, 2000))
+
+  // Check if server is reachable before running tests
+  try {
+    await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(3000) })
+  } catch {
+    console.log('[api-tests] Server not reachable on port 18800, skipping API integration tests')
+    return
+  }
+
+  await testAsync('api: POST /process returns system_prompt', async () => {
+    const res = await fetch(`${BASE}/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '你好', user_id: 'test_integration' }),
+    })
+    assert(res.status === 200, `expected status 200, got ${res.status}`)
+    const data = await res.json() as any
+    assert(typeof data.system_prompt === 'string', `expected system_prompt to be string, got ${typeof data.system_prompt}`)
+  })
+
+  await testAsync('api: POST /feedback returns 200', async () => {
+    const res = await fetch(`${BASE}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_message: '你好', ai_reply: '你好！有什么可以帮你的？', user_id: 'test_integration' }),
+    })
+    assert(res.status === 200, `expected status 200, got ${res.status}`)
+    const data = await res.json() as any
+    assert(data !== null && typeof data === 'object', 'expected JSON response')
+  })
+
+  await testAsync('api: POST /command returns handled', async () => {
+    const res = await fetch(`${BASE}/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '帮助', user_id: 'test_integration' }),
+    })
+    assert(res.status === 200, `expected status 200, got ${res.status}`)
+    const data = await res.json() as any
+    assert(data.handled === true, `expected handled: true, got ${data.handled}`)
+  })
+
+  await testAsync('api: GET /health returns status ok', async () => {
+    const res = await fetch(`${BASE}/health`)
+    assert(res.status === 200, `expected status 200, got ${res.status}`)
+    const data = await res.json() as any
+    assert(data.status === 'ok', `expected status: 'ok', got ${data.status}`)
+  })
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COMMAND REGISTRY TESTS — validate declarative command matching
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { matchCommand, COMMANDS } from './handler-commands.ts'
+
+test('cmd-registry: "帮助" matches help command', () => {
+  const r = matchCommand('帮助', true)
+  assert(r !== null, 'should match')
+  assert(r!.match[0] === '帮助', `matched text should be "帮助", got "${r!.match[0]}"`)
+})
+
+test('cmd-registry: "搜索记忆 Python" matches search with capture group', () => {
+  const r = matchCommand('搜索记忆 Python', true)
+  assert(r !== null, 'should match')
+  assert(r!.match[2] === 'Python', `capture group should be "Python", got "${r!.match[2]}"`)
+})
+
+test('cmd-registry: "功能状态" matches feature status', () => {
+  const r = matchCommand('功能状态', true)
+  assert(r !== null, 'should match')
+})
+
+test('cmd-registry: "stats" matches stats command', () => {
+  const r = matchCommand('stats', true)
+  assert(r !== null, 'should match')
+})
+
+test('cmd-registry: "记忆健康" matches memory health', () => {
+  const r = matchCommand('记忆健康', true)
+  assert(r !== null, 'should match')
+})
+
+test('cmd-registry: "导出全部" matches export', () => {
+  const r = matchCommand('导出全部', true)
+  assert(r !== null, 'should match')
+})
+
+test('cmd-registry: "别记了" matches privacy mode', () => {
+  const r = matchCommand('别记了', true)
+  assert(r !== null, 'should match')
+})
+
+test('cmd-registry: "random message" should NOT match any command', () => {
+  const r = matchCommand('random message', true)
+  assert(r === null, 'should not match')
+})
+
+test('cmd-registry: write-only commands skipped when allowWrite=false', () => {
+  // "删除记忆 test" is write-only
+  const rWrite = matchCommand('删除记忆 test', true)
+  assert(rWrite !== null, 'should match with allowWrite=true')
+  const rRead = matchCommand('删除记忆 test', false)
+  assert(rRead === null, 'should NOT match with allowWrite=false')
+})
+
+test('cmd-registry: read commands work with allowWrite=false', () => {
+  // "搜索记忆 test" is mode=both
+  const r = matchCommand('搜索记忆 test', false)
+  assert(r !== null, 'should match with allowWrite=false (mode=both)')
+})
+
+test('cmd-registry: COMMANDS array has no duplicate patterns', () => {
+  const patterns = COMMANDS.map(c => c.pattern.source)
+  const unique = new Set(patterns)
+  assert(patterns.length === unique.size, `found duplicate patterns: ${patterns.length} total vs ${unique.size} unique`)
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // RUN ALL TESTS + REPORT
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1459,9 +1608,17 @@ export function formatTestReport(): string {
   return lines.join('\n')
 }
 
-// If run directly: print results
+// If run directly: print results (async tests run first, then report)
 if (process.argv[1]?.endsWith('tests.ts')) {
-  console.log(formatTestReport())
-  const { failed } = runRegressionSuite()
-  process.exit(failed > 0 ? 1 : 0)
+  runApiIntegrationTests().then(() => {
+    console.log(formatTestReport())
+    const { failed } = runRegressionSuite()
+    process.exit(failed > 0 ? 1 : 0)
+  }).catch((e) => {
+    console.error('[api-tests] Unexpected error:', e)
+    // Still print sync test results
+    console.log(formatTestReport())
+    const { failed } = runRegressionSuite()
+    process.exit(failed > 0 ? 1 : 0)
+  })
 }

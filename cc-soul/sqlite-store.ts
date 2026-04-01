@@ -18,6 +18,11 @@ import type { Memory, Entity, Relation, StructuredFact } from './types.ts'
 const OFFICIAL_DB = resolve(homedir(), '.openclaw/data/memory.db')
 const DB_PATH = existsSync(OFFICIAL_DB) ? OFFICIAL_DB : resolve(DATA_DIR, 'soul.db')
 
+// SQLite 工厂函数：测试时传 ':memory:' 隔离数据
+let _overrideDbPath: string | null = null
+export function setDbPath(path: string): void { _overrideDbPath = path }
+export function getDbPath(): string { return _overrideDbPath ?? DB_PATH }
+
 // Use globalThis to share db across multiple jiti module instances
 const _g = globalThis as any
 if (!_g.__ccSoulSqlite) _g.__ccSoulSqlite = { DatabaseSyncCtor: null, db: null, hasVec: false, sqliteReady: false }
@@ -86,7 +91,7 @@ export function initSQLite(): boolean {
   }
 
   try {
-    db = new DatabaseSyncCtor(DB_PATH, { allowExtension: true })
+    db = new DatabaseSyncCtor(getDbPath(), { allowExtension: true })
   } catch (e: any) {
     console.error(`[cc-soul][sqlite] failed to open ${DB_PATH}: ${e.message}`)
     return false

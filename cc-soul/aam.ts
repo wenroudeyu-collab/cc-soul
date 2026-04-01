@@ -609,6 +609,65 @@ if (!existsSync(SYNONYMS_PATH)) {
 }
 
 /**
+ * 种子注入：把 COLD_START_SYNONYMS 写入 cooccur，初始 count=2
+ * 关键：种子词必须通过 tokenizer 分词后再注入，保证粒度匹配
+ * 例如 "心情好" 会被拆成 ["心情", "情好"]，每个片段都跟对应的同义词建关联
+ */
+function injectSeedsIntoCooccur() {
+  let injected = 0
+
+  function injectPair(a: string, b: string) {
+    const existing = network.cooccur[a]?.[b] ?? 0
+    if (existing < 2) {
+      if (!network.cooccur[a]) network.cooccur[a] = {}
+      network.cooccur[a][b] = 2
+      if (!network.cooccur[b]) network.cooccur[b] = {}
+      network.cooccur[b][a] = 2
+      // 种子词也需要 df（否则 expandQuery 的 df<3 过滤会跳过）
+      if (!network.df[a]) network.df[a] = 2
+      if (!network.df[b]) network.df[b] = 2
+      injected++
+    }
+  }
+
+  // 将种子词拆成 tokenizer 粒度的 2-char 片段
+  function seedTokens(word: string): string[] {
+    const tokens: string[] = []
+    // CJK 2-char sliding window（跟 tokenize() 一致）
+    const cjk = word.match(/[\u4e00-\u9fff]+/g) || []
+    for (const seg of cjk) {
+      if (seg.length === 2) tokens.push(seg)
+      else {
+        for (let i = 0; i <= seg.length - 2; i++) tokens.push(seg.slice(i, i + 2))
+      }
+    }
+    // English 3+ letters
+    const en = word.match(/[a-zA-Z]{3,}/g) || []
+    tokens.push(...en.map(w => w.toLowerCase()))
+    // 原词本身也保留（2字以上的完整词）
+    if (word.length >= 2) tokens.push(word)
+    return [...new Set(tokens)]
+  }
+
+  for (const [word, synonyms] of Object.entries(COLD_START_SYNONYMS)) {
+    const wordTokens = seedTokens(word)
+    for (const syn of synonyms) {
+      const synTokens = seedTokens(syn)
+      // 所有 wordToken × synToken 的组合都建关联
+      for (const wt of wordTokens) {
+        for (const st of synTokens) {
+          if (wt !== st && wt.length >= 2 && st.length >= 2) {
+            injectPair(wt, st)
+          }
+        }
+      }
+    }
+  }
+  if (injected > 0) console.log(`[cc-soul][aam] seed injection: ${injected} pairs into cooccur`)
+}
+injectSeedsIntoCooccur()
+
+/**
  * Tokenize text into words for association network.
  * CJK: 2-3 char segments. English: 3+ letter words.
  */
@@ -655,10 +714,15 @@ function filterStopWords(words: string[]): string[] {
  * Feed a new memory into the association network.
  * Updates word co-occurrence counts.
  */
-export function learnAssociation(content: string) {
+export function learnAssociation(content: string, emotionIntensity: number = 0) {
+  const emotionMultiplier = emotionIntensity >= 0.7 ? 3 : emotionIntensity >= 0.5 ? 2 : 1
   const words = filterStopWords(tokenize(content))
   const unique = [...new Set(words)]
   if (unique.length < 2) return
+
+  if (emotionMultiplier > 1) {
+    console.log(`[AAM] emotion-weighted learning: intensity=${emotionIntensity.toFixed(2)} multiplier=x${emotionMultiplier}`)
+  }
 
   network.totalDocs++
 
@@ -671,10 +735,10 @@ export function learnAssociation(content: string) {
   for (let i = 0; i < unique.length; i++) {
     if (!network.cooccur[unique[i]]) network.cooccur[unique[i]] = {}
     for (let j = i + 1; j < unique.length; j++) {
-      network.cooccur[unique[i]][unique[j]] = (network.cooccur[unique[i]][unique[j]] || 0) + 1
+      network.cooccur[unique[i]][unique[j]] = (network.cooccur[unique[i]][unique[j]] || 0) + emotionMultiplier
       // Bidirectional
       if (!network.cooccur[unique[j]]) network.cooccur[unique[j]] = {}
-      network.cooccur[unique[j]][unique[i]] = (network.cooccur[unique[j]][unique[i]] || 0) + 1
+      network.cooccur[unique[j]][unique[i]] = (network.cooccur[unique[j]][unique[i]] || 0) + emotionMultiplier
     }
   }
 
@@ -723,7 +787,7 @@ function graduateStrongAssociations() {
  * Get PMI (Pointwise Mutual Information) between two words.
  * PMI > 0 means they co-occur more than expected by chance.
  */
-function pmi(w1: string, w2: string): number {
+export function pmi(w1: string, w2: string): number {
   const N = Math.max(1, network.totalDocs)
   const cooccurCount = network.cooccur[w1]?.[w2] || 0
   if (cooccurCount === 0) return 0
@@ -749,18 +813,8 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
   // Original words get weight 1.0
   for (const w of queryWords) expanded.set(w, 1.0)
 
-  // Phase 1: Cold-start synonyms (always available)
-  for (const w of queryWords) {
-    const syns = COLD_START_SYNONYMS[w]
-    if (syns) {
-      for (const s of syns) {
-        if (!expanded.has(s)) expanded.set(s, 0.6)  // synonym weight
-      }
-    }
-  }
-
-  // Phase 2: Learned associations (PMI-based)
-  if (network.totalDocs >= 20) {  // need minimum data
+  // PMI-based associations (种子已注入 cooccur，始终可用)
+  if (true) {
     for (const w of queryWords) {
       const cooc = network.cooccur[w]
       if (!cooc) continue
@@ -1105,7 +1159,9 @@ export function antiHebbianDecay() {
       const pmiVal = pmi(w1, w2)
       if (pmiVal < 0.5 && count > 5) {
         // 高共现但低 PMI = 纯粹是因为都是常见词而共现，不是有意义的关联
-        related[w2] = Math.max(1, Math.floor(count * 0.8))  // 衰减 20%
+        // 分层衰减（审核结论）：强关联慢衰减，弱关联快清理
+        const decayRate = count > 20 ? 0.9 : count > 10 ? 0.8 : 0.6
+        related[w2] = Math.max(1, Math.floor(count * decayRate))
         pruned++
       }
     }
@@ -1244,6 +1300,34 @@ export function explainAAM(result: AAMResult): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 // STATS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/** 时间衰减：分层衰减共现权重，由 heartbeat 触发 */
+export function decayCooccurrence() {
+  let decayed = 0, pruned = 0
+  for (const [w1, related] of Object.entries(network.cooccur)) {
+    for (const [w2, count] of Object.entries(related)) {
+      // 分层衰减：强关联慢衰减，弱关联快衰减
+      const factor = count > 10 ? 0.995 : 0.98
+      const newCount = count * factor
+      if (newCount < 0.5) {
+        // 衰减到 <0.5 时删边（pruning）
+        delete related[w2]
+        pruned++
+      } else {
+        related[w2] = newCount
+        decayed++
+      }
+    }
+    // 如果节点没有任何边了，删节点
+    if (Object.keys(related).length === 0) {
+      delete network.cooccur[w1]
+    }
+  }
+  if (pruned > 0) {
+    console.log(`[cc-soul][aam] decay: ${decayed} edges decayed, ${pruned} pruned`)
+    debouncedSave(ASSOC_PATH, network)
+  }
+}
 
 export function getAAMStats() {
   return {

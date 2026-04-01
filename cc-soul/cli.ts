@@ -18,6 +18,14 @@ import { resolve } from 'path'
 import { extractJSON } from './utils.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CIRCUIT BREAKER — consecutive failures → cooldown
+// ═══════════════════════════════════════════════════════════════════════════════
+let _consecutiveFailures = 0
+let _circuitBreakerUntil = 0
+const CIRCUIT_BREAKER_THRESHOLD = 3
+const CIRCUIT_BREAKER_COOLDOWN_MS = 3600000 // 1 hour
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // AI BACKEND CONFIG — auto-detects from OpenClaw's openclaw.json
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -313,6 +321,12 @@ function trackWorkload(label: string, estimatedTokens: number): void {
 }
 
 export function spawnCLI(prompt: string, callback: (output: string) => void, timeoutMs = 120000, label = 'ai-task') {
+  // Circuit breaker: skip if in cooldown
+  if (Date.now() < _circuitBreakerUntil) {
+    console.log(`[cc-soul][ai] circuit breaker OPEN: ${_consecutiveFailures} consecutive failures, cooldown until ${new Date(_circuitBreakerUntil).toISOString()}`)
+    callback('')
+    return
+  }
   // 成本追踪：按 workload 分类记录调用次数和估算 token
   trackWorkload(label, Math.ceil(prompt.length * 0.8))
   // Hard timeout: independent 30s safety net — if backend never calls back, force-resolve
@@ -330,6 +344,16 @@ export function spawnCLI(prompt: string, callback: (output: string) => void, tim
     if (callbackSettled) return // already timed out, discard late result
     callbackSettled = true
     clearTimeout(hardTimer)
+    // Circuit breaker tracking
+    if (result === '') {
+      _consecutiveFailures++
+      if (_consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+        _circuitBreakerUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS
+        console.log(`[cc-soul][ai] circuit breaker OPEN: ${_consecutiveFailures} consecutive failures, cooldown until ${new Date(_circuitBreakerUntil).toISOString()}`)
+      }
+    } else {
+      _consecutiveFailures = 0
+    }
     callback(result)
   }
 

@@ -7,8 +7,22 @@
  */
 
 import './persistence.ts' // ensure data dir init
+import { handleError } from './errors.ts'
+
+// 去重：防止同一条记忆在飞书群聊拆消息场景下被多次 penalize
+const _lastPenalizeTs = new Map<string, number>()
 
 export { handleProcess, handleFeedback }
+
+/** Isolate independent pipeline steps — on throw, log degradation and return fallback */
+async function safeCompute<T>(fn: () => Promise<T> | T, fallback: T, context: string): Promise<T> {
+  try { return await fn() }
+  catch (e: any) {
+    try { const { logDecision } = require('./decision-log.ts'); logDecision('degraded', context, e.message) } catch {}
+    console.warn(`[cc-soul][${context}] degraded: ${e.message}`)
+    return fallback
+  }
+}
 
 async function handleProcess(body: any): Promise<any> {
   const message = body.message || ''
@@ -23,6 +37,19 @@ async function handleProcess(body: any): Promise<any> {
       setContextWindow(body.context_window)
     } catch {}
   }
+
+  // ── 确保记忆已加载（lazy-load 模式必须在 recall 之前调用）──
+  try { (await import('./memory.ts')).ensureMemoriesLoaded() } catch {}
+
+  // ── 轮次快照：防止并发读-改-写冲突 ──
+  let turnSnapshot: Map<string, number> | null = null
+  try {
+    const { memoryState } = await import('./memory.ts')
+    turnSnapshot = new Map()
+    for (const m of memoryState.memories) {
+      if (m.memoryId) turnSnapshot.set(m.memoryId, m.lineage?.length ?? 0)
+    }
+  } catch {}
 
   // Multi-agent isolation: switch data directory if agent_id provided
   if (agentId !== 'default') {
@@ -86,42 +113,47 @@ async function handleProcess(body: any): Promise<any> {
   } catch {}
   try { (await import('./handler.ts')).initializeSoul() } catch {}
 
-  // ── 1. Body tick + emotional processing ──
-  let moodScore = 0, energyScore = 1, emotion = 'neutral'
-  try {
+  // ── 1. Body tick + emotional processing (isolated — failure won't block cognition) ──
+  const bodyFallback = { mood: 0, energy: 0.5, alertness: 0.5 }
+  const bodyResult = await safeCompute(async () => {
     const bodyMod = await import('./body.ts')
     try { bodyMod.loadBodyState() } catch {}
     bodyMod.bodyTick()
     bodyMod.bodyOnMessage(message.length > 50 ? 0.6 : 0.3)
-    // Emotional contagion deferred until after cognition (needs attentionType)
-  } catch {}
+    return { mood: bodyMod.body.mood, energy: bodyMod.body.energy, alertness: bodyMod.body.alertness ?? 0.5 }
+  }, bodyFallback, 'body-tick')
 
-  // ── 2. Cognition ──
-  let cogResult: any = null
-  try {
+  let moodScore = bodyResult.mood, energyScore = bodyResult.energy, emotion = 'neutral'
+
+  // ── 2. Cognition (isolated — failure won't block body/emotion) ──
+  const cogFallback = { attention: 'general' as const, intent: 'wants_answer', strategy: 'balanced', complexity: 0.3, hints: [], spectrum: { information: 0.5, action: 0.2, emotional: 0.2, validation: 0.1, exploration: 0.2 } }
+  let cogResult: any = await safeCompute(async () => {
     const { cogProcess } = await import('./cognition.ts')
-    cogResult = cogProcess(message, userId)
-    if (cogResult.attention === 'correction') {
+    const result = cogProcess(message, userId)
+    if (result.attention === 'correction') {
       try {
         (await import('./user-profiles.ts')).updateProfileOnCorrection(userId)
         ;(await import('./body.ts')).bodyOnCorrection()
+        const { emitCacheEvent } = require('./memory-utils.ts')
+        emitCacheEvent('correction_received')
       } catch {}
     }
-  } catch {}
+    return result
+  }, cogFallback, 'cognition')
 
-  // ── 2b. Emotional contagion (now with correct cognition params) ──
+  // ── 3. Flow（moved before emotional contagion so frustration is available）──
+  let flow: any = null
+  try { flow = (await import('./flow.ts')).updateFlow(message, '', userId) } catch {}
+
+  // ── 2b. Emotional contagion (with actual frustration from flow) ──
   try {
     const bodyMod = await import('./body.ts')
     const attention = cogResult?.attention || 'general'
-    const frustration = 0  // will be updated after flow
+    const frustration = flow?.frustrationTrajectory?.current ?? flow?.frustration ?? 0
     bodyMod.processEmotionalContagion(message, attention, frustration, userId)
     moodScore = bodyMod.body.mood; energyScore = bodyMod.body.energy
     emotion = moodScore > 0.3 ? 'positive' : moodScore < -0.3 ? 'negative' : 'neutral'
   } catch {}
-
-  // ── 3. Flow ──
-  let flow: any = null
-  try { flow = (await import('./flow.ts')).updateFlow(message, '', userId) } catch {}
 
   // ── 4. User profile ──
   try { (await import('./user-profiles.ts')).updateProfileOnMessage(userId, message) } catch {}
@@ -362,6 +394,15 @@ async function handleFeedback(body: any): Promise<any> {
         clearTimeout(timeout)
         try {
           for (const m of (result.memories || [])) {
+            // 防 LLM 幻觉：检查 Tier 2 提取的记忆是否在用户实际消息中有依据
+            // 如果记忆内容的关键词在用户消息中完全找不到 → 可能是幻觉
+            const memKeywords = (m.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+            const msgKeywords = new Set((userMessage.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+            const grounded = memKeywords.filter((w: string) => msgKeywords.has(w)).length
+            if (memKeywords.length > 0 && grounded === 0 && m.scope === 'fact') {
+              console.log(`[cc-soul][anti-hallucination] SKIP ungrounded fact: ${m.content.slice(0, 50)}`)
+              continue  // 跳过无依据的 fact
+            }
             addMemoryWithEmotion(m.content, m.scope, userId, m.visibility, '', result.emotion)
           }
           if (result.entities) addEntitiesFromAnalysis(result.entities)
@@ -373,7 +414,7 @@ async function handleFeedback(body: any): Promise<any> {
 
           // ── Tier 2 → Tier 1 反馈环：LLM 发现的结构喂给动态引擎学习 ──
           try {
-            const { dynamicExtract, updateStructureStrength } = await import('./dynamic-extractor.ts')
+            const { dynamicExtract, updateStructureStrength } = require('./dynamic-extractor.ts')
             for (const m of (result.memories || [])) {
               // LLM 提取的记忆内容 → 尝试用动态引擎也提取一遍
               const tier1Results = dynamicExtract(m.content, userId)
@@ -429,6 +470,13 @@ async function handleFeedback(body: any): Promise<any> {
 
   // ── 主动记忆重构（Letta 启发，零 LLM）：从 AI 回复中检测修正信号 ──
   try {
+    // 使用轮次快照检测并发修改
+    const isMemoryStale = (mem: any): boolean => {
+      if (!turnSnapshot || !mem.memoryId) return false
+      const snapLen = turnSnapshot.get(mem.memoryId)
+      return snapLen !== undefined && (mem.lineage?.length ?? 0) !== snapLen
+    }
+
     const UPDATE_SIGNALS = [
       /(?:之前|以前).*?(?:现在|目前|最近)/,     // "之前X现在Y" → 事实变化
       /(?:不过|但是).*?(?:看来|似乎|好像)/,      // "不过看来X" → 修正
@@ -454,6 +502,17 @@ async function handleFeedback(body: any): Promise<any> {
             m && m.content && augContent.includes(m.content.slice(0, 30))
           )
           if (mem) {
+            if (isMemoryStale(mem)) continue
+            const penalizeKey = mem.memoryId || (mem.content||'').slice(0, 30)
+            const lastTs = _lastPenalizeTs.get(penalizeKey) ?? 0
+            if (Date.now() - lastTs < 5000) continue  // 5秒内对同一记忆跳过
+            _lastPenalizeTs.set(penalizeKey, Date.now())
+            // 防内存泄漏：超过 100 条时清理最旧的
+            if (_lastPenalizeTs.size > 100) {
+              let oldest = Infinity, oldestKey = ''
+              for (const [k, v] of _lastPenalizeTs) { if (v < oldest) { oldest = v; oldestKey = k } }
+              if (oldestKey) _lastPenalizeTs.delete(oldestKey)
+            }
             penalizeTruthfulness(mem, 'AI 回复暗示修正')
             try { const { logDecision } = require('./decision-log.ts'); logDecision('active_reconstruct', (mem.content||'').slice(0,30), `AI回复含修正信号`) } catch {}
           }

@@ -1,1 +1,952 @@
-[]
+[
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Python",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774864519543,
+    "validUntil": 1774877938647,
+    "memoryRef": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "阿里",
+    "confidence": 0.9,
+    "source": "system",
+    "ts": 1774864519543,
+    "validUntil": 1774998470399,
+    "memoryRef": "[WAL事实] 我喜欢Python，讨厌Java，我在阿里工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Go写后端",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774877938647,
+    "validUntil": 1774899076163,
+    "memoryRef": "[WAL事实] 我喜欢用Go写后端，讨厌PHP，目前在字节工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "什么编程语言吗",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774899076162,
+    "validUntil": 1774899620458,
+    "memoryRef": "[WAL事实] 我喜欢什么编程语言吗"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃火锅",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774899620457,
+    "validUntil": 1774899694693,
+    "memoryRef": "[WAL事实] 我特别喜欢吃火锅，讨厌吃寿司"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃什么吗",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774899694693,
+    "validUntil": 1774899739770,
+    "memoryRef": "[WAL事实] 我喜欢吃什么吗"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃什么吗 → AI: 小王喜欢",
+    "confidence": 0.85,
+    "source": "ai_observed",
+    "ts": 1774899739770,
+    "validUntil": 1774899739774,
+    "memoryRef": "[对话] 用户: 你还记得我喜欢吃什么吗 → AI: 小王喜欢吃 **火锅**，讨厌吃 **寿司**。"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "吃什么吗",
+    "confidence": 0.85,
+    "source": "user_said",
+    "ts": 1774899739774,
+    "validUntil": 1774903232470,
+    "memoryRef": "你还记得我喜欢吃什么吗"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "打篮球",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774903232470,
+    "validUntil": 1774910235280,
+    "memoryRef": "[WAL事实] 我喜欢打篮球，讨厌跑步"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "老婆：在银行上班",
+    "confidence": 0.85,
+    "source": "ai_observed",
+    "ts": 1774903332682,
+    "validUntil": 1775000642933,
+    "memoryRef": "[对话] 用户: 我老婆在银行上班，叫小红 → AI: 收到，张三。\n\n（记下了：老婆小红，在银行上班）\n\n还有什么想让"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "早上6点起床",
+    "confidence": 0.75,
+    "source": "ai_observed",
+    "ts": 1774903376055,
+    "validUntil": 1775000593663,
+    "memoryRef": "[对话] 用户: 我每天早上6点起床，晚上11点睡 → AI: 收到，张三。\n\n（记下了：作息 早6晚11）\n\n还有什么"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Go 写后端服务",
+    "confidence": 0.85,
+    "source": "system",
+    "ts": 1774910235280,
+    "validUntil": 1775002271187,
+    "memoryRef": "[WAL事实] 我喜欢用 Go 写后端服务，Python 做数据分析"
+  },
+  {
+    "subject": "user",
+    "predicate": "uses",
+    "object": "什么语言写后端吗？ → AI: 张三用",
+    "confidence": 0.8,
+    "source": "ai_observed",
+    "ts": 1774911881647,
+    "validUntil": 1774911881654,
+    "memoryRef": "[对话] 用户: 你还记得我用什么语言写后端吗？ → AI: 张三用 **Go** 写后端，**Python** 做数据"
+  },
+  {
+    "subject": "user",
+    "predicate": "uses",
+    "object": "什么语言写后端吗",
+    "confidence": 0.8,
+    "source": "user_said",
+    "ts": 1774911881653,
+    "validUntil": 1774912766353,
+    "memoryRef": "你还记得我用什么语言写后端吗？"
+  },
+  {
+    "subject": "user",
+    "predicate": "uses",
+    "object": "的不是Go，是Java写后端的 → AI",
+    "confidence": 0.8,
+    "source": "ai_observed",
+    "ts": 1774912766353,
+    "validUntil": 1774912766361,
+    "memoryRef": "[对话] 用户: 不对，我用的不是Go，是Java写后端的 → AI: 收到。\n\n（更正记忆：Go→Java）\n\n张三在"
+  },
+  {
+    "subject": "user",
+    "predicate": "uses",
+    "object": "的不是Go，是Java写后端的",
+    "confidence": 0.8,
+    "source": "user_said",
+    "ts": 1774912766361,
+    "validUntil": 0,
+    "memoryRef": "不对，我用的不是Go，是Java写后端的"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "Bun 启动速度 over Node.js",
+    "confidence": 0.7,
+    "source": "ai_observed",
+    "ts": 1774913097321,
+    "validUntil": 1774913097335,
+    "memoryRef": "Bun 启动速度比 Node.js 快 3-4 倍"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "置包管理工具安装速度 over npm",
+    "confidence": 0.7,
+    "source": "ai_observed",
+    "ts": 1774913097335,
+    "validUntil": 1774998742228,
+    "memoryRef": "Bun 内置包管理工具安装速度比 npm 快 10-20 倍"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "上海浦东",
+    "confidence": 0.7,
+    "source": "system",
+    "ts": 1774915685268,
+    "validUntil": 1775000908747,
+    "memoryRef": "[WAL事实] 我住在上海浦东，每天坐地铁2号线上班"
+  },
+  {
+    "subject": "user",
+    "predicate": "occupation",
+    "object": "iOS逆向",
+    "confidence": 0.85,
+    "source": "ai_observed",
+    "ts": 1774998424705,
+    "validUntil": 0,
+    "memoryRef": "[WAL事实] 我是做iOS逆向的 平时主要用Python写工具 也会写点Swift"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "一家安全公司",
+    "confidence": 0.9,
+    "source": "ai_observed",
+    "ts": 1774998470399,
+    "validUntil": 1775000593650,
+    "memoryRef": "[WAL事实] 我在一家安全公司上班 主要做第三方App的安全审计 老板人还行就是经常催进度"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "用户认为Python over Go",
+    "confidence": 0.7,
+    "source": "user_said",
+    "ts": 1774998742228,
+    "validUntil": 1775027493653,
+    "memoryRef": "用户认为Python比Go好用，虽然性能差但写起来舒服"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "安全公司",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775000593649,
+    "validUntil": 1775000779294,
+    "memoryRef": "用户在安全公司工作，负责第三方App的安全审计"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "催进度",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775000593663,
+    "validUntil": 1775002448824,
+    "memoryRef": "用户认为老板人还行但经常催进度"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "叫小雨",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775000642933,
+    "validUntil": 1775027251175,
+    "memoryRef": "用户的女朋友叫小雨，职业是UI设计"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "一只橘猫叫豆豆",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775000642944,
+    "validUntil": 1775000832440,
+    "memoryRef": "用户养了一只橘猫叫豆豆，特别胖"
+  },
+  {
+    "subject": "user",
+    "predicate": "learning",
+    "object": "Frida做hook",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775000672079,
+    "validUntil": 1775027185270,
+    "memoryRef": "用户最近在研究Frida做hook"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "处理Frida检测相关的",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775000779294,
+    "validUntil": 1775027062521,
+    "memoryRef": "用户正在处理Frida检测相关的工作任务"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "叫豆豆的猫",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775000832440,
+    "validUntil": 1775027466715,
+    "memoryRef": "用户有一只叫豆豆的猫"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "上海",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775000908747,
+    "validUntil": 1775001579753,
+    "memoryRef": "用户从北京搬家到上海"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "上海张江",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775001579752,
+    "validUntil": 1775001579772,
+    "memoryRef": "用户曾提到搬到上海张江"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "浦东",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775001579772,
+    "validUntil": 1775030060954,
+    "memoryRef": "用户曾提到住在浦东"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "浦东",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775001579772,
+    "validUntil": 1775030060955,
+    "memoryRef": "用户曾提到住在浦东"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Python编程语言",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775002271187,
+    "validUntil": 1775002417168,
+    "memoryRef": "用户喜欢Python编程语言"
+  },
+  {
+    "subject": "user",
+    "predicate": "dislikes",
+    "object": "Java编程语言",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775002271199,
+    "validUntil": 1775028252191,
+    "memoryRef": "用户讨厌Java编程语言"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "Python",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775002417168,
+    "validUntil": 1775002417188,
+    "memoryRef": "用户以前喜欢Python"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "转变",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775002417188,
+    "validUntil": 1775028209085,
+    "memoryRef": "[反思] 回复可以更自然地承接用户的技术偏好转变，减少突兀感。"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "加班到凌晨",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775002448824,
+    "validUntil": 1775027332889,
+    "memoryRef": "用户经常加班到凌晨"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "上海",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775027062521,
+    "validUntil": 1775030235605,
+    "memoryRef": "用户在上海工作，认为工资不高，生活压力大"
+  },
+  {
+    "subject": "user",
+    "predicate": "learning",
+    "object": "会握手后的几个月",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775027185270,
+    "validUntil": 1775029898835,
+    "memoryRef": "狗子学习黄金期在学会握手后的几个月"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "女朋友：的基本信息",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775027251175,
+    "validUntil": 1775027259575,
+    "memoryRef": "需要了解女朋友的基本信息"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "女朋友：的生日或重要日子",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775027259575,
+    "validUntil": 1775027259586,
+    "memoryRef": "用户可能需要助手帮忙记住女朋友的生日或重要日子"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "女朋友：姓名和工作",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775027259586,
+    "validUntil": 1775029019385,
+    "memoryRef": "[反思] 可以更聚焦于当前问题，先只询问女朋友姓名和工作，避免一次性提出多个新问题。"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "早上跑5公里",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775027332889,
+    "validUntil": 1775028587153,
+    "memoryRef": "用户最近开始跑步，每天早上跑5公里"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "宠物叫豆豆",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775027466715,
+    "validUntil": 1775027792229,
+    "memoryRef": "用户有一只宠物叫豆豆"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "公猫绝育手术 over 母猫",
+    "confidence": 0.7,
+    "source": "ai_observed",
+    "ts": 1775027493653,
+    "validUntil": 1775027914243,
+    "memoryRef": "公猫绝育手术比母猫简单，手术时间短、恢复快"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "叫豆豆的宠物需要绝育",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775027792229,
+    "validUntil": 1775028565028,
+    "memoryRef": "用户有一只叫豆豆的宠物需要绝育，且绝育前需禁食"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "公司对本科安全工程师 over 较友",
+    "confidence": 0.7,
+    "source": "ai_observed",
+    "ts": 1775027914243,
+    "validUntil": 1775029019388,
+    "memoryRef": "360、奇安信等公司对本科安全工程师比较友好"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_family",
+    "object": "（豆豆）",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775027974957,
+    "validUntil": 1775028781897,
+    "memoryRef": "用户有伴侣（小雨）和孩子（豆豆），家庭分工需协调"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "科幻、悬疑、动作类电影",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028209085,
+    "validUntil": 1775028231617,
+    "memoryRef": "用户可能喜欢科幻、悬疑、动作类电影"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "视觉效果但觉得剧情节奏慢",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028231617,
+    "validUntil": 1775028231631,
+    "memoryRef": "用户看过《沙丘2》，喜欢视觉效果但觉得剧情节奏慢"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "节奏快、视觉冲击强的电影",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028231631,
+    "validUntil": 1775028231644,
+    "memoryRef": "用户可能偏好节奏快、视觉冲击强的电影"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "的推荐",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028231644,
+    "validUntil": 1775028252186,
+    "memoryRef": "[反思] 可以更简洁地聚焦于1-2个最匹配用户偏好的推荐，并先询问是否希望获得更多选项。"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "科幻片",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028252186,
+    "validUntil": 1775029122723,
+    "memoryRef": "小雨不喜欢科幻片，喜欢爱情片和悬疑片"
+  },
+  {
+    "subject": "user",
+    "predicate": "dislikes",
+    "object": "科幻片",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028252186,
+    "validUntil": 0,
+    "memoryRef": "小雨不喜欢科幻片，喜欢爱情片和悬疑片"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "叫豆豆的猫",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028565028,
+    "validUntil": 1775028705251,
+    "memoryRef": "用户有一只叫豆豆的猫，可能为公猫，尚未绝育"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "晚上12点才回家",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775028587153,
+    "validUntil": 1775028705240,
+    "memoryRef": "用户可能经常晚上12点才回家"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "点外卖、吃夜宵",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775028705240,
+    "validUntil": 1775028756887,
+    "memoryRef": "用户可能经常点外卖、吃夜宵"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "一只名为“豆豆”的宠物（已绝育",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028705251,
+    "validUntil": 1775028953676,
+    "memoryRef": "用户养了一只名为“豆豆”的宠物（已绝育）"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "跑步（可能5公里）",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775028756887,
+    "validUntil": 1775028781898,
+    "memoryRef": "用户目前每天跑步（可能5公里）"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_family",
+    "object": "妈经常打电话关心他的健康",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028781897,
+    "validUntil": 0,
+    "memoryRef": "用户的妈妈经常打电话关心他的健康"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "打电话关心他的健康",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775028781897,
+    "validUntil": 1775028781903,
+    "memoryRef": "用户的妈妈经常打电话关心他的健康"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "跑步",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775028781903,
+    "validUntil": 1775028953661,
+    "memoryRef": "用户每天跑步"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "打电话叮嘱用户跑步和饮食",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775028953661,
+    "validUntil": 1775029194464,
+    "memoryRef": "母亲经常打电话叮嘱用户跑步和饮食"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "一只叫豆豆的宠物",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775028953676,
+    "validUntil": 1775029362954,
+    "memoryRef": "用户养了一只叫豆豆的宠物，需要绝育"
+  },
+  {
+    "subject": "user",
+    "predicate": "relationship",
+    "object": "对象：比gdb的p命令更方便",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775029019385,
+    "validUntil": 0,
+    "memoryRef": "lldb的`po`命令打印Objective-C对象比gdb的p命令更方便"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "ective-C对象 over gdb的p命令更",
+    "confidence": 0.7,
+    "source": "ai_observed",
+    "ts": 1775029019385,
+    "validUntil": 1775029720330,
+    "memoryRef": "lldb的`po`命令打印Objective-C对象比gdb的p命令更方便"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "粉色家具",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775029122723,
+    "validUntil": 1775031260791,
+    "memoryRef": "小雨喜欢粉色家具"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "加班到12点",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775029194464,
+    "validUntil": 1775029194467,
+    "memoryRef": "通勤坐地铁2号线，经常加班到12点"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "5公里",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775029194467,
+    "validUntil": 1775030090820,
+    "memoryRef": "最近开始晨跑，每天5公里"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "叫小雨的人",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775029362954,
+    "validUntil": 1775029623351,
+    "memoryRef": "用户身边有一个叫小雨的人，会评价用户的厨艺"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "叫豆豆的宠物",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775029623351,
+    "validUntil": 1775029916112,
+    "memoryRef": "用户有一只叫豆豆的宠物，且已绝育"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "团队，招聘有经验的人 over 全员培训见效更",
+    "confidence": 0.7,
+    "source": "system",
+    "ts": 1775029720330,
+    "validUntil": 1775030218942,
+    "memoryRef": "对于缺乏K8s经验的团队，招聘有经验的人比全员培训见效更快"
+  },
+  {
+    "subject": "user",
+    "predicate": "learning",
+    "object": "习Kubernetes",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775029898835,
+    "validUntil": 1775029898864,
+    "memoryRef": "用户正在学习Kubernetes，感觉概念较多（Pod、Service、Deployment、Ingress）"
+  },
+  {
+    "subject": "user",
+    "predicate": "learning",
+    "object": "习K8s",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775029898864,
+    "validUntil": 0,
+    "memoryRef": "建议在字节HR面试时提及正在学习K8s，以显示上进心"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "一只叫豆豆的宠物",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775029916112,
+    "validUntil": 1775030060964,
+    "memoryRef": "用户养了一只叫豆豆的宠物，近期做了绝育手术"
+  },
+  {
+    "subject": "user",
+    "predicate": "lives_in",
+    "object": "北京",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775030060954,
+    "validUntil": 0,
+    "memoryRef": "用户和小雨计划从上海搬到北京"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "宠物（豆豆）",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775030060964,
+    "validUntil": 1775030460180,
+    "memoryRef": "用户和小雨可能养了宠物（豆豆）"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "、朋友、宠物医院（豆豆的）",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775030090820,
+    "validUntil": 1775030218965,
+    "memoryRef": "用户在上海有生活习惯、朋友、宠物医院（豆豆的）"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "字节的工作节奏 over 以前",
+    "confidence": 0.7,
+    "source": "system",
+    "ts": 1775030218942,
+    "validUntil": 1775030335795,
+    "memoryRef": "字节的工作节奏比以前快多了"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "都有code",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775030218965,
+    "validUntil": 1775030856079,
+    "memoryRef": "字节每天都有code review"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "上海有自己的",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030235605,
+    "validUntil": 1775030302592,
+    "memoryRef": "小雨不愿意去北京，她在上海有自己的工作和朋友"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "考虑是否换",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030302592,
+    "validUntil": 1775030335776,
+    "memoryRef": "用户正在考虑是否换工作，处于犹豫权衡阶段"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "字节跳动（或至少去过字节）",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030335776,
+    "validUntil": 1775030360635,
+    "memoryRef": "用户入职字节跳动（或至少去过字节）"
+  },
+  {
+    "subject": "user",
+    "predicate": "prefers",
+    "object": "用户认为字节食堂 over 以前公司",
+    "confidence": 0.7,
+    "source": "system",
+    "ts": 1775030335795,
+    "validUntil": 0,
+    "memoryRef": "用户认为字节食堂比以前公司好"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "考虑是否接受字节跳动的",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030360635,
+    "validUntil": 1775030402215,
+    "memoryRef": "用户正在考虑是否接受字节跳动的工作机会，担心异地恋影响感情"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "字节跳动",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030402214,
+    "validUntil": 1775030402257,
+    "memoryRef": "用户可能在字节跳动工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "字节’略显武断",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030402257,
+    "validUntil": 1775030881019,
+    "memoryRef": "[反思] 回复在幽默和关心之间取得了平衡，但将用户重复发言直接推断为‘已入职字节’略显武断，可先询问确认。"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "狗遛猫的好地方",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775030460180,
+    "validUntil": 1775031260780,
+    "memoryRef": "朝阳公园是遛狗遛猫的好地方"
+  },
+  {
+    "subject": "user",
+    "predicate": "habit",
+    "object": "和知识沉淀偏好",
+    "confidence": 0.5,
+    "source": "user_said",
+    "ts": 1775030856079,
+    "validUntil": 0,
+    "memoryRef": "用户有系统性的学习习惯和知识沉淀偏好，计划并已经开始通过创建GitHub仓库、撰写Markdown笔记和博客来结构化记录"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "字节",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030881019,
+    "validUntil": 1775030932197,
+    "memoryRef": "用户可能已入职字节"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "找",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775030932197,
+    "validUntil": 1775031174425,
+    "memoryRef": "小雨可能在找工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "works_at",
+    "object": "新公司",
+    "confidence": 0.3,
+    "source": "user_said",
+    "ts": 1775031174425,
+    "validUntil": 0,
+    "memoryRef": "小雨在新公司工作"
+  },
+  {
+    "subject": "user",
+    "predicate": "has_pet",
+    "object": "宠物（豆豆）",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775031260780,
+    "validUntil": 0,
+    "memoryRef": "用户有一只宠物（豆豆）"
+  },
+  {
+    "subject": "user",
+    "predicate": "likes",
+    "object": "趴在她肚子上",
+    "confidence": 0.95,
+    "source": "user_said",
+    "ts": 1775031260791,
+    "validUntil": 0,
+    "memoryRef": "豆豆最近特别粘小雨，喜欢趴在她肚子上"
+  }
+]

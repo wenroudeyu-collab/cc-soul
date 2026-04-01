@@ -112,20 +112,16 @@ interface AvatarProfile {
 const TECH_KEYWORDS = /(?:code|bug|api|sdk|git|docker|npm|yarn|pip|import|class|func|def |return |async|await|http|sql|json|xml|debug|compile|deploy|linux|server|数据库|接口|编译|部署|框架|算法|内存|线程|进程|函数|变量|服务器)/i
 
 /** Classify a message into one of four categories */
+// classifyMessageCategory → 复用 signals.ts 的 classifyQuick（消除重复分类逻辑）
 function classifyMessageCategory(msg: string): 'casual' | 'technical' | 'emotional' | 'general' {
-  // Emotional: contains strong emotion markers
-  if (/[!！]{2,}|😭|😤|😡|🥺|💔|气死|烦死|崩溃|绷不住|好难过|好开心|太爽了|心疼|受不了|郁闷|焦虑|压力|哭了|泪目/.test(msg)) {
-    return 'emotional'
+  try {
+    const { classifyQuick } = require('./signals.ts')
+    return classifyQuick(msg)
+  } catch {
+    // fallback
+    if (msg.length < 15) return 'casual'
+    return 'general'
   }
-  // Technical: contains tech terms
-  if (TECH_KEYWORDS.test(msg)) {
-    return 'technical'
-  }
-  // Casual: short, informal, greeting-like
-  if (msg.length < 15 || /^(哈哈|嗯|ok|好的|行|对|是的|嗯嗯|哦|啊|666|牛|绝了|真的假的|不是吧|草)/.test(msg)) {
-    return 'casual'
-  }
-  return 'general'
 }
 
 /** Get all samples from categorized structure as flat array */
