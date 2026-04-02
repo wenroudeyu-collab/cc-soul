@@ -29,7 +29,7 @@ import { getPersonModel, getUnifiedUserContext } from './person-model.ts'
 // blindSpots analysis now done inline (no heartbeat dependency)
 import { queryEntityContext, findMentionedEntities, generateEntitySummary, graphWalkRecallScored, traceCausalChain } from './graph.ts'
 import { getFlowHints, getFlowContext, getCoupledPressureContext } from './flow.ts'
-import { getAssociativeRecall, triggerAssociativeRecall, associateSync } from './memory.ts'
+import { getAssociativeRecall, triggerAssociativeRecall } from './memory.ts'
 import { queryLorebook } from './lorebook.ts'
 import { prepareContext } from './context-prep.ts'
 import { detectSkillOpportunity, autoCreateSkill, getActivePlanHint, getActiveGoalHint, detectWorkflowTrigger, detectGoalIntent, startAutonomousGoal, findSkills } from './tasks.ts'
@@ -162,6 +162,28 @@ export function feedbackMemoryEngagement(userReply: string): void {
         const queryPattern = userReply.slice(0, 20).toLowerCase()
         const missedVia = recent.traces[0]?.path?.find((p: any) => p.stage === 'candidate_selection')?.via || 'aam_hop1'
         suppressExpansion(queryPattern, missedVia)
+      }
+    }
+  } catch {}
+
+  // Recall Thermostat: feed signal-level engagement data
+  try {
+    const { getRecentTrace, recordRecallEngagement } = require('./activation-field.ts')
+    const recent = getRecentTrace()
+    if (recent && recent.traces) {
+      for (const trace of recent.traces) {
+        const signals: Record<string, number> = {}
+        for (const step of (trace.path || [])) {
+          if (step.via === 'base_activation') signals.base = step.rawScore
+          else if (step.via === 'aam_context' || step.via === 'bm25') signals.context = step.rawScore
+          else if (step.via === 'emotion') signals.emotion = step.rawScore
+          else if (step.via === 'spread') signals.spread = step.rawScore
+          else if (step.via === 'temporal') signals.temporal = step.rawScore
+        }
+        const isEngaged = _lastInjectedMemoryContents.some(ic =>
+          trace.memory?.content && ic.includes(trace.memory.content.slice(0, 30))
+        )
+        recordRecallEngagement(isEngaged, signals)
       }
     }
   } catch {}
@@ -1636,11 +1658,11 @@ export async function buildAndSelectAugments(params: {
   // Priority arbitration: behavior engine's style hints override persona's tone hints
   // because behavior is context-specific (current situation), persona is identity-level.
   // persona = "用什么身份说话", behavior = "怎么说"
+  // 统一行为分析入口（合并原 getBehaviorEngineHint + getBehaviorPrediction + getTimeSlotPrediction）
   try {
-    const { getBehaviorEngineHint } = await import('./behavioral-phase-space.ts')
-    const beHint = getBehaviorEngineHint(userMsg, body.mood, session)
+    const { getUnifiedBehaviorHint } = await import('./behavioral-phase-space.ts')
+    const beHint = getUnifiedBehaviorHint(userMsg, body.mood, session, memoryState.memories)
     if (beHint) {
-      // Find persona augment and ensure behavior priority is higher by 1
       const personaAug = augments.find(a => a.content.startsWith('[当前面向') || a.content.startsWith('[Persona'))
       const bePriority = personaAug ? personaAug.priority + 1 : 8
       augments.push({ content: beHint, priority: bePriority, tokens: estimateTokens(beHint) })
@@ -1786,25 +1808,7 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content: hint, priority: 7, tokens: estimateTokens(hint) })
   }
 
-  // ── #9 预测式记忆 (逻辑在 behavior-prediction.ts) ──
-  {
-    const timeSlotHint = getTimeSlotPrediction(memoryState.chatHistory)
-    if (timeSlotHint) {
-      augments.push({ content: timeSlotHint, priority: 3, tokens: estimateTokens(timeSlotHint) })
-    }
-  }
-
-  // ── 行为预测 (纯信息格式，无"回复时"指令) ──
-  if (isEnabled('behavior_prediction')) {
-    const behaviorHint = getBehaviorPrediction(userMsg, memoryState.memories)
-    if (behaviorHint) {
-      // 去掉所有"回复时""可以""应该"指令，只保留事实信息
-      const cleaned = behaviorHint.replace(/[。，]?\s*(回复时|可以主动|应该|建议)[^。]*[。]?/g, '')
-      if (cleaned.length > 10) {
-        augments.push({ content: cleaned, priority: 6, tokens: estimateTokens(cleaned) })
-      }
-    }
-  }
+  // ── #9 + 行为预测：已合并到 getUnifiedBehaviorHint（上面 1662 行处调用）──
 
   // ── 决策预测 (Decision Prediction) ──
   if (isDecisionQuestion(userMsg)) {

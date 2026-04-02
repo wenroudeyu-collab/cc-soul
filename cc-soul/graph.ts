@@ -262,11 +262,19 @@ const RELATION_WEIGHTS: Record<string, number> = {
   prefers_over: 1.1, triggers: 1.2, learned_from: 1.3,
 }
 
+/** Temporal gravity: recent relations weigh more, 90-day half-life, min 0.3 */
+function temporalGravity(relation: any, now: number): number {
+  const age = now - (relation.valid_at || relation.ts || 0)
+  const ageDays = age / 86400000
+  return Math.max(0.3, Math.exp(-ageDays / 90))
+}
+
 /**
  * From mentioned entities, traverse relations 1-2 hops to find related entity names.
  * Weighted by relation type — higher-weight relations are explored first.
  */
 export function getRelatedEntities(mentionedEntities: string[], maxHops = 2, maxResults = 10): string[] {
+  const now = Date.now()
   const visited = new Set<string>(mentionedEntities)
   let frontier = [...mentionedEntities]
 
@@ -277,7 +285,7 @@ export function getRelatedEntities(mentionedEntities: string[], maxHops = 2, max
         if (r.invalid_at !== null) continue
         const neighbor = r.source === entity ? r.target : r.target === entity ? r.source : null
         if (!neighbor || visited.has(neighbor)) continue
-        const relWeight = (r.weight ?? 1.0) * (RELATION_WEIGHTS[r.type] ?? 0.8)
+        const relWeight = (r.weight ?? 1.0) * (RELATION_WEIGHTS[r.type] ?? 0.8) * temporalGravity(r, now)
         candidates.push({ name: neighbor, weight: relWeight })
       }
     }
@@ -377,12 +385,13 @@ export function personalizedPageRank(seeds: string[], alpha = 0.15, maxIter = 20
 
   // Build adjacency: outDegree per node
   const outEdges = new Map<string, { target: string; weight: number }[]>()
+  const now = Date.now()
   for (const name of activeEntities) outEdges.set(name, [])
   for (const r of graphState.relations) {
     if (r.invalid_at !== null) continue
     if (!activeEntities.has(r.source) || !activeEntities.has(r.target)) continue
     const relTypeWeight = RELATION_WEIGHTS[r.type] ?? 0.8
-    const w = (r.weight ?? 1.0) * (r.confidence ?? 0.7) * relTypeWeight
+    const w = (r.weight ?? 1.0) * (r.confidence ?? 0.7) * relTypeWeight * temporalGravity(r, now)
     outEdges.get(r.source)!.push({ target: r.target, weight: w })
   }
 

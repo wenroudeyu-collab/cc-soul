@@ -42,12 +42,11 @@ export {
 export {
   recall, recallFused, getCachedFusedRecall, invalidateIDF, degradeMemoryConfidence,
   trackRecallImpact, getRecallImpactBoost, getRecallRate, recallStats, recallImpact,
-  recallWithScores, recallWithMetamemory, updateRecallIndex, rebuildRecallIndex, incrementalIDFUpdate,
+  recallWithScores, updateRecallIndex, rebuildRecallIndex, incrementalIDFUpdate,
 } from './memory-recall.ts'
-export type { MetamemoryResult } from './memory-recall.ts'
 export {
   consolidateMemories, generateInsights, recallFeedbackLoop,
-  associateSync, triggerAssociativeRecall, getAssociativeRecall,
+  triggerAssociativeRecall, getAssociativeRecall,
   parseMemoryCommands, executeMemoryCommands, getPendingSearchResults,
   scanForContradictions,
   predictiveRecall, generatePrediction, triggerSessionSummary,
@@ -89,6 +88,14 @@ setTimeout(() => {
   import('./signals.ts').then(m => { _signalsMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (signals): ${e.message}`) })
   import('./distill.ts').then(m => { _distillMod = m }).catch((e: any) => { console.error(`[cc-soul] module load failed (distill): ${e.message}`) })
 }, 1000)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Topic River — 话题河流：segment ID 追踪
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _currentSegmentId = 0
+export function incrementSegment(): void { _currentSegmentId++ }
+export function getCurrentSegmentId(): number { return _currentSegmentId }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // BAYESIAN CONFIDENCE — Beta distribution posterior update
@@ -845,6 +852,76 @@ function retroactiveInterference(oldMem: Memory, newContent: string, similarity:
 }
 
 /**
+ * Memory Metabolism — 记忆代谢
+ *
+ * When a new memory shares entities with an existing memory but has complementary
+ * (non-conflicting) facts, the old memory ABSORBS the new info instead of storing
+ * two separate memories.
+ *
+ * Actions:
+ *   ABSORB:      shared entity + different predicates → old memory absorbs new facts
+ *   SUPERSEDE:   already handled by existing conflict resolution — skip
+ *   CRYSTALLIZE: same entity appears in ≥3 recent memories → trigger trait crystallization
+ *   PASS:        no relation → normal write
+ */
+interface MetabolismAction {
+  action: 'ABSORB' | 'SUPERSEDE' | 'CRYSTALLIZE' | 'PASS'
+  target?: Memory
+  newFacts?: any[]
+  entity?: string
+}
+
+function metabolize(newContent: string, memories: Memory[]): MetabolismAction {
+  let extractFn: any
+  try { extractFn = require('./fact-store.ts').extractFacts } catch { return { action: 'PASS' } }
+
+  const newFacts = extractFn(newContent)
+  if (newFacts.length === 0) return { action: 'PASS' }
+
+  const newEntities = new Set(newFacts.map((f: any) => f.subject).concat(newFacts.map((f: any) => f.object)))
+
+  // Scan recent 30 memories for shared entities
+  const recent = memories.slice(-30).filter(m => m.scope !== 'expired' && m.scope !== 'decayed')
+
+  for (const old of recent) {
+    const oldFacts = extractFn(old.content)
+    if (oldFacts.length === 0) continue
+
+    // Find shared entities
+    const oldEntities = new Set(oldFacts.map((f: any) => f.subject).concat(oldFacts.map((f: any) => f.object)))
+    const shared = [...newEntities].filter(e => oldEntities.has(e))
+    if (shared.length === 0) continue
+
+    // Check for predicate conflict (SUPERSEDE) — already handled by existing conflict resolution
+    const hasConflict = newFacts.some((nf: any) =>
+      oldFacts.some((of: any) => of.subject === nf.subject && of.predicate === nf.predicate && of.object !== nf.object)
+    )
+    if (hasConflict) continue  // Let existing SUPERSEDE logic handle it
+
+    // Check for complementary facts (ABSORB)
+    const complement = newFacts.filter((nf: any) =>
+      !oldFacts.some((of: any) => of.subject === nf.subject && of.predicate === nf.predicate)
+    )
+    if (complement.length > 0) {
+      return { action: 'ABSORB', target: old, newFacts: complement }
+    }
+  }
+
+  // Check for CRYSTALLIZE: same entity in ≥3 recent memories
+  for (const e of newEntities) {
+    let count = 0
+    for (const m of recent) {
+      if (m.content.includes(e as string)) count++
+    }
+    if (count >= 3) {
+      return { action: 'CRYSTALLIZE', entity: e as string }
+    }
+  }
+
+  return { action: 'PASS' }
+}
+
+/**
  * When a new fact/preference/correction is added, suppress or reshape
  * similar older memories. This prevents the 60K memory pile-up.
  *
@@ -1445,6 +1522,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     ...extractReasoning(content),
     ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),
     ...(_corefHistory ? { history: _corefHistory } : {}),
+    _segmentId: getCurrentSegmentId(),
   }
   // ── 闪光灯记忆（Flashbulb Memory）：高情绪事件深度编码 ──
   // 人脑原理：极端情绪事件形成超详细记忆（911 你记得你在做什么）
@@ -1482,6 +1560,24 @@ export function addMemory(content: string, scope: string, userId?: string, visib
       break
     }
   }
+
+  // ── Memory Metabolism: check if new memory should be absorbed into existing ──
+  const metabolism = metabolize(content, memoryState.memories)
+  if (metabolism.action === 'ABSORB' && metabolism.target && metabolism.newFacts) {
+    // Absorb: append new facts to old memory
+    const factStr = metabolism.newFacts.map((f: any) => `${f.predicate === 'likes' ? '喜欢' : f.predicate}${f.object}`).join('，')
+    metabolism.target.content = `${metabolism.target.content}，${factStr}`.slice(0, 200)
+    metabolism.target.ts = Date.now()
+    metabolism.target.lastAccessed = Date.now()
+    try { appendLineage(metabolism.target, { action: 'merged', ts: Date.now(), delta: `absorbed ${metabolism.newFacts.length} facts` }) } catch {}
+    try { require('./decision-log.ts').logDecision('metabolism_absorb', metabolism.target.content.slice(0, 30), `absorbed ${metabolism.newFacts.length} facts`) } catch {}
+    // Don't push newMem — it's been absorbed
+    return
+  }
+  if (metabolism.action === 'CRYSTALLIZE' && metabolism.entity) {
+    try { require('./person-model.ts').crystallizeTraits?.() } catch {}
+  }
+  // PASS and SUPERSEDE: continue normal flow
 
   // 写入后才更新索引（学自 Claude Code strict write discipline）
   // SQLite 写入优先，失败则不更新内存索引

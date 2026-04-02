@@ -272,7 +272,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '午休': ['午睡', '小憩', '打个盹'],
   '散步': ['溜达', '走走', '逛逛'],
   '晨跑': ['晨练', '早起运动', '跑步'],
-  '锻炼': ['健身', '运动', '练', 'workout'],
+  '锻炼': ['健身', '运动', '练', 'workout', '跑步', '锻炼习惯'],
   '做瑜伽': ['瑜伽', '拉伸', '冥想', 'yoga'],
   '游泳': ['泡泳池', '蛙泳', '自由泳', 'swim'],
   '骑车': ['骑自行车', '单车', '骑行', 'cycling'],
@@ -311,7 +311,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '早餐': ['早饭', '早起吃', '早点', '吃早餐'],
   '晚餐': ['晚饭', '晚上吃', '夜宵', '宵夜'],
   '怀孕': ['孕期', '孕妇', '待产', '预产期', '产检'],
-  '宠物': ['猫', '狗', '铲屎官', '宠物医院'],
+  '宠物': ['猫', '狗', '铲屎官', '宠物医院', '猫咪', '狗狗'],
   '猫': ['喵', '猫咪', '养猫', '铲屎', '猫粮'],
   '狗': ['汪', '狗子', '养狗', '遛狗', '狗粮'],
   '天气': ['下雨', '晴天', '冷', '热', '降温'],
@@ -439,7 +439,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '发烧': ['发热', '高烧', '低烧', '体温高', 'fever'],
   '咳嗽': ['咳', '干咳', '嗓子痒', 'cough'],
   '过敏': ['皮肤痒', '过敏反应', '花粉过敏', 'allergy'],
-  '失眠': ['睡不着', '难以入睡', '翻来覆去', 'insomnia'],
+  '失眠': ['睡不着', '难以入睡', '翻来覆去', 'insomnia', '睡眠不好', '睡眠质量'],
   '体检': ['检查', '检查身体', '年度体检', '健康检查'],
   '手术': ['开刀', '做手术', '微创', 'surgery'],
   '药': ['吃药', '用药', '处方药', '药物', 'medicine'],
@@ -448,7 +448,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '碳水': ['碳水化合物', '主食', '糖', 'carb'],
   '脂肪': ['油脂', '肥肉', '卡路里', 'fat'],
   '维生素': ['维C', '维D', 'vitamin', '营养素'],
-  '血压': ['高血压', '低血压', '量血压', '血压计'],
+  '血压': ['高血压', '低血压', '量血压', '血压计', '血压高'],
   '血糖': ['高血糖', '低血糖', '糖尿病', '测血糖'],
   '胃疼': ['胃痛', '胃病', '消化不良', '胃炎'],
   '拉肚子': ['腹泻', '肠胃炎', '水土不服', 'diarrhea'],
@@ -560,6 +560,9 @@ const _defaultSynonyms: Record<string, string[]> = {
   '宝宝': ['小婴儿', '娃娃', '宝贝', '婴儿', '新生儿', '娃', 'baby'],
   '父母': ['爸妈', '双亲', '家长', '爸爸', '妈妈', '父亲', '母亲', 'parents'],
   '家人': ['家庭', '家族', '家里人', 'family'],
+  '女朋友': ['女友', '对象', '媳妇'],
+  '男朋友': ['男友', '对象', '老公'],
+  '对象': ['女朋友', '男朋友', '女友', '男友', '伴侣', '另一半'],
   '情侣': ['男女朋友', '对象', '恋人', 'couple'],
   '前任': ['前男友', '前女友', '前对象', 'ex'],
   '暗恋': ['单恋', '暗恋对象', '悄悄喜欢'],
@@ -665,7 +668,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   'KTV': ['唱歌', 'K歌', '麦霸'],
   '麻将': ['棋牌', '打牌', '打麻将', '搓麻'],
   '剧本杀': ['剧本', '推理', '本格'],
-  '宠物': ['猫', '狗', '宠物店', 'pet'],
+  '宠物': ['猫', '狗', '宠物店', 'pet', '猫咪', '狗狗'],
 
   // ── 通用形容（40组）──────────────────────────────────────────────────
   '不错': ['挺好', '还行', '可以', '行'],
@@ -999,24 +1002,80 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     }
   }
 
-  // ── 过滤碎片：移除跨词边界的 2-gram 垃圾 ──
-  // "你母"、"校在"、"眠怎" 是 sliding window 产出的上下文碎片
-  // 改用置信度过滤：PMI 学到的高置信度词保留，低置信度碎片删除
-  // 这样 AAM 的学习结果不会被白名单杀死
-  const PMI_CONFIDENCE_THRESHOLD = 0.3
-  const _defaultKeySet = new Set(Object.keys(_defaultSynonyms))
-  const _defaultValueSet = new Set<string>()
-  for (const syns of Object.values(_defaultSynonyms)) {
-    for (const s of syns) _defaultValueSet.add(s)
+  // ── 概念层级：上位→下位 双向扩展（权重 0.3，低于同义词）──
+  const CONCEPT_HIERARCHY: Record<string, string[]> = {
+    '健康': ['血压','血糖','体重','睡眠','失眠','运动','体检','感冒','过敏','头疼','腰疼','视力'],
+    '身体': ['血压','血糖','体重','睡眠','运动','体检','疲劳','腰疼'],
+    '经济': ['房贷','工资','薪资','收入','股票','理财','储蓄','花销','信用卡','贷款','税'],
+    '财务': ['房贷','工资','收入','股票','理财','储蓄','信用卡','贷款','预算'],
+    '学校': ['大学','母校','高中','专业','导师','论文','考试','学位','毕业','同学'],
+    '教育': ['大学','母校','高中','专业','导师','论文','考试','培训','学位'],
+    '工作': ['加班','薪资','同事','老板','项目','晋升','跳槽','面试','绩效','裸辞','简历'],
+    '职业': ['加班','薪资','晋升','跳槽','面试','绩效','转行'],
+    '家庭': ['父母','爸妈','孩子','老婆','老公','宠物','猫','狗','家务'],
+    '家人': ['父母','爸妈','孩子','老婆','老公','兄弟','姐妹'],
+    '住房': ['房贷','租房','装修','搬家','小区','物业','房东','房价'],
+    '居住': ['房贷','租房','装修','搬家','小区','房东'],
+    '饮食': ['减肥','外卖','做饭','食谱','早餐','午餐','晚餐','零食','营养'],
+    '吃': ['外卖','做饭','早餐','午餐','晚餐','零食','火锅','奶茶'],
+    '出行': ['开车','地铁','航班','出差','高铁','打车','堵车','机票'],
+    '交通': ['开车','地铁','高铁','打车','堵车','公交'],
+    '情绪': ['焦虑','压力','抑郁','失眠','开心','烦躁','疲惫','孤独','崩溃'],
+    '心理': ['焦虑','压力','抑郁','失眠','烦躁','孤独','咨询'],
+    '社交': ['朋友','同事','邻居','相亲','聚会','吵架','分手','约会'],
+    '人际': ['朋友','同事','邻居','吵架','沟通','冲突'],
+    '技术': ['服务器','数据库','部署','前端','后端','bug','框架','API','运维'],
+    '编程': ['服务器','数据库','前端','后端','bug','框架','API','算法'],
+    '娱乐': ['电影','游戏','音乐','跑步','旅游','看书','刷剧','综艺'],
+    '休闲': ['电影','游戏','音乐','旅游','看书','刷剧'],
   }
-  for (const [word, weight] of [...expanded.entries()]) {
-    if (queryWords.includes(word)) continue  // 原始查询词保留
-    // 只过滤 CJK 2-char 词（最容易产出碎片的粒度）
+  // 反向索引：下位词→上位概念
+  const _conceptReverse = new Map<string, string[]>()
+  for (const [parent, children] of Object.entries(CONCEPT_HIERARCHY)) {
+    for (const child of children) {
+      if (!_conceptReverse.has(child)) _conceptReverse.set(child, [])
+      _conceptReverse.get(child)!.push(parent)
+    }
+  }
+  for (const w of queryWords) {
+    // 上位→下位：用户说"健康"→扩展出"血压/血糖/体重..."
+    const children = CONCEPT_HIERARCHY[w]
+    if (children) {
+      for (const c of children) {
+        if (c.length >= 2 && !expanded.has(c)) expanded.set(c, 0.6)
+      }
+    }
+    // 下位→上位：用户说"血压"→关联"健康"相关记忆
+    const parents = _conceptReverse.get(w)
+    if (parents) {
+      for (const p of parents) {
+        if (!expanded.has(p)) expanded.set(p, 0.3)
+        // 同级兄弟词也弱关联（血压→血糖/体重，但权重更低）
+        const siblings = CONCEPT_HIERARCHY[p]
+        if (siblings) {
+          for (const s of siblings) {
+            if (s !== w && s.length >= 2 && !expanded.has(s)) expanded.set(s, 0.3)
+          }
+        }
+      }
+    }
+  }
+
+  // ── 过滤碎片：移除跨词边界的 2-gram 垃圾 ──
+  // 白名单 = _defaultSynonyms + CONCEPT_HIERARCHY 的所有词
+  const _knownWords = new Set<string>()
+  for (const k of Object.keys(_defaultSynonyms)) _knownWords.add(k)
+  for (const syns of Object.values(_defaultSynonyms)) {
+    for (const s of syns) _knownWords.add(s)
+  }
+  for (const children of Object.values(CONCEPT_HIERARCHY)) {
+    for (const c of children) _knownWords.add(c)
+  }
+  for (const parent of Object.keys(CONCEPT_HIERARCHY)) _knownWords.add(parent)
+  for (const [word] of [...expanded.entries()]) {
+    if (queryWords.includes(word)) continue
     if (word.length === 2 && /^[\u4e00-\u9fff]{2}$/.test(word)) {
-      const isKnown = _defaultKeySet.has(word) || _defaultValueSet.has(word)
-      // 已知词（人工同义词表）直接保留；否则用置信度（weight）判断
-      // weight 来自 PMI/5（见上面 baseWeight 计算），> 0.3 意味着 PMI > 1.5
-      if (!isKnown && weight < PMI_CONFIDENCE_THRESHOLD) expanded.delete(word)
+      if (!_knownWords.has(word)) expanded.delete(word)
     }
   }
 

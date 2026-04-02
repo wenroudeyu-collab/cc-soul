@@ -145,6 +145,11 @@ async function handleProcess(body: any): Promise<any> {
   let flow: any = null
   try { flow = (await import('./flow.ts')).updateFlow(message, '', userId) } catch {}
 
+  // ── Topic River: 话题切换时递增 segment ID ──
+  if (flow?.turnCount === 1) {
+    try { (await import('./memory.ts')).incrementSegment() } catch {}
+  }
+
   // ── 2b. Emotional contagion (with actual frustration from flow) ──
   try {
     const bodyMod = await import('./body.ts')
@@ -153,6 +158,16 @@ async function handleProcess(body: any): Promise<any> {
     bodyMod.processEmotionalContagion(message, attention, frustration, userId)
     moodScore = bodyMod.body.mood; energyScore = bodyMod.body.energy
     emotion = moodScore > 0.3 ? 'positive' : moodScore < -0.3 ? 'negative' : 'neutral'
+  } catch {}
+
+  // ── 3.5 共享 extractFacts 结果（避免 3 个模块各自重新跑正则）──
+  let _sharedFacts: any[] = []
+  try {
+    const { extractFacts } = await import('./fact-store.ts')
+    _sharedFacts = extractFacts(message)
+    // 存到 globalThis 让 person-model/user-profiles/avatar 读取
+    ;(globalThis as any).__ccSoulSharedFacts = _sharedFacts
+    ;(globalThis as any).__ccSoulSharedFactsTs = Date.now()
   } catch {}
 
   // ── 4. User profile ──

@@ -502,6 +502,38 @@ export function predictUserDecision(situation: string, memories: any[], userId?:
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// UNIFIED BEHAVIOR HINT — 合并 getBehaviorEngineHint + getBehaviorPrediction
+// handler-augments 只需调这一个入口
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function getUnifiedBehaviorHint(userMsg: string, mood: number, session?: any, memories?: any[]): string | null {
+  const parts: string[] = []
+
+  // 1. 场景模式匹配（原 getBehaviorEngineHint）
+  const engineHint = getBehaviorEngineHint(userMsg, mood, session)
+  if (engineHint) {
+    // 去掉 [行为模式] 标签，只取内容
+    parts.push(engineHint.replace(/^\[行为模式\]\s*/, ''))
+  }
+
+  // 2. 轨迹预测（原 getBehaviorPrediction）
+  const pred = predictNext()
+  if (pred.topic.confidence >= 0.4) parts.push(`可能接下来聊${pred.topic.predicted}`)
+  if (pred.engagement.predicted < 0.3) parts.push('参与度在降低')
+  if (pred.mood.predicted < -0.3) parts.push('情绪可能变差')
+
+  // 3. 时段习惯
+  const ts = getTimeSlot()
+  const topDomains = getTopPredictions(1)
+  if (topDomains.length > 0 && topDomains[0].probability >= 0.5) {
+    parts.push(`${ts}时段常聊${topDomains[0].domain}`)
+  }
+
+  if (parts.length === 0) return null
+  return `[行为分析] ${parts.join('，')}`
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // COMPATIBILITY EXPORTS (keep old API working)
 // ═══════════════════════════════════════════════════════════════════════════════
 

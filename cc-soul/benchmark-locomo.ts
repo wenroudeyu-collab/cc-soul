@@ -187,11 +187,42 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
 
   const context = recalled.map(m => m.content).join(' ').toLowerCase()
 
+  // S0: Extract entities from recalled memories for precise matching
+  const entitySet = new Set<string>()
+  const allRecalledText = recalled.map(m => m.content).join(' ')
+  // Dates like "7 January 2023"
+  const dateMatches = allRecalledText.match(/\d{1,2}\s+\w+\s+\d{4}/g) || []
+  for (const d of dateMatches) entitySet.add(d.toLowerCase())
+  // Numbers (standalone, 2+ digits to avoid noise)
+  const numMatches = allRecalledText.match(/\b\d{2,}\b/g) || []
+  for (const n of numMatches) entitySet.add(n)
+  // Capitalized names (sequences of capitalized words)
+  const nameMatches = allRecalledText.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || []
+  for (const name of nameMatches) {
+    entitySet.add(name.toLowerCase())
+    // Also add individual parts for multi-word names
+    for (const part of name.split(/\s+/)) {
+      if (part.length >= 2) entitySet.add(part.toLowerCase())
+    }
+  }
+
   const scores = choices.map((choice, idx) => {
     const choiceLower = choice.toLowerCase().trim()
 
     // Dynamic scoring: try multiple strategies, take the best
     let score = 0
+
+    // S0: entity exact matching (highest priority for factual questions)
+    if (entitySet.size > 0) {
+      let entityHits = 0
+      for (const entity of entitySet) {
+        if (choiceLower.includes(entity)) entityHits++
+      }
+      // Normalize by entity count, weight higher than token coverage
+      if (entityHits > 0) {
+        score = Math.max(score, Math.min(1.0, entityHits / Math.max(3, entitySet.size) * 1.5))
+      }
+    }
 
     // S1: exact substring (strongest)
     if (context.includes(choiceLower)) {

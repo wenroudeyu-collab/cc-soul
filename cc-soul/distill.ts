@@ -573,6 +573,25 @@ export function distillL2toL3() {
           }
         }
 
+        // ── Entity Coverage Guard：防止实体丢失 ──
+        {
+          let _findEnts: ((msg: string) => string[]) | null = null
+          try { _findEnts = require('./graph.ts').findMentionedEntities } catch {}
+          if (_findEnts) {
+            const oldEnts = new Set(_findEnts(currentContent))
+            const newEnts = new Set(_findEnts(newContent))
+            if (oldEnts.size > 2) {
+              let lost = 0
+              for (const e of oldEnts) { if (!newEnts.has(e)) lost++ }
+              if (lost / oldEnts.size > 0.3) {
+                try { require('./decision-log.ts').logDecision('distill_shield', sectionKey, `lost ${lost}/${oldEnts.size} entities, rejected`) } catch {}
+                sectionUpdated[sectionKey] = now
+                return  // Don't replace — too many entities lost
+              }
+            }
+          }
+        }
+
         sections[sectionKey] = newContent
         sectionUpdated[sectionKey] = now
 

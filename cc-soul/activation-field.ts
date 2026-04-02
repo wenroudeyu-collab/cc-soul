@@ -51,6 +51,48 @@ export interface RejectionRecord {
 // 内存缓存：最近 3 轮的 trace，用 Date.now() 作 key
 const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: RejectionRecord[] }>()
 
+// ── Recall Thermostat: learn which signals correlate with engaged memories ──
+const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; temporal: number } }[] = []
+
+export function recordRecallEngagement(engaged: boolean, signals: Record<string, number>): void {
+  _signalBuffer.push({ engaged, signals: {
+    base: signals.base || 0, context: signals.context || 0,
+    emotion: signals.emotion || 0, spread: signals.spread || 0,
+    temporal: signals.temporal || 0,
+  }})
+  if (_signalBuffer.length > 200) _signalBuffer.shift()
+
+  if (_signalBuffer.length % 50 === 0 && _signalBuffer.length >= 50) {
+    adjustSignalWeights()
+  }
+}
+
+let _baseWeight = 0.3
+let _contextWeight = 0.7
+export function getSignalWeights(): { base: number; context: number } {
+  return { base: _baseWeight, context: _contextWeight }
+}
+
+function adjustSignalWeights(): void {
+  const good = _signalBuffer.filter(s => s.engaged)
+  const bad = _signalBuffer.filter(s => !s.engaged)
+  if (good.length < 10 || bad.length < 5) return
+
+  const avgGoodContext = good.reduce((s, g) => s + g.signals.context, 0) / good.length
+  const avgBadContext = bad.reduce((s, b) => s + b.signals.context, 0) / bad.length
+  const avgGoodBase = good.reduce((s, g) => s + g.signals.base, 0) / good.length
+  const avgBadBase = bad.reduce((s, b) => s + b.signals.base, 0) / bad.length
+
+  const contextDelta = avgGoodContext - avgBadContext
+  const baseDelta = avgGoodBase - avgBadBase
+
+  // Conservative adjustment: ±0.02 per cycle, clamped to [0.15, 0.45] for base
+  _baseWeight = Math.max(0.15, Math.min(0.45, _baseWeight + baseDelta * 0.02))
+  _contextWeight = 1 - _baseWeight
+
+  try { require('./decision-log.ts').logDecision('recall_thermostat', 'weight_adjust', `base=${_baseWeight.toFixed(3)}, ctx=${_contextWeight.toFixed(3)}, samples=${_signalBuffer.length}`) } catch {}
+}
+
 /** 获取最近 30 秒内的 trace（供 feedback 回溯用） */
 export function getRecentTrace(): { traces: ActivationTrace[]; rejections: RejectionRecord[] } | null {
   const now = Date.now()
@@ -188,8 +230,8 @@ function buildIdfCache(memories: Memory[]): Map<string, number> {
   for (const mem of memories) {
     const content = mem.content || ''
     const seen = new Set<string>()
-    // English 3+ letter words
-    const enWords = content.match(/[a-zA-Z]{3,}/gi) || []
+    // English 2+ letter words + numbers
+    const enWords = content.match(/[a-zA-Z]{2,}|\d+/gi) || []
     for (const w of enWords) seen.add(w.toLowerCase())
     // CJK 2-char
     const cjk = content.match(/[\u4e00-\u9fff]+/g) || []
@@ -272,7 +314,7 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
       for (let i = 0; i <= seg.length - 2; i++) memWords.add(seg.slice(i, i + 2))
     }
   }
-  const enWords = content.match(/[a-zA-Z]{3,}/gi) || []
+  const enWords = content.match(/[a-zA-Z]{2,}|\d+/gi) || []
   for (const w of enWords) memWords.add(w.toLowerCase())
 
   // IDF 加权匹配 + BM25+ delta：高频词权重降低，长文档不被过度惩罚
@@ -301,7 +343,7 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // ── 方式 B：n-gram 短语匹配（连续词序列比独立词匹配更强）──
   // 从 query 提取 2-gram 和 3-gram，如果在记忆中完整出现则大幅加分
   const queryLower = query.toLowerCase()
-  const queryTokens = (queryLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const queryTokens = (queryLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase())
   let phraseScore = 0
   if (queryTokens.length >= 2) {
     let phraseHits = 0, phrasePossible = 0
@@ -325,55 +367,8 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // ── 方式 C：trigram 模糊匹配 ──
   const triScore = trigramSimilarity(trigrams(query), trigrams(content))
 
-  // ── 方式 D：BM25F 多字段加权匹配 ──
-  // tag 命中：权重 3.0（tag 是编码时提取的关键词，精确匹配价值高）
-  let tagBonus = 0
-  if (mem.tags && mem.tags.length > 0) {
-    const tagHits = mem.tags.filter(t => queryLower.includes(t.toLowerCase())).length
-    tagBonus = (tagHits / Math.max(1, mem.tags.length)) * 3.0
-  }
-
-  // scope 命中：权重 1.5（查询意图匹配记忆类型）
-  let scopeBonus = 0
-  if (mem.scope) {
-    const SCOPE_KEYWORDS: Record<string, string[]> = {
-      correction: ['纠正', '改正', '错了', '不对', '更正', 'correct', 'fix'],
-      preference: ['喜欢', '偏好', '习惯', '喜爱', 'prefer', 'like'],
-      fact: ['事实', '知道', '记住', '告诉', 'fact', 'know'],
-      opinion: ['觉得', '认为', '看法', '想法', 'think', 'opinion'],
-      event: ['发生', '经历', '事件', '那次', 'event', 'happen'],
-      task: ['任务', '待办', '做', '完成', 'task', 'todo'],
-    }
-    const scopeKws = SCOPE_KEYWORDS[mem.scope]
-    if (scopeKws) {
-      for (const kw of scopeKws) {
-        if (queryLower.includes(kw)) { scopeBonus = 1.5; break }
-      }
-    }
-  }
-
-  // emotion 命中：权重 2.0（查询带情绪词 + 记忆有匹配情绪标签）
-  let emotionBonus = 0
-  if (mem.emotion && mem.emotion !== 'neutral') {
-    const EMOTION_KEYWORDS: Record<string, string[]> = {
-      warm: ['开心', '高兴', '快乐', '幸福', '温暖', '感动', 'happy', 'warm'],
-      painful: ['难过', '伤心', '痛苦', '难受', '委屈', '失望', 'sad', 'pain'],
-      important: ['重要', '关键', '必须', '一定', 'important', 'critical'],
-      funny: ['搞笑', '好笑', '哈哈', '有趣', 'funny', 'lol'],
-    }
-    const emoKws = EMOTION_KEYWORDS[mem.emotion]
-    if (emoKws) {
-      for (const kw of emoKws) {
-        if (queryLower.includes(kw)) { emotionBonus = 2.0; break }
-      }
-    }
-  }
-
-  // BM25F 融合：content 基础分 + 字段加权 bonus（归一化后取 max 与基础分混合）
-  const fieldBonus = (tagBonus + scopeBonus + emotionBonus) / 6.5  // 归一化到 ~[0, 1]
-  const baseScore = Math.max(wordScore, phraseScore * 1.2, triScore * 0.8)
-  // 字段 bonus 作为加法补充，不替代内容匹配，cap 在 0.3
-  return Math.min(1.0, baseScore + Math.min(0.3, fieldBonus))
+  // BM25F 字段加权移到 rerank 阶段（只对 top-50），此处只算内容基础分
+  return Math.max(wordScore, phraseScore * 1.2, triScore * 0.8)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -497,15 +492,23 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
 function interferenceSuppress(mem: Memory, currentTop: Memory[]): number {
   if (currentTop.length === 0) return 1.0  // 无竞争
 
+  // Summary/consolidated memories get relaxed thresholds to avoid
+  // session summaries suppressing each other when they share person names
+  const isSummary = mem.scope === 'fact' || mem.scope === 'consolidated'
+    || (mem.content || '').startsWith('[summary]')
+    || (mem.content || '').startsWith('[Session')
+
   const memTri = trigrams(mem.content || '')
   for (const top of currentTop) {
     const sim = trigramSimilarity(memTri, trigrams(top.content || ''))
-    if (sim > 0.5) {
-      // 有很相似的记忆已经在 top 中 → 我被抑制
-      return 0.3  // 大幅压制
-    }
-    if (sim > 0.3) {
-      return 0.7  // 轻微压制
+    if (isSummary) {
+      // Relaxed: only suppress at very high similarity
+      if (sim > 0.7) return 0.5
+      if (sim > 0.5) return 0.8
+    } else {
+      // Original thresholds
+      if (sim > 0.5) return 0.3  // 大幅压制
+      if (sim > 0.3) return 0.7  // 轻微压制
     }
   }
   return 1.0  // 无相似竞争
@@ -637,6 +640,8 @@ export function computeActivationField(
 
     const s1 = baseActivation(mem, now)
     const s2 = contextMatch(query, mem, expandedWords)
+    // 下限保护：完全无关的记忆不该靠 base 底分混进 top N
+    if (s2 < 0.005) continue
     const s3 = emotionResonance(mem, mood, alertness)
     const s4 = spreadingActivation(mem, memories, query)
     const s6 = temporalContext(mem, timeRange, queryWordSet)
@@ -645,8 +650,9 @@ export function computeActivationField(
     // 核心改变：base 和 context 从乘法改为加法
     // 原因：乘法下 base 的 365x 动态范围碾压 context 的 20x，旧但相关的记忆永远输给新但无关的
     // 加法下：score = 0.3×base + 0.7×context，context 有独立贡献，不被 base 乘没
-    // 权重 0.3/0.7：长期陪伴场景，相关性比新近性重要
-    const baseContextScore = 0.3 * s1 + 0.7 * s2
+    // 权重由 Recall Thermostat 动态调节（默认 0.3/0.7）
+    const { base: wBase, context: wCtx } = getSignalWeights()
+    const baseContextScore = wBase * s1 + wCtx * s2
 
     // 其余信号保持乘法调制（它们的范围温和，不存在碾压问题）
     const raw = baseContextScore * (0.5 + 0.5 * s3) * (1 + s4) * (0.8 + 0.2 * s6)
@@ -824,21 +830,24 @@ export function expandQueryForField(query: string): Map<string, number> {
     // 完整 3-4 字词也加入（如 "减肥期"）
     if (seg.length >= 3 && seg.length <= 4) expanded.set(seg, 1.0)
   }
-  // English: 3+ letter words, 停用词降权
-  const enWords = query.match(/[a-zA-Z]{3,}/gi) || []
+  // English: 2+ letter words + numbers, 停用词降权
+  const enWords = query.match(/[a-zA-Z]{2,}|\d+/gi) || []
   for (const w of enWords) {
     const wl = w.toLowerCase()
     expanded.set(wl, EN_STOP_WORDS.has(wl) ? 0.1 : 1.0)
   }
 
-  // 尝试用 AAM 的查询扩展
+  // AAM 查询扩展（同义词 + 概念层级 + 共字关联 + PMI）
   try {
     const aamMod = require('./aam.ts')
-    const aamExpanded = aamMod.expandQuery(words, 8)
+    const queryWords = [...expanded.keys()].filter(w => expanded.get(w)! >= 0.5 && w.length >= 2)
+    const aamExpanded = aamMod.expandQuery(queryWords, 15)
     for (const { word, weight } of aamExpanded) {
       if (!expanded.has(word)) expanded.set(word, weight)
     }
-  } catch {}
+  } catch (e: any) {
+    console.log(`[activation-field] AAM expandQuery error: ${e.message}`)
+  }
 
   // 短查询降低门槛：单字 CJK 也加入
   if (query.length < 10) {
@@ -958,8 +967,8 @@ export function activationRecall(
   // 过采样 2x，给 Step 3 的 rerank 留空间
 
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
-  // 首轮结果弱（top score < 0.15）且有结果时，从 top-3 提取关键词扩展查询，再跑一轮
-  if (results.length > 0 && results[0].activation < 0.15) {
+  // 仅在首轮几乎无结果时触发（阈值 0.03），避免大量计算
+  if (results.length > 0 && results[0].activation < 0.03) {
     const prfTopN = Math.min(3, results.length)
     const prfKeywords = new Map<string, number>()  // word → IDF weight
 
@@ -1035,6 +1044,26 @@ export function activationRecall(
       results.sort((a, b) => b.score - a.score)
     }
   } catch {}
+
+  // ── BM25F 字段加权 rerank（仅 top-50，避免全量计算）──
+  const queryLower = lexicalQuery.toLowerCase()
+  const SCOPE_KW: Record<string, string[]> = {
+    correction: ['纠正','错了','不对','correct','fix'], preference: ['喜欢','偏好','prefer','like'],
+    fact: ['事实','知道','记住','fact','know'], event: ['发生','经历','event','happen'],
+  }
+  const EMO_KW: Record<string, string[]> = {
+    warm: ['开心','高兴','快乐','happy'], painful: ['难过','伤心','痛苦','sad'],
+    important: ['重要','关键','important'], funny: ['搞笑','好笑','哈哈','funny'],
+  }
+  for (let i = 0; i < Math.min(50, results.length); i++) {
+    const m = results[i].memory
+    let bonus = 0
+    if (m.tags?.length) { bonus += (m.tags.filter((t: string) => queryLower.includes(t.toLowerCase())).length / m.tags.length) * 3.0 }
+    const sk = SCOPE_KW[m.scope || '']; if (sk?.some((k: string) => queryLower.includes(k))) bonus += 1.5
+    const ek = EMO_KW[m.emotion || '']; if (ek?.some((k: string) => queryLower.includes(k))) bonus += 2.0
+    results[i].score *= (1 + Math.min(0.3, bonus / 6.5))
+  }
+  results.sort((a, b) => b.score - a.score)
 
   // 截断到 topN
   const topResults = results.slice(0, topN)

@@ -227,7 +227,24 @@ export function consolidateMemories() {
 
     // Take oldest 20, cluster by topic, consolidate each cluster separately
     const oldest = mems.sort((a, b) => a.ts - b.ts).slice(0, 20)
-    const clusters = clusterByTopic(oldest)
+
+    // ── Topic River: segment-based pre-clustering（同 segment 优先合并）──
+    const segmentGroups = new Map<number, Memory[]>()
+    const noSegment: Memory[] = []
+    for (const m of oldest) {
+      if (m._segmentId != null) {
+        const g = segmentGroups.get(m._segmentId) || []
+        g.push(m)
+        segmentGroups.set(m._segmentId, g)
+      } else {
+        noSegment.push(m)
+      }
+    }
+    const segmentClusters = [...segmentGroups.values()].filter(g => g.length >= 3)
+    // Remaining memories (no segment or small segment groups) go through SimHash clustering
+    const remaining = noSegment.concat([...segmentGroups.values()].filter(g => g.length < 3).flat())
+    const simhashClusters = remaining.length >= 3 ? clusterByTopic(remaining) : []
+    const clusters = [...segmentClusters, ...simhashClusters]
 
     if (clusters.length === 0) continue
 
