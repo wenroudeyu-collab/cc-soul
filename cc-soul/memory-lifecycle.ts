@@ -105,15 +105,9 @@ function simHashDistance(a: bigint, b: bigint, bits = SIMHASH_BITS): number {
 }
 
 /** Tokenize text into word-level shingles for SimHash */
-function tokenize(text: string): string[] {
-  const words = (text.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
-  const tokens: string[] = []
-  for (let i = 0; i < words.length; i++) {
-    tokens.push(words[i])
-    if (i < words.length - 1) tokens.push(`${words[i]}_${words[i + 1]}`)
-  }
-  return tokens
-}
+// tokenize → 使用统一的 tokenize('bigram') from memory-utils.ts
+import { tokenize as _tokenize } from './memory-utils.ts'
+function tokenize(text: string): string[] { return _tokenize(text, 'bigram') }
 
 function clusterByTopic(mems: Memory[]): Memory[][] {
   // Cap input to most recent 200
@@ -1224,9 +1218,18 @@ export function processMemoryDecay() {
   const useArchive = true // dag_archive is always-on
   let archived = 0
 
+  // High-value scopes: skip decay entirely (never expire, always recallable)
+  const PROTECTED_SCOPES = new Set([
+    'fact', 'wal', 'preference', 'event',
+    'correction', 'deep_feeling', 'wisdom', 'pinned',
+  ])
+
   for (const mem of memoryState.memories) {
     // Skip already expired/consolidated/decayed/pinned/archived
     if (mem.scope === 'expired' || mem.scope === 'decayed' || mem.scope === 'pinned' || mem.scope === 'archived') continue
+
+    // High-value memories: never decay, always available for recall
+    if (PROTECTED_SCOPES.has(mem.scope)) continue
 
     // 72h 巩固免疫：刚合并产出的记忆需要时间被用户验证，避免立刻衰减
     if (mem.scope === 'consolidated' && (now - (mem.ts || 0)) < 72 * 60 * 60 * 1000) continue
@@ -1333,7 +1336,14 @@ export function pruneExpiredMemories() {
   const EXPIRED_CUTOFF = 30 * 86400000   // 30 days
   const DECAYED_CUTOFF = 90 * 86400000   // 90 days
 
+  // High-value scopes: never physically delete
+  const PROTECTED_SCOPES_DEL = new Set([
+    'fact', 'wal', 'preference', 'event',
+    'correction', 'deep_feeling', 'wisdom', 'pinned',
+  ])
+
   memoryState.memories = memoryState.memories.filter(m => {
+    if (PROTECTED_SCOPES_DEL.has(m.scope)) return true  // never delete high-value
     if (m.scope === 'expired' && now - m.ts > EXPIRED_CUTOFF) return false
     if (m.scope === 'decayed' && now - m.ts > DECAYED_CUTOFF && (m.recallCount ?? 0) === 0) return false
     return true

@@ -24,6 +24,8 @@ interface ProfileTrait {
   evidence: number
   firstSeen: number
   lastSeen: number
+  source?: 'regex' | 'crystallized'
+  crystallizedAt?: number
 }
 
 interface ProfileChange {
@@ -199,9 +201,11 @@ export function getLivingProfileSummary(): string {
   if (id.location) parts.push(`住: ${id.location}`)
   if (id.habits.length > 0) parts.push(`习惯: ${id.habits.slice(-3).join('; ')}`)
 
-  // 高置信度特征
-  const strongTraits = p.traits.filter(t => t.confidence > 0.5).map(t => t.trait)
-  if (strongTraits.length > 0) parts.push(`特征: ${strongTraits.join(', ')}`)
+  // 高置信度特征（区分结晶特征和正则特征）
+  const crystallizedTraits = p.traits.filter(t => t.source === 'crystallized' && t.confidence > 0.5).map(t => t.trait)
+  const regexTraits = p.traits.filter(t => t.source !== 'crystallized' && t.confidence > 0.5).map(t => t.trait)
+  if (crystallizedTraits.length > 0) parts.push(`性格结晶: ${crystallizedTraits.join(', ')}`)
+  if (regexTraits.length > 0) parts.push(`特征: ${regexTraits.join(', ')}`)
 
   // 最近变化
   const recentChanges = p.timeline.slice(-2)
@@ -214,6 +218,114 @@ export function getLivingProfileSummary(): string {
 
 export function getLivingProfile(): LivingProfile { return livingProfile }
 export function getLivingProfileVersion(): number { return livingProfile.version }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 记忆结晶（cc-soul 原创）
+// 从 behavior patterns + evolution rules 中提炼抽象性格特征
+// 不同于蒸馏（信息压缩），结晶是模式抽象
+//
+// 触发条件（三重门控）：
+//   behavior pattern hits ≥ 10 AND confidence > 0.6 AND 距上次结晶 > 7 天
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _lastCrystallizationTs = 0
+const CRYSTALLIZATION_COOLDOWN = 7 * 86400000  // 7 days
+
+export function crystallizeTraits(): number {
+  const now = Date.now()
+  if (now - _lastCrystallizationTs < CRYSTALLIZATION_COOLDOWN) return 0
+
+  const profile = livingProfile
+  let crystallized = 0
+
+  // Source 1: behavior patterns with high confidence (hits ≥ 10, confidence > 0.6)
+  try {
+    const bps = require('./behavioral-phase-space.ts')
+    const patterns: Array<{ condition: string; action: string; hits: number; misses: number; confidence: number }> = bps.getLearnedPatterns?.() || []
+
+    for (const p of patterns) {
+      if (p.hits < 10 || p.confidence <= 0.6) continue
+
+      // Check if already crystallized
+      const existing = profile.traits.find(t =>
+        t.source === 'crystallized' && (t.trait === p.action || t.trait.includes(p.condition?.slice(0, 10) || ''))
+      )
+      if (existing) continue
+
+      // Crystallize: pattern → trait
+      const trait: ProfileTrait = {
+        trait: p.action.slice(0, 60),
+        confidence: p.confidence,
+        evidence: p.hits,
+        firstSeen: now,
+        lastSeen: now,
+        source: 'crystallized',
+        crystallizedAt: now,
+      }
+
+      // Upgrade existing regex-sourced trait if similar
+      const regexIdx = profile.traits.findIndex(t =>
+        t.source === 'regex' && t.trait.includes(p.action?.slice(0, 10) || '')
+      )
+      if (regexIdx >= 0) {
+        profile.traits[regexIdx] = trait  // crystallized overrides regex
+      } else {
+        profile.traits.push(trait)
+      }
+
+      crystallized++
+      try { require('./decision-log.ts').logDecision('crystallize', trait.trait.slice(0, 30), `hits=${p.hits}, conf=${p.confidence.toFixed(2)}`) } catch {}
+    }
+  } catch {}
+
+  // Source 2: evolution rules — high-verification rules are stable enough to crystallize
+  try {
+    const { getRules } = require('./evolution.ts')
+    const rules = getRules?.() ?? []
+    for (const r of rules) {
+      const ruleText = typeof r === 'string' ? r : r.rule || ''
+      if (!ruleText || ruleText.length < 5) continue
+
+      // Rules with hits ≥ 10 and good hit ratio are stable enough
+      const hitRatio = r.hits / Math.max(1, r.hits + (r.misses ?? 0))
+      if (r.hits < 10 || hitRatio < 0.6) continue
+
+      const existing = profile.traits.find(t => t.trait === ruleText.slice(0, 60))
+      if (existing) continue
+
+      profile.traits.push({
+        trait: ruleText.slice(0, 60),
+        confidence: hitRatio,
+        evidence: r.hits,
+        firstSeen: now,
+        lastSeen: now,
+        source: 'crystallized',
+        crystallizedAt: now,
+      })
+      crystallized++
+    }
+  } catch {}
+
+  // Cap traits at 20 — crystallized prioritized over regex
+  if (profile.traits.length > 20) {
+    profile.traits.sort((a, b) => {
+      if (a.source === 'crystallized' && b.source !== 'crystallized') return -1
+      if (b.source === 'crystallized' && a.source !== 'crystallized') return 1
+      return (b.confidence || 0) - (a.confidence || 0)
+    })
+    profile.traits = profile.traits.slice(0, 20)
+  }
+
+  if (crystallized > 0) {
+    _lastCrystallizationTs = now
+    profile.version++
+    profile.lastUpdated = now
+    saveLivingProfile()
+    console.log(`[cc-soul][person-model] crystallized ${crystallized} traits`)
+  }
+
+  return crystallized
+}
 
 // Lazy modules (avoid circular deps + ESM require)
 let _bodyMod: any = null

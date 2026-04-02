@@ -170,6 +170,12 @@ export function runHeartbeat() {
       safeCLI('personModel', () => distillPersonModel(), safe)
       // person synthesis runs inside distillPersonModel() every 5th distill — no separate call needed
 
+      // ── 记忆结晶：从行为模式 + 进化规则中提炼抽象性格特征 ──
+      safe('crystallize', async () => {
+        const { crystallizeTraits } = await import('./person-model.ts')
+        crystallizeTraits()
+      })
+
       // ── 盲点提问扫描（基于 epistemic 域 + person-model 缺口）──
       safe('blindSpotQuestions', () => scanBlindSpotQuestions())
 
@@ -268,6 +274,56 @@ export function runHeartbeat() {
           rebuildField(memoryState.memories)
           discoverCausalChains(memoryState.memories)
         }
+      })
+
+      // ── 预测性记忆预热（cc-soul 原创：类似 CPU branch prediction）──
+      safe('predictivePreload', () => {
+        try {
+          const { getTopPredictions, getTimeSlot } = require('./behavioral-phase-space.ts')
+          const topPredictions: { domain: string; probability: number }[] = getTopPredictions(2)
+          if (!topPredictions || topPredictions.length === 0 || topPredictions[0].probability < 0.7) return
+
+          const prediction = topPredictions[0]
+          const hour = new Date().getHours()
+          const currentSlot: string = getTimeSlot()
+
+          // 时段范围映射（用于 ±1 小时边界检查）
+          const slotRanges: Record<string, [number, number]> = {
+            early_morning: [6, 9],
+            morning: [9, 12],
+            afternoon: [12, 18],
+            evening: [18, 23],
+            late_night: [23, 6],
+          }
+          const range = slotRanges[currentSlot]
+          if (!range) return
+
+          // 检查当前小时是否在当前时段 ±1 小时范围内
+          const inRange = range[0] <= range[1]
+            ? (hour >= range[0] - 1 && hour <= range[1] + 1)
+            : (hour >= range[0] - 1 || hour <= range[1] + 1)  // late_night wrap-around
+          if (!inRange) return
+
+          const predictedTopic = prediction.domain
+          if (!predictedTopic) return
+
+          const { memoryState } = require('./memory.ts')
+          let preheated = 0
+          for (const m of memoryState.memories) {
+            if (!m || m.scope === 'expired' || m.scope === 'decayed') continue
+            if (m.content && m.content.includes(predictedTopic)) {
+              m._preheated = true
+              m.confidence = Math.min(1.0, (m.confidence || 0.7) + 0.05)
+              preheated++
+              if (preheated >= 5) break
+            }
+          }
+
+          if (preheated > 0) {
+            console.log(`[cc-soul][heartbeat] pre-heated ${preheated} memories for predicted topic="${predictedTopic}" (conf=${prediction.probability.toFixed(2)})`)
+            try { require('./decision-log.ts').logDecision('preheat', predictedTopic, `${preheated} memories, conf=${prediction.probability.toFixed(2)}, slot=${currentSlot}`) } catch {}
+          }
+        } catch {}
       })
 
       // ── 轻量维护 ──

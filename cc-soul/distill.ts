@@ -155,8 +155,7 @@ function saveTopicNodes() {
   if (sqlMod?.dbSaveTopicNode) {
     for (const n of topicNodes) { try { sqlMod.dbSaveTopicNode(n) } catch {} }
   }
-  // JSON backup（过渡期保留，后续可删）
-  debouncedSave(TOPIC_NODES_PATH, topicNodes, 5000)
+  // JSON 双写已移除——SQLite 是唯一数据源
 }
 
 function saveMentalModels() {
@@ -165,10 +164,7 @@ function saveMentalModels() {
   if (sqlMod?.dbSaveMentalModel) {
     for (const [_, m] of mentalModels) { try { sqlMod.dbSaveMentalModel(m) } catch {} }
   }
-  // JSON backup
-  const obj: Record<string, MentalModel> = {}
-  for (const [id, m] of mentalModels) obj[id] = m
-  debouncedSave(MENTAL_MODELS_PATH, obj, 5000)
+  // JSON 双写已移除——SQLite 是唯一数据源
 }
 
 function saveDistillState_() {
@@ -177,8 +173,7 @@ function saveDistillState_() {
   if (sqlMod?.dbSaveDistillState) {
     try { sqlMod.dbSaveDistillState(distillState) } catch {}
   }
-  // JSON backup
-  saveJson(DISTILL_STATE_PATH, distillState)
+  // JSON 双写已移除——SQLite 是唯一数据源
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -562,6 +557,19 @@ export function distillL2toL3() {
             // LLM 照抄 → 跳过更新
             sectionUpdated[sectionKey] = now
             return
+          }
+        }
+
+        // ── Retention Loss Guard（论文借鉴）：防止人设突变 ──
+        // 按 section 独立检查。sim < 0.5 说明变化太大，保守融合而非直接替换
+        if (currentContent !== '（空）' && currentContent.length > 10) {
+          const { trigrams: _tri, trigramSimilarity: _triSim } = require('./memory-utils.ts')
+          const retentionSim = _triSim(_tri(currentContent), _tri(newContent))
+          if (retentionSim < 0.5) {
+            sections[sectionKey] = `${currentContent}\n[近期补充] ${newContent}`.slice(0, 150)
+            try { require('./decision-log.ts').logDecision('retention_guard', sectionKey, `sim=${retentionSim.toFixed(2)}<0.5, merged`) } catch {}
+            sectionUpdated[sectionKey] = now
+            return  // 不走正常替换路径
           }
         }
 

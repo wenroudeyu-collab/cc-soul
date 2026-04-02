@@ -118,6 +118,62 @@ export function shuffleArray<T>(arr: T[]): T[] {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Unified Tokenizer — 合并 aam/memory-lifecycle/memory-recall 三套分词
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const TOKENIZE_STOP_CHARS = new Set('的了是在我你他不有这那就也和但'.split(''))
+
+/**
+ * 统一分词函数（替代三套独立实现）
+ * mode:
+ *   'standard' — CJK 2-char 滑动窗口 + 3-4 char 整段 + 英文 3+ 字符，去重（原 aam.ts）
+ *   'bigram'   — standard + 相邻词对 w1_w2（原 memory-lifecycle.ts SimHash 用）
+ *   'bm25'     — CJK 2-gram + 3-gram + 停用词过滤（原 memory-recall.ts BM25 用）
+ */
+export function tokenize(text: string, mode: 'standard' | 'bigram' | 'bm25' = 'standard'): string[] {
+  if (mode === 'bm25') {
+    const tokens: string[] = []
+    const segments = text.match(/[\u4e00-\u9fff]+|[a-zA-Z]{3,}/g) || []
+    for (const seg of segments) {
+      if (/[\u4e00-\u9fff]/.test(seg)) {
+        for (let i = 0; i < seg.length - 1; i++) {
+          const bigram = seg.slice(i, i + 2)
+          if (!TOKENIZE_STOP_CHARS.has(bigram[0]) || !TOKENIZE_STOP_CHARS.has(bigram[1])) {
+            tokens.push(bigram)
+          }
+          if (i < seg.length - 2) tokens.push(seg.slice(i, i + 3))
+        }
+      } else {
+        tokens.push(seg.toLowerCase())
+      }
+    }
+    return tokens
+  }
+
+  // standard + bigram 共用基础分词
+  const words: string[] = []
+  const cjkRaw = text.match(/[\u4e00-\u9fff]+/g) || []
+  for (const seg of cjkRaw) {
+    for (let i = 0; i <= seg.length - 2; i++) words.push(seg.slice(i, i + 2))
+    if (seg.length >= 3 && seg.length <= 4) words.push(seg)
+  }
+  const enWords = text.match(/[a-zA-Z]{3,}/g) || []
+  words.push(...enWords.map(w => w.toLowerCase()))
+
+  if (mode === 'bigram') {
+    const tokens: string[] = []
+    const deduped = [...new Set(words)]
+    for (let i = 0; i < deduped.length; i++) {
+      tokens.push(deduped[i])
+      if (i < deduped.length - 1) tokens.push(`${deduped[i]}_${deduped[i + 1]}`)
+    }
+    return tokens
+  }
+
+  return [...new Set(words)]
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Trigram Fuzzy Matching — fills the gap between exact-tag and TF-IDF
 // ═══════════════════════════════════════════════════════════════════════════════
 

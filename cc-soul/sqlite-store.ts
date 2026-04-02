@@ -717,6 +717,23 @@ export function sqliteGetFactsBySubject(subject: string): StructuredFact[] {
   }))
 }
 
+/**
+ * Load ALL facts from SQLite (including expired ones with validUntil > 0).
+ * Used by fact-store.ts initialization to replace JSON loading.
+ */
+export function sqliteLoadAllFacts(): StructuredFact[] {
+  const _db = ensureDb()
+  if (!_db) return []
+  const rows = _db.prepare(
+    'SELECT * FROM structured_facts ORDER BY ts DESC'
+  ).all() as any[]
+  return rows.map(r => ({
+    subject: r.subject, predicate: r.predicate, object: r.object,
+    confidence: r.confidence, source: r.source, ts: r.ts,
+    validUntil: r.validUntil, memoryRef: r.memoryRef || undefined,
+  }))
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CHAT HISTORY CRUD
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -822,6 +839,24 @@ export function getDb() { return ensureDb() }
 // habits/goals/reminders CRUD removed — life features deleted
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// DUE REMINDERS — time-based reminders queried by heartbeat
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function dbGetDueReminders(): { id: number; msg: string }[] {
+  const _db = ensureDb(); if (!_db) return []
+  const now = new Date().toISOString()
+  const rows = _db.prepare(
+    "SELECT id, content FROM reminders WHERE status = 'pending' AND repeat_type != 'context' AND remind_at <= ?"
+  ).all(now) as any[]
+  return rows.map(r => ({ id: r.id, msg: r.content || '' }))
+}
+
+export function dbMarkReminderFired(id: number): void {
+  const _db = ensureDb(); if (!_db) return
+  _db.prepare("UPDATE reminders SET status = 'fired' WHERE id = ?").run(id)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CONTEXT REMINDERS — keyword-triggered reminders (repeat_type = 'context')
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -865,16 +900,16 @@ export function dbAddEntity(name: string, type: string, attrs: string[] = []): v
   const now = Date.now()
   const nowIso = new Date(now).toISOString()
   // Upsert: try INSERT first, on conflict update mentions
-  const existing = db.prepare('SELECT id, mentions, attrs FROM entities WHERE name = ?').get(name) as any
+  const existing = db.prepare('SELECT name, mentions, attrs FROM entities WHERE name = ?').get(name) as any
   if (existing) {
     const oldAttrs: string[] = (() => { try { return JSON.parse(existing.attrs || '[]') } catch { return [] } })()
     for (const a of attrs) { if (!oldAttrs.includes(a)) oldAttrs.push(a) }
-    db.prepare('UPDATE entities SET mentions = ?, attrs = ?, invalid_at = NULL WHERE id = ?')
-      .run((existing.mentions || 0) + 1, JSON.stringify(oldAttrs), existing.id)
+    db.prepare('UPDATE entities SET mentions = ?, attrs = ?, invalid_at = NULL WHERE name = ?')
+      .run((existing.mentions || 0) + 1, JSON.stringify(oldAttrs), name)
   } else {
-    db.prepare(`INSERT INTO entities (name, type, metadata, chat_id, created_at, mentions, firstSeen, attrs, valid_at, invalid_at)
-      VALUES (?, ?, '{}', '', ?, 1, ?, ?, ?, NULL)`)
-      .run(name, type, nowIso, now, JSON.stringify(attrs), now)
+    db.prepare(`INSERT INTO entities (name, type, mentions, firstSeen, attrs, valid_at, invalid_at)
+      VALUES (?, ?, 1, ?, ?, ?, NULL)`)
+      .run(name, type, now, JSON.stringify(attrs), now)
   }
 }
 
@@ -905,19 +940,19 @@ export function dbAddRelation(source: string, target: string, type: string, weig
   const nowIso = new Date(now).toISOString()
   // Check for existing active relation
   const existing = db.prepare(
-    'SELECT id FROM relations WHERE src = ? AND dst = ? AND relation = ? AND invalid_at IS NULL'
+    'SELECT source FROM relations WHERE source = ? AND target = ? AND type = ? AND invalid_at IS NULL'
   ).get(source, target, type) as any
   if (existing) return
-  db.prepare(`INSERT INTO relations (src, relation, dst, chat_id, created_at, ts, valid_at, invalid_at, weight, confidence)
-    VALUES (?, ?, ?, '', ?, ?, ?, NULL, ?, ?)`)
-    .run(source, type, target, nowIso, now, now, weight, confidence)
+  db.prepare(`INSERT INTO relations (source, target, type, ts, valid_at, invalid_at, weight, confidence)
+    VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`)
+    .run(source, target, type, now, now, weight, confidence)
 }
 
 export function dbInvalidateEntity(name: string): void {
   if (!ensureDb()) return
   const now = Date.now()
   db.prepare('UPDATE entities SET invalid_at = ? WHERE name = ? AND invalid_at IS NULL').run(now, name)
-  db.prepare('UPDATE relations SET invalid_at = ? WHERE (src = ? OR dst = ?) AND invalid_at IS NULL').run(now, name, name)
+  db.prepare('UPDATE relations SET invalid_at = ? WHERE (source = ? OR target = ?) AND invalid_at IS NULL').run(now, name, name)
 }
 
 export function dbInvalidateStaleRelations(thresholdMs: number): number {
@@ -936,8 +971,8 @@ export function dbTrimEntities(maxKeep = 800): void {
   if (count <= maxKeep + 100) return
   // Smart eviction: score = mentions * recency * validity
   // Invalid entities evicted first, then lowest composite score
-  db.prepare(`DELETE FROM entities WHERE id IN (
-    SELECT id FROM entities ORDER BY
+  db.prepare(`DELETE FROM entities WHERE name IN (
+    SELECT name FROM entities ORDER BY
       CASE WHEN invalid_at IS NOT NULL THEN 0 ELSE 1 END ASC,
       (COALESCE(mentions, 0) + 1) * (1.0 / (1.0 + (? - COALESCE(valid_at, firstSeen, 0)) / 86400000.0 / 30.0)) ASC
     LIMIT ?
@@ -948,8 +983,8 @@ export function dbTrimRelations(maxKeep = 800): void {
   if (!ensureDb()) return
   const count = (db.prepare('SELECT COUNT(*) as c FROM relations').get() as any)?.c || 0
   if (count <= 1000) return
-  db.prepare(`DELETE FROM relations WHERE id IN (
-    SELECT id FROM relations ORDER BY
+  db.prepare(`DELETE FROM relations WHERE rowid IN (
+    SELECT rowid FROM relations ORDER BY
       CASE WHEN invalid_at IS NOT NULL THEN 0 ELSE 1 END ASC,
       ts ASC
     LIMIT ?
@@ -970,9 +1005,9 @@ function rowToEntity(row: any): Entity {
 
 function rowToRelation(row: any): Relation {
   return {
-    source: row.src,
-    target: row.dst,
-    type: row.relation,
+    source: row.source || row.src,
+    target: row.target || row.dst,
+    type: row.type || row.relation,
     ts: row.ts || (row.created_at ? new Date(row.created_at).getTime() : 0),
     valid_at: row.valid_at || 0,
     invalid_at: row.invalid_at ?? null,

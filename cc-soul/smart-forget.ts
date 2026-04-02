@@ -251,9 +251,7 @@ function saveDecayParams() {
     const sqlMod = require('./sqlite-store.ts')
     if (sqlMod?.dbSaveDecayParams) sqlMod.dbSaveDecayParams(_decayParams)
   } catch {}
-  // JSON backup
-  if (!_decayParamsPath) return
-  try { writeFileSync(_decayParamsPath, JSON.stringify(_decayParams, null, 2)) } catch {}
+  // JSON 双写已移除——SQLite 是唯一数据源
 }
 
 /** EMA alpha for adaptive lambda adjustment — now reads from auto-tune */
@@ -556,6 +554,31 @@ export function computeStructuralImportance(mem: any): number {
   else if (network === 'experience') I *= 0.8              // 经历衰减较快
   // opinion 不加权（由 Bayes C 值控制）
 
+  // ── 人格适配衰减（cc-soul 原创）──
+  // CIN confidence < 0.5 时不调制（样本不够，用默认权重）
+  try {
+    const cinMod = require('./cin.ts')
+    const field = cinMod.getCurrentField?.()
+    if (field && field.confidence > 0.5) {
+      const d3 = field.strength?.[2] ?? 0.5  // D3: 决策风格 (高=分析型, 低=直觉型)
+      const d2 = field.strength?.[1] ?? 0.5  // D2: 社交倾向 (高=社交型)
+
+      const scope = mem.scope || 'fact'
+
+      // 分析型用户：事实/纠正记忆更重要
+      if (d3 > 0.6) {
+        if (scope === 'fact' || scope === 'correction' || scope === 'consolidated') I *= 1.3
+        else if (scope === 'event' || scope === 'emotion') I *= 0.85
+      }
+
+      // 社交/感性用户：情感/事件记忆更重要
+      if (d2 > 0.6) {
+        if (scope === 'event' || scope === 'emotion' || scope === 'gratitude') I *= 1.3
+        else if (scope === 'fact') I *= 0.85
+      }
+    }
+  } catch {}
+
   return Math.max(0.1, I)  // 最小 0.1，防止 graph 空时完全归零
 }
 
@@ -601,6 +624,15 @@ export function computeContextBinding(mem: any, currentTopics: string[]): number
     const hoursSince = (now - state.lastContextMatch) / 3600000
     state.bindingStrength *= Math.exp(-0.35 * hoursSince)
   }
+
+  // 对话惯性保底：momentum 高的记忆不会被完全遗忘
+  try {
+    const { getMomentumBoost } = require('./activation-field.ts')
+    const momentum = getMomentumBoost(mem.content || '')
+    if (momentum > 0.1) {
+      state.bindingStrength = Math.max(state.bindingStrength, momentum)
+    }
+  } catch {}
 
   return state.bindingStrength
 }

@@ -140,6 +140,32 @@ export function feedbackMemoryEngagement(userReply: string): void {
     // 0.1~0.3：不确定，不计
   }
 
+  // AAM 正负反馈：利用 ActivationTrace 强化/抑制扩展路径
+  try {
+    const { getRecentTrace } = require('./activation-field.ts')
+    const { reinforceTrace, suppressExpansion, restoreExpansion } = require('./aam.ts')
+    const recent = getRecentTrace()
+    if (recent && recent.traces) {
+      for (const trace of recent.traces) {
+        // 检查这条记忆是否被 engaged
+        const isEngaged = _lastInjectedMemoryContents.some(ic =>
+          trace.memory?.content && ic.includes(trace.memory.content.slice(0, 30))
+        )
+        if (isEngaged && engagedTotal > 0) {
+          reinforceTrace(trace)  // 正反馈：强化路径
+          const queryPattern = userReply.slice(0, 20).toLowerCase()
+          restoreExpansion(queryPattern)  // 恢复跳数
+        }
+      }
+      // 负反馈：如果大部分记忆被 miss
+      if (matchedTotal > 0 && engagedTotal === 0) {
+        const queryPattern = userReply.slice(0, 20).toLowerCase()
+        const missedVia = recent.traces[0]?.path?.find((p: any) => p.stage === 'candidate_selection')?.via || 'aam_hop1'
+        suppressExpansion(queryPattern, missedVia)
+      }
+    }
+  } catch {}
+
   // P3: 记录 A/B 实验 engagement（复用上面的计算结果，不重复遍历）
   const engagementRatio = matchedTotal > 0 ? engagedTotal / matchedTotal : 0
   try {
@@ -406,8 +432,7 @@ function recordAugmentFeedbackFromUser(lastAugments: string[], userMsg: string) 
       }
     }
   } catch {}
-  // JSON backup
-  debouncedSave(AUGMENT_FEEDBACK_PATH, augmentFeedback)
+  // JSON 双写已移除——SQLite 是唯一数据源
 }
 
 function getAugmentFeedbackDelta(type: string): number {
@@ -478,8 +503,9 @@ export function detectInjection(msg: string): boolean {
 /**
  * Generates a context-aware 举一反三 augment based on message content and type.
  */
+/** @deprecated 已被 facts 驱动的参考信息替代。保留函数签名防止外部引用报错 */
 function buildExtraThinkAugment(msg: string, attentionType: string, senderId?: string): Augment | null {
-  return null  // 临时关闭：隔离测试种子扩展。删除本行恢复举一反三
+  return null  // 永久移除：600行硬编码正则被 facts 驱动替代
   if (attentionType === 'correction') return null
   // casual/emotional: still generate hints but at lower priority (was: return null)
   const isSoft = attentionType === 'casual' || attentionType === 'emotional'
@@ -711,6 +737,43 @@ export function generatePrebuiltTips(msg: string): string {
 }
 
 /**
+ * 情绪弧线记忆（cc-soul 原创）
+ *
+ * 比较当前会话的情绪走向（差分）与历史记忆的情绪弧线。
+ * 差分序列：[首条mood, 末条mood] → delta = 末条 - 首条
+ * 弧线匹配：差分方向和幅度相似的历史记忆
+ *
+ * Zero LLM，纯数值比较。
+ */
+function findEmotionalArcMatches(
+  currentArc: number,
+  memories: Memory[],
+  maxResults: number = 2
+): Memory[] {
+  if (Math.abs(currentArc) < 0.2) return []  // 情绪平稳，不需要弧线匹配
+
+  const candidates: { mem: Memory; arcSim: number }[] = []
+
+  for (const m of memories) {
+    if (!m.situationCtx?.mood) continue
+    if (m.scope === 'expired' || m.scope === 'decayed') continue
+
+    const memMood = m.situationCtx.mood
+    // 方向一致：当前下降则找也是负向的记忆，当前上升则找正向的
+    const sameDirection = (currentArc < 0 && memMood < -0.2) || (currentArc > 0 && memMood > 0.2)
+    if (!sameDirection) continue
+
+    const arcSim = 1 - Math.abs(Math.abs(currentArc) - Math.abs(memMood))
+    if (arcSim > 0.5) {
+      candidates.push({ mem: m, arcSim })
+    }
+  }
+
+  candidates.sort((a, b) => b.arcSim - a.arcSim)
+  return candidates.slice(0, maxResults).map(c => c.mem)
+}
+
+/**
  * Build all augments, select within budget, return selected strings + raw augment array.
  */
 export async function buildAndSelectAugments(params: {
@@ -728,6 +791,11 @@ export async function buildAndSelectAugments(params: {
 
   // P5e: retention 信号检查
   if (senderId) checkRetentionSignal(senderId)
+
+  // ── 情绪弧线：记录会话起始 mood ──
+  if (session.startMood === undefined) {
+    session.startMood = body?.mood ?? 0
+  }
 
   // 行为相空间：记录当前状态到轨迹
   try {
@@ -980,6 +1048,28 @@ export async function buildAndSelectAugments(params: {
     }
   }
 
+  // ── 情绪弧线记忆（Emotional Arc Memory）：找到情绪走向相似的历史记忆 ──
+  {
+    const currentMood = body?.mood ?? 0
+    const currentArc = currentMood - (session.startMood ?? currentMood)
+    if (Math.abs(currentArc) > 0.2) {
+      const arcMatches = findEmotionalArcMatches(currentArc, memoryState.memories)
+      if (arcMatches.length > 0) {
+        const direction = currentArc < 0 ? '低落' : '上升'
+        const parts = arcMatches.map(m => {
+          const date = new Date(m.ts).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+          return `${date}: ${m.content.slice(0, 80)}`
+        })
+        const content = `[情绪共鸣] 你之前也经历过类似的情绪${direction}：\n${parts.join('\n')}`
+        augments.push({ content, priority: 7, tokens: estimateTokens(content) })
+        try {
+          const { logDecision } = require('./decision-log.ts')
+          logDecision('emotional_arc', `arc=${currentArc.toFixed(2)}, matches=${arcMatches.length}`, `direction=${direction}`)
+        } catch {}
+      }
+    }
+  }
+
   // Pending search results
   {
     const searchResults = getPendingSearchResults()
@@ -1163,19 +1253,26 @@ export async function buildAndSelectAugments(params: {
   // 直接取 top 12
   let recalled = recalledRaw.slice(0, 12)
 
-  // ── Layer A: Synchronous association — 临时关闭，隔离测试。删除 [] 恢复
-  const associated: any[] = [] // associateSync(userMsg, recalled, senderId, channelId)
-  // Associated memories are merged into recalled (not separate augment)
-  // They feed into 举一反三 below as "顺便说一下" material
-  if (associated.length > 0) {
-    for (const m of associated) recalled.push(m)
-  }
+  // Layer A (associateSync) 已移除 — 被 activation-field + AAM 替代
 
   // System 1 facts 直接注入（绕过 crystallize，确保不被挤掉）
   const s1Facts = recalled.filter((m: any) => m.source === 'activation_field_s1')
   if (s1Facts.length > 0) {
     const factContent = '[相关事实] ' + s1Facts.map((m: any) => m.content).join('；')
     augments.push({ content: factContent, priority: 9, tokens: estimateTokens(factContent) })
+
+    // 记录 S1 注入决策 + 激活路径
+    try {
+      const { logDecision } = require('./decision-log.ts')
+      const { getRecentTrace } = require('./activation-field.ts')
+      const recent = getRecentTrace()
+      for (const fact of s1Facts) {
+        const matchedTrace = recent?.traces?.find((t: any) => t.memory?.content === fact.content)
+        const topStep = matchedTrace?.path?.[0]
+        logDecision('inject', (fact.content || '').slice(0, 30), `s1_fact, ${s1Facts.length} facts injected`, topStep ? { via: topStep.via, score: matchedTrace.score } : undefined)
+      }
+    } catch {}
+
     // 从 recalled 中移除 S1 facts，避免 crystallize 重复
     recalled = recalled.filter((m: any) => m.source !== 'activation_field_s1')
   }
@@ -1483,18 +1580,32 @@ export async function buildAndSelectAugments(params: {
     })
   }
 
-  // 举一反三 — merged with association results
-  const extraThinkHint = buildExtraThinkAugment(userMsg, cog.attention, senderId)
-  if (extraThinkHint) {
-    if (associated.length > 0) {
-      const assocHints = associated.slice(0, 3).map(m => m.content.slice(0, 100)).join('；')
-      extraThinkHint.content += `\n联想到的相关信息（可作为"顺便说一下"的素材）：${assocHints}`
-      extraThinkHint.tokens += estimateTokens(assocHints)
+  // Facts 驱动的参考信息注入（替代 600 行硬编码举一反三）
+  // 当 facts 中有与当前消息相关的条目时，显式提示 LLM 关联
+  try {
+    const { queryFacts } = require('./fact-store.ts')
+    const allFacts = queryFacts({ subject: 'user' })
+    if (allFacts.length > 0) {
+      const msgTri = trigrams(userMsg)
+      const relevant = allFacts
+        .map((f: any) => ({
+          fact: f,
+          sim: trigramSimilarity(msgTri, trigrams(`${f.predicate} ${f.object}`))
+        }))
+        .filter((r: any) => r.sim > 0.2)
+        .sort((a: any, b: any) => b.sim - a.sim)
+        .slice(0, 3)
+
+      if (relevant.length > 0) {
+        const hints = relevant.map((r: any) => r.fact.object).join('；')
+        augments.push({
+          content: `[参考信息] 相关的用户背景：${hints}`,
+          priority: 7,
+          tokens: estimateTokens(hints) + 10,
+        })
+      }
     }
-    // Append hard format constraint directly to ensure model compliance
-    extraThinkHint.content += '\n⚠ 输出硬约束：回复最后一段必须是「顺便说一下：\\n1. ...\\n2. ...」格式，至少2条。缺少=回复不完整。'
-    augments.push(extraThinkHint)
-  }
+  } catch {}
 
   // Proactive context preparation
   const preparedCtx = prepareContext(userMsg)
@@ -1861,13 +1972,7 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content: pressureCtx, priority: 8, tokens: estimateTokens(pressureCtx) })
   }
 
-  // Associative recall — 临时关闭，隔离测试。删除 false 恢复
-  if (false) {
-    const association = getAssociativeRecall()
-    if (association) {
-      augments.push({ content: association, priority: 7, tokens: estimateTokens(association) })
-    }
-  }
+  // Associative recall 已移除 — 被 activation-field + AAM 扩展查询替代
 
   // ── FSRS 主动回顾推荐 ──
   try {

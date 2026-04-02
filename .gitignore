@@ -3,3 +3,5 @@ dist/
 *.tgz
 .DS_Store
 data_backup_20260330_103733/models/minilm/model.onnx
+data/locomo_mc10.json
+data/soul_kv.db

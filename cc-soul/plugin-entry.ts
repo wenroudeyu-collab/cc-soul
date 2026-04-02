@@ -75,10 +75,52 @@ export default {
         console.error(`[cc-soul] soul engine init failed: ${e.message}`)
       }
 
-      // Context Engine 注册已移除——cc-soul 只通过独立 API (soul-api.ts) 提供记忆
-      // 学 Mem0：记忆系统是被调用的 API，不嵌入宿主平台内部
-      // 调用方通过 POST /api {"action":"process"} 获取 system_prompt + augments
-      console.log(`[cc-soul] 独立 API 模式（不注册 Context Engine）`)
+      // Context Engine 注册：让 OpenClaw 能调用 cc-soul 的记忆
+      // 数据全在 cc-soul 自己的 soul.db，OpenClaw 只是通过这个接口拿数据
+      // 同时 cc-soul 也可以独立运行（通过 soul-api HTTP API）
+      if (typeof api.registerContextEngine === 'function') {
+        try {
+          // 轻量 context engine：直接从 soul.db 读 facts，不走缓存
+          const engine = {
+            async assemble(params: any) {
+              try {
+                const { buildSoulPrompt } = require('./prompt-builder.ts')
+                const { stats } = require('./handler-state.ts')
+                const { recall, ensureMemoriesLoaded } = require('./memory.ts')
+
+                ensureMemoriesLoaded()
+                const soulPrompt = buildSoulPrompt(stats.totalMessages, stats.corrections, stats.firstSeen, [])
+
+                // 实时 recall（不走缓存）
+                let memoryAugment = ''
+                const msgs = params?.messages || []
+                const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null
+                const userMsg = typeof lastMsg?.content === 'string' ? lastMsg.content :
+                  Array.isArray(lastMsg?.content) ? lastMsg.content.find((p: any) => p.type === 'text')?.text || '' : ''
+                // 提取用户实际消息（去掉 metadata）
+                const cleanMsg = userMsg.includes(':') ? userMsg.split(/\n/).pop()?.replace(/^\S+:\s*/, '') || userMsg : userMsg
+                if (cleanMsg && cleanMsg.length > 1) {
+                  const recalled = recall(cleanMsg, 5)
+                  if (recalled.length > 0) {
+                    memoryAugment = '\n\n[相关记忆] ' + recalled.map((m: any) => m.content?.slice(0, 80)).join('；')
+                  }
+                }
+
+                return { systemPrompt: soulPrompt + memoryAugment }
+              } catch (e: any) {
+                console.error(`[cc-soul][context-engine] assemble error: ${e.message}`)
+                return { systemPrompt: '' }
+              }
+            }
+          }
+          api.registerContextEngine('cc-soul', () => engine)
+          console.log(`[cc-soul] ✅ Context Engine registered（数据来自 soul.db）`)
+        } catch (e: any) {
+          console.log(`[cc-soul] ⚠ Context Engine registration failed: ${e.message}`)
+        }
+      } else {
+        console.log(`[cc-soul] 独立 API 模式（无 Context Engine）`)
+      }
 
       // Start soul-api for external access (Feishu, other AI, HTTP clients)
       try {

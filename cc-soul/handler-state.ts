@@ -146,6 +146,7 @@ export interface SessionState {
   _lastAnalyzedPrompt?: string
   _skipNextMemory?: boolean
   _rawUserMsg?: string  // clean user message before augment injection
+  startMood?: number    // 会话首条消息时的 mood，用于情绪弧线匹配
 }
 
 // ── Soul Mode: when enabled, all replies come from avatar (灵魂模式) ──

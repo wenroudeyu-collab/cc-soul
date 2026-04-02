@@ -11,6 +11,7 @@ interface Decision {
   action: string   // 'graveyard' | 'demote' | 'verify' | 'keep' | 'revive' | 'purge' | 'inject' | 'skip_inject' | 'stale_topic' | 'promote_topic' | 'ab_test'
   key: string      // content.slice(0,30) + '|' + ts  或  topicNode.topic
   reason: string   // 人可读的判定理由，含具体数值
+  trace?: { via?: string; score?: number }  // 激活路径溯源（可选）
   ts: number
 }
 
@@ -36,16 +37,20 @@ function ensureCache(): void {
   }
 }
 
-export function logDecision(action: string, key: string, reason: string): void {
+export function logDecision(action: string, key: string, reason: string, trace?: { via?: string; score?: number }): void {
   const decision: Decision = { action, key, reason, ts: Date.now() }
+  if (trace) decision.trace = trace
   ensureCache()
   _cache.push(decision)
   if (_cache.length > 200) _cache = _cache.slice(-200)
 
-  // 写 SQLite
+  // 写 SQLite（trace 序列化进 reason，避免改 schema）
+  const reasonWithTrace = trace
+    ? `${reason} [trace: via=${trace.via || 'unknown'}, score=${trace.score?.toFixed(3) ?? 'N/A'}]`
+    : reason
   const mod = getDb()
   if (mod?.dbLogDecision) {
-    mod.dbLogDecision(action, key, reason)
+    mod.dbLogDecision(action, key, reasonWithTrace)
   }
 }
 

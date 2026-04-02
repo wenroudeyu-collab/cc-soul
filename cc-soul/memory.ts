@@ -848,6 +848,65 @@ function retroactiveInterference(oldMem: Memory, newContent: string, similarity:
  * When a new fact/preference/correction is added, suppress or reshape
  * similar older memories. This prevents the 60K memory pile-up.
  *
+ * Online semantic complement marking — 写入时标记互补候选
+ * 条件 A: 共享实体 + 30 分钟内时间邻近
+ * 条件 B: 中等 trigram 相似度(0.2-0.6) + 实体重叠
+ * heartbeat 消费 _complementOf 做深度融合
+ */
+function markComplementCandidates(newMem: Memory, memories: Memory[], maxCandidates: number = 3): void {
+  if (memories.length === 0 || !newMem.memoryId) return
+
+  let newEntities: Set<string>
+  try {
+    const { findMentionedEntities } = require('./graph.ts')
+    newEntities = new Set(findMentionedEntities(newMem.content))
+  } catch { return }
+  if (newEntities.size === 0) return
+
+  const now = Date.now()
+  const THIRTY_MIN = 30 * 60 * 1000
+  const candidates: string[] = []
+
+  // Only scan recent 50 memories (performance protection)
+  const recent = memories.slice(-50)
+
+  for (const m of recent) {
+    if (!m.memoryId || m.content === newMem.content) continue
+    if (m.scope === 'expired' || m.scope === 'decayed') continue
+
+    // Condition A: shared entities + time proximity
+    let mEntities: Set<string>
+    try {
+      const { findMentionedEntities } = require('./graph.ts')
+      mEntities = new Set(findMentionedEntities(m.content))
+    } catch { continue }
+
+    let sharedEntities = 0
+    for (const e of newEntities) { if (mEntities.has(e)) sharedEntities++ }
+
+    const timeDiff = Math.abs(now - m.ts)
+
+    if (sharedEntities >= 1 && timeDiff < THIRTY_MIN) {
+      candidates.push(m.memoryId)
+      if (candidates.length >= maxCandidates) break
+      continue
+    }
+
+    // Condition B: medium trigram similarity + entity overlap
+    const sim = trigramSimilarity(trigrams(newMem.content), trigrams(m.content))
+    if (sim >= 0.2 && sim < 0.6 && sharedEntities >= 1) {
+      candidates.push(m.memoryId)
+      if (candidates.length >= maxCandidates) break
+    }
+  }
+
+  if (candidates.length > 0) {
+    newMem._complementOf = candidates
+    try { require('./decision-log.ts').logDecision('complement_mark', newMem.content.slice(0, 30), `candidates=${candidates.length}, entities=${[...newEntities].join('/')}`) } catch {}
+  }
+}
+
+/**
  * Mechanism: trigram similarity > 0.6 with same scope →
  *   1. Try retroactive interference (reshape) for medium similarity (0.3-0.85)
  *   2. Fall back to confidence penalty if reshape not applicable
@@ -916,8 +975,8 @@ export function loadMemories() {
   const sqliteOk = initSQLite()
   _sqliteInitDone = true
   if (sqliteOk) {
-    migrateFromJSON()
-    migrateHistoryFromJSON(HISTORY_PATH)
+    // migrateFromJSON() — 独立数据库模式，不从 JSON 导入旧数据
+    // migrateHistoryFromJSON(HISTORY_PATH) — 独立数据库模式，不从 JSON 导入旧历史
 
     // Load from SQLite — if empty, fall back to JSON (migration may have failed)
     const fromDb = sqliteGetAll(true)
@@ -926,16 +985,9 @@ export function loadMemories() {
       memoryState.memories.length = 0
       memoryState.memories.push(...fromDb)
     } else {
-      // SQLite empty (migration failed?) — load from JSON instead
-      const jsonLoaded = loadJson<Memory[]>(MEMORIES_PATH, [])
-      if (jsonLoaded.length > 0) {
-        console.log(`[cc-soul][memory] SQLite empty, falling back to JSON (${jsonLoaded.length} memories)`)
-        useSQLite = false
-        memoryState.memories.length = 0
-        memoryState.memories.push(...jsonLoaded)
-      } else {
-        useSQLite = true // genuinely empty, use SQLite going forward
-      }
+      // SQLite empty — 始终用 SQLite（独立数据库模式，不回退到 JSON）
+      useSQLite = true
+      console.log(`[cc-soul][memory] SQLite empty, starting fresh (independent db mode)`)
     }
 
     const historyFromDb = sqliteGetRecentHistory(MAX_HISTORY)
@@ -1009,10 +1061,7 @@ export function saveMemories() {
       }
     } catch { /* file doesn't exist, ok to write */ }
   }
-  // JSON backup alongside SQLite — prevents single-point-of-failure data loss
-  if (memoryState.memories.length > 0) {
-    debouncedSave(MEMORIES_PATH, memoryState.memories, 5000)
-  }
+  // JSON 双写已移除——SQLite 是唯一数据源（memories 表）
 }
 
 // defaultVisibility + extractReasoning → memory-utils.ts
@@ -1146,6 +1195,63 @@ function computeSurprise(content: string, scope: string, _userId?: string): numb
   if (content.length <= 4 && !/[a-zA-Z]{3,}/.test(content)) score = 1
 
   return Math.max(1, Math.min(10, score))
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Coreference Resolution（指代消解）— 写入时将代词替换为实体名
+// 人脑原理：存入长期记忆时自动补全上下文，不会存"他说了什么"而不知道他是谁
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** 代词→实体名替换（句首 / 逗号后） */
+const COREF_PRONOUN_VERB = /(^|[，,])(他|她)(说|让|要|觉得|认为|提到|问|给|跟)/g
+/** 指示代词→实体名 */
+const COREF_DEMONSTRATIVE = /(这个人|那个人|那家伙)/g
+/** 复数代词 → 不处理 */
+const COREF_PLURAL = /他们|她们/
+
+function resolveCoreferenceForStorage(
+  content: string,
+  chatHistory: { user: string; assistant?: string }[],
+): { resolved: string; changed: boolean; resolvedEntity?: string } {
+  // 复数代词 → 跳过
+  if (COREF_PLURAL.test(content)) {
+    return { resolved: content, changed: false }
+  }
+  // 没有需要消解的代词 → 跳过
+  if (!COREF_PRONOUN_VERB.test(content) && !COREF_DEMONSTRATIVE.test(content)) {
+    return { resolved: content, changed: false }
+  }
+  // Reset lastIndex after test()
+  COREF_PRONOUN_VERB.lastIndex = 0
+  COREF_DEMONSTRATIVE.lastIndex = 0
+
+  // 从最近 3 轮对话中提取人物实体
+  let entities: string[] = []
+  try {
+    const { findMentionedEntities: fme } = require('./graph.ts')
+    const recentText = chatHistory.slice(-3).map(h => h.user + (h.assistant || '')).join(' ')
+    entities = fme(recentText)
+  } catch {}
+
+  // 安全规则：恰好 1 个人物实体才替换，0 或 2+ 不动
+  if (entities.length !== 1) {
+    return { resolved: content, changed: false }
+  }
+
+  const entity = entities[0]
+  let resolved = content
+    .replace(COREF_PRONOUN_VERB, (_, prefix, _pronoun, verb) => `${prefix}${entity}${verb}`)
+    .replace(COREF_DEMONSTRATIVE, entity)
+
+  // Reset lastIndex
+  COREF_PRONOUN_VERB.lastIndex = 0
+  COREF_DEMONSTRATIVE.lastIndex = 0
+
+  const changed = resolved !== content
+  if (changed) {
+    try { require('./decision-log.ts').logDecision('coreference', content.slice(0, 40), `→ ${entity}: ${resolved.slice(0, 60)}`) } catch {}
+  }
+  return { resolved, changed, resolvedEntity: changed ? entity : undefined }
 }
 
 export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx']) {
@@ -1312,6 +1418,14 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     : (scope === 'reflexion' || scope === 'insight' || scope === 'consolidated') ? 0.6        // 系统生成的
     : 0.7  // 默认
 
+  // ── 指代消解：写入前将"他/她"替换为实体名 ──
+  let _corefHistory: { content: string; ts: number }[] | undefined
+  const corefResult = resolveCoreferenceForStorage(content, memoryState.chatHistory)
+  if (corefResult.changed) {
+    _corefHistory = [{ content, ts: Date.now() }]  // 保存原文
+    content = corefResult.resolved
+  }
+
   // generateMemoryId, appendLineage imported at top level
 
   const newMem: Memory = {
@@ -1330,6 +1444,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     ...(FACT_SCOPES.includes(scope) ? { validFrom: Date.now(), validUntil: 0 } : {}),
     ...extractReasoning(content),
     ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),
+    ...(_corefHistory ? { history: _corefHistory } : {}),
   }
   // ── 闪光灯记忆（Flashbulb Memory）：高情绪事件深度编码 ──
   // 人脑原理：极端情绪事件形成超详细记忆（911 你记得你在做什么）
@@ -1401,7 +1516,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
 
     // AAM: feed into word association network (learns semantic relationships from user data)
     try {
-      import('./aam.ts').then(m => m.learnAssociation(content)).catch(() => {})
+      import('./aam.ts').then(m => m.learnAssociation(content, autoEmotionIntensity)).catch(() => {})
     } catch {}
 
     // ── 即时冲突感知：检测新记忆是否和已有特征矛盾 ──
@@ -1444,6 +1559,9 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     if (FACT_SCOPES.includes(scope)) {
       suppressSimilarMemories(newMem)
     }
+
+    // ── Online semantic complement marking ──
+    markComplementCandidates(newMem, memoryState.memories)
 
     // Smart eviction: dynamic threshold + topic protection
     if (memoryState.memories.length > MAX_MEMORIES) {

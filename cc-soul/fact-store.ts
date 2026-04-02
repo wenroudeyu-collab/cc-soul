@@ -15,11 +15,16 @@ import { resolve } from 'path'
 import {
   isSQLiteReady, sqliteAddFact, sqliteQueryFacts,
   sqliteInvalidateFacts, sqliteFactCount, sqliteGetFactsBySubject,
+  sqliteLoadAllFacts,
 } from './sqlite-store.ts'
 
 const FACTS_PATH = resolve(DATA_DIR, 'structured_facts.json')
-let facts: StructuredFact[] = loadJson<StructuredFact[]>(FACTS_PATH, [])
-function saveFacts() { debouncedSave(FACTS_PATH, facts) }
+// Load from SQLite if available, otherwise fall back to JSON
+let facts: StructuredFact[] = isSQLiteReady()
+  ? sqliteLoadAllFacts()
+  : loadJson<StructuredFact[]>(FACTS_PATH, [])
+// saveFacts is now a no-op: all writes go through sqliteAddFact in addFacts()
+function saveFacts() { /* no-op: data persisted via SQLite */ }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RULE-BASED EXTRACTION — instant, zero cost
@@ -61,7 +66,7 @@ const RULES: ExtractionRule[] = [
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "我住在X" — only match explicit residence, not "我在X工作"
-  { pattern: /我(?:住在|住)\s*([^，。！？,;；\n]{2,10})/, extract: (m) => {
+  { pattern: /(?:我(?:住在|住|搬到|搬去|移居|去了)\s*|已经(?:搬|到)了?\s*)([^，。！？,;；\n]{2,10})/, extract: (m) => {
     const place = m[1].trim()
     if (place.length < 2 || /^(这|那|哪|什么|怎么)/.test(place)) return null
     if (/工作|上班|就职/.test(place)) return null  // "住在X工作" → skip
@@ -74,7 +79,7 @@ const RULES: ExtractionRule[] = [
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "X比Y好" / "X比Y快" — preference
-  { pattern: /(.{2,10})比(.{2,10})(?:好|快|强|稳定|方便|简单)/, extract: (m) => ({
+  { pattern: /(.{2,10})比(.{2,10})(?:好|快|强|稳定|方便|简单|简洁|好用|舒服|靠谱)/, extract: (m) => ({
     subject: 'user', predicate: 'prefers', object: `${m[1].trim()} over ${m[2].trim()}`,
     confidence: 0.7, source: 'ai_inferred', ts: Date.now(), validUntil: 0,
   })},
@@ -83,11 +88,11 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'age', object: m[1],
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我养了X" / "我家有X" / "我们养了X"（猫/狗/宠物）→ has_pet
-  { pattern: /我们?(?:养了|家有|有一只|有一条|有一个)\s*([^，。！？,;；\n]{2,10}?)(?:猫|狗|鱼|鸟|兔|仓鼠|宠物)?/, extract: (m) => {
-    const obj = m[1].trim()
-    if (obj.length < 1 || /^(什么|哪|这|那)/.test(obj)) return null
-    return { subject: 'user', predicate: 'has_pet', object: m[0].replace(/^我(?:养了|家有|有一只|有一条|有一个)\s*/, '').replace(/[。，！？\s]+$/, ''),
+  // "我养了一只猫叫X" / "我家有一条狗" → has_pet（匹配到句尾，保留名字）
+  { pattern: /我们?(?:养了|家有|有一只|有一条|有一个)\s*([^，。！？,;；\n]{2,20})/, extract: (m) => {
+    let obj = m[1].trim().replace(/[。，！？\s]+$/, '')
+    if (obj.length < 2 || /^(什么|哪|这|那)/.test(obj)) return null
+    return { subject: 'user', predicate: 'has_pet', object: obj,
       confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0 }
   }},
   // "我有个女儿/儿子/孩子" / "我有X个孩子" → has_family
@@ -140,8 +145,14 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
 
   // 疑问句整体过滤：提问不是在陈述事实
   const trimmed = content.trim()
-  if (/[？?]$/.test(trimmed) || /(.)\1不\1/.test(trimmed) || /[吗呢吧嘛]$/.test(trimmed)) {
-    return extracted  // 疑问句不提取任何事实
+  const isQuestion = /[？?]$/.test(trimmed) ||              // 问号结尾
+    /(.)\1不\1/.test(trimmed) ||                             // 动词重叠（是不是/有没有）
+    /[吗呢吧嘛]$/.test(trimmed) ||                           // 语气词结尾
+    /^.{0,6}(?:什么|哪个|哪里|谁|怎么|为什么)/.test(trimmed) || // 开头附近有疑问代词
+    /(?:叫|是|做|在|有)(?:什么|哪个|谁|怎么)/.test(trimmed) || // 动词+疑问代词（"叫什么""做什么""是谁"）
+    /(?:什么|哪|谁|怎么|多少|几)(?:时候|地方|样|个|种|岁|楼)/.test(trimmed) // 疑问代词+量词/名词
+  if (isQuestion) {
+    return extracted
   }
 
   // LLM 分析内容过滤：方括号标签开头的内容是系统生成的分析，不是用户说的事实
@@ -172,12 +183,15 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
     }
   } catch {}
 
-  // ── 旧正则规则（种子兜底）──
+  // ── 旧正则规则（种子兜底）——动态提取器已覆盖的 predicate 跳过 ──
+  const dynamicPredicates = new Set(extracted.map(e => e.predicate))
   for (const rule of RULES) {
     const match = content.match(rule.pattern)
     if (match) {
       const fact = rule.extract(match, content)
       if (fact) {
+        // 动态提取器已提取了同 predicate → 跳过正则（动态结果更准）
+        if (dynamicPredicates.has(fact.predicate)) continue
         fact.source = source
         fact.memoryRef = content.slice(0, 60)
         // Dedup: skip if same subject+predicate+object already extracted
@@ -200,15 +214,30 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
  */
 export function addFacts(newFacts: StructuredFact[]) {
   for (const nf of newFacts) {
+    // 完全重复去重：同 subject+predicate+object 的 active fact 已存在则跳过
+    const exactDup = facts.some(f =>
+      f.subject === nf.subject && f.predicate === nf.predicate &&
+      f.object === nf.object && f.validUntil === 0
+    )
+    if (exactDup) continue
+
     // 质量过滤：新 fact 比旧 fact 信息量更少时不做 supersede
     // 防止"我养了宠物 叫什么来着"→ has_pet=宠物 覆盖 has_pet=一只叫豆豆的猫
     let shouldSupersede = true
     for (const old of facts) {
       if (old.subject === nf.subject && old.predicate === nf.predicate &&
           old.object !== nf.object && old.validUntil === 0) {
-        // 新 object 比旧 object 短 50%+ 且旧的 confidence 更高 → 不覆盖
+        // 非排他性谓语（learning/likes/habit）：追加而不是 supersede
+        // 排他性谓语（name/lives_in/works_at/relationship）：正常 supersede
+        const NON_EXCLUSIVE = new Set(['learning', 'likes', 'dislikes', 'habit', 'prefers'])
+        if (NON_EXCLUSIVE.has(nf.predicate)) {
+          shouldSupersede = false  // 不 supersede，直接追加
+          break
+        }
+        // 排他性谓语：新 object 比旧 object 短 50%+ 且旧的 confidence 更高 → 不覆盖
         if (nf.object.length < old.object.length * 0.5 && (old.confidence ?? 0) >= (nf.confidence ?? 0)) {
           console.log(`[cc-soul][facts] skip supersede (info loss): "${nf.object}" < "${old.object}"`)
+          ;(nf as any)._skipReason = 'info_loss'
           shouldSupersede = false
           break
         }
@@ -223,9 +252,10 @@ export function addFacts(newFacts: StructuredFact[]) {
           console.log(`[cc-soul][facts] superseded: ${old.subject}.${old.predicate}="${old.object}" → "${nf.object}"`)
         }
       }
-    } else {
-      continue  // 跳过这条低质量 fact
+    } else if (nf._skipReason === 'info_loss') {
+      continue  // 真正的低质量 → 跳过
     }
+    // 非排他性谓语不 supersede 但仍然追加（likes/learning/habit 可以有多个值）
     facts.push(nf)
 
     // Dual-write to SQLite (indexed queries)

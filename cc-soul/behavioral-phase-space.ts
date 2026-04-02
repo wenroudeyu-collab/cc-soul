@@ -69,7 +69,10 @@ const MAX_TRAJECTORY = 30
 let trajectory: BehavioralState[] = []
 
 // Patterns (from old behavior-engine)
-let patterns: BehaviorPattern[] = loadJson<BehaviorPattern[]>(PATTERNS_PATH, [])
+let patterns: BehaviorPattern[] = (() => {
+  const loaded = loadJson<BehaviorPattern[]>(PATTERNS_PATH, [])
+  return Array.isArray(loaded) ? loaded : []
+})()
 
 // Domain beliefs (from old behavior-prediction)
 let domainBeliefs: Record<string, DomainBelief> = {}
@@ -523,3 +526,14 @@ export function updateAllDomainBeliefs(detectedDomain: string | null): void {
 // detectSituation 已内联到本模块的 recordState 中，不再从旧文件 re-export
 export function getPatternCount(): number { return patterns.length }
 export function getLearnedPatternCount(): number { return patterns.filter(p => p.source === 'learned').length }
+export function getLearnedPatterns(): Array<{ condition: string; action: string; hits: number; misses: number; confidence: number }> {
+  return patterns
+    .filter(p => p.source === 'learned' && p.hits >= 3)
+    .map(p => ({
+      condition: [p.condition.timeSlot, p.condition.topicDomain, p.condition.mood, p.condition.afterEvent, p.condition.dayType].filter(Boolean).join('+'),
+      action: p.action.style || p.action.hint,
+      hits: p.hits,
+      misses: p.misses,
+      confidence: p.hits / Math.max(1, p.hits + p.misses),
+    }))
+}

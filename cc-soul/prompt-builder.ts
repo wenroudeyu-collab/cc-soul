@@ -6,6 +6,7 @@
  */
 
 import type { Augment } from './types.ts'
+import { trigrams as _t, trigramSimilarity as _ts } from './memory-utils.ts'
 import { getAugmentPriorityMultiplier } from './meta-feedback.ts'
 import { body, bodyGetParams, bodyStateString } from './body.ts'
 import { memoryState, recall, coreMemories } from './memory.ts'
@@ -136,6 +137,19 @@ export function selectAugments(augments: Augment[], budget = 2000, energyMultipl
     selected.push(`[上下文卫生] 检测到 ${staleCount} 条可能过时的信息。优先使用最新信息，旧信息仅作参考。`)
   }
 
+  // ── 熵约束（论文借鉴）：删除冗余 augment，腾出空间 ──
+  // 两条 augment trigram 重叠 > 0.4 → 说的差不多，删 priority 低的
+  for (let i = 0; i < selected.length; i++) {
+    for (let j = i + 1; j < selected.length; j++) {
+      const sim = _ts(_t(selected[i]), _t(selected[j]))
+      if (sim > 0.4) {
+        // 删后面的（priority 低的在后面，因为 selected 是按优先级填充的）
+        selected.splice(j, 1)
+        j--
+      }
+    }
+  }
+
   return selected
 }
 
@@ -220,18 +234,7 @@ export function buildSoulPrompt(
     sections.push('我是 cc。我们刚认识，我会通过跟你的对话了解你需要什么样的伙伴。')
   }
 
-  // 举一反三 — 临时关闭：隔离测试种子扩展。删除 false 恢复
-  if (false && !isSoulMode) {
-    sections.push('')
-    sections.push('## ⚠ 回复结尾格式（强制，不可省略）')
-    sections.push('每条回复（闲聊除外）的最后一段必须是：')
-    sections.push('顺便说一下：')
-    sections.push('1. （补充1）')
-    sections.push('2. （补充2）')
-    sections.push('3. （补充3）')
-    sections.push('3条是标准，内容是用户没问但高度相关的实用信息。不要追问。')
-    sections.push('例：用户问"怎么租房" → 顺便说一下：1. 水电燃气表底数入住前拍照留证。2. 合同写清维修责任，口头承诺不算数。3. 换锁芯几十块钱，安全第一。')
-  }
+  // "顺便说一下"格式已移除 — facts 驱动的自然关联替代硬编码格式
 
   // Core values
   sections.push('')
@@ -296,6 +299,7 @@ export function buildSoulPrompt(
       sections.push('')
       sections.push('## 关于这个用户（你已经知道的）')
       sections.push(factSummary)
+      sections.push('如果上面的信息跟当前话题相关，在回复中自然地提及——不要列清单，像朋友聊天一样带出来。')
     }
   } catch {}
 
@@ -419,8 +423,7 @@ export function buildSoulPrompt(
     sections.push('')
     sections.push('## 发送前自检')
     sections.push('1. 开头第一个字是给用户看的内容吗？不是就删掉重写')
-    // 临时关闭：隔离测试。删除 false 恢复
-    if (false && !isSoulMode) sections.push('2. 回复末尾有「顺便说一下」吗？（闲聊除外）')
+    // "顺便说一下"自检已移除
     sections.push('3. 在重复上轮说的话吗？换角度或直接说"跟刚才一样"')
     sections.push('4. 有没有在编造？不确定用"可能""我记得"')
 

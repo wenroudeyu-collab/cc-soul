@@ -452,7 +452,8 @@ async function handleFeedback(body: any): Promise<any> {
                   // 记录到 AAM：这个短语出现在有效的事实提取语境中
                   try {
                     const aamMod = require('./aam.ts')
-                    aamMod.learnAssociation?.(`${phrase} ${m.scope}`)
+                    const bodyMod = require('./body.ts')
+                    aamMod.learnAssociation?.(`${phrase} ${m.scope}`, Math.abs(bodyMod?.body?.mood ?? 0))
                   } catch {}
                 }
               }

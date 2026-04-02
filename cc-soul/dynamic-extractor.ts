@@ -130,7 +130,7 @@ export function dynamicExtract(content: string, userId?: string): ExtractionResu
           const threshold = structure.seedStrength === 'strong' ? 0.3 : structure.seedStrength === 'medium' ? 0.5 : 0.7
           if (strength >= threshold) {
             results.push({
-              subject: 'user', predicate: structure.predicate, object: extracted.replace(/[，。！？\s]+$/, ''),
+              subject: 'user', predicate: structure.predicate, object: extracted.replace(/[，。！？\s]+$/, '').replace(/[了的呢吧啊嘛]+$/, ''),
               confidence: Math.min(0.95, strength), source: 'user_said',
               structureWord: gp.prefix || gp.suffix, slot: structure.slot,
             })
@@ -160,7 +160,8 @@ export function dynamicExtract(content: string, userId?: string): ExtractionResu
         const threshold = structure.seedStrength === 'strong' ? 0.3 : structure.seedStrength === 'medium' ? 0.5 : 0.7
 
         if (strength >= threshold) {
-          let object = contentWord.replace(/[，。！？\s]+$/, '')
+          let object = contentWord.replace(/[，。！？\s]+$/, '').replace(/[了的呢吧啊嘛]+$/, '')
+          if (object.length < 1) continue
           // relationship 特殊处理：结构词（女朋友/老婆等）+ 名字
           if (structure.slot === 'relationship') {
             // "女朋友小雨" → "女朋友：小雨"；"女朋友叫小雨" → "女朋友：小雨"
@@ -198,7 +199,15 @@ export function dynamicExtract(content: string, userId?: string): ExtractionResu
     }
   } catch {}
 
-  return results
+  // 去重：同 predicate+object 只保留第一条
+  const seen = new Set<string>()
+  const deduped = results.filter(r => {
+    const key = `${r.predicate}:${r.object}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return deduped
 }
 
 /**

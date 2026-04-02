@@ -130,31 +130,23 @@ export function loadJson<T>(path: string, fallback: T): T {
   const db = getKVDb()
   const key = _kvKey(path)
 
-  // Primary: read from SQLite
+  // SQLite KV 是唯一数据源，不再 fallback 到 JSON 文件
   if (db) {
     try {
       const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as { value: string } | undefined
       if (row?.value) return JSON.parse(row.value)
     } catch {}
+    return fallback  // SQLite 里没有 → 用默认值
   }
 
-  // Fallback: read from JSON file
+  // SQLite 不可用（init 失败）→ 只在这种极端情况下读 JSON
   try {
     const raw = readFileSync(path, 'utf-8').trim()
     if (!raw) return fallback
-    const parsed = JSON.parse(raw)
-    // Write to SQLite for next time
-    if (db) try { db.prepare('INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)').run(key, raw, Date.now()) } catch {}
-    return parsed
-  } catch (e: any) {
-    if (e.code === 'ENOENT') return fallback
-    console.error(`[cc-soul] CORRUPTED JSON: ${path}: ${e.message}`)
-    try {
-      const backup = path + '.corrupted.' + Date.now()
-      writeFileSync(backup, readFileSync(path, 'utf-8'), 'utf-8')
-    } catch {}
+    return JSON.parse(raw)
+  } catch {
+    return fallback
   }
-  return fallback
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -172,17 +164,17 @@ export function saveJson(path: string, data: any) {
   const key = _kvKey(path)
   const json = JSON.stringify(data, null, 2)
 
-  // Primary: write to SQLite
+  // SQLite KV 是唯一写入目标，不再写 JSON 文件
   if (db) {
     try {
       db.prepare('INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)').run(key, json, Date.now())
-      return  // SQLite succeeded, no need for JSON file
+      return
     } catch (e: any) {
-      console.error(`[cc-soul][kv] SQLite write failed, falling back to JSON: ${e.message}`)
+      console.error(`[cc-soul][kv] SQLite write failed: ${e.message}`)
     }
   }
 
-  // Fallback: write JSON file (only if SQLite unavailable)
+  // SQLite 不可用（极端情况）→ 写 JSON
   ensureDataDir()
   const tmp = path + '.tmp'
   try {

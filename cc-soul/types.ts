@@ -158,6 +158,8 @@ export interface Memory {
   _graveyardOriginalScope?: string
   _graveyardTs?: number
   _needsVerification?: boolean
+  _complementOf?: string[]  // 互补候选的 memoryId 列表（写入时标记，heartbeat 消费）
+  _preheated?: boolean  // 预测性预热标记（heartbeat 设置，recall 后清除）
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

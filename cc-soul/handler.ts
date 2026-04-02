@@ -686,19 +686,8 @@ export async function handlePreprocessed(event: any): Promise<void> {
       ? '\n\n## 内部指令（仅本轮有效）\n' + cleanedSelected.join('\n')
       : ''
 
-    // 举一反三: 临时关闭，隔离测试种子扩展。删除 false 恢复
+    // 举一反三已移除 — 被 facts 驱动的参考信息替代（handler-augments.ts）
     let tipsSection = ''
-    if (false) {
-      const staticTips = generatePrebuiltTips(userMsg)
-      if (associated && associated.length > 0) {
-        const assocTips = associated.slice(0, 3).map((m: any, i: number) =>
-          `${i + 1}. ${m.content.slice(0, 80)}`
-        ).join('\n')
-        tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落（基于用户历史记忆生成）\n顺便说一下：\n${assocTips}`
-      } else if (staticTips) {
-        tipsSection = `\n\n## ⚠ 回复末尾必须包含以下段落\n${staticTips}`
-      }
-    }
 
     writeFileSync(soulPath, baseSoul + augmentSection + tipsSection, 'utf-8')
     import('./plugin-entry.ts').then(m => m.setSoulDynamicLock?.(30000)).catch((e: any) => { console.error(`[cc-soul] module load failed (plugin-entry): ${e.message}`) })

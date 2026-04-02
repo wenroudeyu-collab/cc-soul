@@ -388,7 +388,15 @@ export function applyIntentMomentum(spectrum: IntentSpectrum, currentType: strin
   // 检测突然切换：当前类型与最近几条完全不同
   const recentTypes = new Set(_recentIntentTypes.slice(-3))
   if (!recentTypes.has(currentType) && recentTypes.size === 1) {
-    // 突然从一个稳定话题切换 → 不加惯性，保持 base spectrum
+    // 突然从一个稳定话题切换 → 通知 AAM 做 damping
+    try {
+      const { onTopicSwitch } = require('./aam.ts')
+      // 旧话题：最近稳定的意图类型对应的词
+      const oldType = [...recentTypes][0]
+      const oldWords = _recentIntentTypes.slice(-3).map(t => t.toLowerCase())
+      const newWords = [currentType.toLowerCase()]
+      onTopicSwitch(oldWords, newWords)
+    } catch {}
     return spectrum
   }
 

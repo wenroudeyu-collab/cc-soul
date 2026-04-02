@@ -26,7 +26,7 @@ import {
 import { queryFacts } from './fact-store.ts'
 import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
-  SYNONYM_MAP, onCacheEvent,
+  SYNONYM_MAP, onCacheEvent, tokenize as unifiedTokenize,
 } from './memory-utils.ts'
 import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
 
@@ -85,6 +85,55 @@ export function updatePrimingCache(userMsg: string): void {
       if (now - ts > 10 * 60 * 1000) _primingCache.delete(k)
     }
   }
+}
+
+// ── 指代消解：召回时查询扩展 ──
+// 人脑原理：回忆时大脑自动将"他怎么样了"映射到具体的人
+const COREF_QUERY_PRONOUNS = /他|她|它|这个|那个/
+const COREF_QUERY_PLURAL = /他们|她们|它们/
+
+function expandQueryWithCoreference(query: string, chatHistory: { user: string }[]): string {
+  if (!COREF_QUERY_PRONOUNS.test(query) || COREF_QUERY_PLURAL.test(query)) return query
+  let entities: string[] = []
+  try {
+    const { findMentionedEntities: fme } = require('./graph.ts')
+    const recentText = chatHistory.slice(-3).map(h => h.user).join(' ')
+    entities = fme(recentText)
+  } catch {}
+  if (entities.length === 0 || entities.length > 3) return query
+  const expanded = query + ' ' + entities.join(' ')
+  try { require('./decision-log.ts').logDecision('coreference_recall', query.slice(0, 30), `expanded: +${entities.join(',')}`) } catch {}
+  return expanded
+}
+
+// ── 时间范围提取（Triple Query Decomposition 用）──
+
+export interface TimeRange { fromMs: number; toMs: number }
+
+export function extractTimeRange(query: string): TimeRange | null {
+  const now = Date.now()
+  const DAY = 86400000
+
+  if (/昨天/.test(query)) return { fromMs: now - 2 * DAY, toMs: now - DAY }
+  if (/前天/.test(query)) return { fromMs: now - 3 * DAY, toMs: now - 2 * DAY }
+  if (/上周/.test(query)) return { fromMs: now - 14 * DAY, toMs: now - 7 * DAY }
+  if (/上个月/.test(query)) return { fromMs: now - 60 * DAY, toMs: now - 30 * DAY }
+  if (/最近/.test(query)) return { fromMs: now - 7 * DAY, toMs: now }
+  if (/今天/.test(query)) return { fromMs: now - DAY, toMs: now }
+
+  const daysAgo = query.match(/(\d+)\s*天前/)
+  if (daysAgo) {
+    const d = parseInt(daysAgo[1])
+    return { fromMs: now - (d + 1) * DAY, toMs: now - (d - 1 < 0 ? 0 : d - 1) * DAY }
+  }
+  const weeksAgo = query.match(/(\d+)\s*周前/)
+  if (weeksAgo) {
+    const w = parseInt(weeksAgo[1])
+    return { fromMs: now - (w + 1) * 7 * DAY, toMs: now - (w - 1 < 0 ? 0 : w - 1) * 7 * DAY }
+  }
+
+  // "之前/以前/上次" → 不是精确时间，返回 null
+  return null
 }
 
 /** Call when a new memory is added to keep recall indices in sync */
@@ -148,6 +197,24 @@ export function recordABEngagement(engagementScore: number): void {
     _abEngagementWithout.push(engagementScore)
   } else {
     _abEngagementWithChannel.push(engagementScore)
+  }
+
+  // A/B 归因：记录贡献 engaged 记忆的激活通道
+  if (engagementScore > 0.3) {
+    try {
+      const { getRecentTrace } = require('./activation-field.ts')
+      const { logDecision } = require('./decision-log.ts')
+      const recent = getRecentTrace()
+      if (recent?.traces?.length) {
+        const topTrace = recent.traces[0]
+        const topStep = topTrace.path?.[0]
+        if (topStep) {
+          logDecision('ab_test', `engaged_via_${topStep.via}`,
+            `engagement=${engagementScore.toFixed(3)}, disabled=${_abDisabledChannel || 'none'}`,
+            { via: topStep.via, score: topTrace.score })
+        }
+      }
+    } catch {}
   }
 }
 
@@ -257,29 +324,9 @@ function getBM25B() { return getParam('memory.bm25_b') }
 // ── BM25 CJK n-gram tokenizer (2-gram + 3-gram) with stop-word filtering ──
 const BM25_STOP_WORDS = new Set('的了是在我你他不有这那就也和但'.split(''))
 
-/** Tokenize for BM25: CJK → 2-gram + 3-gram, Latin → words 3+ chars. Filters stop words. */
+/** Tokenize for BM25 — 使用统一 tokenize('bm25') from memory-utils.ts */
 function bm25Tokenize(text: string): string[] {
-  const tokens: string[] = []
-  // Split into CJK runs and Latin runs
-  const segments = text.match(/[\u4e00-\u9fff]+|[a-zA-Z]{3,}/g) || []
-  for (const seg of segments) {
-    if (/[\u4e00-\u9fff]/.test(seg)) {
-      // CJK segment: generate 2-gram and 3-gram
-      for (let i = 0; i < seg.length - 1; i++) {
-        const bigram = seg.slice(i, i + 2)
-        // Filter: skip if both chars are stop words
-        if (!BM25_STOP_WORDS.has(bigram[0]) || !BM25_STOP_WORDS.has(bigram[1])) {
-          tokens.push(bigram)
-        }
-        if (i < seg.length - 2) {
-          tokens.push(seg.slice(i, i + 3))
-        }
-      }
-    } else {
-      tokens.push(seg.toLowerCase())
-    }
-  }
-  return tokens
+  return unifiedTokenize(text, 'bm25')
 }
 
 const IDF_CACHE_TTL = 300000 // 5 minutes
@@ -495,19 +542,23 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       sim = tagHits / Math.max(1, queryWords.size)
     }
 
-    // 词覆盖率（IDF 加权）：不管有没有 tag 都算
+    // 词覆盖率（IDF 加权 + BM25+ delta）：不管有没有 tag 都算
     // 过滤疑问词（"什么""吗""呢"不应算入覆盖率分母）
+    // BM25+ delta: 每个命中词至少贡献 delta，防止长文档被过度惩罚
     if (sim < 0.3) {
       if (!idf) { idf = buildIDF(); avgDocLen = avgDocLenCache || 1 }
       const QUESTION_STOPWORDS = new Set(['什么', '怎么', '哪个', '哪里', '多少', '为什么', '是否', '有没有', '是不是', '还', '记得', '知道', '叫'])
+      const BM25_DELTA = 1.0  // BM25+ lower-bound correction
       let matchedWeight = 0, totalWeight = 0
       for (const qw of queryWords) {
         if (QUESTION_STOPWORDS.has(qw)) continue  // 跳过疑问词
         const w = idf.get(qw) ?? 1.0
         totalWeight += w
-        if (memWords.has(qw)) matchedWeight += w
+        if (memWords.has(qw)) matchedWeight += w + BM25_DELTA
       }
-      const coverage = totalWeight > 0 ? matchedWeight / totalWeight : 0
+      // totalWeight 也加上 delta 对应的满分上限，保持比例正确
+      const maxWeight = totalWeight + (queryWords.size * BM25_DELTA)
+      const coverage = maxWeight > 0 ? matchedWeight / maxWeight : 0
       sim = Math.max(sim, coverage)
 
       // 反向覆盖：记忆中的关键词在查询中出现（"小雨"在问"女朋友叫什么"时不会出现，但"女朋友"会）
@@ -1231,12 +1282,15 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
   // 启动效应：记录用户刚提到的词，降低相关记忆的识别阈值
   updatePrimingCache(msg)
 
+  // ── 指代消解：查询扩展（"他怎么样了" → "他怎么样了 张三"）──
+  const _expandedMsg = expandQueryWithCoreference(msg, memoryState.chatHistory)
+
   // ── 统一激活场：唯一的召回路径 ──
   try {
     const { activationRecall } = require('./activation-field.ts')
     const results: Memory[] = activationRecall(
       memoryState.memories,
-      msg,
+      _expandedMsg,
       topN,
       moodCtx?.mood || 0,
       moodCtx?.alertness || 0.5,
@@ -1308,6 +1362,17 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
           m.confidence = Math.max(0.1, oldConf - 0.02)
           try { require('./decision-log.ts').logDecision('rif_suppress', (m.content || '').slice(0, 30) + '|' + m.ts, `conf=${oldConf.toFixed(2)}→${m.confidence.toFixed(2)}, overlap=${overlap}/${mWords.length}`) } catch {}
         }
+      }
+    }
+
+    // ── 预热命中清理：清除 _preheated 标记，记录命中率 ──
+    for (const m of memoryState.memories) {
+      if (m && m._preheated) {
+        const wasUsed = results.some(r => r.content === m.content)
+        if (wasUsed) {
+          try { require('./decision-log.ts').logDecision('preheat_hit', (m.content || '').slice(0, 30), 'preheated memory was recalled') } catch {}
+        }
+        delete m._preheated
       }
     }
 

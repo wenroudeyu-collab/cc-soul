@@ -42,6 +42,92 @@ let network: AssociationNetwork = loadJson<AssociationNetwork>(ASSOC_PATH, {
   cooccur: {}, df: {}, totalDocs: 0, lastRebuild: 0,
 })
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAM: Temporal Directed Co-occurrence（有向时序共现）
+// arXiv 2602.11322 启发：用户先说 A 再说 B → A→B 有向链接
+// 下次说 A 时，含 B 的记忆获得激活 boost
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const TEMPORAL_PATH = resolve(DATA_DIR, 'aam_temporal.json')
+const TEMPORAL_MAX_ENTRIES = 1000
+
+interface TemporalNetwork {
+  // word → { nextWord → count }（有向：A→B ≠ B→A）
+  directed: Record<string, Record<string, number>>
+}
+
+let _temporalNet: TemporalNetwork = loadJson<TemporalNetwork>(TEMPORAL_PATH, { directed: {} })
+
+// 上一轮用户消息的关键词（用于跨消息有向链接）
+let _prevMessageWords: string[] = []
+
+/**
+ * 学习有向时序共现：上一条消息的词 → 当前消息的词
+ * 由外部在每条用户消息时调用（与 learnAssociation 并行）
+ */
+export function learnTemporalLink(currentContent: string): void {
+  const words = filterStopWords(tokenize(currentContent))
+  const unique = [...new Set(words)]
+
+  // 如果有上一轮消息，建立 prev → current 有向链接
+  if (_prevMessageWords.length > 0 && unique.length > 0) {
+    for (const prev of _prevMessageWords) {
+      if (!_temporalNet.directed[prev]) _temporalNet.directed[prev] = {}
+      for (const curr of unique) {
+        if (prev === curr) continue  // 跳过自环
+        _temporalNet.directed[prev][curr] = (_temporalNet.directed[prev][curr] || 0) + 1
+      }
+    }
+
+    // LRU 驱逐：超过上限时删除最低频的词条
+    const totalEntries = Object.keys(_temporalNet.directed).length
+    if (totalEntries > TEMPORAL_MAX_ENTRIES) {
+      const entries = Object.entries(_temporalNet.directed)
+        .map(([w, succs]) => ({ word: w, total: Object.values(succs).reduce((a, b) => a + b, 0) }))
+        .sort((a, b) => a.total - b.total)
+      const toRemove = totalEntries - TEMPORAL_MAX_ENTRIES + 100  // 批量删 100 个余量
+      for (let i = 0; i < toRemove && i < entries.length; i++) {
+        delete _temporalNet.directed[entries[i].word]
+      }
+    }
+
+    // 每 20 轮持久化
+    if (network.totalDocs % 20 === 0) {
+      debouncedSave(TEMPORAL_PATH, _temporalNet)
+    }
+  }
+
+  // 更新上一轮词
+  _prevMessageWords = unique.slice(0, 10)  // cap 保留最多 10 词
+}
+
+/**
+ * 查询某词的时序后继词（按频次降序）
+ * 供 activation-field.ts Signal 7 使用
+ */
+export function getTemporalSuccessors(word: string, topK = 5): { word: string; count: number }[] {
+  const succs = _temporalNet.directed[word]
+  if (!succs) return []
+  return Object.entries(succs)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, topK)
+    .map(([w, c]) => ({ word: w, count: c }))
+}
+
+/** 时序共现衰减（由 decayCooccurrence 顺带调用） */
+export function decayTemporalLinks(): void {
+  let pruned = 0
+  for (const [w, succs] of Object.entries(_temporalNet.directed)) {
+    for (const [w2, count] of Object.entries(succs)) {
+      const newCount = count * 0.98
+      if (newCount < 0.5) { delete succs[w2]; pruned++ }
+      else succs[w2] = newCount
+    }
+    if (Object.keys(succs).length === 0) delete _temporalNet.directed[w]
+  }
+  if (pruned > 0) debouncedSave(TEMPORAL_PATH, _temporalNet)
+}
+
 // ── Built-in synonyms for cold start (before enough user data accumulates) ──
 const SYNONYMS_PATH = resolve(DATA_DIR, 'aam_synonyms.json')
 const _defaultSynonyms: Record<string, string[]> = {
@@ -177,7 +263,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '充值': ['充钱', '缴费', '续费', '付费'],
   '提现': ['取钱', '转账', '汇款'],
   '扫码': ['二维码', '扫一扫', '付款码'],
-  '搬家': ['搬迁', '乔迁', '换地方'],
+  '搬家': ['搬迁', '乔迁', '换地方', '换房子', '新家'],
   '装修': ['翻新', '改造', '装潢', '施工'],
   '倒垃圾': ['扔垃圾', '垃圾分类'],
   '做家务': ['家务活', '干活', '打扫卫生'],
@@ -213,6 +299,27 @@ const _defaultSynonyms: Record<string, string[]> = {
   '配眼镜': ['验光', '近视', '眼镜店'],
   '办证': ['办手续', '证件', '审批'],
   '缴税': ['报税', '个税', '税务'],
+
+  // ── 概念级近义（美食/人生事件/宠物/数码/节日）─────────────────────────
+  '母校': ['大学', '学校', '高中', '校友'],
+  '火锅': ['涮锅', '麻辣烫', '串串', '涮肉', '重庆火锅'],
+  '烧烤': ['撸串', 'BBQ', '烤肉', '烧烤摊'],
+  '奶茶': ['奶茶店', '珍珠奶茶', '蜜雪冰城', '茶饮'],
+  '咖啡': ['拿铁', '美式', '星巴克', '咖啡因', 'coffee'],
+  '酒': ['喝酒', '啤酒', '白酒', '红酒', '醉'],
+  '零食': ['薯片', '饼干', '小食', '嘴馋'],
+  '早餐': ['早饭', '早起吃', '早点', '吃早餐'],
+  '晚餐': ['晚饭', '晚上吃', '夜宵', '宵夜'],
+  '怀孕': ['孕期', '孕妇', '待产', '预产期', '产检'],
+  '宠物': ['猫', '狗', '铲屎官', '宠物医院'],
+  '猫': ['喵', '猫咪', '养猫', '铲屎', '猫粮'],
+  '狗': ['汪', '狗子', '养狗', '遛狗', '狗粮'],
+  '天气': ['下雨', '晴天', '冷', '热', '降温'],
+  '手机': ['手机壳', '充电', '换手机', 'iPhone', '安卓'],
+  '电脑': ['笔记本', '台式机', '修电脑', 'Mac', 'PC'],
+  '家': ['回家', '家里', '在家', '老家', '家人'],
+  '过年': ['春节', '除夕', '年三十', '拜年', '年夜饭'],
+  '生日': ['生日快乐', '庆生', '蛋糕', '许愿'],
 
   // ── 工作职场（50组）──────────────────────────────────────────────────
   '简历': ['CV', '履历', '个人简介', 'resume'],
@@ -374,7 +481,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '数学': ['math', '高数', '微积分', '线性代数'],
   '论文': ['paper', '毕业论文', '学术', '期刊'],
   '课程': ['课', '网课', '公开课', 'course'],
-  '大学': ['本科', '高校', '学校', 'university'],
+  '大学': ['本科', '高校', '学校', '高中', '校友', 'university'],
   '研究生': ['硕士', '读研', '考研', '研一'],
   '留学': ['出国', '留学申请', '海外', 'study abroad'],
   '证书': ['认证', '考证', '资格证', '证'],
@@ -407,14 +514,14 @@ const _defaultSynonyms: Record<string, string[]> = {
   '信用卡': ['刷卡', '还款', '账单', '信用额度'],
   '基金': ['定投', '指数基金', '理财产品', 'fund'],
   '股票': ['炒股', '股市', 'A股', '美股', 'stock'],
-  '保险': ['投保', '保单', '理赔', 'insurance'],
-  '养老': ['养老金', '退休金', '退休', 'pension'],
+  '保险': ['投保', '保单', '理赔', '车险', '医疗险', '寿险', 'insurance'],
+  '养老': ['养老金', '退休金', '退休', '社保', '老年', 'pension'],
   '公积金': ['住房公积金', '提取公积金', '公积金贷款'],
   '存款': ['储蓄', '定期', '活期', '存钱'],
-  '投资': ['理财', '增值', '资产配置', 'invest'],
+  '投资': ['理财', '增值', '资产配置', '基金', '股票', '炒股', '定投', 'invest'],
   '理财': ['财务管理', '资产管理', '钱生钱'],
   '利息': ['利率', '年化', '收益率', 'interest'],
-  '贷款': ['借钱', '借贷', '分期', 'loan'],
+  '贷款': ['借钱', '借贷', '分期', '房贷', '车贷', '还款', '月供', 'loan'],
   '还款': ['还钱', '还贷', '月供'],
   '账单': ['对账', '流水', '明细', 'bill'],
   '预算': ['花费计划', '开支预算', 'budget'],
@@ -444,28 +551,28 @@ const _defaultSynonyms: Record<string, string[]> = {
   '妹妹': ['妹', '小妹', '妹子'],
   '爷爷': ['祖父', '外公', '姥爷', 'grandfather'],
   '奶奶': ['祖母', '外婆', '姥姥', 'grandmother'],
-  '朋友': ['好友', '哥们', '闺蜜', '伙伴', 'friend'],
+  '朋友': ['好友', '哥们', '闺蜜', '伙伴', '兄弟', '死党', 'friend'],
   '同学': ['同窗', '校友', '学长', '学姐', 'classmate'],
   '邻居': ['隔壁', '邻里', '楼上楼下', 'neighbor'],
   '亲戚': ['亲属', '家人', '家族'],
   '叔叔': ['大叔', '舅舅', '伯伯', 'uncle'],
   '阿姨': ['大姨', '姑姑', '婶婶', 'aunt'],
-  '宝宝': ['小婴儿', '娃娃', '宝贝', 'baby'],
-  '父母': ['爸妈', '双亲', '家长', 'parents'],
+  '宝宝': ['小婴儿', '娃娃', '宝贝', '婴儿', '新生儿', '娃', 'baby'],
+  '父母': ['爸妈', '双亲', '家长', '爸爸', '妈妈', '父亲', '母亲', 'parents'],
   '家人': ['家庭', '家族', '家里人', 'family'],
   '情侣': ['男女朋友', '对象', '恋人', 'couple'],
   '前任': ['前男友', '前女友', '前对象', 'ex'],
   '暗恋': ['单恋', '暗恋对象', '悄悄喜欢'],
   '表白': ['告白', '说喜欢', '追', 'confess'],
   '分手': ['分了', '散了', '掰了', 'break up'],
-  '结婚': ['婚礼', '领证', '嫁/娶', 'marry'],
-  '离婚': ['离了', '分开', '离异', 'divorce'],
+  '结婚': ['婚礼', '婚姻', '领证', '嫁', '娶', 'marry'],
+  '离婚': ['离了', '分开', '离异', '散了', '不过了', 'divorce'],
   '婆媳': ['婆婆', '儿媳', '婆媳关系'],
   '育儿': ['养娃', '带孩子', '教育孩子', 'parenting'],
   '陪伴': ['在一起', '陪', '相伴', 'companion'],
 
   // ── 住房出行（30组）──────────────────────────────────────────────────
-  '租房': ['租', '房租', '合租', '整租', 'rent'],
+  '租房': ['租', '房租', '合租', '整租', '押金', '中介', 'rent'],
   '买房': ['购房', '首付', '房产', '新房'],
   '房价': ['房价走势', '均价', '楼盘', '地段'],
   '地铁': ['地铁站', '换乘', '早高峰', 'subway'],
@@ -603,8 +710,23 @@ const _defaultSynonyms: Record<string, string[]> = {
   '奇怪': ['怪', '诡异', '不正常', '离谱', 'weird'],
 }
 let COLD_START_SYNONYMS: Record<string, string[]> = loadJson(SYNONYMS_PATH, _defaultSynonyms)
-// 首次运行时保存默认值到文件
-if (!existsSync(SYNONYMS_PATH)) {
+// 合并源码中的新默认同义词到已加载的 JSON（确保代码新增的同义词不被旧 JSON 覆盖）
+let _synDirty = false
+for (const [key, syns] of Object.entries(_defaultSynonyms)) {
+  if (!COLD_START_SYNONYMS[key]) {
+    COLD_START_SYNONYMS[key] = syns
+    _synDirty = true
+  } else {
+    // key 存在但可能缺少新同义词 → 合并
+    for (const syn of syns) {
+      if (!COLD_START_SYNONYMS[key].includes(syn)) {
+        COLD_START_SYNONYMS[key].push(syn)
+        _synDirty = true
+      }
+    }
+  }
+}
+if (_synDirty || !existsSync(SYNONYMS_PATH)) {
   debouncedSave(SYNONYMS_PATH, COLD_START_SYNONYMS)
 }
 
@@ -671,24 +793,9 @@ injectSeedsIntoCooccur()
  * Tokenize text into words for association network.
  * CJK: 2-3 char segments. English: 3+ letter words.
  */
+/** tokenize → 使用统一的 tokenize('standard') from memory-utils.ts */
 function tokenize(text: string): string[] {
-  const words: string[] = []
-  // CJK: extract 2-char and 3-char segments using sliding window, then deduplicate
-  // This balances between "whole word" and "n-gram" — catches both "减肥" and "面试"
-  const cjkRaw = text.match(/[\u4e00-\u9fff]+/g) || []
-  for (const seg of cjkRaw) {
-    // 2-char words (step by 1, sliding window — the most common Chinese word length)
-    for (let i = 0; i <= seg.length - 2; i++) {
-      words.push(seg.slice(i, i + 2))
-    }
-    // Full 3-4 char segment if it exists (compound words like "减肥期", "面试官")
-    if (seg.length >= 3 && seg.length <= 4) words.push(seg)
-  }
-  // English words (3+ letters)
-  const enWords = text.match(/[a-zA-Z]{3,}/g) || []
-  words.push(...enWords.map(w => w.toLowerCase()))
-  // Deduplicate within this tokenization
-  return [...new Set(words)]
+  return require('./memory-utils.ts').tokenize(text, 'standard')
 }
 
 // Stop words to filter out noise (CJK 2-grams that are grammatical, not semantic)
@@ -807,6 +914,22 @@ export function getCooccurrence(wordA: string, wordB: string): number {
   return network.cooccur[wordA]?.[wordB] ?? network.cooccur[wordB]?.[wordA] ?? 0
 }
 
+/** 获取词的 AAM 共现邻居（1-hop），返回 { word, pmiScore, fanOut } */
+export function getAAMNeighbors(word: string, topK = 5): { word: string; pmiScore: number; fanOut: number }[] {
+  const cooc = network.cooccur[word]
+  if (!cooc) return []
+  const results: { word: string; pmiScore: number; fanOut: number }[] = []
+  for (const [other, _count] of Object.entries(cooc)) {
+    const p = pmi(word, other)
+    if (p > 0.5) {
+      const fanOut = Object.keys(network.cooccur[other] || {}).length
+      results.push({ word: other, pmiScore: p, fanOut })
+    }
+  }
+  results.sort((a, b) => b.pmiScore - a.pmiScore)
+  return results.slice(0, topK)
+}
+
 export function expandQuery(queryWords: string[], maxExpansion = 10): { word: string; weight: number }[] {
   const expanded: Map<string, number> = new Map()
 
@@ -835,11 +958,92 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
       candidates.sort((a, b) => b.pmiScore - a.pmiScore)
       for (const c of candidates.slice(0, 3)) {
         // Weight proportional to PMI, capped at 0.8
-        const weight = Math.min(0.8, c.pmiScore / 5)
+        const baseWeight = Math.min(0.8, c.pmiScore / 5)
+        // 应用 activationDamping：话题切换后旧话题词权重降低
+        const damping = getDamping(c.word)
+        const weight = baseWeight * damping
         expanded.set(c.word, Math.max(expanded.get(c.word) || 0, weight))
       }
     }
   }
+
+  // ── Synonym table: 权重高于 PMI 碎片，确保真正的同义词不被挤掉 ──
+  // 同义词是人工/毕业验证过的高质量关联，权重应该高于 PMI 碎片
+  for (const w of queryWords) {
+    // 正向查：w 是同义词表的 key
+    const directSyns = COLD_START_SYNONYMS[w]
+    if (directSyns) {
+      for (const syn of directSyns) {
+        if (syn.length >= 2) {
+          // 覆盖已有的低权重 PMI 结果（同义词 > PMI 碎片）
+          const existing = expanded.get(syn) || 0
+          if (existing < 0.9) expanded.set(syn, 0.9)
+        }
+      }
+    }
+    // 反向查：w 是某个 key 的同义词
+    for (const [key, syns] of Object.entries(COLD_START_SYNONYMS)) {
+      if (syns.includes(w)) {
+        if (key.length >= 2) {
+          const existing = expanded.get(key) || 0
+          if (existing < 0.9) expanded.set(key, 0.9)
+        }
+        // 同组的其他词也加入（同义传递）
+        for (const peer of syns) {
+          if (peer !== w && peer.length >= 2) {
+            const existing = expanded.get(peer) || 0
+            if (existing < 0.7) expanded.set(peer, 0.7)
+          }
+        }
+      }
+    }
+  }
+
+  // ── 过滤碎片：移除跨词边界的 2-gram 垃圾 ──
+  // "你母"、"校在"、"眠怎" 是 sliding window 产出的上下文碎片
+  // 改用置信度过滤：PMI 学到的高置信度词保留，低置信度碎片删除
+  // 这样 AAM 的学习结果不会被白名单杀死
+  const PMI_CONFIDENCE_THRESHOLD = 0.3
+  const _defaultKeySet = new Set(Object.keys(_defaultSynonyms))
+  const _defaultValueSet = new Set<string>()
+  for (const syns of Object.values(_defaultSynonyms)) {
+    for (const s of syns) _defaultValueSet.add(s)
+  }
+  for (const [word, weight] of [...expanded.entries()]) {
+    if (queryWords.includes(word)) continue  // 原始查询词保留
+    // 只过滤 CJK 2-char 词（最容易产出碎片的粒度）
+    if (word.length === 2 && /^[\u4e00-\u9fff]{2}$/.test(word)) {
+      const isKnown = _defaultKeySet.has(word) || _defaultValueSet.has(word)
+      // 已知词（人工同义词表）直接保留；否则用置信度（weight）判断
+      // weight 来自 PMI/5（见上面 baseWeight 计算），> 0.3 意味着 PMI > 1.5
+      if (!isKnown && weight < PMI_CONFIDENCE_THRESHOLD) expanded.delete(word)
+    }
+  }
+
+  // ── 共字关联：汉字结构特性，共享字 = 语义关联 ──
+  // "睡眠"和"失眠"共享"眠"字，"睡眠"和"睡觉"共享"睡"字
+  // 这是中文特有的零维护语义关联能力
+  for (const w of queryWords) {
+    if (!/^[\u4e00-\u9fff]{2,}$/.test(w)) continue  // 只对中文词做
+    const chars = [...w]
+    // 在同义词表中找共享字的词
+    for (const [key, syns] of Object.entries(COLD_START_SYNONYMS)) {
+      if (expanded.has(key)) continue
+      // key 和查询词共享至少一个字
+      const keyChars = [...key]
+      const shared = chars.filter(c => keyChars.includes(c))
+      if (shared.length > 0 && key.length >= 2) {
+        // 共字权重：共享字越多越高，1 字共享 0.4，2 字 0.7
+        const sharedWeight = Math.min(0.7, 0.4 * shared.length)
+        if ((expanded.get(key) || 0) < sharedWeight) {
+          expanded.set(key, sharedWeight)
+        }
+      }
+    }
+  }
+
+  // 每次 expandQuery 调用后恢复 damping（逐步回到 1.0）
+  recoverDamping()
 
   // Sort by weight, take top N
   return [...expanded.entries()]
@@ -1327,6 +1531,8 @@ export function decayCooccurrence() {
     console.log(`[cc-soul][aam] decay: ${decayed} edges decayed, ${pruned} pruned`)
     debouncedSave(ASSOC_PATH, network)
   }
+  // 顺带衰减时序共现
+  decayTemporalLinks()
 }
 
 export function getAAMStats() {
@@ -1337,5 +1543,120 @@ export function getAAMStats() {
     coldStartSynonyms: Object.keys(COLD_START_SYNONYMS).length,
     keyWeights: { ...keyWeights.weights },
     feedbackCount: keyWeights.feedbackCount,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTIVATION DAMPING — 话题切换时短期压制旧话题节点
+// 不碰 cooccur（长期知识），只碰激活阈值（短期状态）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const _activationDamping = new Map<string, number>()
+
+/** 获取某个词的 damping factor（默认 1.0） */
+export function getDamping(word: string): number {
+  return _activationDamping.get(word) ?? 1.0
+}
+
+/**
+ * 话题切换时调用：旧话题词 damping 降低，新话题词 damping 恢复
+ * 由 cognition.ts 的 intentMomentum 话题切换信号触发
+ */
+export function onTopicSwitch(oldTopicWords: string[], newTopicWords: string[]): void {
+  for (const w of oldTopicWords) {
+    _activationDamping.set(w, 0.3)  // 旧话题压制
+  }
+  for (const w of newTopicWords) {
+    _activationDamping.set(w, 1.0)  // 新话题满激活
+  }
+  if (oldTopicWords.length > 0) {
+    console.log(`[cc-soul][aam] topic switch: damped ${oldTopicWords.length} old words, activated ${newTopicWords.length} new words`)
+  }
+}
+
+/**
+ * 每轮对话后恢复 damping（时间衰减回 1.0）
+ * 由 expandQuery 或 heartbeat 调用
+ */
+export function recoverDamping(): void {
+  for (const [word, factor] of _activationDamping) {
+    const recovered = factor * 0.9 + 1.0 * 0.1  // 逐步恢复到 1.0
+    if (recovered > 0.95) {
+      _activationDamping.delete(word)  // 接近 1.0 就删掉
+    } else {
+      _activationDamping.set(word, recovered)
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 力5：正反馈 — 强化好的扩展路径
+// 力6：负反馈 — 抑制坏的扩展（减跳数不减边权重）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// 负反馈跳数状态：query pattern → max hop（默认 2，miss 时降级）
+const _maxHopByPattern = new Map<string, number>()
+
+/** 获取某类查询允许的最大跳数（默认 2） */
+export function getMaxHop(queryPattern: string): number {
+  return _maxHopByPattern.get(queryPattern) ?? 2
+}
+
+/**
+ * 正反馈：用户 engaged 的记忆，强化其扩展路径上的 AAM 边
+ * 由 feedbackMemoryEngagement 调用
+ */
+export function reinforceTrace(trace: { path: { stage: string; via: string; word?: string }[] }): void {
+  for (const step of trace.path) {
+    if (step.stage !== 'candidate_selection') continue
+    if (!step.word) continue
+
+    if (step.via === 'aam_hop1' || step.via === 'aam_context') {
+      // hop1 路径：强化 +0.5
+      const words = step.word.split(/\s+/).filter(w => w.length >= 2)
+      for (let i = 0; i < words.length - 1; i++) {
+        if (!network.cooccur[words[i]]) network.cooccur[words[i]] = {}
+        network.cooccur[words[i]][words[i + 1]] = (network.cooccur[words[i]][words[i + 1]] || 0) + 0.5
+        if (!network.cooccur[words[i + 1]]) network.cooccur[words[i + 1]] = {}
+        network.cooccur[words[i + 1]][words[i]] = (network.cooccur[words[i + 1]][words[i]] || 0) + 0.5
+      }
+    } else if (step.via === 'aam_hop2') {
+      // hop2 路径：弱强化 +0.3
+      const words = step.word.split(/\s+/).filter(w => w.length >= 2)
+      for (let i = 0; i < words.length - 1; i++) {
+        if (!network.cooccur[words[i]]) network.cooccur[words[i]] = {}
+        network.cooccur[words[i]][words[i + 1]] = (network.cooccur[words[i]][words[i + 1]] || 0) + 0.3
+        if (!network.cooccur[words[i + 1]]) network.cooccur[words[i + 1]] = {}
+        network.cooccur[words[i + 1]][words[i]] = (network.cooccur[words[i + 1]][words[i]] || 0) + 0.3
+      }
+    }
+  }
+  console.log(`[cc-soul][aam] positive feedback: reinforced ${trace.path.length} trace steps`)
+}
+
+/**
+ * 负反馈：用户 ignored 的记忆，降低扩展跳数
+ * 不减边权重（信用分配问题），只减跳数
+ */
+export function suppressExpansion(queryPattern: string, missedVia: string): void {
+  const currentMax = _maxHopByPattern.get(queryPattern) ?? 2
+
+  if (missedVia === 'aam_hop2' && currentMax > 1) {
+    _maxHopByPattern.set(queryPattern, 1)
+    console.log(`[cc-soul][aam] negative feedback: ${queryPattern} hop2→hop1`)
+  } else if (missedVia === 'aam_hop1' && currentMax > 0) {
+    _maxHopByPattern.set(queryPattern, 0)
+    console.log(`[cc-soul][aam] negative feedback: ${queryPattern} hop1→no expansion`)
+  }
+}
+
+/**
+ * 正反馈恢复：engaged 后恢复跳数
+ */
+export function restoreExpansion(queryPattern: string): void {
+  const currentMax = _maxHopByPattern.get(queryPattern)
+  if (currentMax !== undefined && currentMax < 2) {
+    _maxHopByPattern.set(queryPattern, Math.min(2, currentMax + 1))
+    console.log(`[cc-soul][aam] expansion restored: ${queryPattern} → hop${currentMax + 1}`)
   }
 }
