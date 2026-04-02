@@ -13,10 +13,9 @@ import { DATA_DIR, MEMORIES_PATH, REMINDERS_PATH, GRAPH_PATH } from './persisten
 import type { Memory, Entity, Relation, StructuredFact } from './types.ts'
 // embedder.ts removed — vector search retired, activation field handles all recall
 
-// Database path: auto-detect, no configuration needed
-// OpenClaw users → shared memory.db; everyone else → DATA_DIR/soul.db (auto-created)
-const OFFICIAL_DB = resolve(homedir(), '.openclaw/data/memory.db')
-const DB_PATH = existsSync(OFFICIAL_DB) ? OFFICIAL_DB : resolve(DATA_DIR, 'soul.db')
+// Database path: 始终使用 cc-soul 自己的独立数据库
+// 学 Mem0/Zep/Letta：记忆系统有自己的数据库，不依赖宿主平台
+const DB_PATH = resolve(DATA_DIR, 'soul.db')
 
 // SQLite 工厂函数：测试时传 ':memory:' 隔离数据
 let _overrideDbPath: string | null = null
@@ -99,9 +98,23 @@ export function initSQLite(): boolean {
 
   // sqlite-vec removed — activation field (NAM) handles all semantic recall
 
-  // Schema — use official memories table, add cc-soul columns if missing
-  // Official table already has: id, scope, content, created_at, raw_line, access_count, last_accessed
-  // We ADD cc-soul specific columns (ALTER TABLE ADD COLUMN is safe — ignores if exists via try/catch)
+  // Schema — 独立数据库：先建 memories 表，再加扩展列
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT DEFAULT 'fact',
+      content TEXT NOT NULL,
+      created_at TEXT,
+      raw_line TEXT,
+      access_count INTEGER DEFAULT 0,
+      last_accessed TEXT
+    )
+  `)
+  // 实体和关系表（graph.ts 用）
+  db.exec(`CREATE TABLE IF NOT EXISTS entities (name TEXT PRIMARY KEY, type TEXT DEFAULT 'entity')`)
+  db.exec(`CREATE TABLE IF NOT EXISTS relations (source TEXT, target TEXT, type TEXT, PRIMARY KEY(source, target, type))`)
+
+  // cc-soul 扩展列（ALTER TABLE ADD COLUMN 安全——已存在则忽略）
   const ccSoulColumns: [string, string][] = [
     ['ts', 'INTEGER'],
     ['emotion', "TEXT DEFAULT 'neutral'"],

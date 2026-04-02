@@ -1171,7 +1171,17 @@ export async function buildAndSelectAugments(params: {
     for (const m of associated) recalled.push(m)
   }
 
+  // System 1 facts 直接注入（绕过 crystallize，确保不被挤掉）
+  const s1Facts = recalled.filter((m: any) => m.source === 'activation_field_s1')
+  if (s1Facts.length > 0) {
+    const factContent = '[相关事实] ' + s1Facts.map((m: any) => m.content).join('；')
+    augments.push({ content: factContent, priority: 9, tokens: estimateTokens(factContent) })
+    // 从 recalled 中移除 S1 facts，避免 crystallize 重复
+    recalled = recalled.filter((m: any) => m.source !== 'activation_field_s1')
+  }
+
   session.lastRecalledContents = recalled.map(m => m.content)
+  console.log(`[cc-soul][augments] recalled=${recalled.length}, s1Facts=${s1Facts.length}, top="${(recalled[0]?.content||'').slice(0,40)}"`)
   if (recalled.length > 0) {
     // ── 记忆晶体（Memory Crystal）：替代碎片拼接 ──
     // 从 context-budget 获取 token 预算
@@ -1182,7 +1192,9 @@ export async function buildAndSelectAugments(params: {
       crystalBudget = Math.min(500, Math.floor(budget.augmentBudget * 0.4))  // 最多占 augment 预算的 40%
     } catch {}
 
-    const content = '[记忆] ' + crystallize(userMsg, recalled, crystalBudget)
+    const crystalContent = crystallize(userMsg, recalled, crystalBudget)
+    const content = '[记忆] ' + crystalContent
+    console.log(`[cc-soul][augments] crystal: budget=${crystalBudget}, output=${crystalContent.length} chars, content="${crystalContent.slice(0,60)}"`)
     augments.push({ content, priority: 8, tokens: estimateTokens(content) })
 
     // ── 因果链注入: 当召回的记忆包含纠正类时，追溯因果并注入上下文 ──

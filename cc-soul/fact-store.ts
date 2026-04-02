@@ -56,8 +56,8 @@ const RULES: ExtractionRule[] = [
     confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "我在X工作" / "我在X做Y" / "我是X的"
-  { pattern: /我(?:在|是)\s*(.{2,15})(?:工作|上班|就职|的员工|做(?:前端|后端|开发|测试|设计|产品|运维|运营|销售|管理))/, extract: (m) => ({
-    subject: 'user', predicate: 'works_at', object: m[1].replace(/[。，！？\s]+$/, ''),
+  { pattern: /我(?:在|是)\s*(.{2,15})(?:工作|上班|就职|的员工|做\S{2,10})/, extract: (m) => ({
+    subject: 'user', predicate: 'works_at', object: m[0].replace(/^我(?:在|是)\s*/, '').replace(/[。，！？\s]+$/, ''),
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "我住在X" — only match explicit residence, not "我在X工作"
@@ -111,9 +111,11 @@ const RULES: ExtractionRule[] = [
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "我老婆/老公/女朋友/男朋友" → relationship
-  { pattern: /我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)\s*([^，。！？,;；\n\s]{0,8})/, extract: (m) => {
+  { pattern: /我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)\s*([^，。！？,;；\n\s]{0,8})/, extract: (m, content) => {
     const relType = m[0].match(/老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人/)?.[0] || 'partner'
     const detail = m[1]?.trim()
+    // 过滤隐式疑问：捕获内容含"什么/哪/谁/怎么/叫什么" = 在提问不是在陈述
+    if (detail && /什么|哪|谁|怎么|吗$|呢$/.test(detail)) return null
     return { subject: 'user', predicate: 'relationship', object: detail ? `${relType}：${detail}` : relType,
       confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0 }
   }},
@@ -135,6 +137,18 @@ const RULES: ExtractionRule[] = [
  */
 export function extractFacts(content: string, source: StructuredFact['source'] = 'user_said', userId?: string): StructuredFact[] {
   const extracted: StructuredFact[] = []
+
+  // 疑问句整体过滤：提问不是在陈述事实
+  const trimmed = content.trim()
+  if (/[？?]$/.test(trimmed) || /(.)\1不\1/.test(trimmed) || /[吗呢吧嘛]$/.test(trimmed)) {
+    return extracted  // 疑问句不提取任何事实
+  }
+
+  // LLM 分析内容过滤：方括号标签开头的内容是系统生成的分析，不是用户说的事实
+  // 动态判断：用户说话不会以 [标签] 开头
+  if (/^\[.{1,10}\]/.test(trimmed)) {
+    return extracted
+  }
 
   // ── 动态引擎提取（优先）──
   try {
@@ -186,13 +200,31 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
  */
 export function addFacts(newFacts: StructuredFact[]) {
   for (const nf of newFacts) {
-    // Invalidate conflicting facts (same subject+predicate, different object)
+    // 质量过滤：新 fact 比旧 fact 信息量更少时不做 supersede
+    // 防止"我养了宠物 叫什么来着"→ has_pet=宠物 覆盖 has_pet=一只叫豆豆的猫
+    let shouldSupersede = true
     for (const old of facts) {
       if (old.subject === nf.subject && old.predicate === nf.predicate &&
           old.object !== nf.object && old.validUntil === 0) {
-        old.validUntil = Date.now()
-        console.log(`[cc-soul][facts] superseded: ${old.subject}.${old.predicate}="${old.object}" → "${nf.object}"`)
+        // 新 object 比旧 object 短 50%+ 且旧的 confidence 更高 → 不覆盖
+        if (nf.object.length < old.object.length * 0.5 && (old.confidence ?? 0) >= (nf.confidence ?? 0)) {
+          console.log(`[cc-soul][facts] skip supersede (info loss): "${nf.object}" < "${old.object}"`)
+          shouldSupersede = false
+          break
+        }
       }
+    }
+    // Invalidate conflicting facts (same subject+predicate, different object)
+    if (shouldSupersede) {
+      for (const old of facts) {
+        if (old.subject === nf.subject && old.predicate === nf.predicate &&
+            old.object !== nf.object && old.validUntil === 0) {
+          old.validUntil = Date.now()
+          console.log(`[cc-soul][facts] superseded: ${old.subject}.${old.predicate}="${old.object}" → "${nf.object}"`)
+        }
+      }
+    } else {
+      continue  // 跳过这条低质量 fact
     }
     facts.push(nf)
 
@@ -301,10 +333,10 @@ export function getFactSummary(subject = 'user'): string {
   }
 
   const LABELS: Record<string, string> = {
-    likes: '喜欢', dislikes: '不喜欢', uses: '使用', works_at: '工作于',
+    name: '名字', likes: '喜欢', dislikes: '不喜欢', uses: '使用', works_at: '工作于',
     lives_in: '住在', occupation: '职业', prefers: '偏好', has: '拥有',
-    age: '年龄', has_pet: '养宠', habit: '习惯', educated_at: '毕业于',
-    relationship: '伴侣', uses_os: '操作系统',
+    age: '年龄', has_pet: '养宠', has_family: '家人', habit: '习惯', educated_at: '毕业于',
+    relationship: '伴侣', family_name: '家人名字', learning: '在学', uses_os: '操作系统',
   }
 
   return Object.entries(grouped)

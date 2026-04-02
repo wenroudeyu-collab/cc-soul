@@ -164,11 +164,34 @@ async function handleProcess(body: any): Promise<any> {
       const { addMemory } = await import('./memory.ts')
       const walEntries: string[] = []
       const prefMatch = message.match(/我(?:最|特别|超|很|比较)?(?:喜欢|不喜欢|讨厌|爱|偏好|住在?|是|养了?|有|擅长|从事|叫|在.{1,10}(?:工作|上班|做))(.{2,40})/g)
-      if (prefMatch) for (const p of prefMatch.slice(0, 3)) walEntries.push(p.slice(0, 60))
+      if (prefMatch) for (const p of prefMatch.slice(0, 3)) {
+        // 动态疑问句检测：用句法结构而非词表
+        // 1. 消息级：整句以问号结尾 = 提问
+        // 2. 结构级：中文疑问句的句法特征（动词重叠 AB不AB、句尾语气词）
+        // 3. 信息量：提取出的 object 比消息短太多 = 可能是残片
+        const trimmed = message.trim()
+        const isQuestion = /[？?]$/.test(trimmed) ||          // 问号结尾
+          /(.)\1不\1/.test(trimmed) ||                         // 动词重叠疑问（是不是/有没有）
+          /[吗呢吧嘛]$/.test(trimmed) ||                       // 语气词结尾
+          /[？?]/.test(p)                                       // 匹配片段含问号
+        if (isQuestion) continue
+        // 信息量检查：提取的内容占消息比例太低（<20%）= 可能是误提取
+        if (p.length < message.length * 0.2 && p.length < 8) continue
+        walEntries.push(p.slice(0, 60))
+      }
       const rememberMatch = message.match(/(?:记住|帮我记|你要知道)[：:，,\s]*(.{4,60})/g)
       if (rememberMatch) for (const r of rememberMatch.slice(0, 3)) walEntries.push(r.slice(0, 60))
       for (const entry of walEntries) addMemory(`[WAL事实] ${entry}`, 'wal', userId, 'private')
       if (walEntries.length > 0) console.log(`[cc-soul][api] WAL: ${walEntries.length} entries`)
+    } catch {}
+
+    // ── 5b. 直接事实提取（不依赖 WAL 正则覆盖面）──
+    // WAL 正则只覆盖"我叫/我住在/我喜欢"等模式
+    // extractFacts 覆盖更多（女朋友/宠物/习惯/学历等），确保事实不遗漏
+    try {
+      const { extractFacts, addFacts } = await import('./fact-store.ts')
+      const facts = extractFacts(message, 'user_said', userId)
+      if (facts.length > 0) addFacts(facts)
     } catch {}
 
     // ── 6. Avatar collection ──

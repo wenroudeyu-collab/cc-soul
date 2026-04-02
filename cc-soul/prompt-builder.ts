@@ -288,6 +288,17 @@ export function buildSoulPrompt(
     }
   } catch {}
 
+  // 核心事实始终注入（学 ChatGPT：用户记忆每个 prompt 都带着，不走搜索不走缓存）
+  try {
+    const { getFactSummary } = require('./fact-store.ts')
+    const factSummary = getFactSummary('user')
+    if (factSummary && factSummary.length > 5) {
+      sections.push('')
+      sections.push('## 关于这个用户（你已经知道的）')
+      sections.push(factSummary)
+    }
+  } catch {}
+
   // Speaking style
   sections.push('')
   sections.push('## 说话风格')

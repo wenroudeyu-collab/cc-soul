@@ -466,26 +466,32 @@ export function activationRecall(
       { test: /家人|女儿|儿子|孩子|老婆/, predicate: 'has_family' },
       { test: /女朋友|男朋友|伴侣|对象/, predicate: 'relationship' },
     ]
+    // 匹配所有适用的 pattern，合并结果（不是第一个匹配就 break）
+    const allFactMems: Memory[] = []
     for (const fp of factPatterns) {
       if (fp.test.test(query)) {
         const facts = factStore.queryFacts({ subject: 'user', predicate: fp.predicate })
         if (facts.length > 0) {
-          // 把 fact 转为 Memory 格式返回，但不短路——追加到激活场结果中
-          const factMems = facts.slice(0, 3).map((f: any) => ({
-            content: `${f.predicate === 'likes' ? '喜欢' : f.predicate === 'dislikes' ? '讨厌' : f.predicate === 'works_at' ? '在' : f.predicate === 'lives_in' ? '住在' : f.predicate === 'name' ? '叫' : ''}${f.object}`,
-            scope: 'fact', ts: f.ts || Date.now(), confidence: f.confidence || 0.9, source: 'activation_field_s1',
-          } as Memory))
-          console.log(`[activation-field] System 1 hit: ${fp.predicate} → ${factMems.length} facts`)
-          // System 1 做增强不做短路：精确命中的 facts 直接返回，但继续走激活场补充更多结果
-          const fieldResults = computeActivationField(memories, query, mood, alertness, expanded, topN)
-          // facts 优先 + 激活场补充（去重）
-          const seen = new Set(factMems.map(m => m.content))
-          for (const r of fieldResults) {
-            if (!seen.has(r.memory.content)) { factMems.push(r.memory); seen.add(r.memory.content) }
+          for (const f of facts.slice(0, 2)) {
+            const prefix = f.predicate === 'likes' ? '喜欢' : f.predicate === 'dislikes' ? '讨厌' : f.predicate === 'works_at' ? '在' : f.predicate === 'lives_in' ? '住在' : f.predicate === 'name' ? '叫' : ''
+            allFactMems.push({
+              content: `[事实] ${fp.predicate}: ${prefix}${f.object}`,
+              scope: 'fact', ts: f.ts || Date.now(), confidence: f.confidence || 0.9, source: 'activation_field_s1',
+              recallCount: 10, lastAccessed: Date.now(), importance: 9,  // 高权重确保不被过滤
+            } as Memory)
           }
-          return factMems.slice(0, topN)
+          console.log(`[activation-field] System 1 hit: ${fp.predicate} → ${facts.length} facts`)
         }
       }
+    }
+    if (allFactMems.length > 0) {
+      // System 1 做增强不做短路：facts + 激活场补充
+      const fieldResults = computeActivationField(memories, query, mood, alertness, expanded, topN)
+      const seen = new Set(allFactMems.map(m => m.content))
+      for (const r of fieldResults) {
+        if (!seen.has(r.memory.content)) { allFactMems.push(r.memory); seen.add(r.memory.content) }
+      }
+      return allFactMems.slice(0, topN)
     }
   } catch {}
 

@@ -1241,6 +1241,7 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
       moodCtx?.mood || 0,
       moodCtx?.alertness || 0.5,
     )
+    if (results.length > 0) console.log(`[cc-soul][recall] activationRecall returned ${results.length} results, top: "${(results[0]?.content||'').slice(0,40)}"`)
 
     // ── Graveyard 复活：当结果不足时 fallback 查 graveyard ──
     if (results.length < 3) {

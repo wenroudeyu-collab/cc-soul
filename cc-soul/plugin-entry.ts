@@ -75,19 +75,10 @@ export default {
         console.error(`[cc-soul] soul engine init failed: ${e.message}`)
       }
 
-      // Register context engine via api parameter (NOT import from plugin-sdk)
-      if (typeof api.registerContextEngine === 'function') {
-        try {
-          const engine = mod.createCcSoulContextEngine()
-          api.registerContextEngine('cc-soul', () => engine)
-          _contextEngineRegistered = true
-          console.log(`[cc-soul] ✅ Context Engine registered via api.registerContextEngine()`)
-        } catch (e: any) {
-          console.log(`[cc-soul] ⚠ Context Engine registration failed: ${e.message}`)
-        }
-      } else {
-        console.log(`[cc-soul] ⚠ api.registerContextEngine not available — hook + SOUL.md mode`)
-      }
+      // Context Engine 注册已移除——cc-soul 只通过独立 API (soul-api.ts) 提供记忆
+      // 学 Mem0：记忆系统是被调用的 API，不嵌入宿主平台内部
+      // 调用方通过 POST /api {"action":"process"} 获取 system_prompt + augments
+      console.log(`[cc-soul] 独立 API 模式（不注册 Context Engine）`)
 
       // Start soul-api for external access (Feishu, other AI, HTTP clients)
       try {
@@ -153,15 +144,7 @@ export default {
             return
           }
 
-          // Pass augments to context-engine for assemble()
-          if (_contextEngineRegistered && data.augments) {
-            try {
-              const { setLastAugments } = await import('./context-engine.ts')
-              const augmentLines = data.augments.split('\n').filter((l: string) => l.trim())
-              setLastAugments(augmentLines)
-              console.log(`[cc-soul] augments → context-engine (${augmentLines.length} items)`)
-            } catch {}
-          }
+          // Context Engine 推送已移除——cc-soul 独立 API 模式
 
           // Fallback: if context-engine NOT registered, write SOUL.md as before
           if (!_contextEngineRegistered && (data.system_prompt || data.augments)) {

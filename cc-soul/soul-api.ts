@@ -226,6 +226,63 @@ export function startSoulApi() {
         return
       }
 
+      // ── Mem0 风格简洁 API：/memory/search, /memory/add, /memory/list ──
+      // 学 Mem0/Zep：任何平台调这些 API 获取/存储记忆
+
+      if (url === '/memory/search' && req.method === 'POST') {
+        try {
+          const { recall, ensureMemoriesLoaded } = await import('./memory.ts')
+          ensureMemoriesLoaded()
+          const query = body.query || body.message || ''
+          const userId = body.user_id || body.userId || 'default'
+          const topN = body.top_n || body.limit || 5
+          const results = recall(query, topN, userId)
+          // 同时返回 facts（始终注入的核心记忆）
+          const { getFactSummary, queryFacts } = await import('./fact-store.ts')
+          const facts = queryFacts({ subject: 'user' })
+          res.writeHead(200)
+          res.end(JSON.stringify({
+            memories: results.map(m => ({ content: m.content, scope: m.scope, ts: m.ts, confidence: m.confidence })),
+            facts: facts.map(f => ({ predicate: f.predicate, object: f.object, confidence: f.confidence })),
+            fact_summary: getFactSummary('user'),
+          }))
+        } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })) }
+        return
+      }
+
+      if (url === '/memory/add' && req.method === 'POST') {
+        try {
+          const { addMemory } = await import('./memory.ts')
+          const { extractFacts, addFacts } = await import('./fact-store.ts')
+          const content = body.content || body.message || body.text || ''
+          const userId = body.user_id || body.userId || 'default'
+          const scope = body.scope || 'fact'
+          if (!content) { res.writeHead(400); res.end(JSON.stringify({ error: 'content required' })); return }
+          // 存记忆
+          addMemory(content, scope, userId, 'private')
+          // 提取并存事实
+          const facts = extractFacts(content, 'user_said', userId)
+          if (facts.length > 0) addFacts(facts)
+          res.writeHead(200)
+          res.end(JSON.stringify({ stored: true, facts_extracted: facts.length }))
+        } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })) }
+        return
+      }
+
+      if (url === '/memory/list' && req.method === 'GET') {
+        try {
+          const { queryFacts, getFactSummary } = await import('./fact-store.ts')
+          const facts = queryFacts({ subject: 'user' })
+          res.writeHead(200)
+          res.end(JSON.stringify({
+            facts: facts.map(f => ({ predicate: f.predicate, object: f.object, confidence: f.confidence, ts: f.ts })),
+            summary: getFactSummary('user'),
+            count: facts.length,
+          }))
+        } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })) }
+        return
+      }
+
       // ── Special endpoints (non-standard patterns) ──
 
       // A2A

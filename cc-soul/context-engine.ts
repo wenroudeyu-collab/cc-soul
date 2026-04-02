@@ -374,21 +374,36 @@ export function createCcSoulContextEngine() {
       // If preprocessed hook hasn't populated augments yet (async race),
       // do a synchronous memory recall directly in assemble() as fallback
       let augmentsToUse = _state.lastAugments
-      if (augmentsToUse.length === 0 && _state.lastUserMsg) {
-        console.log(`[cc-soul][context-engine] assemble: no augments from hook, running recall fallback for "${_state.lastUserMsg.slice(0, 40)}"`)
-        const recalled = recall(_state.lastUserMsg, 5, _state.lastSenderId || undefined)
-        if (recalled.length > 0) {
-          const memAugment = '[相关记忆] ' + recalled.map(m => {
-            const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
-            return m.content + emotionTag
-          }).join('; ')
-          augmentsToUse = [memAugment]
-          console.log(`[cc-soul][context-engine] assemble: fallback recall found ${recalled.length} memories`)
-        }
+      // 每次 assemble 都同步 recall——不依赖缓存的 augments
+      // 解决一轮延迟问题：确保当前消息的记忆实时注入，不管走什么 AI 后端
+      if (_state.lastUserMsg) {
+        try {
+          const recalled = recall(_state.lastUserMsg, 8, _state.lastSenderId || undefined)
+          if (recalled.length > 0) {
+            const memAugment = '[相关记忆] ' + recalled.map(m => {
+              const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''
+              return m.content.slice(0, 80) + emotionTag
+            }).join('；')
+            // 替换缓存中旧的记忆 augment（如果有），确保用当前轮的
+            augmentsToUse = augmentsToUse.filter(a => !/^\[记忆\]|\[相关记忆\]|\[相关事实\]/.test(a))
+            augmentsToUse.push(memAugment)
+            console.log(`[cc-soul][context-engine] assemble: sync recall injected ${recalled.length} memories for "${_state.lastUserMsg.slice(0, 30)}"`)
+          }
+        } catch {}
       }
 
-      // Merge SOUL.md + augments — strip bracket tags to prevent LLM "analysis" behavior
-      const cleanedAugments = augmentsToUse.map(a => a.replace(/^\[([^\]]+)\]\s*/, ''))
+      // Merge SOUL.md + augments — strip bracket tags + rewrite third-person analysis
+      const cleanedAugments = augmentsToUse.map(a => {
+        let c = a.replace(/^\[([^\]]+)\]\s*/, '')  // strip [tag] prefix
+        // Rewrite third-person "用户..." to second-person "你..." to prevent LLM mimicry
+        c = c.replace(/^用户(说了?|提到|指出|表示|认为|觉得|想要|需要|在|的|问)/g, '你$1')
+        c = c.replace(/用户(情绪|心情|状态|风格|偏好)/g, '你的$1')
+        c = c.replace(/该用户/g, '这个人')
+        c = c.replace(/当前用户/g, '对方')
+        // Strip analysis-style prefixes that LLMs tend to echo
+        c = c.replace(/^(检测到|发现|分析|注意到|观察到|识别到)\s*/g, '')
+        return c
+      })
       const parts = [soulPrompt]
       if (cleanedAugments.length > 0) {
         parts.push(cleanedAugments.join('\n'))
