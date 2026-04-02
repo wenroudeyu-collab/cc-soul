@@ -136,6 +136,56 @@ export function extractTimeRange(query: string): TimeRange | null {
   return null
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Route Filter — 量大时缩小候选集，量少时全量扫描
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ROUTE_THRESHOLD = 500  // 低于此数量不启用路由（全量扫描更安全）
+const ROUTE_MIN_CANDIDATES = 100  // 过滤后至少保留的候选数
+
+function routeMemories(memories: Memory[], query: string, userId?: string): Memory[] {
+  if (memories.length < ROUTE_THRESHOLD) return memories
+
+  let candidates = memories
+
+  // 1. 用户过滤（多用户场景）
+  if (userId) {
+    const userMems = candidates.filter(m => !m.userId || m.userId === userId)
+    if (userMems.length > 0) candidates = userMems
+  }
+
+  // 2. 时间过滤（用户说了"上周""昨天"等）
+  const timeRange = extractTimeRange(query)
+  if (timeRange) {
+    const timeMems = candidates.filter(m => m.ts >= timeRange.fromMs && m.ts <= timeRange.toMs)
+    if (timeMems.length >= 5) candidates = timeMems
+  }
+
+  // 3. 实体过滤（用户提到了具体的人/事物）
+  if (candidates.length > 200) {
+    try {
+      const { findMentionedEntities } = require('./graph.ts')
+      const entities: string[] = findMentionedEntities(query)
+      if (entities.length > 0) {
+        const entityMems = candidates.filter(m => entities.some(e => m.content?.includes(e)))
+        if (entityMems.length >= 10) candidates = entityMems
+      }
+    } catch {}
+  }
+
+  // 4. 安全下限：至少保留 ROUTE_MIN_CANDIDATES 条
+  if (candidates.length < ROUTE_MIN_CANDIDATES && memories.length > ROUTE_MIN_CANDIDATES) {
+    const candidateSet = new Set(candidates)
+    const recent = memories
+      .filter(m => !candidateSet.has(m))
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .slice(0, ROUTE_MIN_CANDIDATES - candidates.length)
+    candidates = [...candidates, ...recent]
+  }
+
+  return candidates
+}
+
 /** Call when a new memory is added to keep recall indices in sync */
 export function updateRecallIndex(mem: Memory) {
   _contentMap.set(mem.content, mem)
@@ -1285,11 +1335,14 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
   // ── 指代消解：查询扩展（"他怎么样了" → "他怎么样了 张三"）──
   const _expandedMsg = expandQueryWithCoreference(msg, memoryState.chatHistory)
 
+  // ── 路由过滤：量大时缩小候选集，量少时全量扫描 ──
+  const candidates = routeMemories(memoryState.memories, _expandedMsg, userId)
+
   // ── 统一激活场：唯一的召回路径 ──
   try {
     const { activationRecall } = require('./activation-field.ts')
     const results: Memory[] = activationRecall(
-      memoryState.memories,
+      candidates,
       _expandedMsg,
       topN,
       moodCtx?.mood || 0,

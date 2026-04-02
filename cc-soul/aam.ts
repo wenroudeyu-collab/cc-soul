@@ -144,7 +144,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '学习': ['读书', '学', '课程', '教程', '知识'],
   '代码': ['编程', '开发', '写代码', '程序'],
   '睡觉': ['睡眠', '失眠', '休息', '早睡', '熬夜'],
-  '运动': ['锻炼', '健身', '跑步', '游泳'],
+  '运动': ['锻炼', '健身', '跑步', '游泳', '篮球', '足球', '羽毛球', '乒乓球', '网球', '瑜伽'],
   '旅行': ['旅游', '出行', '出差', '度假'],
   '电影': ['影片', '看电影', '影院'],
   '音乐': ['歌', '听歌', '唱歌'],
@@ -166,6 +166,8 @@ const _defaultSynonyms: Record<string, string[]> = {
   '数据库': ['sql', 'mysql', 'postgres', 'redis', 'mongo', 'sqlite'],
   '面试': ['interview', '简历', '求职', 'offer'],
   '房子': ['租房', '买房', '房价', '装修'],
+  '车': ['汽车', '轿车', 'SUV', '电动车', '买车', '开车'],
+  '买车': ['购车', '提车', '选车', '试驾', '4S店'],
   '孩子': ['小孩', '宝宝', '育儿', '教育'],
   '老婆': ['老公', '对象', '伴侣', '爱人'],
   '钱': ['收入', '工资', '花费', '预算', '存款'],
@@ -540,7 +542,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '财务自由': ['FIRE', '经济自由', '退休自由'],
 
   // ── 家庭关系（30组）──────────────────────────────────────────────────
-  '爸爸': ['父亲', '爹', '老爸', '老爹', 'dad'],
+  '爸爸': ['父亲', '爹', '老爸', '老爹', '准爸爸', '爸', 'dad'],
   '妈妈': ['母亲', '娘', '老妈', 'mom'],
   '老公': ['丈夫', '先生', '另一半', 'husband'],
   '儿子': ['男孩', '小子', '崽', 'son'],
@@ -820,6 +822,95 @@ function filterStopWords(words: string[]): string[] {
   return words.filter(w => !STOP_WORDS.has(w) && w.length >= 2)
 }
 
+// ── 两阶段 junk-token 过滤器 ──
+// Phase 1 (always): CJK 虚词表，O(1) 预过滤
+// Phase 2 (≥50 memories): 数据驱动统计（fanOut / avgPMI / dfRatio）
+const CJK_FUNCTION_CHARS = new Set(
+  '的了是在很不也都就有我你他她它和与被把让给会能要想到过着吗呢吧啊么'
+)
+
+export function isJunkToken(word: string): boolean {
+  // 只对 CJK 2-gram 做判断
+  if (word.length !== 2 || !/^[\u4e00-\u9fff]{2}$/.test(word)) return false
+
+  // Phase 1: 虚词表——两个字都是虚词才算 junk（"的了"、"是在"）
+  // 单字虚词不过滤，因为 "什么"、"不好"、"很好" 等包含虚词字但本身是合法词
+  const chars = [...word]
+  if (chars.length === 2 && CJK_FUNCTION_CHARS.has(chars[0]) && CJK_FUNCTION_CHARS.has(chars[1])) return true
+
+  // Phase 2: 数据驱动（需要足够样本）
+  if (network.totalDocs >= 50) {
+    const cooc = network.cooccur[word]
+    const fanOut = cooc ? Object.keys(cooc).length : 0
+    const df = network.df[word] || 0
+    const dfRatio = df / Math.max(1, network.totalDocs)
+
+    // 计算 avgPMI
+    let avgPMI = 0
+    if (cooc && fanOut > 0) {
+      let sum = 0
+      for (const partner of Object.keys(cooc)) {
+        sum += pmi(word, partner)
+      }
+      avgPMI = sum / fanOut
+    }
+
+    // Junk if ANY:
+    if (fanOut > 20 && avgPMI < 1.0) return true   // 弱连接太多词
+    if (dfRatio > 0.3) return true                   // 太常见
+    if (fanOut <= 1 && df <= 1) return true           // 太罕见，偶然碎片
+  }
+
+  return false
+}
+
+// ── 概念层级（模块级，供 isKnownWord 和 expandQuery 共用）──
+const CONCEPT_HIERARCHY: Record<string, string[]> = {
+  '健康': ['血压','血糖','体重','睡眠','失眠','运动','体检','感冒','过敏','头疼','腰疼','视力'],
+  '身体': ['血压','血糖','体重','睡眠','运动','体检','疲劳','腰疼'],
+  '经济': ['房贷','工资','薪资','收入','股票','理财','储蓄','花销','信用卡','贷款','税'],
+  '财务': ['房贷','工资','收入','股票','理财','储蓄','信用卡','贷款','预算'],
+  '学校': ['大学','母校','高中','专业','导师','论文','考试','学位','毕业','同学'],
+  '教育': ['大学','母校','高中','专业','导师','论文','考试','培训','学位'],
+  '工作': ['加班','薪资','同事','老板','项目','晋升','跳槽','面试','绩效','裸辞','简历'],
+  '职业': ['加班','薪资','晋升','跳槽','面试','绩效','转行'],
+  '家庭': ['父母','爸妈','孩子','老婆','老公','宠物','猫','狗','家务','怀孕','预产期','生孩子'],
+  '家人': ['父母','爸妈','孩子','老婆','老公','兄弟','姐妹'],
+  '住房': ['房贷','租房','装修','搬家','小区','物业','房东','房价'],
+  '居住': ['房贷','租房','装修','搬家','小区','房东'],
+  '饮食': ['减肥','外卖','做饭','食谱','早餐','午餐','晚餐','零食','营养'],
+  '吃': ['外卖','做饭','早餐','午餐','晚餐','零食','火锅','奶茶'],
+  '出行': ['开车','地铁','航班','出差','高铁','打车','堵车','机票'],
+  '交通': ['开车','地铁','高铁','打车','堵车','公交'],
+  '情绪': ['焦虑','压力','抑郁','失眠','开心','烦躁','疲惫','孤独','崩溃'],
+  '心理': ['焦虑','压力','抑郁','失眠','烦躁','孤独','咨询'],
+  '社交': ['朋友','同事','邻居','相亲','聚会','吵架','分手','约会'],
+  '人际': ['朋友','同事','邻居','吵架','沟通','冲突'],
+  '技术': ['服务器','数据库','部署','前端','后端','bug','框架','API','运维'],
+  '编程': ['服务器','数据库','前端','后端','bug','框架','API','算法'],
+  '娱乐': ['电影','游戏','音乐','跑步','旅游','看书','刷剧','综艺'],
+  '休闲': ['电影','游戏','音乐','旅游','看书','刷剧'],
+}
+
+/** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */
+const _knownWordCache = new Set<string>()
+// 延迟构建（等 COLD_START_SYNONYMS 加载完）
+let _knownWordBuilt = false
+export function isKnownWord(word: string): boolean {
+  if (!_knownWordBuilt) {
+    for (const k of Object.keys(COLD_START_SYNONYMS)) _knownWordCache.add(k)
+    for (const syns of Object.values(COLD_START_SYNONYMS)) {
+      for (const s of syns) _knownWordCache.add(s)
+    }
+    for (const k of Object.keys(CONCEPT_HIERARCHY)) _knownWordCache.add(k)
+    for (const children of Object.values(CONCEPT_HIERARCHY)) {
+      for (const c of children) _knownWordCache.add(c)
+    }
+    _knownWordBuilt = true
+  }
+  return _knownWordCache.has(word)
+}
+
 /**
  * Feed a new memory into the association network.
  * Updates word co-occurrence counts.
@@ -827,7 +918,7 @@ function filterStopWords(words: string[]): string[] {
 export function learnAssociation(content: string, emotionIntensity: number = 0) {
   const emotionMultiplier = emotionIntensity >= 0.7 ? 3 : emotionIntensity >= 0.5 ? 2 : 1
   const words = filterStopWords(tokenize(content))
-  const unique = [...new Set(words)]
+  const unique = [...new Set(words)].filter(w => !isJunkToken(w))
   if (unique.length < 2) return
 
   if (emotionMultiplier > 1) {
@@ -873,8 +964,10 @@ function graduateStrongAssociations() {
   let graduated = 0
   for (const [w1, related] of Object.entries(network.cooccur)) {
     if (w1.length < 2) continue
+    if (isJunkToken(w1)) continue
     for (const [w2, count] of Object.entries(related)) {
       if (w2.length < 2 || count < 3) continue
+      if (isJunkToken(w2)) continue
       const p = pmi(w1, w2)
       if (p > 2.5) {  // 非常强的关联
         // 检查是否已在同义词表中
@@ -1003,32 +1096,7 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
   }
 
   // ── 概念层级：上位→下位 双向扩展（权重 0.3，低于同义词）──
-  const CONCEPT_HIERARCHY: Record<string, string[]> = {
-    '健康': ['血压','血糖','体重','睡眠','失眠','运动','体检','感冒','过敏','头疼','腰疼','视力'],
-    '身体': ['血压','血糖','体重','睡眠','运动','体检','疲劳','腰疼'],
-    '经济': ['房贷','工资','薪资','收入','股票','理财','储蓄','花销','信用卡','贷款','税'],
-    '财务': ['房贷','工资','收入','股票','理财','储蓄','信用卡','贷款','预算'],
-    '学校': ['大学','母校','高中','专业','导师','论文','考试','学位','毕业','同学'],
-    '教育': ['大学','母校','高中','专业','导师','论文','考试','培训','学位'],
-    '工作': ['加班','薪资','同事','老板','项目','晋升','跳槽','面试','绩效','裸辞','简历'],
-    '职业': ['加班','薪资','晋升','跳槽','面试','绩效','转行'],
-    '家庭': ['父母','爸妈','孩子','老婆','老公','宠物','猫','狗','家务'],
-    '家人': ['父母','爸妈','孩子','老婆','老公','兄弟','姐妹'],
-    '住房': ['房贷','租房','装修','搬家','小区','物业','房东','房价'],
-    '居住': ['房贷','租房','装修','搬家','小区','房东'],
-    '饮食': ['减肥','外卖','做饭','食谱','早餐','午餐','晚餐','零食','营养'],
-    '吃': ['外卖','做饭','早餐','午餐','晚餐','零食','火锅','奶茶'],
-    '出行': ['开车','地铁','航班','出差','高铁','打车','堵车','机票'],
-    '交通': ['开车','地铁','高铁','打车','堵车','公交'],
-    '情绪': ['焦虑','压力','抑郁','失眠','开心','烦躁','疲惫','孤独','崩溃'],
-    '心理': ['焦虑','压力','抑郁','失眠','烦躁','孤独','咨询'],
-    '社交': ['朋友','同事','邻居','相亲','聚会','吵架','分手','约会'],
-    '人际': ['朋友','同事','邻居','吵架','沟通','冲突'],
-    '技术': ['服务器','数据库','部署','前端','后端','bug','框架','API','运维'],
-    '编程': ['服务器','数据库','前端','后端','bug','框架','API','算法'],
-    '娱乐': ['电影','游戏','音乐','跑步','旅游','看书','刷剧','综艺'],
-    '休闲': ['电影','游戏','音乐','旅游','看书','刷剧'],
-  }
+  // （CONCEPT_HIERARCHY 已提升到模块级）
   // 反向索引：下位词→上位概念
   const _conceptReverse = new Map<string, string[]>()
   for (const [parent, children] of Object.entries(CONCEPT_HIERARCHY)) {
@@ -1042,7 +1110,10 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     const children = CONCEPT_HIERARCHY[w]
     if (children) {
       for (const c of children) {
-        if (c.length >= 2 && !expanded.has(c)) expanded.set(c, 0.6)
+        if (c.length >= 2) {
+          const existing = expanded.get(c) || 0
+          if (existing < 0.85) expanded.set(c, 0.85)  // 概念层级 ≈ 同义词级别
+        }
       }
     }
     // 下位→上位：用户说"血压"→关联"健康"相关记忆
@@ -1061,22 +1132,26 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     }
   }
 
-  // ── 过滤碎片：移除跨词边界的 2-gram 垃圾 ──
-  // 白名单 = _defaultSynonyms + CONCEPT_HIERARCHY 的所有词
-  const _knownWords = new Set<string>()
-  for (const k of Object.keys(_defaultSynonyms)) _knownWords.add(k)
-  for (const syns of Object.values(_defaultSynonyms)) {
-    for (const s of syns) _knownWords.add(s)
+  // ── 二次展开：对高权重扩展词做概念层级展开（解决 美食→吃→火锅 的两跳问题）──
+  const secondPassWords = [...expanded.entries()]
+    .filter(([w, wt]) => (wt as number) >= 0.9 && !queryWords.includes(w) && w.length >= 2)
+    .map(([w]) => w)
+  for (const w of secondPassWords.slice(0, 5)) {  // 最多 5 个词做二次展开
+    const children2 = CONCEPT_HIERARCHY[w]
+    if (children2) {
+      for (const c of children2) {
+        if (c.length >= 2) {
+          const existing = expanded.get(c) || 0
+          if (existing < 0.5) expanded.set(c, 0.5)  // 二次展开权重低于一次（0.85）
+        }
+      }
+    }
   }
-  for (const children of Object.values(CONCEPT_HIERARCHY)) {
-    for (const c of children) _knownWords.add(c)
-  }
-  for (const parent of Object.keys(CONCEPT_HIERARCHY)) _knownWords.add(parent)
+
+  // ── 过滤 junk token：用两阶段过滤器替代旧的白名单方案 ──
   for (const [word] of [...expanded.entries()]) {
     if (queryWords.includes(word)) continue
-    if (word.length === 2 && /^[\u4e00-\u9fff]{2}$/.test(word)) {
-      if (!_knownWords.has(word)) expanded.delete(word)
-    }
+    if (isJunkToken(word)) expanded.delete(word)
   }
 
   // ── 共字关联：汉字结构特性，共享字 = 语义关联 ──

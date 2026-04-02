@@ -840,8 +840,16 @@ export function expandQueryForField(query: string): Map<string, number> {
   // AAM 查询扩展（同义词 + 概念层级 + 共字关联 + PMI）
   try {
     const aamMod = require('./aam.ts')
-    const queryWords = [...expanded.keys()].filter(w => expanded.get(w)! >= 0.5 && w.length >= 2)
-    const aamExpanded = aamMod.expandQuery(queryWords, 15)
+    // 只传"已知词"给 AAM 做语义扩展
+    // CJK 2-char 滑动窗口产出大量碎片（"你有"、"有什"、"济压"），会触发低质量同义词扩展占满名额
+    // 策略：CJK 2-char 只有在同义词表中出现过的才算已知词，其余碎片只用于 BM25 词法匹配
+    const isKnown = aamMod.isKnownWord || (() => true)
+    const queryWords = [...expanded.keys()].filter(w => {
+      if ((expanded.get(w) || 0) < 0.5 || w.length < 2) return false
+      if (/[a-zA-Z]/.test(w) || w.length >= 3) return true  // 英文/长CJK 通过
+      return isKnown(w)  // CJK 2-char 必须是已知词
+    })
+    const aamExpanded = aamMod.expandQuery(queryWords, 20)
     for (const { word, weight } of aamExpanded) {
       if (!expanded.has(word)) expanded.set(word, weight)
     }
