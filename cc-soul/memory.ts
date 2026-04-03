@@ -1331,7 +1331,7 @@ function resolveCoreferenceForStorage(
   return { resolved, changed, resolvedEntity: changed ? entity : undefined }
 }
 
-export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx']) {
+export function addMemory(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, situationCtx?: Memory['situationCtx'], skipAutoExtract?: boolean) {
   // Check skip flag from session (inclusion/exclusion control)
   try {
     const mod = getLazyModule('handler-state'); const getSessionState = mod?.getSessionState; const getLastActiveSessionKey = mod?.getLastActiveSessionKey
@@ -1503,6 +1503,33 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     content = corefResult.resolved
   }
 
+  // LLM fallback for coreference: if regex didn't resolve and content has pronouns
+  const _corefContent = content  // capture for async closure
+  if (!corefResult.changed && /他|她|它|这个|那个/.test(content)) {
+    try {
+      const { hasLLM, spawnCLI } = require('./cli.ts')
+      if (hasLLM()) {
+        const recentContext = memoryState.chatHistory.slice(-3).map(h => h.user).join('\n')
+        spawnCLI(
+          `上下文：\n${recentContext}\n\n当前句子："${_corefContent}"\n\n请把句子中的代词（他/她/它/这个/那个）替换为具体的人名或事物名。只输出替换后的句子，不要解释。如果无法确定指代，原样输出。`,
+          (output: string) => {
+            if (!output || output.length < 3) return
+            const resolved = output.trim().split('\n')[0]  // take first line only
+            // Update the memory that was just stored
+            const mem = memoryState.memories.find(m => m.content === _corefContent && Math.abs(m.ts - Date.now()) < 5000)
+            if (mem && resolved !== _corefContent) {
+              if (!mem.history) mem.history = []
+              mem.history.push({ content: mem.content, ts: Date.now() })
+              mem.content = resolved
+              try { require('./decision-log.ts').logDecision('coreference_llm', resolved.slice(0, 30), `original: ${_corefContent.slice(0, 30)}`) } catch {}
+            }
+          },
+          10000
+        )
+      }
+    } catch {}
+  }
+
   // generateMemoryId, appendLineage imported at top level
 
   const newMem: Memory = {
@@ -1608,7 +1635,10 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     try { autoLinkMemories(newMem) } catch {}
 
     // Auto-extract structured facts (Mem0-style key-value triples)
-    try { autoExtractFromMemory(content, scope, autoSource) } catch {}
+    // Skip when memories already come from LLM extraction (runPostResponseAnalysis)
+    if (!skipAutoExtract) {
+      try { autoExtractFromMemory(content, scope, autoSource) } catch {}
+    }
 
     // AAM: feed into word association network (learns semantic relationships from user data)
     try {
@@ -1726,8 +1756,8 @@ export function addMemory(content: string, scope: string, userId?: string, visib
 }
 
 // ── Emotional memory tags: CLI judges emotional weight ──
-export function addMemoryWithEmotion(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, emotion?: string) {
-  addMemory(content, scope, userId, visibility, channelId)
+export function addMemoryWithEmotion(content: string, scope: string, userId?: string, visibility?: 'global' | 'channel' | 'private', channelId?: string, emotion?: string, skipAutoExtract?: boolean) {
+  addMemory(content, scope, userId, visibility, channelId, undefined, skipAutoExtract)
 
   // Bug #9 fix: only set emotion if addMemory actually added/updated a new entry (not dedup skip)
   // Check if any memory has this content — handles both new-add and update scenarios

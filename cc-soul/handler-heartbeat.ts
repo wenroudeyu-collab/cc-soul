@@ -34,6 +34,16 @@ import { tickBatchQueue } from './cli.ts'
 import { heartbeatScanAbsence } from './absence-detection.ts'
 import { scanBlindSpotQuestions } from './epistemic.ts'
 import { updateDeepUnderstand } from './deep-understand.ts'
+import { innerState } from './inner-life.ts'
+
+// ── 休眠巩固：三档心跳 ──
+function getHeartbeatMode(): 'awake' | 'light_sleep' | 'deep_sleep' {
+  const lastActivity = innerState.lastActivityTime || metrics.lastHeartbeat || 0
+  const inactive = Date.now() - lastActivity
+  if (inactive < 30 * 60_000) return 'awake'
+  if (inactive < 6 * 3600_000) return 'light_sleep'
+  return 'deep_sleep'
+}
 
 // ── CLI concurrency semaphore + 熔断器 ──
 let _cliSemaphore = 0
@@ -86,260 +96,19 @@ export function runHeartbeat() {
       const safe = (name: string, fn: () => void) => {
         try { fn(); recordModuleActivity(name) } catch (e: any) { recordModuleError(name, e.message); console.error(`[cc-soul][heartbeat][${name}] ${e.message}`) }
       }
-      // ══ 精简心跳：只保留直接影响用户体验的任务 ══
-      // 砍掉：journal(LLM自嗨)、dream(用户不可见)、voice(主动骚扰)
-      // 砍掉：reflection(LLM自省)、selfChallenge(LLM自测)、metaLearning/reflexionEval
-      // 砍掉：experiments/evolution进度、blindSpot、proactiveContradiction、freshness
-      // 砍掉：scheduledReports(没人要的推送)
 
+      // ── 三档心跳：awake / light_sleep / deep_sleep ──
+      const mode = getHeartbeatMode()
+      console.log(`[cc-soul][heartbeat] mode=${mode}`)
+
+      // ══ 所有模式都跑的轻量任务 ══
       safe('bodyTick', () => bodyTick())
-
-      // ── 记忆维护（核心，不调 LLM）──
-      safeCLI('consolidate', () => consolidateMemories(), safe)
-      safeCLI('contradiction', () => scanForContradictions(), safe)
-      safe('coreMemory', () => autoPromoteToCoreMemory())
-      // Letta 热度分层：engagement 驱动 core 晋升/降级
-      safe('heatPromotion', () => {
-        try {
-          const { memoryState } = require('./memory.ts')
-          for (const m of memoryState.memories) {
-            if (!m || m.scope === 'expired') continue
-            const eng = m.injectionEngagement ?? 0
-            const miss = m.injectionMiss ?? 0
-            const rate = eng / Math.max(1, eng + miss)
-
-            // 高 engagement + 高频 → 自动晋升 core
-            if (rate > 0.6 && eng >= 5 && m.scope !== 'core_memory') {
-              m.scope = 'core_memory'
-              try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_promote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}`) } catch {}
-              try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'promoted', ts: Date.now(), delta: `→core_memory, rate=${rate.toFixed(2)}` }) } catch {}
-            }
-
-            // core 但长期无 engagement → 降级（engagement 减半防震荡）
-            if (m.scope === 'core_memory' && eng > 0 && rate < 0.2) {
-              m.scope = 'fact'
-              m.injectionEngagement = Math.floor(eng / 2)
-              m.injectionMiss = Math.floor(miss / 2)
-              try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_demote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}→${m.injectionEngagement}`) } catch {}
-              try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'demoted', ts: Date.now(), delta: `→fact, rate=${rate.toFixed(2)}` }) } catch {}
-            }
-          }
-        } catch {}
-      })
-      safe('workingCleanup', () => cleanupWorkingMemory())
-      safe('memoryDecay', () => processMemoryDecay())
-      safe('aamDecay', () => { try { require('./aam.ts').decayCooccurrence() } catch {} })
       safe('batchTag', () => batchTagUntaggedMemories()) // local extraction, no LLM
-      safe('pruneExpired', () => pruneExpiredMemories())
-      safe('reviveDecayed', () => reviveDecayedMemories())
-      safe('memoryAudit', () => auditMemoryHealth())
-      safe('compressOld', () => compressOldMemories())
-      safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) }) // intentionally silent — maintenance
-
-      // 实体结晶缓存：heartbeat 预计算实体画像写入 attrs
-      safe('entityCrystal', async () => {
-        try {
-          const { graphState, generateEntitySummary } = await import('./graph.ts')
-          const now = Date.now()
-          for (const entity of graphState.entities) {
-            if (entity.invalid_at !== null) continue
-            if (entity.mentions < 3) continue  // 提及太少不值得画像
-            // 检查是否需要刷新（>24h 未更新）
-            const lastCrystal = entity.attrs.find((a: string) => a.startsWith('crystal:'))
-            const lastTs = lastCrystal ? parseInt(lastCrystal.split('|')[1] || '0') : 0
-            if (now - lastTs < 86400000) continue  // <24h 不刷新
-            // 生成画像
-            const summary = generateEntitySummary(entity.name)
-            if (summary) {
-              entity.attrs = entity.attrs.filter((a: string) => !a.startsWith('crystal:'))
-              entity.attrs.push(`crystal:${summary.slice(0, 100)}|${now}`)
-            }
-          }
-        } catch {}
-      })
-
-      // ── 蒸馏 + 图谱（核心，有条件调 LLM）──
-      safeCLI('distill', () => runDistillPipeline(), safe)
-      safe('pageRank', () => computePageRank())
-      safe('activationDecay', () => decayActivations())
-      // 清理过期实体和关系（90天没提到的）
-      safe('staleEntities', () => invalidateStaleEntities())
-      safe('staleRelations', () => invalidateStaleRelations())
-      // 从记忆 because 字段补充因果边
-      safe('enrichCausal', () => enrichCausalFromMemories())
-      safeCLI('personModel', () => distillPersonModel(), safe)
-      // person synthesis runs inside distillPersonModel() every 5th distill — no separate call needed
-
-      // ── 记忆结晶：从行为模式 + 进化规则中提炼抽象性格特征 ──
-      safe('crystallize', async () => {
-        const { crystallizeTraits } = await import('./person-model.ts')
-        crystallizeTraits()
-      })
-
-      // ── 盲点提问扫描（基于 epistemic 域 + person-model 缺口）──
-      safe('blindSpotQuestions', () => scanBlindSpotQuestions())
-
-      // ── 动态结构词发现 ──
-      safe('structureWordDiscovery', async () => {
-        try {
-          const { discoverNewStructureWords } = await import('./dynamic-extractor.ts')
-          const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
-          const sess = getSessionState(getLastActiveSessionKey())
-          const userId = sess?.userId || 'default'
-          discoverNewStructureWords(userId)
-        } catch {}
-      })
-
-      // ── 行为模式学习 ──
-      safe('behaviorLearn', async () => {
-        const { learnFromObservations } = await import('./behavioral-phase-space.ts')
-        learnFromObservations()
-      })
-
-      // ── Skill Memory 提炼（MemOS 启发）──
-      safe('skillExtract', async () => {
-        try {
-          const { traceCausalChain, graphState } = await import('./graph.ts')
-          const { memoryState } = await import('./memory.ts')
-          const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
-          const { resolve } = await import('path')
-
-          const SKILLS_PATH = resolve(DATA_DIR, 'skills.json')
-          interface Skill { id: string; trigger: string[]; steps: string[]; learnedFrom: string[]; successRate: number; lastUsed: number; domain: string }
-          let skills: Skill[] = loadJson<Skill[]>(SKILLS_PATH, [])
-          if (skills.length >= 50) return  // 技能上限
-
-          // 来源 1：因果链中的"问题→尝试→解决"模式
-          const resolvedEpisodes = memoryState.memories.filter((m: any) =>
-            m && m.scope === 'event' && /解决|搞定|成功|修好/.test(m.content)
-          ).slice(-10)
-
-          for (const resolved of resolvedEpisodes) {
-            const entities = (await import('./graph.ts')).findMentionedEntities(resolved.content)
-            if (entities.length === 0) continue
-            const chain = traceCausalChain(entities.slice(0, 1), 2)
-            if (chain.length === 0) continue
-
-            const trigger = entities.slice(0, 2)
-            const steps = chain.map((c: string) => c.slice(0, 50))
-            const id = `skill_${Date.now()}_${Math.random().toString(36).slice(2,5)}`
-
-            // 检查是否已有类似技能
-            const hasSimilar = skills.some(s => s.trigger.some(t => trigger.includes(t)))
-            if (hasSimilar) continue
-
-            skills.push({ id, trigger, steps, learnedFrom: [resolved.content.slice(0, 40)], successRate: 0.5, lastUsed: 0, domain: entities[0] })
-          }
-
-          // 来源 2：evolution rules 中高置信度的
-          try {
-            const { getRules } = await import('./evolution.ts')
-            const rules = getRules?.() ?? []
-            for (const r of rules.filter((r: any) => r.hits >= 5 && r.hits / (r.hits + (r.misses ?? 0) + 1) > 0.7)) {
-              const trigger = (r.conditions ?? []).slice(0, 3)
-              if (trigger.length === 0) continue
-              const hasSimilar = skills.some(s => s.trigger.some(t => trigger.includes(t)))
-              if (hasSimilar) continue
-              skills.push({
-                id: `skill_rule_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
-                trigger, steps: [r.rule], learnedFrom: [r.source ?? 'evolution'],
-                successRate: r.hits / (r.hits + (r.misses ?? 0) + 1), lastUsed: 0, domain: trigger[0],
-              })
-            }
-          } catch {}
-
-          if (skills.length > 50) skills = skills.slice(-50)
-          debouncedSave(SKILLS_PATH, skills, 5000)
-        } catch {}
-      })
-
-      // ── 前瞻记忆清理 + 主动发现 ──
-      safe('pmCleanup', async () => {
-        const { cleanupProspectiveMemories, autoDetectFromMemories } = await import('./prospective-memory.ts')
-        cleanupProspectiveMemories()
-        // Auto-detect recurring themes from recent memories
-        try {
-          const { memoryState } = await import('./memory.ts')
-          if (memoryState.memories.length > 0) {
-            autoDetectFromMemories(memoryState.memories)
-          }
-        } catch {}
-      })
-
-      // ── CIN 认知场更新 + 因果链发现 ──
-      safe('cinField', async () => {
-        const { rebuildField, discoverCausalChains } = await import('./cin.ts')
-        const { memoryState } = await import('./memory.ts')
-        if (memoryState.memories.length >= 20) {
-          rebuildField(memoryState.memories)
-          discoverCausalChains(memoryState.memories)
-        }
-      })
-
-      // ── 预测性记忆预热（cc-soul 原创：类似 CPU branch prediction）──
-      safe('predictivePreload', () => {
-        try {
-          const { getTopPredictions, getTimeSlot } = require('./behavioral-phase-space.ts')
-          const topPredictions: { domain: string; probability: number }[] = getTopPredictions(2)
-          if (!topPredictions || topPredictions.length === 0 || topPredictions[0].probability < 0.7) return
-
-          const prediction = topPredictions[0]
-          const hour = new Date().getHours()
-          const currentSlot: string = getTimeSlot()
-
-          // 时段范围映射（用于 ±1 小时边界检查）
-          const slotRanges: Record<string, [number, number]> = {
-            early_morning: [6, 9],
-            morning: [9, 12],
-            afternoon: [12, 18],
-            evening: [18, 23],
-            late_night: [23, 6],
-          }
-          const range = slotRanges[currentSlot]
-          if (!range) return
-
-          // 检查当前小时是否在当前时段 ±1 小时范围内
-          const inRange = range[0] <= range[1]
-            ? (hour >= range[0] - 1 && hour <= range[1] + 1)
-            : (hour >= range[0] - 1 || hour <= range[1] + 1)  // late_night wrap-around
-          if (!inRange) return
-
-          const predictedTopic = prediction.domain
-          if (!predictedTopic) return
-
-          const { memoryState } = require('./memory.ts')
-          let preheated = 0
-          for (const m of memoryState.memories) {
-            if (!m || m.scope === 'expired' || m.scope === 'decayed') continue
-            if (m.content && m.content.includes(predictedTopic)) {
-              m._preheated = true
-              m.confidence = Math.min(1.0, (m.confidence || 0.7) + 0.05)
-              preheated++
-              if (preheated >= 5) break
-            }
-          }
-
-          if (preheated > 0) {
-            console.log(`[cc-soul][heartbeat] pre-heated ${preheated} memories for predicted topic="${predictedTopic}" (conf=${prediction.probability.toFixed(2)})`)
-            try { require('./decision-log.ts').logDecision('preheat', predictedTopic, `${preheated} memories, conf=${prediction.probability.toFixed(2)}, slot=${currentSlot}`) } catch {}
-          }
-        } catch {}
-      })
-
-      // ── 轻量维护 ──
+      safe('workingCleanup', () => cleanupWorkingMemory())
       safe('brainHeartbeat', () => brain.fire('onHeartbeat'))
-      if (isEnabled('self_upgrade')) safe('autoTune', () => checkAutoTune(stats))
-      safe('planCleanup', () => cleanupPlans())
-      safeCLI('qualityResample', () => resampleHardExamples(), safe)
       safe('health', () => healthCheck())
-
-      // ── LLM 批处理队列（2-5 AM 窗口处理）──
+      safe('planCleanup', () => cleanupPlans())
       safe('batchQueue', () => tickBatchQueue())
-
-      // ── 深层理解引擎（7维分析）──
-      safe('deepUnderstand', () => updateDeepUnderstand())
-
-      // ── 离开检测（扫描用户活跃度）──
       if (isEnabled('absence_detection')) safe('absenceDetection', () => heartbeatScanAbsence())
 
       // ── 提醒（用户主动设置的，不能砍）──
@@ -350,6 +119,240 @@ export function runHeartbeat() {
           dbMarkReminderFired(r.id)
         }
       })
+
+      if (mode === 'awake') {
+        // 用户活跃，跳过重计算，只跑轻量任务
+        console.log('[cc-soul][heartbeat] awake mode — light tasks only')
+      } else {
+        // ══ 浅睡 + 深睡：跑维护任务 ══
+
+        // ── 记忆维护（核心，不调 LLM）──
+        safeCLI('consolidate', () => consolidateMemories(), safe)
+        safeCLI('contradiction', () => scanForContradictions(), safe)
+        safe('coreMemory', () => autoPromoteToCoreMemory())
+        // Letta 热度分层：engagement 驱动 core 晋升/降级
+        safe('heatPromotion', () => {
+          try {
+            const { memoryState } = require('./memory.ts')
+            for (const m of memoryState.memories) {
+              if (!m || m.scope === 'expired') continue
+              const eng = m.injectionEngagement ?? 0
+              const miss = m.injectionMiss ?? 0
+              const rate = eng / Math.max(1, eng + miss)
+
+              // 高 engagement + 高频 → 自动晋升 core
+              if (rate > 0.6 && eng >= 5 && m.scope !== 'core_memory') {
+                m.scope = 'core_memory'
+                try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_promote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}`) } catch {}
+                try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'promoted', ts: Date.now(), delta: `→core_memory, rate=${rate.toFixed(2)}` }) } catch {}
+              }
+
+              // core 但长期无 engagement → 降级（engagement 减半防震荡）
+              if (m.scope === 'core_memory' && eng > 0 && rate < 0.2) {
+                m.scope = 'fact'
+                m.injectionEngagement = Math.floor(eng / 2)
+                m.injectionMiss = Math.floor(miss / 2)
+                try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_demote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}→${m.injectionEngagement}`) } catch {}
+                try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'demoted', ts: Date.now(), delta: `→fact, rate=${rate.toFixed(2)}` }) } catch {}
+              }
+            }
+          } catch {}
+        })
+        safe('memoryDecay', () => processMemoryDecay())
+        safe('aamDecay', () => { try { require('./aam.ts').decayCooccurrence() } catch {} })
+        safe('pruneExpired', () => pruneExpiredMemories())
+        safe('reviveDecayed', () => reviveDecayedMemories())
+        safe('memoryAudit', () => auditMemoryHealth())
+        safe('compressOld', () => compressOldMemories())
+        safe('sqliteMaintenance', () => { sqliteMaintenance().catch(() => {}) }) // intentionally silent — maintenance
+
+        // ── 图谱维护 ──
+        safe('pageRank', () => computePageRank())
+        safe('activationDecay', () => decayActivations())
+        safe('staleEntities', () => invalidateStaleEntities())
+        safe('staleRelations', () => invalidateStaleRelations())
+        safe('enrichCausal', () => enrichCausalFromMemories())
+
+        // 实体结晶缓存：heartbeat 预计算实体画像写入 attrs
+        safe('entityCrystal', async () => {
+          try {
+            const { graphState, generateEntitySummary } = await import('./graph.ts')
+            const now = Date.now()
+            for (const entity of graphState.entities) {
+              if (entity.invalid_at !== null) continue
+              if (entity.mentions < 3) continue  // 提及太少不值得画像
+              const lastCrystal = entity.attrs.find((a: string) => a.startsWith('crystal:'))
+              const lastTs = lastCrystal ? parseInt(lastCrystal.split('|')[1] || '0') : 0
+              if (now - lastTs < 86400000) continue  // <24h 不刷新
+              const summary = generateEntitySummary(entity.name)
+              if (summary) {
+                entity.attrs = entity.attrs.filter((a: string) => !a.startsWith('crystal:'))
+                entity.attrs.push(`crystal:${summary.slice(0, 100)}|${now}`)
+              }
+            }
+          } catch {}
+        })
+
+        // ── 预测性记忆预热 ──
+        safe('predictivePreload', () => {
+          try {
+            const { getTopPredictions, getTimeSlot } = require('./behavioral-phase-space.ts')
+            const topPredictions: { domain: string; probability: number }[] = getTopPredictions(2)
+            if (!topPredictions || topPredictions.length === 0 || topPredictions[0].probability < 0.7) return
+
+            const prediction = topPredictions[0]
+            const hour = new Date().getHours()
+            const currentSlot: string = getTimeSlot()
+
+            const slotRanges: Record<string, [number, number]> = {
+              early_morning: [6, 9],
+              morning: [9, 12],
+              afternoon: [12, 18],
+              evening: [18, 23],
+              late_night: [23, 6],
+            }
+            const range = slotRanges[currentSlot]
+            if (!range) return
+
+            const inRange = range[0] <= range[1]
+              ? (hour >= range[0] - 1 && hour <= range[1] + 1)
+              : (hour >= range[0] - 1 || hour <= range[1] + 1)
+            if (!inRange) return
+
+            const predictedTopic = prediction.domain
+            if (!predictedTopic) return
+
+            const { memoryState } = require('./memory.ts')
+            let preheated = 0
+            for (const m of memoryState.memories) {
+              if (!m || m.scope === 'expired' || m.scope === 'decayed') continue
+              if (m.content && m.content.includes(predictedTopic)) {
+                m._preheated = true
+                m.confidence = Math.min(1.0, (m.confidence || 0.7) + 0.05)
+                preheated++
+                if (preheated >= 5) break
+              }
+            }
+
+            if (preheated > 0) {
+              console.log(`[cc-soul][heartbeat] pre-heated ${preheated} memories for predicted topic="${predictedTopic}" (conf=${prediction.probability.toFixed(2)})`)
+              try { require('./decision-log.ts').logDecision('preheat', predictedTopic, `${preheated} memories, conf=${prediction.probability.toFixed(2)}, slot=${currentSlot}`) } catch {}
+            }
+          } catch {}
+        })
+
+        // ── 其他维护 ──
+        if (isEnabled('self_upgrade')) safe('autoTune', () => checkAutoTune(stats))
+        safeCLI('qualityResample', () => resampleHardExamples(), safe)
+        safe('blindSpotQuestions', () => scanBlindSpotQuestions())
+        safe('deepUnderstand', () => updateDeepUnderstand())
+
+        // ── 动态结构词发现 ──
+        safe('structureWordDiscovery', async () => {
+          try {
+            const { discoverNewStructureWords } = await import('./dynamic-extractor.ts')
+            const { getSessionState, getLastActiveSessionKey } = await import('./handler-state.ts')
+            const sess = getSessionState(getLastActiveSessionKey())
+            const userId = sess?.userId || 'default'
+            discoverNewStructureWords(userId)
+          } catch {}
+        })
+
+        // ── 行为模式学习 ──
+        safe('behaviorLearn', async () => {
+          const { learnFromObservations } = await import('./behavioral-phase-space.ts')
+          learnFromObservations()
+        })
+
+        // ── 前瞻记忆清理 + 主动发现 ──
+        safe('pmCleanup', async () => {
+          const { cleanupProspectiveMemories, autoDetectFromMemories } = await import('./prospective-memory.ts')
+          cleanupProspectiveMemories()
+          try {
+            const { memoryState } = await import('./memory.ts')
+            if (memoryState.memories.length > 0) {
+              autoDetectFromMemories(memoryState.memories)
+            }
+          } catch {}
+        })
+
+        // ── CIN 认知场更新 + 因果链发现 ──
+        safe('cinField', async () => {
+          const { rebuildField, discoverCausalChains } = await import('./cin.ts')
+          const { memoryState } = await import('./memory.ts')
+          if (memoryState.memories.length >= 20) {
+            rebuildField(memoryState.memories)
+            discoverCausalChains(memoryState.memories)
+          }
+        })
+
+        if (mode === 'deep_sleep') {
+          // ══ 深睡：跑全量重计算 ══
+          console.log('[cc-soul][heartbeat] deep_sleep mode — full consolidation')
+          safeCLI('distill', () => runDistillPipeline(), safe)
+          safeCLI('personModel', () => distillPersonModel(), safe)
+
+          // ── 记忆结晶：从行为模式 + 进化规则中提炼抽象性格特征 ──
+          safe('crystallize', async () => {
+            const { crystallizeTraits } = await import('./person-model.ts')
+            crystallizeTraits()
+          })
+
+          // ── Skill Memory 提炼（MemOS 启发）──
+          safe('skillExtract', async () => {
+            try {
+              const { traceCausalChain, graphState } = await import('./graph.ts')
+              const { memoryState } = await import('./memory.ts')
+              const { DATA_DIR, loadJson, debouncedSave } = await import('./persistence.ts')
+              const { resolve } = await import('path')
+
+              const SKILLS_PATH = resolve(DATA_DIR, 'skills.json')
+              interface Skill { id: string; trigger: string[]; steps: string[]; learnedFrom: string[]; successRate: number; lastUsed: number; domain: string }
+              let skills: Skill[] = loadJson<Skill[]>(SKILLS_PATH, [])
+              if (skills.length >= 50) return  // 技能上限
+
+              const resolvedEpisodes = memoryState.memories.filter((m: any) =>
+                m && m.scope === 'event' && /解决|搞定|成功|修好/.test(m.content)
+              ).slice(-10)
+
+              for (const resolved of resolvedEpisodes) {
+                const entities = (await import('./graph.ts')).findMentionedEntities(resolved.content)
+                if (entities.length === 0) continue
+                const chain = traceCausalChain(entities.slice(0, 1), 2)
+                if (chain.length === 0) continue
+
+                const trigger = entities.slice(0, 2)
+                const steps = chain.map((c: string) => c.slice(0, 50))
+                const id = `skill_${Date.now()}_${Math.random().toString(36).slice(2,5)}`
+
+                const hasSimilar = skills.some(s => s.trigger.some(t => trigger.includes(t)))
+                if (hasSimilar) continue
+
+                skills.push({ id, trigger, steps, learnedFrom: [resolved.content.slice(0, 40)], successRate: 0.5, lastUsed: 0, domain: entities[0] })
+              }
+
+              try {
+                const { getRules } = await import('./evolution.ts')
+                const rules = getRules?.() ?? []
+                for (const r of rules.filter((r: any) => r.hits >= 5 && r.hits / (r.hits + (r.misses ?? 0) + 1) > 0.7)) {
+                  const trigger = (r.conditions ?? []).slice(0, 3)
+                  if (trigger.length === 0) continue
+                  const hasSimilar = skills.some(s => s.trigger.some(t => trigger.includes(t)))
+                  if (hasSimilar) continue
+                  skills.push({
+                    id: `skill_rule_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
+                    trigger, steps: [r.rule], learnedFrom: [r.source ?? 'evolution'],
+                    successRate: r.hits / (r.hits + (r.misses ?? 0) + 1), lastUsed: 0, domain: trigger[0],
+                  })
+                }
+              } catch {}
+
+              if (skills.length > 50) skills = skills.slice(-50)
+              debouncedSave(SKILLS_PATH, skills, 5000)
+            } catch {}
+          })
+        }
+      }
     } catch (e: any) {
       console.error(`[cc-soul][heartbeat] ${e.message}`)
     } finally {

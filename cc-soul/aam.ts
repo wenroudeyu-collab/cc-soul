@@ -16,7 +16,7 @@
  */
 
 import type { Memory } from './types.ts'
-import { trigrams, trigramSimilarity } from './memory-utils.ts'
+import { trigrams, trigramSimilarity, tokenize as _utilTokenize } from './memory-utils.ts'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { resolve } from 'path'
 import { existsSync } from 'fs'
@@ -800,7 +800,7 @@ injectSeedsIntoCooccur()
  */
 /** tokenize → 使用统一的 tokenize('standard') from memory-utils.ts */
 function tokenize(text: string): string[] {
-  return require('./memory-utils.ts').tokenize(text, 'standard')
+  return _utilTokenize(text, 'standard')
 }
 
 // Stop words to filter out noise (CJK 2-grams that are grammatical, not semantic)

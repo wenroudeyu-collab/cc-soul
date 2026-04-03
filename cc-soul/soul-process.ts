@@ -441,7 +441,7 @@ async function handleFeedback(body: any): Promise<any> {
               console.log(`[cc-soul][anti-hallucination] SKIP ungrounded fact: ${m.content.slice(0, 50)}`)
               continue  // 跳过无依据的 fact
             }
-            addMemoryWithEmotion(m.content, m.scope, userId, m.visibility, '', result.emotion)
+            addMemoryWithEmotion(m.content, m.scope, userId, m.visibility, '', result.emotion, true)
           }
           if (result.entities) addEntitiesFromAnalysis(result.entities)
           if (result.memoryOps?.length > 0) {

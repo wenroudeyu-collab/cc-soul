@@ -23,6 +23,7 @@
 
 import type { Memory } from './types.ts'
 import { trigrams, trigramSimilarity } from './memory-utils.ts'
+import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken } from './aam.ts'
 
 // ═══════════════════════════════════════════════════════════════
 // ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
@@ -423,8 +424,7 @@ function getAAMNeighborsFn(): typeof _aamGetNeighbors {
   if (_aamGetNeighbors === false) return null  // import failed before
   if (_aamGetNeighbors) return _aamGetNeighbors
   try {
-    const aam = require('./aam.ts')
-    _aamGetNeighbors = aam.getAAMNeighbors || false
+    _aamGetNeighbors = _aamGetAAMNeighbors || false
     return _aamGetNeighbors || null
   } catch { _aamGetNeighbors = false; return null }
 }
@@ -635,11 +635,10 @@ export function computeActivationField(
   // Signal 7: 预计算 temporal co-occurrence successors（PAM directed）
   let temporalSuccessors: Set<string> | null = null
   try {
-    const aam = require('./aam.ts')
-    if (aam.getTemporalSuccessors) {
+    if (_aamGetTemporalSuccessors) {
       temporalSuccessors = new Set<string>()
       for (const qw of queryWordSet) {
-        const succs = aam.getTemporalSuccessors(qw, 5)
+        const succs = _aamGetTemporalSuccessors(qw, 5)
         if (succs) for (const s of succs) temporalSuccessors.add(s.word)
       }
     }
@@ -860,41 +859,27 @@ export function expandQueryForField(query: string): Map<string, number> {
   }
 
   // AAM 查询扩展（同义词 + 概念层级 + 共字关联 + PMI）
-  try {
-    const aamMod = require('./aam.ts')
-    // 只传"已知词"给 AAM 做语义扩展
-    // CJK 2-char 滑动窗口产出大量碎片（"你有"、"有什"、"济压"），会触发低质量同义词扩展占满名额
-    // 策略：CJK 2-char 只有在同义词表中出现过的才算已知词，其余碎片只用于 BM25 词法匹配
-    // 已知有意义的单字 CJK（硬编码，这些是同义词表/概念层级的 key）
-    const KNOWN_SINGLE_CJK = new Set('吃喝睡走跑坐站看听说写读洗穿买卖车钱房书药酒茶'.split(''))
-    // 已知有意义的 2-char CJK（动态从 AAM 获取）
-    const isKnown = aamMod.isKnownWord || (() => false)
-    const queryWords: string[] = []
-    for (const [w, wt] of expanded) {
-      if ((wt as number) < 0.3) continue
-      let pass = false
-      if (w.length === 1 && /[\u4e00-\u9fff]/.test(w)) {
-        pass = KNOWN_SINGLE_CJK.has(w)
-        if (pass) console.log(`[expandQFF] single-char "${w}" PASS (known)`)
-      } else if (w.length < 2) {
-        pass = false
-      } else if (/[a-zA-Z]/.test(w) || w.length >= 3) {
-        pass = true
-      } else {
-        pass = isKnown(w)
-      }
-      if (pass) queryWords.push(w)
+  // 直接 import，不用 require（ESM 兼容）
+  const KNOWN_SINGLE_CJK = new Set('吃喝睡走跑坐站看听说写读洗穿买卖车钱房书药酒茶'.split(''))
+  const queryWords: string[] = []
+  for (const [w, wt] of expanded) {
+    if ((wt as number) < 0.3) continue
+    if (w.length === 1 && /[\u4e00-\u9fff]/.test(w)) {
+      if (KNOWN_SINGLE_CJK.has(w)) queryWords.push(w)
+    } else if (w.length < 2) {
+      // skip
+    } else if (/[a-zA-Z]/.test(w) || w.length >= 3) {
+      queryWords.push(w)
+    } else {
+      if (_aamIsKnownWord(w)) queryWords.push(w)
     }
-    console.log(`[expandQueryForField] queryWords=${queryWords.length}: [${queryWords.slice(0,8).join(',')}]`)
-    const aamExpanded = aamMod.expandQuery(queryWords, 20)
-    const newWords = aamExpanded.filter(({ word }: any) => !expanded.has(word))
+  }
+  try {
+    const aamExpanded = _aamExpandQuery(queryWords, 20)
     for (const { word, weight } of aamExpanded) {
       if (!expanded.has(word)) expanded.set(word, weight)
     }
-    if (newWords.length > 0) console.log(`[expandQueryForField] AAM added ${newWords.length} words: [${newWords.slice(0,5).map((e: any) => e.word).join(',')}]`)
-  } catch (e: any) {
-    console.log(`[activation-field] AAM expandQuery error: ${e.message}`)
-  }
+  } catch {}
 
   // 短查询降低门槛：单字 CJK 也加入
   if (query.length < 10) {
@@ -906,11 +891,10 @@ export function expandQueryForField(query: string): Map<string, number> {
 
   // Single-char CJK that are synonym table keys → promote to expansion candidates
   try {
-    const aamMod = require('./aam.ts')
     for (const [w, wt] of [...expanded.entries()]) {
       if (w.length === 1 && /[\u4e00-\u9fff]/.test(w) && (wt as number) <= 0.3) {
-        if (aamMod.isKnownWord?.(w)) {
-          expanded.set(w, 0.8)  // promote known single-char words
+        if (_aamIsKnownWord(w)) {
+          expanded.set(w, 0.8)
         }
       }
     }
@@ -1026,10 +1010,9 @@ export function activationRecall(
   // Step 1: AAM 扩展查询词（增强召回率）
   // expanded 已经是 Map<string, number>，直接合并 AAM 扩展词
   try {
-    const aamMod = require('./aam.ts')
-    const aamExpansion = aamMod.expandQuery(
+    const aamExpansion = _aamExpandQuery(
       (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()),
-      5  // 扩展 5 个词（含同义词表兜底）
+      5
     )
     if (aamExpansion.length > 0) {
       for (const exp of aamExpansion) {
@@ -1152,10 +1135,39 @@ export function activationRecall(
 
   // 学习：每条消息都喂入 AAM 关联网络 + 时序共现
   try {
-    const aamMod = require('./aam.ts')
-    aamMod.learnAssociation(query, Math.abs(mood))
-    aamMod.learnTemporalLink?.(query)
+    _aamLearn(query, Math.abs(mood))
   } catch {}
+
+  // ── System 1→2：零 LLM 召回质量低时，LLM 兜底 ──
+  // 异步模式 B：不阻塞当前返回，LLM 结果异步写入，下一轮受益
+  if (topResults.length === 0 || (topResults.length > 0 && topResults[0].score < 0.1)) {
+    try {
+      const { hasLLM } = require('./cli.ts')
+      if (hasLLM()) {
+        const { spawnCLI } = require('./cli.ts')
+        // LLM query rewriting: 让 LLM 扩展查询词，结果存入 AAM 供下次使用
+        spawnCLI(
+          `用户问了"${query.slice(0, 100)}"，请列出3-5个相关的关键词或同义词，每行一个，只输出关键词不要解释`,
+          (output: string) => {
+            if (!output) return
+            const keywords = output.split('\n').map(l => l.trim()).filter(l => l.length >= 2 && l.length <= 20)
+            // 存入 AAM 共现网络，让下次召回能用这些扩展词
+            try {
+              const aam = require('./aam.ts')
+              const queryWords = (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+              for (const kw of keywords) {
+                for (const qw of queryWords) {
+                  aam.learnAssociation?.(qw + ' ' + kw)
+                }
+              }
+            } catch {}
+            try { require('./decision-log.ts').logDecision('system2_escalation', query.slice(0, 30), `expanded: ${keywords.join(',')}`) } catch {}
+          },
+          10000  // 10s timeout, low priority
+        )
+      }
+    } catch {}
+  }
 
   return topResults.map(r => r.memory)
 }

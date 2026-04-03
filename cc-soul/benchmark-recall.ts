@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url'
 import type { Memory } from './types.ts'
 
 const require = createRequire(import.meta.url)
+;(globalThis as any).require = require  // activation-field.ts 内部 12 处 require 需要
 
 // Lazy-load modules to avoid side effects
 const { activationRecall } = require('./activation-field.ts')

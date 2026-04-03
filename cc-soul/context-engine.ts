@@ -250,7 +250,7 @@ export function createCcSoulContextEngine() {
       // Full post-response analysis
       runPostResponseAnalysis(userMsg, botResponse, (result) => {
         for (const m of result.memories) {
-          addMemoryWithEmotion(m.content, m.scope, _state.lastSenderId, m.visibility, undefined, result.emotion)
+          addMemoryWithEmotion(m.content, m.scope, _state.lastSenderId, m.visibility, undefined, result.emotion, true)
         }
         addEntitiesFromAnalysis(result.entities)
 
@@ -515,7 +515,7 @@ export function createCcSoulContextEngine() {
         // Full post-response analysis (async, fire-and-forget)
         runPostResponseAnalysis(userMsg, botResponse, (result) => {
           for (const m of result.memories) {
-            addMemoryWithEmotion(m.content, m.scope, _state.lastSenderId, m.visibility, undefined, result.emotion)
+            addMemoryWithEmotion(m.content, m.scope, _state.lastSenderId, m.visibility, undefined, result.emotion, true)
           }
           addEntitiesFromAnalysis(result.entities)
 

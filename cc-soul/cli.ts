@@ -260,6 +260,15 @@ const DEGRADE_RECOVERY_MS = 5 * 60 * 1000 // try recovery after 5 min
 
 export function isCliDegraded(): boolean { return degradedMode }
 
+/** Check if LLM is available (not degraded + valid config) */
+export function hasLLM(): boolean {
+  if (isCliDegraded()) return false
+  const cfg = _fallbackApiConfig || aiConfig
+  if (cfg?.backend === 'openai-compatible' && cfg.api_base && cfg.api_key) return true
+  if (cfg?.backend === 'cli' && cfg.cli_command) return true
+  return false
+}
+
 // ── 任务队列（agent busy 时排队，释放后自动执行）──
 interface QueuedTask {
   prompt: string

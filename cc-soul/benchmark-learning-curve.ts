@@ -8,10 +8,16 @@
  * 用法：npx tsx cc-soul/benchmark-learning-curve.ts
  */
 
+import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
+
+// ESM 环境下注入 require（activation-field.ts 内部有 12 处 require 需要它）
+const _require = createRequire(import.meta.url)
+;(globalThis as any).require = _require
+
 import type { Memory } from './types.ts'
-import {
-  learnAssociation, aamRecall, buildAAMContext, getAAMStats,
-} from './aam.ts'
+import { learnAssociation, getAAMStats } from './aam.ts'
+import { activationRecall } from './activation-field.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 12 DOMAINS × 100 MESSAGES (4 phases)
@@ -675,15 +681,15 @@ const TEST_QUERIES: TestQuery[] = [
 // EVALUATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function evaluateRecall(results: { memory: Memory; score: number }[], query: TestQuery): { hit3: boolean; top1: boolean } {
+function evaluateRecall(results: Memory[], query: TestQuery): { hit3: boolean; top1: boolean } {
   const checkHit = (mem: Memory) => {
     const c = mem.content
     return query.expectedKeywords.some(kw => c.includes(kw))
   }
   const top3 = results.slice(0, 3)
   return {
-    hit3: top3.some(r => checkHit(r.memory)),
-    top1: results.length > 0 && checkHit(results[0].memory),
+    hit3: top3.some(r => checkHit(r)),
+    top1: results.length > 0 && checkHit(results[0]),
   }
 }
 
@@ -751,9 +757,8 @@ async function main() {
       let totalLatency = 0
 
       for (const tq of TEST_QUERIES) {
-        const ctx = buildAAMContext(tq.query, 0, 'afternoon', 'general', [])
         const start = performance.now()
-        const recalled = aamRecall(memoryPool, ctx, 10)
+        const recalled = activationRecall(memoryPool, tq.query, 3, 0, 0.5)
         const elapsed = performance.now() - start
         totalLatency += elapsed
 

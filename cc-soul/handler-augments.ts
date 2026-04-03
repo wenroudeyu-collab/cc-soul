@@ -250,6 +250,33 @@ const SCOPE_LABELS: Record<string, string> = {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// presentMemory — 可信度梯度 + 情绪重构（cc-soul 原创）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * presentMemory（cc-soul 原创）
+ * 合并可信度梯度 + 情绪重构为一个呈现函数
+ * 在注入 augment 前调用，决定每条记忆的呈现方式
+ */
+function presentMemory(mem: Memory, query: string, mood: number, trace?: any): string {
+  // 1. 可信度梯度（基于信号来源的语义标注）
+  let prefix = ''
+  if (trace?.path?.some((p: any) => p.via === 'system1_fact')) prefix = '[确认事实]'
+  else if (mem.source === 'user_said' && (mem.confidence ?? 0) > 0.8) prefix = '[用户说过]'
+  else if ((mem.recallCount ?? 0) >= 3 && (mem.injectionEngagement ?? 0) >= 2) prefix = '[多次验证]'
+  else if (mem.source === 'ai_inferred' && (mem.confidence ?? 0) < 0.5) prefix = '[推测]'
+
+  // 2. 情绪重构（当前心情影响记忆呈现角度）
+  let suffix = ''
+  if (mood > 0.3 && mem.emotion === 'painful') suffix = '（但后来好起来了）'
+
+  // 3. 时间语境（复用已有的 annotateMemoryFreshness）
+  const content = annotateMemoryFreshness(mem.content, mem, query)
+
+  return prefix ? `${prefix} ${content}${suffix}` : `${content}${suffix}`
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 叙事织网 + 记忆晶体（Narrative Weaving + Memory Crystal）— cc-soul 原创
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -258,7 +285,8 @@ const SCOPE_LABELS: Record<string, string> = {
  * 自适应格式：topic node 命中 → 三层模板；未命中 → 纯时间线
  */
 function weaveNarrative(query: string, recalled: Memory[]): string {
-  if (recalled.length <= 2) return recalled.map(m => m.content).join('；')
+  const _mood = body?.mood ?? 0
+  if (recalled.length <= 2) return recalled.map(m => presentMemory(m, query, _mood)).join('；')
 
   const sorted = [...recalled].sort((a, b) => a.ts - b.ts)
 
@@ -397,7 +425,7 @@ function distillMemories(memories: Memory[]): string {
   for (const m of memories) {
     const key = m.scope || 'other'
     if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(annotateMemoryFreshness(m.content, m))
+    groups.get(key)!.push(presentMemory(m, '', body?.mood ?? 0))
   }
   const paragraphs: string[] = []
   for (const [scope, contents] of groups) {

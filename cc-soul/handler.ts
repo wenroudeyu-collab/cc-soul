@@ -384,7 +384,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
       metrics.cliCalls++
       runPostResponseAnalysis(snapPrompt, snapResponse, (result) => {
         for (const m of result.memories) {
-          addMemoryWithEmotion(m.content, m.scope, snapSenderId, m.visibility, snapChannelId, result.emotion)
+          addMemoryWithEmotion(m.content, m.scope, snapSenderId, m.visibility, snapChannelId, result.emotion, true)
         }
         addEntitiesFromAnalysis(result.entities)
         if (result.memoryOps && result.memoryOps.length > 0) {
@@ -798,7 +798,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
         if (!getPrivacyMode()) {
           runPostResponseAnalysis(_snapPrompt, botResponse, (result) => {
             for (const m of result.memories) {
-              addMemoryWithEmotion(m.content, m.scope, _snapSenderId, m.visibility, _snapChannelId, result.emotion)
+              addMemoryWithEmotion(m.content, m.scope, _snapSenderId, m.visibility, _snapChannelId, result.emotion, true)
             }
             addEntitiesFromAnalysis(result.entities)
             if (result.satisfaction === 'POSITIVE') bodyOnPositiveFeedback()
@@ -925,7 +925,7 @@ export function handleSent(event: any): void {
         metrics.cliCalls++
         runPostResponseAnalysis(snapPrompt, snapResponse, (result) => {
           for (const m of result.memories) {
-            addMemoryWithEmotion(m.content, m.scope, snapSenderId, m.visibility, snapChannelId, result.emotion)
+            addMemoryWithEmotion(m.content, m.scope, snapSenderId, m.visibility, snapChannelId, result.emotion, true)
           }
           addEntitiesFromAnalysis(result.entities)
           if (result.memoryOps && result.memoryOps.length > 0) {
