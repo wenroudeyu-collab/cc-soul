@@ -134,6 +134,10 @@ export function feedbackMemoryEngagement(userReply: string): void {
     if (overlap > 0.3) {
       mem.injectionEngagement = (mem.injectionEngagement ?? 0) + 1
       engagedTotal++
+      // 代谢确认：如果被 engaged 的记忆是 ABSORB 产生的（lineage 里有 absorbed），记录验证
+      if (mem.lineage?.some((l: any) => l.action === 'absorbed')) {
+        try { require('./decision-log.ts').logDecision('metabolism_confirmed', mem.content.slice(0, 30), 'ABSORB memory was engaged by user') } catch {}
+      }
     } else if (overlap < 0.1) {
       mem.injectionMiss = (mem.injectionMiss ?? 0) + 1
     }

@@ -161,6 +161,10 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
     return extracted
   }
 
+  // 获取当前话题段 ID（话题河流关联）
+  let _currentSegmentId = 0
+  try { _currentSegmentId = require('./memory.ts').getCurrentSegmentId?.() ?? 0 } catch {}
+
   // ── 动态引擎提取（优先）──
   try {
     const { dynamicExtract, updateStructureStrength } = require('./dynamic-extractor.ts')
@@ -171,10 +175,13 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
         f.object === r.object && f.validUntil === 0
       )
       if (!exists) {
+        // P1 fix: 加入 segmentId 关联话题河流
+        let _segId: number | undefined
+        try { _segId = require('./memory.ts').getCurrentSegmentId?.() } catch {}
         const fact: StructuredFact = {
           subject: r.subject, predicate: r.predicate, object: r.object,
           confidence: r.confidence, source: r.source as any,
-          ts: Date.now(), validUntil: 0, memoryRef: content.slice(0, 60),
+          ts: Date.now(), validUntil: 0, memoryRef: content.slice(0, 60), segmentId: _segId ?? _currentSegmentId,
         }
         extracted.push(fact)
         // 反馈强度学习
@@ -206,6 +213,35 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
       }
     }
   }
+  // ── LLM 兜底提取（正则+动态引擎都没提取到 + 消息够长 + 有 LLM）──
+  if (extracted.length === 0 && content.length > 15) {
+    try {
+      const { hasLLM, spawnCLI } = require('./cli.ts')
+      if (hasLLM()) {
+        const { getCurrentSegmentId } = require('./memory.ts')
+        const _segId = getCurrentSegmentId?.() ?? 0
+        spawnCLI(
+          `从这句话提取事实三元组。输出JSON数组：[{"subject":"主语","predicate":"谓语","object":"宾语"}]。没有事实就输出[]。\n\n"${content.slice(0, 200)}"`,
+          (output: string) => {
+            try {
+              const parsed = JSON.parse(output.match(/\[[\s\S]*\]/)?.[0] || '[]')
+              if (parsed.length > 0) {
+                const llmFacts: StructuredFact[] = parsed.slice(0, 3).map((f: any) => ({
+                  subject: f.subject || 'user', predicate: f.predicate, object: f.object,
+                  confidence: 0.7, source: 'ai_inferred' as any, ts: Date.now(), validUntil: 0,
+                  memoryRef: content.slice(0, 60), segmentId: _segId,
+                }))
+                addFacts(llmFacts)
+                try { require('./decision-log.ts').logDecision('llm_fact_extract', content.slice(0, 30), `${llmFacts.length} facts extracted by LLM`) } catch {}
+              }
+            } catch {}
+          },
+          15000
+        )
+      }
+    } catch {}
+  }
+
   return extracted
 }
 

@@ -177,6 +177,7 @@ export interface StructuredFact {
   ts: number            // when extracted
   validUntil: number    // 0 = still valid, >0 = expired at this time
   memoryRef?: string    // link to original Memory content (first 60 chars)
+  segmentId?: number    // 话题河流：关联到对应的对话段（P1 fix）
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
