@@ -22,8 +22,11 @@
  */
 
 import type { Memory } from './types.ts'
-import { trigrams, trigramSimilarity } from './memory-utils.ts'
+import { trigrams, trigramSimilarity, tokenize as _utilTokenize } from './memory-utils.ts'
 import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken } from './aam.ts'
+// 顶层 import 替代运行时 require（修复 benchmark ESM 环境下 require is not defined）
+import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef } from './memory-recall.ts'
+import { extractTagsLocal as _extractTagsLocal } from './memory.ts'
 
 // ═══════════════════════════════════════════════════════════════
 // ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
@@ -929,15 +932,13 @@ export function activationRecall(
   // 1. 时间通道：提取时间范围（精确时间过滤，替代新近性衰减）
   let timeRange: TimeRange | null = null
   try {
-    const { extractTimeRange } = require('./memory-recall.ts')
-    timeRange = extractTimeRange(query)
+    timeRange = _extractTimeRange(query)  // 顶层 import，ESM 安全
   } catch {}
 
   // 2. 关键词通道：去停用词后的 BM25 关键词（更精准的词法匹配）
   let lexicalQuery = query
   try {
-    const { extractTagsLocal } = require('./memory.ts')
-    const keywords: string[] = extractTagsLocal(query)
+    const keywords: string[] = _extractTagsLocal(query)  // 顶层 import，ESM 安全
     if (keywords.length > 0) lexicalQuery = keywords.join(' ')
   } catch {}
 
@@ -1085,8 +1086,7 @@ export function activationRecall(
 
   // ── 启动效应（Priming Effect）：最近提到的词降低识别阈值 ──
   try {
-    const { _primingCache } = require('./memory-recall.ts') as { _primingCache: Map<string, number> }
-    if (_primingCache && _primingCache.size > 0) {
+    if (_primingCacheRef && _primingCacheRef.size > 0) {
       const now = Date.now()
       const PRIMING_WINDOW = 5 * 60 * 1000
       for (const r of results) {

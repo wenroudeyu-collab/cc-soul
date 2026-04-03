@@ -7,6 +7,7 @@ import { createRequire } from 'module'
 import type { Memory } from './types.ts'
 
 const require = createRequire(import.meta.url)
+;(globalThis as any).require = require
 
 // Lazy-load modules to avoid side effects
 const { activationRecall } = require('./activation-field.ts')

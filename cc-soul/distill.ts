@@ -663,11 +663,26 @@ export function getRelevantTopics(msg: string, userId?: string, maxNodes = 5): T
   }
 
   // 未命中但话题相关（有实体重叠）的 → missCount++
+  // P5 fix: 确保 miss 正确记录。scored 里 0.1 < score < 0.2 的是"话题相关但不够精确"
   const misses = scored.filter(s =>
-    s.score > 0.1 && s.score < RELEVANCE_THRESHOLD
+    s.score > 0.1 && s.score < RELEVANCE_THRESHOLD && !hits.includes(s)
   )
   for (const m of misses) {
     m.node.missCount = (m.node.missCount ?? 0) + 1
+  }
+  // 诊断：如果 topicNodes 不为空但 scored 为空，说明查询跟所有话题都无关——这不算 miss
+  if (topicNodes.length > 0 && scored.length === 0) {
+    // 但如果消息有明确话题词（>4字非问句），所有节点都该计一次 miss
+    if (msg.length > 4 && !/^[？?]/.test(msg)) {
+      // 对最近活跃的 top-3 节点计 miss（它们应该但没有被覆盖到）
+      const recentNodes = [...topicNodes]
+        .sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0))
+        .slice(0, 3)
+      for (const node of recentNodes) {
+        node.missCount = (node.missCount ?? 0) + 1
+      }
+      if (recentNodes.length > 0) saveTopicNodes()
+    }
   }
 
   if (hits.length > 0 || misses.length > 0) {

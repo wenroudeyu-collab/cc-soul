@@ -19,6 +19,7 @@ import type { Memory } from './types.ts'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const require = createRequire(import.meta.url)
+;(globalThis as any).require = require
 
 // Suppress noisy logs during benchmark
 const _origLog = console.log
@@ -284,8 +285,12 @@ function parseArgs() {
 // ═══════════════════════════════════════════════════════════════
 
 function loadMoonshotKey(): string {
-  const credPath = join(process.env.HOME || '~', '.openclaw', 'credentials')
-  if (!existsSync(credPath)) throw new Error(`Credentials not found: ${credPath}`)
+  // 支持目录或文件两种 credentials 格式
+  let credPath = join(process.env.HOME || '~', '.openclaw', 'credentials')
+  if (!existsSync(credPath) || require('fs').statSync(credPath).isDirectory()) {
+    credPath = join(process.env.HOME || '~', '.openclaw', 'credentials.txt')
+  }
+  if (!existsSync(credPath)) throw new Error(`Credentials not found`)
   const lines = readFileSync(credPath, 'utf-8').split('\n')
   for (const line of lines) {
     const trimmed = line.trim()

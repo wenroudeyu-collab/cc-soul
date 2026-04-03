@@ -1598,7 +1598,11 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     metabolism.target.lastAccessed = Date.now()
     try { appendLineage(metabolism.target, { action: 'merged', ts: Date.now(), delta: `absorbed ${metabolism.newFacts.length} facts` }) } catch {}
     try { require('./decision-log.ts').logDecision('metabolism_absorb', metabolism.target.content.slice(0, 30), `absorbed ${metabolism.newFacts.length} facts`) } catch {}
-    // Don't push newMem — it's been absorbed
+    // 同步到 SQLite + 更新索引（P3 bug fix: 之前直接 return 导致索引不同步）
+    syncToSQLite(metabolism.target, { content: metabolism.target.content, ts: metabolism.target.ts, lastAccessed: metabolism.target.lastAccessed })
+    updateRecallIndex(metabolism.target)
+    emitCacheEvent('memory_modified')
+    saveMemories()
     return
   }
   if (metabolism.action === 'CRYSTALLIZE' && metabolism.entity) {
