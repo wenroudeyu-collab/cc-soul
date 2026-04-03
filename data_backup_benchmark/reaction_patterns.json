@@ -1,0 +1,117 @@
+[
+  {
+    "trigger": "criticized",
+    "reactions": [
+      {
+        "text": "下个月要去日本旅行，需要准备什",
+        "count": 1
+      },
+      {
+        "text": "第一次养猫需要准备什么？",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "venting",
+    "reactions": [
+      {
+        "text": "孩子不愿意上学怎么办？",
+        "count": 1
+      },
+      {
+        "text": "年终奖怎么算个税？",
+        "count": 1
+      },
+      {
+        "text": "腰疼好几天了需要去医院吗？",
+        "count": 1
+      },
+      {
+        "text": "怎么和孩子聊学校发生的事？他总",
+        "count": 1
+      },
+      {
+        "text": "公积金贷款和商业贷款怎么选？",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "praised",
+    "reactions": [
+      {
+        "text": "我在哪工作来着",
+        "count": 1
+      },
+      {
+        "text": "烦死了，今天又加班到现在",
+        "count": 1
+      },
+      {
+        "text": "哈哈今天天气真好",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "help_needed",
+    "reactions": [
+      {
+        "text": "Docker和K8s什么关系",
+        "count": 1
+      },
+      {
+        "text": "我的银行卡密码是123456",
+        "count": 1
+      },
+      {
+        "text": "功能 memory_activ",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "good_news",
+    "reactions": [
+      {
+        "text": "什么是RESTful API",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "urged",
+    "reactions": [
+      {
+        "text": "烦死了！！项目又延期了 老板还",
+        "count": 1
+      },
+      {
+        "text": "你能帮我总结一下你对我的了解吗",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "trigger": "greeting",
+    "reactions": [
+      {
+        "text": "我每天早上6点起床，晚上11点",
+        "count": 1
+      },
+      {
+        "text": "你是什么模型 你今年多大了",
+        "count": 1
+      },
+      {
+        "text": "我们以前的记忆还在吗？",
+        "count": 1
+      },
+      {
+        "text": "我住在上海浦东，每天坐地铁2号",
+        "count": 1
+      }
+    ]
+  }
+]

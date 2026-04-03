@@ -1,0 +1,57 @@
+{
+  "id": "sdk_test",
+  "name": "",
+  "identity": {
+    "who": ""
+  },
+  "expression": {
+    "style": "",
+    "口头禅": [],
+    "习惯": "",
+    "avg_msg_length": 9,
+    "samples": {
+      "casual": [
+        "推荐一本编程书",
+        "推荐一本编程书"
+      ],
+      "technical": [
+        "Python怎么读JSON？",
+        "Python怎么读JSON？",
+        "测试SDK",
+        "测试SDK"
+      ],
+      "emotional": [],
+      "general": []
+    },
+    "tone_variants": {}
+  },
+  "decisions": {
+    "pattern": "",
+    "traces": []
+  },
+  "social": {},
+  "emotional_patterns": {
+    "baseline": "",
+    "triggers": {},
+    "reaction_style": {}
+  },
+  "preferences": {},
+  "boundaries": {
+    "can_reply": [],
+    "ask_first": [],
+    "never": []
+  },
+  "vocabulary": {
+    "emotions": {},
+    "decisions": [],
+    "relations": [],
+    "avoidance": [],
+    "decoder": {}
+  },
+  "updated_at": 1774916124413,
+  "lengthDistribution": {
+    "short": 0.67,
+    "medium": 0.33,
+    "long": 0
+  }
+}

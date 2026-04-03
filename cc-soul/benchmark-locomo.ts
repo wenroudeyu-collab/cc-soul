@@ -6,10 +6,12 @@
  *   Layer 2: 端到端准确率（10 选 1）— 测 NAM + 答案选择
  *
  * 用法: npx tsx cc-soul/benchmark-locomo.ts [--conv N] [--type TYPE] [--top-k K] [--verbose] [--limit N]
+ *       npx tsx cc-soul/benchmark-locomo.ts --recall-only [--conv N] [--type TYPE] [--top-k K]
+ *       npx tsx cc-soul/benchmark-locomo.ts --llm [--conv N] [--limit 200]
  */
 
-import { readFileSync } from 'fs'
-import { resolve, dirname } from 'path'
+import { readFileSync, existsSync } from 'fs'
+import { resolve, dirname, join } from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import type { Memory } from './types.ts'
@@ -264,23 +266,108 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
 function parseArgs() {
   const args = process.argv.slice(2)
   let conv: number | undefined, type: string | undefined, topK = 10, verbose = false, limit = 0
+  let recallOnly = false, llm = false
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--conv' && args[i + 1]) conv = parseInt(args[++i])
     if (args[i] === '--type' && args[i + 1]) type = args[++i]
     if (args[i] === '--top-k' && args[i + 1]) topK = parseInt(args[++i])
     if (args[i] === '--limit' && args[i + 1]) limit = parseInt(args[++i])
     if (args[i] === '--verbose') verbose = true
+    if (args[i] === '--recall-only') recallOnly = true
+    if (args[i] === '--llm') llm = true
   }
-  return { conv, type, topK, verbose, limit }
+  return { conv, type, topK, verbose, limit, recallOnly, llm }
 }
 
-function run() {
+// ═══════════════════════════════════════════════════════════════
+// LLM ANSWER SELECTION (Kimi k2.5)
+// ═══════════════════════════════════════════════════════════════
+
+function loadMoonshotKey(): string {
+  const credPath = join(process.env.HOME || '~', '.openclaw', 'credentials')
+  if (!existsSync(credPath)) throw new Error(`Credentials not found: ${credPath}`)
+  const lines = readFileSync(credPath, 'utf-8').split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('moonshot:')) {
+      return trimmed.slice('moonshot:'.length).trim()
+    }
+  }
+  throw new Error('moonshot: key not found in credentials')
+}
+
+async function selectAnswerWithLLM(
+  recalled: Memory[],
+  question: string,
+  choices: string[],
+  apiKey: string,
+): Promise<{ choiceIndex: number; raw: string }> {
+  const context = recalled.map(m => m.content).join('\n')
+  const letters = 'ABCDEFGHIJ'
+  const choiceBlock = choices.map((c, i) => `${letters[i]}. ${c}`).join('\n')
+
+  const prompt = `Based on the following memory context, answer the question by selecting the best choice.
+If the context doesn't contain enough information, select "Not answerable" if available.
+
+Context:
+${context}
+
+Question: ${question}
+
+Choices:
+${choiceBlock}
+
+Reply with ONLY the letter (A-J). Nothing else.`
+
+  const resp = await fetch('https://api.moonshot.cn/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'kimi-k2.5',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      max_tokens: 4,
+    }),
+  })
+
+  if (!resp.ok) {
+    const body = await resp.text()
+    throw new Error(`Kimi API ${resp.status}: ${body.slice(0, 200)}`)
+  }
+
+  const json = await resp.json() as any
+  const raw = (json.choices?.[0]?.message?.content || '').trim()
+  const letter = raw.charAt(0).toUpperCase()
+  const idx = letters.indexOf(letter)
+  return { choiceIndex: idx >= 0 ? idx : -1, raw }
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+async function run() {
   const opts = parseArgs()
+  const mode = opts.recallOnly ? 'recall-only' : opts.llm ? 'llm' : 'default'
+
   print('═══════════════════════════════════════════════════════════')
   print('  cc-soul NAM × LOCOMO-MC10 Benchmark')
   print('═══════════════════════════════════════════════════════════')
-  print(`  top-K: ${opts.topK}  conv: ${opts.conv ?? 'all'}  type: ${opts.type ?? 'all'}  limit: ${opts.limit || 'none'}`)
+  print(`  mode: ${mode}  top-K: ${opts.topK}  conv: ${opts.conv ?? 'all'}  type: ${opts.type ?? 'all'}  limit: ${opts.limit || 'none'}`)
   print()
+
+  // Pre-load LLM key if needed
+  let apiKey = ''
+  if (opts.llm) {
+    try {
+      apiKey = loadMoonshotKey()
+      print('  Kimi k2.5 API key loaded')
+    } catch (e: any) {
+      print(`  ERROR: ${e.message}`)
+      return
+    }
+  }
 
   const allQuestions = loadDataset()
   print(`  Loaded ${allQuestions.length} questions`)
@@ -319,20 +406,24 @@ function run() {
   const memoryCache = new Map<string, Memory[]>()
   const learnedConvs = new Set<string>()
 
-  // Trackers
+  // Trackers — extended for recall-only Hit@1/3/5/10
   const typeStats: Record<string, {
-    recallHits: number, recallTotal: number,  // Layer 1
+    recallTotal: number,
+    hitAt1: number, hitAt3: number, hitAt5: number, hitAt10: number,
     mrrSum: number,
-    mcCorrect: number, mcTotal: number,       // Layer 2
+    mcCorrect: number, mcTotal: number,       // Layer 2 (string-match)
+    llmCorrect: number, llmTotal: number,     // Layer 2 (LLM)
+    llmFail: number,                          // LLM parse failures
   }> = {}
   function getStat(type: string) {
-    if (!typeStats[type]) typeStats[type] = { recallHits: 0, recallTotal: 0, mrrSum: 0, mcCorrect: 0, mcTotal: 0 }
+    if (!typeStats[type]) typeStats[type] = {
+      recallTotal: 0, hitAt1: 0, hitAt3: 0, hitAt5: 0, hitAt10: 0, mrrSum: 0,
+      mcCorrect: 0, mcTotal: 0, llmCorrect: 0, llmTotal: 0, llmFail: 0,
+    }
     return typeStats[type]
   }
 
   const startTime = Date.now()
-
-  // Suppress module logs during benchmark
   suppressLogs = true
 
   for (let qi = 0; qi < questions.length; qi++) {
@@ -358,31 +449,71 @@ function run() {
 
     const stat = getStat(q.question_type)
 
-    // Layer 1: Recall quality
+    // Layer 1: Recall quality (always computed for non-adversarial)
     const isAdversarial = /not answerable|cannot be answered|unanswerable/i.test(q.answer)
     if (!isAdversarial) {
       stat.recallTotal++
       const { hit, rank } = answerInRecalled(recalled, q.answer)
       if (hit) {
-        stat.recallHits++
+        if (rank <= 1) stat.hitAt1++
+        if (rank <= 3) stat.hitAt3++
+        if (rank <= 5) stat.hitAt5++
+        if (rank <= 10) stat.hitAt10++
         stat.mrrSum += 1 / rank
       }
     }
 
-    // Layer 2: MC accuracy
-    stat.mcTotal++
-    const { choiceIndex, confidence } = selectAnswer(recalled, q.choices)
-    if (choiceIndex === q.correct_choice_index) stat.mcCorrect++
+    // Layer 2: skip for recall-only
+    if (!opts.recallOnly) {
+      // String-match answer selection (always run)
+      stat.mcTotal++
+      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices)
+      if (choiceIndex === q.correct_choice_index) stat.mcCorrect++
 
-    // Verbose
-    if (opts.verbose) {
-      const mcOk = choiceIndex === q.correct_choice_index
-      suppressLogs = false
-      print(`  ${mcOk ? '✅' : '❌'} [${q.question_type.padEnd(20)}] ${q.question.slice(0, 55)}`)
-      if (!mcOk) {
-        print(`     want: ${q.answer.slice(0, 50)}`)
-        print(`     got:  ${q.choices[choiceIndex]?.slice(0, 50)} (conf=${confidence.toFixed(2)})`)
+      // LLM answer selection
+      if (opts.llm) {
+        stat.llmTotal++
+        try {
+          const { choiceIndex: llmIdx, raw } = await selectAnswerWithLLM(recalled, q.question, q.choices, apiKey)
+          if (llmIdx >= 0 && llmIdx === q.correct_choice_index) stat.llmCorrect++
+          if (llmIdx < 0) stat.llmFail++
+
+          if (opts.verbose) {
+            const smOk = choiceIndex === q.correct_choice_index
+            const llmOk = llmIdx === q.correct_choice_index
+            suppressLogs = false
+            print(`  SM:${smOk ? 'O' : 'X'} LLM:${llmOk ? 'O' : 'X'} [${q.question_type.padEnd(20)}] ${q.question.slice(0, 50)}`)
+            if (!llmOk) {
+              print(`     want: ${q.choices[q.correct_choice_index]?.slice(0, 50)}`)
+              print(`     llm:  ${llmIdx >= 0 ? q.choices[llmIdx]?.slice(0, 50) : `parse fail: ${raw}`}`)
+            }
+            suppressLogs = true
+          }
+
+          await sleep(500)  // rate limit
+        } catch (e: any) {
+          stat.llmFail++
+          suppressLogs = false
+          print(`  LLM error: ${e.message.slice(0, 100)}`)
+          suppressLogs = true
+          await sleep(1000)  // back off on error
+        }
+      } else if (opts.verbose) {
+        // Default verbose (no LLM)
+        const mcOk = choiceIndex === q.correct_choice_index
+        suppressLogs = false
+        print(`  ${mcOk ? 'OK' : 'XX'} [${q.question_type.padEnd(20)}] ${q.question.slice(0, 55)}`)
+        if (!mcOk) {
+          print(`     want: ${q.answer.slice(0, 50)}`)
+          print(`     got:  ${q.choices[choiceIndex]?.slice(0, 50)} (conf=${confidence.toFixed(2)})`)
+        }
+        suppressLogs = true
       }
+    } else if (opts.verbose && !isAdversarial) {
+      // recall-only verbose
+      const { hit, rank } = answerInRecalled(recalled, q.answer)
+      suppressLogs = false
+      print(`  ${hit ? 'HIT' : 'MISS'}@${rank > 0 ? rank : '-'} [${q.question_type.padEnd(20)}] ${q.question.slice(0, 55)}`)
       suppressLogs = true
     }
 
@@ -397,54 +528,106 @@ function run() {
 
   suppressLogs = false
   const elapsed = (Date.now() - startTime) / 1000
-
-  // ═══════════════════════════════════════════════════════════════
-  // RESULTS
-  // ═══════════════════════════════════════════════════════════════
-
-  print()
-  print('═══════════════════════════════════════════════════════════')
-  print('  Layer 1: Recall Quality (答案是否在 top-K 中)')
-  print('═══════════════════════════════════════════════════════════')
-  print()
-  print('  Type                    Hit@K    MRR     N')
-  print('  ──────────────────────  ──────  ──────  ────')
   const typeOrder = ['single_hop', 'multi_hop', 'temporal_reasoning', 'open_domain', 'adversarial']
-  let totalRecallHits = 0, totalRecallN = 0, totalMRR = 0
-  for (const type of typeOrder) {
-    const s = typeStats[type]
-    if (!s || s.recallTotal === 0) continue
-    const hitRate = (s.recallHits / s.recallTotal * 100).toFixed(1)
-    const mrr = (s.mrrSum / s.recallTotal).toFixed(3)
-    print(`  ${type.padEnd(24)} ${hitRate.padStart(5)}%  ${mrr.padStart(6)}  ${String(s.recallTotal).padStart(4)}`)
-    totalRecallHits += s.recallHits
-    totalRecallN += s.recallTotal
-    totalMRR += s.mrrSum
-  }
-  if (totalRecallN > 0) {
-    print('  ──────────────────────  ──────  ──────  ────')
-    print(`  ${'TOTAL'.padEnd(24)} ${(totalRecallHits / totalRecallN * 100).toFixed(1).padStart(5)}%  ${(totalMRR / totalRecallN).toFixed(3).padStart(6)}  ${String(totalRecallN).padStart(4)}`)
-  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // RESULTS: RECALL
+  // ═══════════════════════════════════════════════════════════════
 
   print()
   print('═══════════════════════════════════════════════════════════')
-  print('  Layer 2: MC Accuracy (10 选 1)')
+  print(`  Layer 1: Recall Quality${opts.recallOnly ? ' (recall-only mode)' : ''}`)
   print('═══════════════════════════════════════════════════════════')
   print()
-  print('  Type                    Acc      N')
-  print('  ──────────────────────  ──────  ────')
-  let totalMC = 0, totalMCCorrect = 0
-  for (const type of typeOrder) {
-    const s = typeStats[type]
-    if (!s || s.mcTotal === 0) continue
-    const acc = (s.mcCorrect / s.mcTotal * 100).toFixed(1)
-    print(`  ${type.padEnd(24)} ${acc.padStart(5)}%  ${String(s.mcTotal).padStart(4)}`)
-    totalMC += s.mcTotal
-    totalMCCorrect += s.mcCorrect
+
+  if (opts.recallOnly) {
+    // Detailed Hit@K breakdown
+    print('  Type                    Hit@1   Hit@3   Hit@5  Hit@10    MRR     N')
+    print('  ──────────────────────  ──────  ──────  ──────  ──────  ──────  ────')
+    let tN = 0, t1 = 0, t3 = 0, t5 = 0, t10 = 0, tMRR = 0
+    for (const type of typeOrder) {
+      const s = typeStats[type]
+      if (!s || s.recallTotal === 0) continue
+      const n = s.recallTotal
+      const h1 = (s.hitAt1 / n * 100).toFixed(1)
+      const h3 = (s.hitAt3 / n * 100).toFixed(1)
+      const h5 = (s.hitAt5 / n * 100).toFixed(1)
+      const h10 = (s.hitAt10 / n * 100).toFixed(1)
+      const mrr = (s.mrrSum / n).toFixed(3)
+      print(`  ${type.padEnd(24)} ${h1.padStart(5)}%  ${h3.padStart(5)}%  ${h5.padStart(5)}%  ${h10.padStart(5)}%  ${mrr.padStart(6)}  ${String(n).padStart(4)}`)
+      tN += n; t1 += s.hitAt1; t3 += s.hitAt3; t5 += s.hitAt5; t10 += s.hitAt10; tMRR += s.mrrSum
+    }
+    if (tN > 0) {
+      print('  ──────────────────────  ──────  ──────  ──────  ──────  ──────  ────')
+      print(`  ${'TOTAL'.padEnd(24)} ${(t1/tN*100).toFixed(1).padStart(5)}%  ${(t3/tN*100).toFixed(1).padStart(5)}%  ${(t5/tN*100).toFixed(1).padStart(5)}%  ${(t10/tN*100).toFixed(1).padStart(5)}%  ${(tMRR/tN).toFixed(3).padStart(6)}  ${String(tN).padStart(4)}`)
+    }
+  } else {
+    // Compact Hit@K (original style, but now with Hit@10 = hitAt10)
+    print('  Type                    Hit@K    MRR     N')
+    print('  ──────────────────────  ──────  ──────  ────')
+    let totalRecallHits = 0, totalRecallN = 0, totalMRR = 0
+    for (const type of typeOrder) {
+      const s = typeStats[type]
+      if (!s || s.recallTotal === 0) continue
+      const hitRate = (s.hitAt10 / s.recallTotal * 100).toFixed(1)
+      const mrr = (s.mrrSum / s.recallTotal).toFixed(3)
+      print(`  ${type.padEnd(24)} ${hitRate.padStart(5)}%  ${mrr.padStart(6)}  ${String(s.recallTotal).padStart(4)}`)
+      totalRecallHits += s.hitAt10
+      totalRecallN += s.recallTotal
+      totalMRR += s.mrrSum
+    }
+    if (totalRecallN > 0) {
+      print('  ──────────────────────  ──────  ──────  ────')
+      print(`  ${'TOTAL'.padEnd(24)} ${(totalRecallHits / totalRecallN * 100).toFixed(1).padStart(5)}%  ${(totalMRR / totalRecallN).toFixed(3).padStart(6)}  ${String(totalRecallN).padStart(4)}`)
+    }
   }
-  if (totalMC > 0) {
-    print('  ──────────────────────  ──────  ────')
-    print(`  ${'TOTAL'.padEnd(24)} ${(totalMCCorrect / totalMC * 100).toFixed(1).padStart(5)}%  ${String(totalMC).padStart(4)}`)
+
+  // ═══════════════════════════════════════════════════════════════
+  // RESULTS: MC ACCURACY (skip for recall-only)
+  // ═══════════════════════════════════════════════════════════════
+
+  if (!opts.recallOnly) {
+    print()
+    print('═══════════════════════════════════════════════════════════')
+    print('  Layer 2: MC Accuracy (10 选 1)')
+    print('═══════════════════════════════════════════════════════════')
+    print()
+
+    if (opts.llm) {
+      // Side-by-side: string-match vs LLM
+      print('  Type                    SM Acc   LLM Acc    N   (fail)')
+      print('  ──────────────────────  ──────  ────────  ────  ──────')
+      let tMC = 0, tSM = 0, tLLM = 0, tFail = 0
+      for (const type of typeOrder) {
+        const s = typeStats[type]
+        if (!s || s.mcTotal === 0) continue
+        const smAcc = (s.mcCorrect / s.mcTotal * 100).toFixed(1)
+        const llmAcc = s.llmTotal > 0 ? (s.llmCorrect / s.llmTotal * 100).toFixed(1) : ' N/A'
+        print(`  ${type.padEnd(24)} ${smAcc.padStart(5)}%  ${llmAcc.padStart(6)}%  ${String(s.mcTotal).padStart(4)}  ${String(s.llmFail).padStart(5)}`)
+        tMC += s.mcTotal; tSM += s.mcCorrect; tLLM += s.llmCorrect; tFail += s.llmFail
+      }
+      if (tMC > 0) {
+        print('  ──────────────────────  ──────  ────────  ────  ──────')
+        print(`  ${'TOTAL'.padEnd(24)} ${(tSM/tMC*100).toFixed(1).padStart(5)}%  ${(tLLM/tMC*100).toFixed(1).padStart(6)}%  ${String(tMC).padStart(4)}  ${String(tFail).padStart(5)}`)
+      }
+    } else {
+      // Original string-match only
+      print('  Type                    Acc      N')
+      print('  ──────────────────────  ──────  ────')
+      let totalMC = 0, totalMCCorrect = 0
+      for (const type of typeOrder) {
+        const s = typeStats[type]
+        if (!s || s.mcTotal === 0) continue
+        const acc = (s.mcCorrect / s.mcTotal * 100).toFixed(1)
+        print(`  ${type.padEnd(24)} ${acc.padStart(5)}%  ${String(s.mcTotal).padStart(4)}`)
+        totalMC += s.mcTotal
+        totalMCCorrect += s.mcCorrect
+      }
+      if (totalMC > 0) {
+        print('  ──────────────────────  ──────  ────')
+        print(`  ${'TOTAL'.padEnd(24)} ${(totalMCCorrect / totalMC * 100).toFixed(1).padStart(5)}%  ${String(totalMC).padStart(4)}`)
+      }
+    }
   }
 
   print()

@@ -1,0 +1,9 @@
+{
+  "memory_session_summary": true,
+  "dream_mode": false,
+  "self_correction": true,
+  "auto_mood_care": true,
+  "auto_daily_review": false,
+  "behavior_prediction": true,
+  "absence_detection": true
+}

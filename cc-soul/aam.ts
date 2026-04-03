@@ -542,7 +542,7 @@ const _defaultSynonyms: Record<string, string[]> = {
   '财务自由': ['FIRE', '经济自由', '退休自由'],
 
   // ── 家庭关系（30组）──────────────────────────────────────────────────
-  '爸爸': ['父亲', '爹', '老爸', '老爹', '准爸爸', '爸', 'dad'],
+  '爸爸': ['父亲', '爹', '老爸', '老爹', '准爸爸', '爸', '当爸爸', 'dad'],
   '妈妈': ['母亲', '娘', '老妈', 'mom'],
   '老公': ['丈夫', '先生', '另一半', 'husband'],
   '儿子': ['男孩', '小子', '崽', 'son'],
@@ -890,16 +890,19 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   '编程': ['服务器','数据库','前端','后端','bug','框架','API','算法'],
   '娱乐': ['电影','游戏','音乐','跑步','旅游','看书','刷剧','综艺'],
   '休闲': ['电影','游戏','音乐','旅游','看书','刷剧'],
+  '生育': ['怀孕','预产期','产检','当爸爸','当妈妈','生孩子','月子','爸爸','妈妈'],
+  '购物': ['买车','买房','网购','下单','退货','特斯拉','车','手机'],
 }
 
 /** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */
-const _knownWordCache = new Set<string>()
-// 延迟构建（等 COLD_START_SYNONYMS 加载完）
+let _knownWordCache = new Set<string>()
+// 每次进程启动时重建
 let _knownWordBuilt = false
 export function isKnownWord(word: string): boolean {
   if (!_knownWordBuilt) {
-    for (const k of Object.keys(COLD_START_SYNONYMS)) _knownWordCache.add(k)
-    for (const syns of Object.values(COLD_START_SYNONYMS)) {
+    // 只信任人工维护的 _defaultSynonyms，不用 COLD_START_SYNONYMS（含 PMI 毕业垃圾如"你有"）
+    for (const k of Object.keys(_defaultSynonyms)) _knownWordCache.add(k)
+    for (const syns of Object.values(_defaultSynonyms)) {
       for (const s of syns) _knownWordCache.add(s)
     }
     for (const k of Object.keys(CONCEPT_HIERARCHY)) _knownWordCache.add(k)
@@ -1178,6 +1181,15 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
 
   // 每次 expandQuery 调用后恢复 damping（逐步回到 1.0）
   recoverDamping()
+
+  // 最终清理：移除不是已知词的 CJK 2-gram 碎片
+  // isKnownWord 只信任 _defaultSynonyms + CONCEPT_HIERARCHY，PMI 产出的碎片（"的问","术问","作压"）被删除
+  for (const [word] of [...expanded.entries()]) {
+    if (queryWords.includes(word)) continue
+    if (word.length === 2 && /^[\u4e00-\u9fff]{2}$/.test(word) && !isKnownWord(word)) {
+      expanded.delete(word)
+    }
+  }
 
   // Sort by weight, take top N
   return [...expanded.entries()]

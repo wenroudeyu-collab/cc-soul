@@ -1,0 +1,41 @@
+{
+  "id": "default",
+  "name": "",
+  "identity": {
+    "who": ""
+  },
+  "expression": {
+    "style": "",
+    "口头禅": [],
+    "习惯": "",
+    "avg_msg_length": 12,
+    "samples": [
+      "帮我写个Python脚本"
+    ],
+    "tone_variants": {}
+  },
+  "decisions": {
+    "pattern": "",
+    "traces": []
+  },
+  "social": {},
+  "emotional_patterns": {
+    "baseline": "",
+    "triggers": {},
+    "reaction_style": {}
+  },
+  "preferences": {},
+  "boundaries": {
+    "can_reply": [],
+    "ask_first": [],
+    "never": []
+  },
+  "vocabulary": {
+    "emotions": {},
+    "decisions": [],
+    "relations": [],
+    "avoidance": [],
+    "decoder": {}
+  },
+  "updated_at": 1774860509681
+}

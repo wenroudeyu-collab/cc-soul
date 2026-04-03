@@ -323,19 +323,33 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   const adaptiveParams = getAdaptiveParams(_currentQueryType)
   const BM25_DELTA = adaptiveParams.k1  // BM25+ lower-bound: precise→2.0, broad→0.8
   const lengthNorm = 1 - adaptiveParams.b + adaptiveParams.b * (memWords.size / Math.max(expandedWords.size, 1))
-  let weightedHits = 0, totalWeight = 0
+  // ── 双层计分：防止滑动窗口碎片词稀释分母 ──
+  // Tier 1: AAM 扩展的质量词（同义词/概念词/3+字词）
+  // Tier 2: 全部词（含 2-char 滑动窗口碎片）
+  let tier1Hits = 0, tier1Total = 0
+  let tier2Hits = 0, tier2Total = 0
+  let tier1Count = 0, tier2Count = 0
   for (const [word, weight] of expandedWords) {
     const idfWeight = _idfCache?.get(word) ?? 1.0
     const effectiveWeight = weight * idfWeight
-    totalWeight += effectiveWeight
-    if (memWords.has(word)) {
-      // BM25-like: tf * (k1+1) / (tf * lengthNorm + k1), simplified for binary tf
-      const saturation = (adaptiveParams.k1 + 1) / (lengthNorm + adaptiveParams.k1)
-      weightedHits += effectiveWeight * saturation + BM25_DELTA
+    // Tier 1: AAM 扩展词（weight >= 0.7）或 3+ 字且 weight >= 0.5
+    const isTier1 = weight >= 0.7 || (weight >= 0.5 && word.length >= 3)
+    const saturation = (adaptiveParams.k1 + 1) / (lengthNorm + adaptiveParams.k1)
+    const hitValue = effectiveWeight * saturation + BM25_DELTA
+    const maxValue = effectiveWeight * ((adaptiveParams.k1 + 1) / (1 + adaptiveParams.k1)) + BM25_DELTA
+    if (isTier1) {
+      tier1Total += maxValue
+      tier1Count++
+      if (memWords.has(word)) tier1Hits += hitValue
     }
+    tier2Total += maxValue
+    tier2Count++
+    if (memWords.has(word)) tier2Hits += hitValue
   }
-  const maxWeight = totalWeight * ((adaptiveParams.k1 + 1) / (1 + adaptiveParams.k1)) + expandedWords.size * BM25_DELTA
-  const rawWordScore = maxWeight > 0 ? weightedHits / maxWeight : 0
+  const tier1Score = tier1Total > 0 ? tier1Hits / tier1Total : 0
+  const tier2Score = tier2Total > 0 ? tier2Hits / tier2Total : 0
+  // Tier 1 命中直接用，Tier 2 打 7 折（碎片词匹配不应得高分）
+  const rawWordScore = Math.max(tier1Score, tier2Score * 0.7)
   // 最低门槛：覆盖率门槛随 query type 调整（broad 更宽松）
   const minCoverage = _currentQueryType === 'broad' ? 0.01 : 0.03
   const wordScore = rawWordScore < minCoverage ? 0 : rawWordScore
@@ -837,22 +851,47 @@ export function expandQueryForField(query: string): Map<string, number> {
     expanded.set(wl, EN_STOP_WORDS.has(wl) ? 0.1 : 1.0)
   }
 
+  // 短查询：单字 CJK 也加入（在 AAM 扩展之前，确保"车"等单字能参与扩展）
+  if (query.length < 15) {
+    const singleChars = query.match(/[\u4e00-\u9fff]/g) || []
+    for (const ch of singleChars) {
+      if (!expanded.has(ch)) expanded.set(ch, 0.5)
+    }
+  }
+
   // AAM 查询扩展（同义词 + 概念层级 + 共字关联 + PMI）
   try {
     const aamMod = require('./aam.ts')
     // 只传"已知词"给 AAM 做语义扩展
     // CJK 2-char 滑动窗口产出大量碎片（"你有"、"有什"、"济压"），会触发低质量同义词扩展占满名额
     // 策略：CJK 2-char 只有在同义词表中出现过的才算已知词，其余碎片只用于 BM25 词法匹配
-    const isKnown = aamMod.isKnownWord || (() => true)
-    const queryWords = [...expanded.keys()].filter(w => {
-      if ((expanded.get(w) || 0) < 0.5 || w.length < 2) return false
-      if (/[a-zA-Z]/.test(w) || w.length >= 3) return true  // 英文/长CJK 通过
-      return isKnown(w)  // CJK 2-char 必须是已知词
-    })
+    // 已知有意义的单字 CJK（硬编码，这些是同义词表/概念层级的 key）
+    const KNOWN_SINGLE_CJK = new Set('吃喝睡走跑坐站看听说写读洗穿买卖车钱房书药酒茶'.split(''))
+    // 已知有意义的 2-char CJK（动态从 AAM 获取）
+    const isKnown = aamMod.isKnownWord || (() => false)
+    const queryWords: string[] = []
+    for (const [w, wt] of expanded) {
+      if ((wt as number) < 0.3) continue
+      let pass = false
+      if (w.length === 1 && /[\u4e00-\u9fff]/.test(w)) {
+        pass = KNOWN_SINGLE_CJK.has(w)
+        if (pass) console.log(`[expandQFF] single-char "${w}" PASS (known)`)
+      } else if (w.length < 2) {
+        pass = false
+      } else if (/[a-zA-Z]/.test(w) || w.length >= 3) {
+        pass = true
+      } else {
+        pass = isKnown(w)
+      }
+      if (pass) queryWords.push(w)
+    }
+    console.log(`[expandQueryForField] queryWords=${queryWords.length}: [${queryWords.slice(0,8).join(',')}]`)
     const aamExpanded = aamMod.expandQuery(queryWords, 20)
+    const newWords = aamExpanded.filter(({ word }: any) => !expanded.has(word))
     for (const { word, weight } of aamExpanded) {
       if (!expanded.has(word)) expanded.set(word, weight)
     }
+    if (newWords.length > 0) console.log(`[expandQueryForField] AAM added ${newWords.length} words: [${newWords.slice(0,5).map((e: any) => e.word).join(',')}]`)
   } catch (e: any) {
     console.log(`[activation-field] AAM expandQuery error: ${e.message}`)
   }
@@ -864,6 +903,18 @@ export function expandQueryForField(query: string): Map<string, number> {
       if (!expanded.has(ch)) expanded.set(ch, 0.3)
     }
   }
+
+  // Single-char CJK that are synonym table keys → promote to expansion candidates
+  try {
+    const aamMod = require('./aam.ts')
+    for (const [w, wt] of [...expanded.entries()]) {
+      if (w.length === 1 && /[\u4e00-\u9fff]/.test(w) && (wt as number) <= 0.3) {
+        if (aamMod.isKnownWord?.(w)) {
+          expanded.set(w, 0.8)  // promote known single-char words
+        }
+      }
+    }
+  } catch {}
 
   return expanded
 }
@@ -909,46 +960,65 @@ export function activationRecall(
   // 3. 实体通道：图谱实体（已在下方 graph expansion 中处理）
   // 4. AAM 通道：保持使用完整原始 query（联想需要完整语境）
 
-  // 快速路径：fact-store 精确匹配（System 1）
+  // 快速路径：fact-store 动态匹配（System 1）
+  // 零硬编码：遍历所有已存三元组，用查询词匹配 object/predicate/subject
   try {
     const factStore = getFactStoreMod()
-    // 检测查询是否适合 fact-store 直接命中
-    const factPatterns: { test: RegExp; predicate: string }[] = [
-      { test: /叫什么|我是谁|名字/, predicate: 'name' },
-      { test: /工作|公司|上班/, predicate: 'works_at' },
-      { test: /住哪|住在/, predicate: 'lives_in' },
-      { test: /喜欢|偏好/, predicate: 'likes' },
-      { test: /讨厌|不喜欢/, predicate: 'dislikes' },
-      { test: /宠物|猫|狗|养/, predicate: 'has_pet' },
-      { test: /家人|女儿|儿子|孩子|老婆/, predicate: 'has_family' },
-      { test: /女朋友|男朋友|伴侣|对象/, predicate: 'relationship' },
-    ]
-    // 匹配所有适用的 pattern，合并结果（不是第一个匹配就 break）
+    const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number }[]
     const allFactMems: Memory[] = []
-    for (const fp of factPatterns) {
-      if (fp.test.test(query)) {
-        const facts = factStore.queryFacts({ subject: 'user', predicate: fp.predicate })
-        if (facts.length > 0) {
-          for (const f of facts.slice(0, 2)) {
-            const prefix = f.predicate === 'likes' ? '喜欢' : f.predicate === 'dislikes' ? '讨厌' : f.predicate === 'works_at' ? '在' : f.predicate === 'lives_in' ? '住在' : f.predicate === 'name' ? '叫' : ''
-            allFactMems.push({
-              content: `[事实] ${fp.predicate}: ${prefix}${f.object}`,
-              scope: 'fact', ts: f.ts || Date.now(), confidence: f.confidence || 0.9, source: 'activation_field_s1',
-              recallCount: 10, lastAccessed: Date.now(), importance: 9,  // 高权重确保不被过滤
-            } as Memory)
-          }
-          console.log(`[activation-field] System 1 hit: ${fp.predicate} → ${facts.length} facts`)
+    const queryLowerS1 = query.toLowerCase()
+    // 提取查询关键词（CJK 2-gram + 英文 2+ 字母 + 数字）
+    const queryTokensS1 = new Set((queryLowerS1.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase()))
+    // AAM 扩展词也参与匹配
+    for (const [w] of expanded) queryTokensS1.add(w.toLowerCase())
+
+    for (const fact of allFacts) {
+      if (fact.validUntil && fact.validUntil < Date.now()) continue  // 已失效
+      const objLower = (fact.object || '').toLowerCase()
+      const predLower = (fact.predicate || '').toLowerCase()
+
+      // 匹配策略：查询词出现在 object 或 predicate 中
+      let matched = false
+      // 1. 查询整体包含 object（"我的猫叫什么" 包含 "猫"）
+      for (const token of queryTokensS1) {
+        if (objLower.includes(token) || token.includes(objLower)) { matched = true; break }
+        if (predLower.includes(token)) { matched = true; break }
+      }
+      // 2. object 的词出现在查询中（"PostgreSQL" 出现在查询"我用什么数据库"→ 通过 AAM 扩展匹配）
+      if (!matched) {
+        const objTokens = (objLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || [])
+        for (const ot of objTokens) {
+          if (queryTokensS1.has(ot.toLowerCase())) { matched = true; break }
         }
       }
+
+      if (matched) {
+        allFactMems.push({
+          content: `[事实] ${fact.predicate}: ${fact.object}`,
+          scope: 'fact', ts: fact.ts || Date.now(), confidence: fact.confidence || 0.9, source: 'activation_field_s1',
+          recallCount: 10, lastAccessed: Date.now(), importance: 9,
+        } as Memory)
+      }
     }
-    if (allFactMems.length > 0) {
+    // 去重（同一 predicate 只取最新 2 条）
+    const predCount = new Map<string, number>()
+    const dedupFacts: Memory[] = []
+    for (const m of allFactMems) {
+      const pred = m.content.split(':')[0] || ''
+      const count = predCount.get(pred) || 0
+      if (count < 2) { dedupFacts.push(m); predCount.set(pred, count + 1) }
+    }
+    if (dedupFacts.length > 0) {
+      console.log(`[activation-field] System 1 dynamic: ${dedupFacts.length} facts matched from ${allFacts.length} total`)
+    }
+    if (allFactMemsFinal.length > 0) {
       // System 1 做增强不做短路：facts + 激活场补充
       const fieldResults = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN, timeRange)
-      const seen = new Set(allFactMems.map(m => m.content))
+      const seen = new Set(allFactMemsFinal.map(m => m.content))
       for (const r of fieldResults) {
-        if (!seen.has(r.memory.content)) { allFactMems.push(r.memory); seen.add(r.memory.content) }
+        if (!seen.has(r.memory.content)) { allFactMemsFinal.push(r.memory); seen.add(r.memory.content) }
       }
-      return allFactMems.slice(0, topN)
+      return allFactMemsFinal.slice(0, topN)
     }
   } catch {}
 

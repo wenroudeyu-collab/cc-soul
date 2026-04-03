@@ -38,6 +38,27 @@ const TEST_MEMORIES: Memory[] = [
   { content: '我老家在湖南长沙，特别能吃辣', scope: 'fact', ts: Date.now() - 86400000 * 365, confidence: 0.95, recallCount: 5, lastAccessed: Date.now() - 86400000 * 40 },
   { content: '下个月要参加朋友的婚礼，需要准备份子钱', scope: 'episode', ts: Date.now() - 86400000 * 1, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() },
   { content: '最近经常加班到十一点，感觉很累', scope: 'episode', ts: Date.now() - 86400000 * 3, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 1 },
+  // Memory 20-39: new batch
+  { content: '我每天早上 7 点起床跑步', scope: 'fact', ts: Date.now() - 86400000 * 15, confidence: 0.9, recallCount: 5, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '我对花粉过敏，春天不能出门', scope: 'fact', ts: Date.now() - 86400000 * 180, confidence: 0.9, recallCount: 4, lastAccessed: Date.now() - 86400000 * 30 },
+  { content: '我的车是特斯拉 Model 3', scope: 'fact', ts: Date.now() - 86400000 * 50, confidence: 0.92, recallCount: 3, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '上个月工资涨了 2000', scope: 'fact', ts: Date.now() - 86400000 * 35, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '我女儿在学钢琴，每周三上课', scope: 'fact', ts: Date.now() - 86400000 * 60, confidence: 0.9, recallCount: 4, lastAccessed: Date.now() - 86400000 * 7 },
+  { content: '我戒烟第 47 天了', scope: 'fact', ts: Date.now() - 86400000 * 8, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '我最怕蛇', scope: 'fact', ts: Date.now() - 86400000 * 120, confidence: 0.88, recallCount: 2, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '下个月要去日本旅游', scope: 'episode', ts: Date.now() - 86400000 * 5, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '我大学室友叫张磊，现在在腾讯', scope: 'fact', ts: Date.now() - 86400000 * 150, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 25 },
+  { content: '我血型是 O 型', scope: 'fact', ts: Date.now() - 86400000 * 200, confidence: 0.95, recallCount: 1, lastAccessed: Date.now() - 86400000 * 60 },
+  { content: '周末一般陪孩子去公园', scope: 'fact', ts: Date.now() - 86400000 * 40, confidence: 0.85, recallCount: 4, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '我在考虑换工作，目标是阿里', scope: 'fact', ts: Date.now() - 86400000 * 3, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '我炒股亏了 3 万', scope: 'fact', ts: Date.now() - 86400000 * 25, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '我正在学日语，N3 水平', scope: 'fact', ts: Date.now() - 86400000 * 20, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 4 },
+  { content: '我和老婆是大学同学', scope: 'fact', ts: Date.now() - 86400000 * 170, confidence: 0.93, recallCount: 5, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '我的 MacBook 是 M2 Pro 32G', scope: 'fact', ts: Date.now() - 86400000 * 45, confidence: 0.88, recallCount: 2, lastAccessed: Date.now() - 86400000 * 6 },
+  { content: '我每周五和朋友打羽毛球', scope: 'fact', ts: Date.now() - 86400000 * 30, confidence: 0.83, recallCount: 4, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '我最近在看《三体》', scope: 'fact', ts: Date.now() - 86400000 * 10, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '去年做了近视手术', scope: 'fact', ts: Date.now() - 86400000 * 100, confidence: 0.9, recallCount: 1, lastAccessed: Date.now() - 86400000 * 40 },
+  { content: '我在字节做安全工程师', scope: 'fact', ts: Date.now() - 86400000 * 12, confidence: 0.92, recallCount: 6, lastAccessed: Date.now() - 86400000 * 1 },
 ] as Memory[]
 
 // ═══════════════════════════════════════════════════════════════
@@ -46,7 +67,7 @@ const TEST_MEMORIES: Memory[] = [
 
 interface TestCase {
   query: string
-  expectedIndex: number  // index in TEST_MEMORIES
+  expectedIndex: number | number[]  // single index or array (multi-match: pass if ANY hit)
   type: 'direct' | 'semantic'
   description: string
 }
@@ -112,6 +133,50 @@ const TEST_CASES: TestCase[] = [
   // Memory 19: 加班
   { query: '你最近加班多吗', expectedIndex: 19, type: 'direct', description: '加班→十一点' },
   { query: '你工作累不累', expectedIndex: 19, type: 'semantic', description: '工作累→加班' },
+
+  // ── New direct queries (Memory 20-39) ──
+  { query: '我几点起床', expectedIndex: 20, type: 'direct', description: '起床→7点跑步' },
+  { query: '我对什么过敏', expectedIndex: 21, type: 'direct', description: '过敏→花粉' },
+  { query: '我开什么车', expectedIndex: 22, type: 'direct', description: '开车→特斯拉' },
+  { query: '我工资涨了多少', expectedIndex: 23, type: 'direct', description: '涨薪→2000' },
+  { query: '我女儿学什么乐器', expectedIndex: 24, type: 'direct', description: '乐器→钢琴' },
+  { query: '我戒烟多久了', expectedIndex: 25, type: 'direct', description: '戒烟→47天' },
+  { query: '我怕什么', expectedIndex: 26, type: 'direct', description: '怕→蛇' },
+  { query: '我下个月去哪旅游', expectedIndex: 27, type: 'direct', description: '旅游→日本' },
+  { query: '我室友叫什么', expectedIndex: 28, type: 'direct', description: '室友→张磊' },
+  { query: '我什么血型', expectedIndex: 29, type: 'direct', description: '血型→O型' },
+  { query: '周末一般干嘛', expectedIndex: 30, type: 'direct', description: '周末→陪孩子公园' },
+  { query: '我想去哪个公司', expectedIndex: 31, type: 'direct', description: '公司→阿里' },
+  { query: '我炒股亏了多少', expectedIndex: 32, type: 'direct', description: '炒股→3万' },
+  { query: '我在学什么语言', expectedIndex: 33, type: 'direct', description: '学语言→日语' },
+  { query: '我老婆怎么认识的', expectedIndex: 34, type: 'direct', description: '老婆→大学同学' },
+  { query: '我电脑什么配置', expectedIndex: 35, type: 'direct', description: '电脑→M2 Pro' },
+  { query: '我周五做什么运动', expectedIndex: 36, type: 'direct', description: '周五运动→羽毛球' },
+  { query: '我最近在看什么书', expectedIndex: 37, type: 'direct', description: '看书→三体' },
+  { query: '我做过什么手术', expectedIndex: 38, type: 'direct', description: '手术→近视' },
+  { query: '我在哪工作', expectedIndex: 39, type: 'direct', description: '工作→字节安全' },
+
+  // ── New semantic queries (Memory 20-39) ──
+  { query: '我的晨练习惯', expectedIndex: 20, type: 'semantic', description: '晨练→跑步' },
+  { query: '我有什么健康隐患', expectedIndex: [21, 38], type: 'semantic', description: '健康隐患→过敏/近视' },
+  { query: '我的交通工具', expectedIndex: 22, type: 'semantic', description: '交通工具→特斯拉' },
+  { query: '我的收入变化', expectedIndex: 23, type: 'semantic', description: '收入变化→涨薪' },
+  { query: '孩子的课外活动', expectedIndex: 24, type: 'semantic', description: '课外活动→钢琴' },
+  { query: '我在克服什么坏习惯', expectedIndex: 25, type: 'semantic', description: '坏习惯→戒烟' },
+  { query: '我的恐惧', expectedIndex: 26, type: 'semantic', description: '恐惧→蛇' },
+  { query: '最近的旅行计划', expectedIndex: 27, type: 'semantic', description: '旅行计划→日本' },
+  { query: '我的老同学现在干嘛', expectedIndex: 28, type: 'semantic', description: '老同学→张磊腾讯' },
+  { query: '我的职业规划', expectedIndex: 31, type: 'semantic', description: '职业规划→换工作阿里' },
+  { query: '我的投资情况', expectedIndex: 32, type: 'semantic', description: '投资→炒股亏3万' },
+  { query: '我在自我提升什么', expectedIndex: 33, type: 'semantic', description: '自我提升→学日语' },
+  { query: '我和老婆的故事', expectedIndex: 34, type: 'semantic', description: '老婆故事→大学同学' },
+  { query: '我的数码装备', expectedIndex: 35, type: 'semantic', description: '数码装备→MacBook' },
+  { query: '我的运动习惯', expectedIndex: [20, 36], type: 'semantic', description: '运动→跑步/羽毛球' },
+  { query: '我的阅读偏好', expectedIndex: 37, type: 'semantic', description: '阅读→三体' },
+  { query: '我的视力情况', expectedIndex: 38, type: 'semantic', description: '视力→近视手术' },
+  { query: '我家里几口人', expectedIndex: [24, 34], type: 'semantic', description: '家人→老婆+女儿' },
+  { query: '我周末的安排', expectedIndex: 30, type: 'semantic', description: '周末安排→陪孩子公园' },
+  { query: '我最近有什么烦心事', expectedIndex: [32, 31], type: 'semantic', description: '烦心事→亏钱/换工作' },
 ]
 
 // ═══════════════════════════════════════════════════════════════
@@ -129,6 +194,14 @@ function runBenchmark() {
     learnAssociation(mem.content, 0.3)
   }
 
+  // Populate fact-store from test memories
+  try {
+    const factStore = require('./fact-store.ts')
+    for (const mem of TEST_MEMORIES) {
+      factStore.extractAndStoreFacts?.(mem.content, 'user')
+    }
+  } catch {}
+
   let directHits = 0, directTotal = 0
   let semanticHits = 0, semanticTotal = 0
   let top1Hits = 0
@@ -137,9 +210,10 @@ function runBenchmark() {
   for (const tc of TEST_CASES) {
     const results = activationRecall(TEST_MEMORIES, tc.query, 3, 0, 0.5) as Memory[]
     const resultContents = results.map(r => r.content)
-    const expectedContent = TEST_MEMORIES[tc.expectedIndex].content
-    const hit = resultContents.includes(expectedContent)
-    const isTop1 = resultContents[0] === expectedContent
+    const indices = Array.isArray(tc.expectedIndex) ? tc.expectedIndex : [tc.expectedIndex]
+    const expectedContents = indices.map(i => TEST_MEMORIES[i].content)
+    const hit = expectedContents.some(ec => resultContents.includes(ec))
+    const isTop1 = expectedContents.some(ec => resultContents[0] === ec)
 
     if (tc.type === 'direct') {
       directTotal++

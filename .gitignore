@@ -7,3 +7,7 @@ data/locomo_mc10.json
 data/soul_kv.db
 data/soul_kv.db
 data/soul_kv.db
+data/soul_kv.db
+data_backup_benchmark/locomo_mc10.json
+data_backup_benchmark/models/minilm/model.onnx
+data_backup_benchmark/soul_kv.db
