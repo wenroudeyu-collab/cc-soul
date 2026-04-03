@@ -391,30 +391,30 @@ const ppmByMood: Record<MoodCondition, PPMNode> = {
   non_positive: { children: {}, counts: {}, total: 0, escape: 0 },
 }
 
-function ppmUpdate(context: string[], next: string, maxOrder = 3, mood?: number): void {
+function ppmUpdate(context: string[], next: string, maxOrder = 3, mood?: number, weight = 1.0): void {
   // 全局 PPM（保持向后兼容）
   let node = ppmRoot
   const ctx = context.slice(-maxOrder)
-  node.counts[next] = (node.counts[next] || 0) + 1
-  node.total++
+  node.counts[next] = (node.counts[next] || 0) + weight
+  node.total += weight
   for (const symbol of ctx) {
     if (!node.children[symbol]) node.children[symbol] = { children: {}, counts: {}, total: 0, escape: 0 }
     node = node.children[symbol]
-    node.counts[next] = (node.counts[next] || 0) + 1
-    node.total++
+    node.counts[next] = (node.counts[next] || 0) + weight
+    node.total += weight
   }
 
   // 心理状态条件 PPM
   if (mood !== undefined) {
     const condition = getMoodCondition(mood)
     let moodNode = ppmByMood[condition]
-    moodNode.counts[next] = (moodNode.counts[next] || 0) + 1
-    moodNode.total++
+    moodNode.counts[next] = (moodNode.counts[next] || 0) + weight
+    moodNode.total += weight
     for (const symbol of ctx) {
       if (!moodNode.children[symbol]) moodNode.children[symbol] = { children: {}, counts: {}, total: 0, escape: 0 }
       moodNode = moodNode.children[symbol]
-      moodNode.counts[next] = (moodNode.counts[next] || 0) + 1
-      moodNode.total++
+      moodNode.counts[next] = (moodNode.counts[next] || 0) + weight
+      moodNode.total += weight
     }
   }
 }
@@ -456,9 +456,10 @@ function ppmPredictFromRoot(root: PPMNode, ctx: string[]): { predicted: string; 
   return null
 }
 
-export function updateMarkov(topicSequence: string[], mood?: number): void {
+export function updateMarkov(topicSequence: string[], mood?: number, intentScores?: number[]): void {
   for (let i = 1; i < topicSequence.length; i++) {
-    ppmUpdate(topicSequence.slice(0, i), topicSequence[i], 3, mood)
+    const weight = intentScores?.[i] ?? 1.0
+    ppmUpdate(topicSequence.slice(0, i), topicSequence[i], 3, mood, weight)
   }
   save()
 }
@@ -546,9 +547,9 @@ export function checkPredictions(userMsg: string): { hitAugment: string | null }
   return { hitAugment: null }
 }
 
-export function generateNewPredictions(chatHistory: { user: string }[]): void {
+export function generateNewPredictions(chatHistory: { user: string }[], intentScores?: number[]): void {
   const topics = chatHistory.slice(-10).map(h => detectTopicDomain(h.user))
-  updateMarkov(topics)
+  updateMarkov(topics, undefined, intentScores)
 }
 
 export function updateAllDomainBeliefs(detectedDomain: string | null): void {

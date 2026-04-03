@@ -113,6 +113,36 @@ const DOMAIN_GENERALIZATION: Record<string, string> = {
   git: '回答 Git 问题时注意不同平台和版本的行为差异',
 }
 
+/** A3: distill common patterns from multiple rules */
+function distillRules(ruleList: any[]): string | null {
+  if (ruleList.length < 2) return null
+
+  // Path A: fact-store triple common factors
+  try {
+    const { extractFacts } = require('./fact-store.ts')
+    const allFacts = ruleList.flatMap((r: any) => extractFacts(r.rule || r.text || ''))
+    const predCounts = new Map<string, number>()
+    for (const f of allFacts) {
+      const key = `${f.subject}:${f.predicate}`
+      predCounts.set(key, (predCounts.get(key) || 0) + 1)
+    }
+    const common = [...predCounts.entries()].filter(([, c]) => c >= 2).map(([k]) => k.replace(':', ' → '))
+    if (common.length > 0) return `[规则共性] ${common.join('; ')}`
+  } catch {}
+
+  // Path B: keyword intersection fallback
+  const wordSets = ruleList.map((r: any) => {
+    const text = r.rule || r.text || ''
+    return new Set((text.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+  })
+  let intersection = new Set(wordSets[0] || [])
+  for (let i = 1; i < wordSets.length; i++) {
+    intersection = new Set([...intersection].filter(w => wordSets[i].has(w)))
+  }
+  if (intersection.size >= 2) return `[${[...intersection].slice(0, 3).join('/')}] 注意相关问题`
+  return null
+}
+
 /** After adding a rule, check if its domain has 2+ rules → create a generalized rule */
 export function generalizeRules(newRuleText: string) {
   const domain = detectDomain(newRuleText)
@@ -121,15 +151,20 @@ export function generalizeRules(newRuleText: string) {
   // Count rules in same domain (excluding generalized ones already present)
   const sameDomain = rules.filter(r => detectDomain(r.rule) === domain && r.source !== 'generalized')
   if (sameDomain.length < 2) return
+
+  // A3: try distillRules first — use data-driven generalization if available
+  const distilled = distillRules(sameDomain)
+  const ruleText = distilled || template
+
   // Already have a generalized rule for this domain?
-  const existing = rules.find(r => r.rule === template)
+  const existing = rules.find(r => r.rule === ruleText)
   if (existing) {
     existing.hits = Math.max(existing.hits, ...sameDomain.map(r => r.hits)) + 1
     return
   }
   const maxHits = Math.max(...sameDomain.map(r => r.hits), 1)
-  rules.push({ rule: template, source: 'generalized', ts: Date.now(), hits: maxHits + 1 })
-  console.log(`[cc-soul][evolve] generalized rule for domain=${domain}: "${template.slice(0, 50)}"`)
+  rules.push({ rule: ruleText, source: 'generalized', ts: Date.now(), hits: maxHits + 1 })
+  console.log(`[cc-soul][evolve] generalized rule for domain=${domain}: "${ruleText.slice(0, 50)}"`)
 }
 
 export function addRule(rule: string, source: string) {

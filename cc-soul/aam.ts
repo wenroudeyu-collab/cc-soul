@@ -1657,8 +1657,15 @@ export function decayCooccurrence() {
   for (const [w1, related] of Object.entries(network.cooccur)) {
     for (const [w2, count] of Object.entries(related)) {
       // 分层衰减：强关联慢衰减，弱关联快衰减
-      const factor = count > 10 ? 0.995 : 0.98
-      const newCount = count * factor
+      const baseDRate = count > 10 ? 0.995 : 0.98
+      // A1: momentum-aware decay — high momentum words decay slower
+      let momentum = 0
+      try {
+        const { getMomentumBoost } = require('./activation-field.ts')
+        momentum = (getMomentumBoost(w1) || 0) + (getMomentumBoost(w2) || 0)
+      } catch {}
+      const factor = baseDRate * (1 + Math.min(0.1, momentum * 0.05))
+      const newCount = count * Math.min(factor, 1.0)
       if (newCount < 0.5) {
         // 衰减到 <0.5 时删边（pruning）
         delete related[w2]

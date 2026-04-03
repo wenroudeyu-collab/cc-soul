@@ -252,6 +252,36 @@ export function consolidateMemories() {
       const contents = cluster.map(m => compressMemory(m)).join('\n')
       pendingCLICalls++
 
+      // B1: try zeroLLMDistill first to avoid LLM call
+      try {
+        const { zeroLLMDistill } = require('./distill.ts')
+        const zeroResult = zeroLLMDistill(cluster.map((m: any) => m.content))
+        if (zeroResult && zeroResult.length > 10) {
+          pendingCLICalls--
+          const summaries = [zeroResult.slice(0, 200)]
+          for (const o of cluster) allContentToRemove.add(`${o.content}\0${o.ts}`)
+          for (const summary of summaries) {
+            allSummariesToAdd.push({ content: compressMemory({ content: summary } as Memory), visibility: cluster[0]?.visibility || 'global' })
+          }
+          console.log(`[cc-soul][memory] consolidated ${cluster.length} ${scope} memories (zero-LLM)`)
+          if (pendingCLICalls <= 0) {
+            let maxEngagement = 0, maxRecallCount = 0
+            for (const mem of memoryState.memories) {
+              if (allContentToRemove.has(`${mem.content}\0${mem.ts}`)) {
+                maxEngagement = Math.max(maxEngagement, mem.injectionEngagement ?? 0)
+                maxRecallCount = Math.max(maxRecallCount, mem.recallCount ?? 0)
+              }
+            }
+            memoryState.memories = memoryState.memories.filter(m => !allContentToRemove.has(`${m.content}\0${m.ts}`))
+            for (const s of allSummariesToAdd) {
+              addMemory(s.content, 'consolidated', undefined, s.visibility)
+            }
+            consolidating = false
+          }
+          continue
+        }
+      } catch {}
+
       spawnCLI(
         `以下是${scope}类型的${cluster.length}条同主题记忆，请合并为1-2条摘要（保留关键信息）：\n\n${contents.slice(0, 1500)}\n\n格式：每条摘要一行`,
         (output) => {
@@ -351,6 +381,25 @@ export function generateInsights() {
     m => m.ts >= sevenDaysAgo && m.scope !== 'expired' && m.scope !== 'insight'
   )
   if (recentMemories.length < 5) return // not enough data
+
+  // B3: rule-based insights first — skip LLM if we find patterns
+  const ruleInsights: string[] = []
+  // Scope distribution insight
+  const scopeCounts = new Map<string, number>()
+  for (const m of recentMemories) scopeCounts.set(m.scope, (scopeCounts.get(m.scope) || 0) + 1)
+  const topScope = [...scopeCounts.entries()].sort((a, b) => b[1] - a[1])[0]
+  if (topScope && topScope[1] >= 5) ruleInsights.push(`最近${topScope[1]}条记忆都是${topScope[0]}类型`)
+  // Emotion trend
+  const negCount = recentMemories.filter(m => (m as any).emotion === 'painful' || ((m as any).situationCtx?.mood ?? 0) < -0.3).length
+  if (negCount >= 3) ruleInsights.push('最近情绪偏低的记忆增多')
+  // Correction trend
+  const corrCount = recentMemories.filter(m => m.scope === 'correction').length
+  if (corrCount >= 3) ruleInsights.push(`某领域被纠正${corrCount}次，需要加强`)
+  if (ruleInsights.length > 0) {
+    for (const insight of ruleInsights) addMemory(insight, 'insight', undefined, 'private')
+    console.log(`[cc-soul][insights] rule-based: ${ruleInsights.length} insights generated (zero-LLM)`)
+    return
+  }
 
   // Build a digest of recent memories (cap to avoid token explosion)
   const digest = recentMemories
@@ -834,6 +883,26 @@ export function scanForContradictions() {
     const older = sorted.slice(10, 20)
     if (older.length < 3) continue
 
+    // B2: try fact-store contradiction detection first to skip LLM
+    let foundContradiction = false
+    try {
+      const { extractFacts } = require('./fact-store.ts')
+      const { classifyConflict } = require('./memory-utils.ts')
+      for (const r of recent) {
+        for (const o of older) {
+          const rFacts = extractFacts(r.content)
+          const oFacts = extractFacts(o.content)
+          const conflict = classifyConflict(oFacts, rFacts)
+          if (conflict === 'supersede') {
+            o.validUntil = o.validUntil || Date.now()
+            foundContradiction = true
+            try { require('./decision-log.ts').logDecision('contradiction_zerollm', o.content.slice(0, 30), `superseded by ${r.content.slice(0, 30)}`) } catch {}
+          }
+        }
+      }
+    } catch {}
+    if (foundContradiction) continue  // Skip LLM for this scope
+
     const recentList = recent.map((m, i) => `新${i + 1}. ${m.content.slice(0, 80)}`).join('\n')
     const olderList = older.map((m, i) => `旧${i + 1}. ${m.content.slice(0, 80)}`).join('\n')
 
@@ -930,6 +999,21 @@ export function triggerSessionSummary(recentTurns?: number) {
   lastSessionSummaryTs = now
 
   const turns = memoryState.chatHistory.slice(-(recentTurns || 10))
+
+  // B4: extractive session summary first — skip LLM if we can build a decent summary
+  if (turns.length >= 2) {
+    const firstTopic = turns[0].user.slice(0, 50)
+    const lastPoint = turns[turns.length - 1].assistant.slice(0, 80)
+    let entities: string[] = []
+    try { entities = require('./graph.ts').findMentionedEntities(turns.map((t: any) => t.user).join(' ')).slice(0, 3) } catch {}
+    const extractive = `讨论了${firstTopic}${entities.length > 0 ? '，涉及' + entities.join('/') : ''}。${lastPoint}`
+    if (extractive.length > 30) {
+      addMemory(`[会话摘要] ${extractive.slice(0, 300)}`, 'consolidated', undefined, 'global')
+      console.log(`[cc-soul][session-summary] extractive: ${extractive.slice(0, 80)}`)
+      return
+    }
+  }
+
   const conversation = turns.map(t => `用户: ${t.user.slice(0, 200)}\n助手: ${t.assistant.slice(0, 200)}`).join('\n\n')
 
   spawnCLI(

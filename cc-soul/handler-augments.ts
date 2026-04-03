@@ -1559,7 +1559,13 @@ export async function buildAndSelectAugments(params: {
   if (isEnabled('behavior_prediction')) {
     const { hitAugment } = checkPredictions(userMsg)
     if (hitAugment) augments.push({ content: hitAugment, priority: 9, tokens: estimateTokens(hitAugment) })
-    generateNewPredictions(memoryState.chatHistory)
+    // A5: intent-weighted PPM — compute intentScore from spectrum and pass to Markov
+    const _spectrum = cog.spectrum ?? { information: 0.5, action: 0.2, emotional: 0.2, validation: 0.1, exploration: 0.2 }
+    const intentScore = Math.max(0.1,
+      ((_spectrum.information ?? 0.5) + (_spectrum.exploration ?? 0.2) - (_spectrum.emotional ?? 0.2) * 0.5) / 2
+    )
+    const intentScores = memoryState.chatHistory.slice(-10).map(() => intentScore)
+    generateNewPredictions(memoryState.chatHistory, intentScores)
   }
 
   // ── 未完成的事追踪 ──

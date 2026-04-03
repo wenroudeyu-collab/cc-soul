@@ -172,6 +172,11 @@ export function rebuildField(memories: Memory[]) {
   const counts = new Array(NUM_DIMS).fill(0)
   let validWaves = 0
 
+  // A2: cognitive drift detection — track recent vs overall
+  const THIRTY_DAYS = 30 * 86400000
+  const recentStrength = new Array(NUM_DIMS).fill(0)
+  let recentCount = 0
+
   for (const mem of memories) {
     if (mem.scope === 'expired' || mem.scope === 'decayed') continue
     const wave = extractWave(mem)
@@ -188,6 +193,14 @@ export function rebuildField(memories: Memory[]) {
       if (wave.dims[d] !== Math.PI / 2) counts[d]++ // 非中性才计数
     }
     validWaves++
+
+    // A2: accumulate recent memories for drift detection
+    if (Date.now() - (wave.ts || 0) < THIRTY_DAYS) {
+      for (let d = 0; d < NUM_DIMS; d++) {
+        recentStrength[d] += wave.amplitude * Math.cos(wave.dims[d]) * decay
+      }
+      recentCount++
+    }
   }
 
   // 归一化场强度到 [-1, 1]
@@ -200,7 +213,18 @@ export function rebuildField(memories: Memory[]) {
     }
   }
 
-  field = { strength, confidence, sampleCount: validWaves, lastUpdated: Date.now() }
+  // A2: compute cognitive drift (internal signal only, not injected as augment)
+  if (recentCount > 0) {
+    for (let d = 0; d < NUM_DIMS; d++) recentStrength[d] /= recentCount
+  }
+  const drift = new Array(NUM_DIMS).fill(0)
+  for (let d = 0; d < NUM_DIMS; d++) {
+    drift[d] = recentStrength[d] - (strength[d] || 0)
+  }
+
+  field = { strength, confidence, sampleCount: validWaves, lastUpdated: Date.now() } as any
+  ;(field as any).drift = drift
+  ;(field as any).recentStrength = recentStrength
   saveField()
   console.log(`[cc-soul][CIN] field rebuilt from ${validWaves} waves`)
 }

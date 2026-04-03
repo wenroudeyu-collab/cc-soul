@@ -422,6 +422,8 @@ function semanticInterference(memContent: string): number {
   let totalSim = 0
   let count = 0
   let contradictionPenalty = 0
+  // A4: build memWords ONCE outside the loop for information gain weighting
+  const memWords = new Set((memContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
   // Check last 100 memories for interference
   const recent = allMems.slice(-100)
   for (const other of recent) {
@@ -430,7 +432,12 @@ function semanticInterference(memContent: string): number {
     const sim = trigramSimilarity(memTri, otherTri)
     if (sim < 0.15) continue  // 降低阈值，捕获更多弱关联
 
-    totalSim += sim
+    // A4: information gain weighted interference — similar but novel content interferes less
+    const otherWords = (other.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+    let newWordCount = 0
+    for (const w of otherWords) { if (!memWords.has(w)) newWordCount++ }
+    const infoGain = otherWords.length > 0 ? newWordCount / otherWords.length : 0
+    totalSim += sim * (1 - infoGain * 0.5)
     count++
 
     // 矛盾记忆额外惩罚

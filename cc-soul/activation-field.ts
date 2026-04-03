@@ -432,6 +432,83 @@ function getAAMNeighborsFn(): typeof _aamGetNeighbors {
   } catch { _aamGetNeighbors = false; return null }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ERF: Entity Resonance Field（实体共振场）— cc-soul 原创
+//
+// 在记忆激活场之外维护一个实体级别的激活场。
+// 查询进来时：实体被激活 → 通过图谱边扩散 → 反向 boost 含相关实体的记忆
+// 解决多跳推理：query→实体A→(图谱边)→实体B→含B的记忆自动浮现
+//
+// 与传统 graph retrieval 的区别：
+//   graph BFS: 离散的"找到/没找到"
+//   ERF: 连续的激活值 0-1，远的实体弱激活、近的强激活
+// ═══════════════════════════════════════════════════════════════
+
+// 实体激活值缓存（每次查询重建）
+let _erfCache: Map<string, number> | null = null
+
+/**
+ * 构建实体共振场：从查询中提取实体，通过图谱边扩散
+ * @returns entity → activation value [0, 1]
+ */
+function buildEntityResonanceField(query: string, memories: Memory[]): Map<string, number> {
+  const erf = new Map<string, number>()
+
+  try {
+    const graph = require('./graph.ts')
+    if (!graph.findMentionedEntities || !graph.getRelatedEntities) return erf
+
+    // Step 1: 从查询中找实体 → 激活值 1.0
+    const queryEntities = graph.findMentionedEntities(query) as string[]
+    for (const e of queryEntities) erf.set(e, 1.0)
+
+    // 也从查询关键词里找（防止实体提取遗漏）
+    const queryWords = (query.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+    for (const w of queryWords) {
+      if (!erf.has(w) && graph.findMentionedEntities(w).length > 0) {
+        erf.set(w, 0.8)
+      }
+    }
+
+    if (erf.size === 0) return erf
+
+    // Step 2: 通过图谱边扩散（2 跳，衰减 0.5/0.25）
+    const hop1 = graph.getRelatedEntities([...erf.keys()], 1, 20) as string[]
+    for (const e of hop1) {
+      if (!erf.has(e)) erf.set(e, 0.5)  // 1-hop: 50% 激活
+    }
+
+    const hop2 = graph.getRelatedEntities(hop1, 1, 15) as string[]
+    for (const e of hop2) {
+      if (!erf.has(e)) erf.set(e, 0.25)  // 2-hop: 25% 激活
+    }
+  } catch {}
+
+  return erf
+}
+
+/**
+ * 从 ERF 获取记忆的实体共振分数
+ * 记忆中包含的实体在 ERF 中越活跃，分数越高
+ */
+function getEntityResonance(mem: Memory, erf: Map<string, number>): number {
+  if (erf.size === 0) return 0
+  const content = mem.content || ''
+  let totalResonance = 0
+  let entityCount = 0
+
+  for (const [entity, activation] of erf) {
+    if (content.includes(entity)) {
+      totalResonance += activation
+      entityCount++
+    }
+  }
+
+  // 归一化：多个实体命中比单个更强，但有收益递减
+  if (entityCount === 0) return 0
+  return Math.min(0.5, totalResonance * 0.15 * Math.sqrt(entityCount))
+}
+
 function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string): number {
   const hasTags = mem.tags && mem.tags.length > 0
   const myTags = hasTags ? new Set(mem.tags!.map(t => t.toLowerCase())) : new Set<string>()
@@ -499,7 +576,14 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
     }
   }
 
-  return Math.min(0.5, totalSpread)  // cap at 0.5 避免雪球效应
+  // ── Path C: Entity Resonance Field（实体共振场）──
+  // ERF 在 computeActivationField 中预建，通过 _erfCache 传递
+  if (_erfCache && _erfCache.size > 0) {
+    const erfBoost = getEntityResonance(mem, _erfCache)
+    if (erfBoost > 0) totalSpread += erfBoost
+  }
+
+  return Math.min(0.6, totalSpread)  // cap 从 0.5 提到 0.6（ERF 贡献空间）
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -624,6 +708,10 @@ export function computeActivationField(
 
   // 构建动态 IDF 缓存（一次性，供 contextMatch 使用）
   _idfCache = buildIdfCache(memories)
+
+  // 构建实体共振场（ERF）— 一次性，供 spreadingActivation Path C 使用
+  _erfCache = buildEntityResonanceField(query, memories)
+
   const results: ActivationResult[] = []
   const currentTop: Memory[] = []  // 用于干扰抑制
 
