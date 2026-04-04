@@ -21,14 +21,14 @@ import { notifyOwnerDM } from './notify.ts'
 import { taskState } from './tasks.ts'
 import { trackQuality } from './quality.ts'
 import { getSessionState, getLastActiveSessionKey } from './handler-state.ts'
-import { updateFingerprint, checkPersonaConsistency } from './fingerprint.ts'
+// fingerprint.ts removed
 // ── New module hooks (optional, loaded async) ──
 let trackPersonaStyle: (text: string, personaId: string) => void = () => {}
 let updateBeliefFromMessage: (user: string, bot: string) => void = () => {}
 let trackRecallImpact: (contents: string[], score: number) => void = () => {}
 let getActivePersona: () => { id: string } | null = () => null
 import('./persona-drift.ts').then(m => { trackPersonaStyle = m.trackPersonaStyle }).catch((e: any) => { console.error(`[cc-soul] module load failed (persona-drift): ${e.message}`) })
-import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage }).catch((e: any) => { console.error(`[cc-soul] module load failed (theory-of-mind): ${e.message}`) })
+import('./person-model.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage }).catch((e: any) => { console.error(`[cc-soul] module load failed (person-model/tom): ${e.message}`) })
 import('./memory.ts').then(m => { trackRecallImpact = m.trackRecallImpact }).catch((e: any) => { console.error(`[cc-soul] module load failed (memory): ${e.message}`) })
 import('./persona.ts').then(m => { getActivePersona = m.getActivePersona }).catch((e: any) => { console.error(`[cc-soul] module load failed (persona): ${e.message}`) })
 
@@ -241,11 +241,6 @@ export function createCcSoulContextEngine() {
           executeMemoryCommands(memCommands, _state.lastSenderId)
         }
       }
-
-      // Fingerprint update
-      updateFingerprint(botResponse)
-      const drift = checkPersonaConsistency(botResponse)
-      if (drift) console.log(`[cc-soul][fingerprint] ${drift}`)
 
       // Full post-response analysis
       runPostResponseAnalysis(userMsg, botResponse, (result) => {
@@ -508,9 +503,6 @@ export function createCcSoulContextEngine() {
             executeMemoryCommands(memCommands, _state.lastSenderId)
           }
         }
-
-        // Fingerprint update
-        updateFingerprint(botResponse)
 
         // Full post-response analysis (async, fire-and-forget)
         runPostResponseAnalysis(userMsg, botResponse, (result) => {

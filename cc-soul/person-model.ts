@@ -544,7 +544,7 @@ export function distillPersonModel() {
   }
 
   // ── Reasoning profile: evidence, certainty, disagreement (正则提取)
-  //    style 维度委托给 CIN D3（删除正则版，避免重复）
+  //    style 维度通过正则推理（evidence/certainty/disagreement）
   // (fine phase only — needs substantial conversation data)
   if (phase === 'fine') {
     if (!personModel.reasoningProfile?._counts) {
@@ -559,8 +559,7 @@ export function distillPersonModel() {
     try { currentDomain = require('./epistemic.ts').detectDomain(msgs[msgs.length - 1] || '') || 'general' } catch {}
 
     for (const m of msgs) {
-      // style 维度：不再用正则，委托 CIN D3
-      // Evidence preference（保留）
+      // Evidence preference
       if (/\d+%|\d+\.\d|数据|指标|metrics|stat/i.test(m)) rc.evidence.data = (rc.evidence.data || 0) + 1
       if (/就像|好比|类似|like\s|similar\sto|好像.*一样|打个比方/i.test(m)) rc.evidence.analogy = (rc.evidence.analogy || 0) + 1
       // Certainty（保留）
@@ -574,14 +573,6 @@ export function distillPersonModel() {
     }
     const pick = (counts: Record<string, number>) => { const e = Object.entries(counts); if (e.length === 0) return 'unknown'; e.sort((a, b) => b[1] - a[1]); return e[0][1] >= 10 ? (e.length > 1 && e[1][1] > e[0][1] * 0.6 ? 'mixed' : e[0][0]) : 'unknown' }
     if (rc.total >= 10) {
-      // style 从 CIN D3 获取（如果可用）
-      try {
-        const cin = require('./cin.ts')
-        const wave = cin.getLatestWave?.()
-        if (wave?.D3 !== undefined) {
-          rp.style = (wave.D3 > 0.3 ? 'conclusion_first' : wave.D3 < -0.3 ? 'buildup' : 'unknown') as any
-        }
-      } catch {}
       rp.evidence = pick(rc.evidence) as any
       rp.certainty = pick(rc.certainty) as any
       rp.disagreement = pick(rc.disagreement) as any
@@ -732,4 +723,235 @@ export function getUnifiedUserContext(msg: string, userId?: string): string | nu
 
   if (sections.length === 0) return null
   return '[用户理解]\n' + sections.join('\n')
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// THEORY OF MIND — 用户认知模型（merged from theory-of-mind.ts）
+// Tracks beliefs, misconceptions, frustrations, goals via rule-based detection.
+// Persisted to data/theory_of_mind.json.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const TOM_PATH = resolve(DATA_DIR, 'theory_of_mind.json')
+const MAX_BELIEFS = 100
+const MAX_KNOWLEDGE = 200
+const MAX_FRUSTRATIONS = 20
+const MAX_GOALS = 20
+
+interface Belief {
+  value: string
+  confidence: number
+  source: string
+  ts: number
+}
+
+type KnowledgeLevel = 'knows' | 'unsure' | 'misconception'
+
+interface KnowledgeEntry {
+  topic: string
+  level: KnowledgeLevel
+  detail?: string
+  ts: number
+}
+
+interface ToMState {
+  model: {
+    beliefs: Record<string, Belief>
+    knowledge: Record<string, KnowledgeEntry>
+    goals: string[]
+    frustrations: string[]
+  }
+  corrections: { topic: string; correctInfo: string; ts: number }[]
+  recentTopics: { topic: string; ts: number }[]
+}
+
+let tomState: ToMState = {
+  model: { beliefs: {}, knowledge: {}, goals: [], frustrations: [] },
+  corrections: [],
+  recentTopics: [],
+}
+
+let _tomLoaded = false
+function ensureToMLoaded() {
+  if (_tomLoaded) return
+  _tomLoaded = true
+  const loaded = loadJson<ToMState>(TOM_PATH, {
+    model: { beliefs: {}, knowledge: {}, goals: [], frustrations: [] },
+    corrections: [],
+    recentTopics: [],
+  })
+  tomState = loaded
+  if (!tomState.model) tomState.model = { beliefs: {}, knowledge: {}, goals: [], frustrations: [] }
+  if (!tomState.model.beliefs) tomState.model.beliefs = {}
+  if (!tomState.model.knowledge) tomState.model.knowledge = {}
+  if (!tomState.model.goals) tomState.model.goals = []
+  if (!tomState.model.frustrations) tomState.model.frustrations = []
+  if (!tomState.corrections) tomState.corrections = []
+  if (!tomState.recentTopics) tomState.recentTopics = []
+}
+
+function persistToM() { debouncedSave(TOM_PATH, tomState) }
+
+// ── Pattern tables ──
+
+const BELIEF_PATTERNS: { regex: RegExp; extractor: (m: RegExpMatchArray) => { key: string; value: string } }[] = [
+  { regex: /我以为(.+?)(?:[，。！？]|$)/, extractor: (m) => ({ key: m[1].trim().slice(0, 30), value: `用户以为：${m[1].trim()}` }) },
+  { regex: /我觉得(.+?)(?:[，。！？]|$)/, extractor: (m) => ({ key: m[1].trim().slice(0, 30), value: `用户认为：${m[1].trim()}` }) },
+  { regex: /难道不是(.+?)(?:[？?]|$)/, extractor: (m) => ({ key: m[1].trim().slice(0, 30), value: `用户质疑：难道不是${m[1].trim()}` }) },
+  { regex: /I (?:thought|think|believe|assumed)\s+(.+?)(?:[.,!?]|$)/i, extractor: (m) => ({ key: m[1].trim().slice(0, 30), value: `User believes: ${m[1].trim()}` }) },
+  { regex: /isn't it\s+(.+?)(?:[?]|$)/i, extractor: (m) => ({ key: m[1].trim().slice(0, 30), value: `User questions: isn't it ${m[1].trim()}` }) },
+]
+
+const FRUSTRATION_PATTERNS = [
+  /为什么(总是|又|还是|一直)/, /太(慢|烦|复杂|难用)了/, /搞不(懂|定|明白)/, /受不了/,
+  /why (does it|is it) (always|still|again)/i, /so (frustrat|annoy|confus)/i, /doesn't (work|make sense)/i,
+]
+
+const GOAL_PATTERNS: { regex: RegExp; extractor: (m: RegExpMatchArray) => string }[] = [
+  { regex: /我想(要)?(.+?)(?:[，。！？]|$)/, extractor: (m) => m[2].trim() },
+  { regex: /我需要(.+?)(?:[，。！？]|$)/, extractor: (m) => m[1].trim() },
+  { regex: /帮我(.+?)(?:[，。！？]|$)/, extractor: (m) => m[1].trim() },
+  { regex: /I want to\s+(.+?)(?:[.,!?]|$)/i, extractor: (m) => m[1].trim() },
+  { regex: /I need\s+(.+?)(?:[.,!?]|$)/i, extractor: (m) => m[1].trim() },
+]
+
+function bayesianBeliefConfidence(existing: number | undefined, isReinforced: boolean): number {
+  const prior = existing ?? 0.5
+  return isReinforced ? prior + (1 - prior) * 0.2 : prior * 0.6
+}
+
+// ── Core API ──
+
+export function updateBeliefFromMessage(msg: string, botReply: string): void {
+  if (!msg) return
+  ensureToMLoaded()
+
+  // 1. Beliefs
+  for (const pat of BELIEF_PATTERNS) {
+    const match = msg.match(pat.regex)
+    if (match) {
+      const { key, value } = pat.extractor(match)
+      const existing = tomState.model.beliefs[key]
+      tomState.model.beliefs[key] = {
+        value,
+        confidence: existing ? bayesianBeliefConfidence(existing.confidence, true) : 0.5,
+        source: 'user_stated',
+        ts: Date.now(),
+      }
+    }
+  }
+
+  // 2. Frustrations
+  for (const pat of FRUSTRATION_PATTERNS) {
+    if (pat.test(msg)) {
+      const snippet = msg.slice(0, 60)
+      if (!tomState.model.frustrations.includes(snippet)) {
+        tomState.model.frustrations.push(snippet)
+        if (tomState.model.frustrations.length > MAX_FRUSTRATIONS) tomState.model.frustrations.shift()
+      }
+      break
+    }
+  }
+
+  // 3. Goals
+  for (const pat of GOAL_PATTERNS) {
+    const match = msg.match(pat.regex)
+    if (match) {
+      const goal = pat.extractor(match)
+      if (goal.length > 2 && !tomState.model.goals.includes(goal)) {
+        tomState.model.goals.push(goal)
+        if (tomState.model.goals.length > MAX_GOALS) tomState.model.goals.shift()
+      }
+    }
+  }
+
+  // 4. Correction detection → misconception
+  const correctionPatterns = [/实际上/, /其实/, /不是.*而是/, /纠正/, /actually/i, /correction/i, /that's not quite right/i]
+  for (const pat of correctionPatterns) {
+    if (pat.test(botReply)) {
+      const topic = msg.slice(0, 30).trim()
+      tomState.corrections.push({ topic, correctInfo: botReply.slice(0, 100), ts: Date.now() })
+      if (tomState.corrections.length > 50) tomState.corrections.shift()
+
+      for (const beliefKey of Object.keys(tomState.model.beliefs)) {
+        if (topic.includes(beliefKey) || beliefKey.includes(topic.slice(0, 10))) {
+          tomState.model.beliefs[beliefKey].confidence =
+            bayesianBeliefConfidence(tomState.model.beliefs[beliefKey].confidence, false)
+        }
+      }
+
+      tomState.model.knowledge[topic] = { topic, level: 'misconception', detail: botReply.slice(0, 100), ts: Date.now() }
+      break
+    }
+  }
+
+  // 5. Topic tracking for knowledge gap detection
+  const topicKey = msg.replace(/^(请问|你好|hey|hi|hello|帮我|我想|能不能)\s*/i, '').replace(/[？?！!。.，,]+$/, '').trim().slice(0, 20)
+  if (topicKey) {
+    tomState.recentTopics.push({ topic: topicKey, ts: Date.now() })
+    if (tomState.recentTopics.length > 30) tomState.recentTopics.shift()
+    const recent10 = tomState.recentTopics.slice(-10)
+    const count = recent10.filter((t) => t.topic === topicKey).length
+    if (count >= 3 && tomState.model.knowledge[topicKey]?.level !== 'misconception') {
+      tomState.model.knowledge[topicKey] = { topic: topicKey, level: 'unsure', detail: `User asked about "${topicKey}" ${count} times recently`, ts: Date.now() }
+    }
+  }
+
+  // Cap sizes
+  const beliefKeys = Object.keys(tomState.model.beliefs)
+  if (beliefKeys.length > MAX_BELIEFS) {
+    const now = Date.now()
+    const sorted = beliefKeys.sort((a, b) => {
+      const ba = tomState.model.beliefs[a], bb = tomState.model.beliefs[b]
+      return ((bb?.confidence ?? 0.5) * Math.exp(-(now - (bb?.ts || 0)) / (30 * 86400000))) -
+             ((ba?.confidence ?? 0.5) * Math.exp(-(now - (ba?.ts || 0)) / (30 * 86400000)))
+    })
+    for (let i = MAX_BELIEFS; i < sorted.length; i++) delete tomState.model.beliefs[sorted[i]]
+  }
+  const knowledgeKeys = Object.keys(tomState.model.knowledge)
+  if (knowledgeKeys.length > MAX_KNOWLEDGE) {
+    const sorted = knowledgeKeys.sort((a, b) => (tomState.model.knowledge[a]?.ts || 0) - (tomState.model.knowledge[b]?.ts || 0))
+    for (let i = 0; i < sorted.length - MAX_KNOWLEDGE; i++) delete tomState.model.knowledge[sorted[i]]
+  }
+
+  persistToM()
+}
+
+export function detectMisconception(msg: string): string | null {
+  if (!msg) return null
+  ensureToMLoaded()
+  if (tomState.corrections.length === 0) return null
+  const lower = msg.toLowerCase()
+  for (const c of tomState.corrections) {
+    const topicLower = c.topic.toLowerCase()
+    if (topicLower.length > 3 && lower.includes(topicLower)) {
+      if (/我以为|我觉得|难道不是|i think|i thought|isn't it/i.test(msg)) {
+        return `用户可能仍然认为关于"${c.topic}"的错误信息。上次纠正：${c.correctInfo}`
+      }
+    }
+  }
+  return null
+}
+
+export function getToMContext(): string {
+  ensureToMLoaded()
+  const parts: string[] = []
+  const misconceptions = Object.values(tomState.model.knowledge).filter((k) => k.level === 'misconception')
+  if (misconceptions.length > 0) {
+    parts.push(`[用户曾有的错误认知]\n${misconceptions.slice(-3).map((k) => `- ${k.topic}: ${k.detail || ''}`).join('\n')}`)
+  }
+  const gaps = Object.values(tomState.model.knowledge).filter((k) => k.level === 'unsure')
+  if (gaps.length > 0) {
+    parts.push(`[用户不太确定的领域]\n${gaps.slice(-3).map((k) => `- ${k.topic}`).join('\n')}`)
+  }
+  const beliefs = Object.values(tomState.model.beliefs).sort((a, b) => b.ts - a.ts).slice(0, 3)
+  if (beliefs.length > 0) {
+    parts.push(`[用户当前信念]\n${beliefs.map((b) => `- ${b.value}`).join('\n')}`)
+  }
+  if (tomState.model.frustrations.length > 0) {
+    parts.push(`[用户感到沮丧的事]\n${tomState.model.frustrations.slice(-3).map((f) => `- ${f}`).join('\n')}`)
+  }
+  if (tomState.model.goals.length > 0) {
+    parts.push(`[用户目标]\n${tomState.model.goals.slice(-3).map((g) => `- ${g}`).join('\n')}`)
+  }
+  return parts.join('\n')
 }

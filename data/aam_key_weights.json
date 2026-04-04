@@ -1,14 +1,14 @@
 {
   "weights": {
     "lexical": 3,
-    "temporal": 2.8955678936588014,
-    "emotional": 2.8955678936588014,
-    "entity": 2.8955678936588014,
-    "behavioral": 2.2637119291058663,
-    "factual": 2.9978111843364292,
-    "causal": 2.2637119291058663,
-    "sequence": 2.2637119291058663
+    "temporal": 3,
+    "emotional": 3,
+    "entity": 3,
+    "behavioral": 2.7922902186013365,
+    "factual": 3,
+    "causal": 2.7922902186013365,
+    "sequence": 2.7922902186013365
   },
-  "feedbackCount": 198,
-  "lastUpdated": 1775339380497
+  "feedbackCount": 263,
+  "lastUpdated": 1775343085000
 }

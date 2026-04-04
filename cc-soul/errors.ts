@@ -11,7 +11,7 @@ export type ErrorCategory = 'retryable' | 'fatal' | 'degraded'
 
 const RETRYABLE_PATTERNS = /timeout|ETIMEDOUT|ECONNREFUSED|ECONNRESET|SQLITE_BUSY|rate.?limit|ENOTFOUND|socket hang up/i
 const FATAL_PATTERNS = /TypeError|ReferenceError|SyntaxError|Cannot read|is not a function|is not defined|required|validation failed/i
-const DEGRADABLE_CONTEXTS = ['body', 'persona', 'emotion', 'flow', 'epistemic', 'behavior', 'deep-understand', 'cin', 'avatar', 'fingerprint', 'absence', 'prospective', 'lorebook']
+const DEGRADABLE_CONTEXTS = ['body', 'persona', 'emotion', 'flow', 'epistemic', 'behavior', 'deep-understand', 'cin', 'avatar', 'absence', 'prospective', 'lorebook']
 
 export function classifyError(err: any, context: string): ErrorCategory {
   const msg = err?.message || String(err)

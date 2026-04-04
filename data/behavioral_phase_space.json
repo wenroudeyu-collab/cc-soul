@@ -2,294 +2,294 @@
   "trajectory": [
     {
       "topic": "闲聊",
-      "mood": 0.0006331333137472306,
+      "mood": 0.04028923609964784,
       "engagement": 0.5,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716221
+      "timeSlot": "late_night",
+      "ts": 1775343043004
     },
     {
       "topic": "闲聊",
-      "mood": 0.1667709485193055,
+      "mood": 0.10374654611107065,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716240
+      "timeSlot": "late_night",
+      "ts": 1775343043030
     },
     {
       "topic": "闲聊",
-      "mood": 0.00827467439304485,
+      "mood": 0.013814108704328757,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716256
+      "timeSlot": "late_night",
+      "ts": 1775343043053
     },
     {
       "topic": "闲聊",
-      "mood": -0.15585334347976576,
+      "mood": -0.07439379317390155,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716271
+      "timeSlot": "late_night",
+      "ts": 1775343043079
     },
     {
       "topic": "闲聊",
-      "mood": 0.022463765838454896,
+      "mood": 0.11474222546098421,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716287
+      "timeSlot": "late_night",
+      "ts": 1775343043104
     },
     {
       "topic": "闲聊",
-      "mood": -0.02853964767424175,
+      "mood": 0.08530884943673928,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716296
+      "timeSlot": "late_night",
+      "ts": 1775343043121
     },
     {
       "topic": "闲聊",
-      "mood": -0.0028448283755260796,
+      "mood": 0.12373533847423339,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716305
+      "timeSlot": "late_night",
+      "ts": 1775343043137
     },
     {
       "topic": "闲聊",
-      "mood": -0.12720458683392827,
+      "mood": -0.0711558392889972,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312716314
+      "timeSlot": "late_night",
+      "ts": 1775343043154
     },
     {
       "topic": "python",
-      "mood": 0.10322694806888762,
+      "mood": 0.09545800994494279,
       "engagement": 0.5,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312838905
+      "timeSlot": "late_night",
+      "ts": 1775343066548
     },
     {
       "topic": "闲聊",
-      "mood": -0.018229331091307265,
+      "mood": -0.043475047188030774,
       "engagement": 0.5,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312838922
+      "timeSlot": "late_night",
+      "ts": 1775343066572
     },
     {
       "topic": "闲聊",
-      "mood": -0.2994891375433911,
+      "mood": -0.10957221817099488,
       "engagement": 0.5,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312838936
+      "timeSlot": "late_night",
+      "ts": 1775343066591
     },
     {
       "topic": "闲聊",
-      "mood": 0.010116990509028947,
+      "mood": 0.05543427118353543,
       "engagement": 0.5,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312838948
+      "timeSlot": "late_night",
+      "ts": 1775343066610
     },
     {
       "topic": "闲聊",
-      "mood": -0.09318645938067778,
+      "mood": 0.08547790356671375,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312838967
+      "timeSlot": "late_night",
+      "ts": 1775343066633
     },
     {
       "topic": "闲聊",
-      "mood": 0.03938195341620917,
+      "mood": -0.026680874647304037,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312838983
+      "timeSlot": "late_night",
+      "ts": 1775343066661
     },
     {
       "topic": "闲聊",
-      "mood": 0.11454974619577044,
+      "mood": -0.07813291073100812,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312839000
+      "timeSlot": "late_night",
+      "ts": 1775343066685
     },
     {
       "topic": "闲聊",
-      "mood": -0.13987626598471617,
+      "mood": 0.10066871041728898,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312839017
+      "timeSlot": "late_night",
+      "ts": 1775343066709
     },
     {
       "topic": "闲聊",
-      "mood": 0.05014663275828537,
+      "mood": -0.07316883185799496,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312839031
+      "timeSlot": "late_night",
+      "ts": 1775343066727
     },
     {
       "topic": "闲聊",
-      "mood": 0.0031158107106005646,
+      "mood": 0.04061928686766876,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312839040
+      "timeSlot": "late_night",
+      "ts": 1775343066742
     },
     {
       "topic": "闲聊",
-      "mood": -0.00004837227039729969,
+      "mood": 0.049050496011666195,
       "engagement": 0.3,
       "style": "balanced",
-      "timeSlot": "afternoon",
-      "ts": 1775312839050
+      "timeSlot": "late_night",
+      "ts": 1775343066758
     },
     {
       "topic": "python",
-      "mood": -0.09498370630407747,
+      "mood": -0.043567842570433286,
       "engagement": 0.5,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380321
+      "ts": 1775343084773
     },
     {
       "topic": "闲聊",
-      "mood": -0.04915731946881312,
+      "mood": -0.07788489708284496,
       "engagement": 0.5,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380343
+      "ts": 1775343084797
     },
     {
       "topic": "闲聊",
-      "mood": -0.43493397675376855,
+      "mood": -0.2145970530259955,
       "engagement": 0.5,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380358
+      "ts": 1775343084816
     },
     {
       "topic": "闲聊",
-      "mood": 0.12073355092214323,
+      "mood": -0.10871496410058812,
       "engagement": 0.5,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380372
+      "ts": 1775343084833
     },
     {
       "topic": "闲聊",
-      "mood": -0.13075724764882724,
+      "mood": 0.0545693713755615,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380393
+      "ts": 1775343084855
     },
     {
       "topic": "闲聊",
-      "mood": -0.006559608510307902,
+      "mood": -0.04020076407531986,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380411
+      "ts": 1775343084875
     },
     {
       "topic": "闲聊",
-      "mood": -0.04440158256035893,
+      "mood": 0.02286026096552079,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380429
+      "ts": 1775343084898
     },
     {
       "topic": "闲聊",
-      "mood": 0.0760543027528936,
+      "mood": -0.016035179814345043,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380446
+      "ts": 1775343084923
     },
     {
       "topic": "闲聊",
-      "mood": -0.054969189406948823,
+      "mood": 0.04150886144839897,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380458
+      "ts": 1775343084946
     },
     {
       "topic": "闲聊",
-      "mood": 0.10751087224773347,
+      "mood": 0.029260817620855435,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380469
+      "ts": 1775343084962
     },
     {
       "topic": "闲聊",
-      "mood": -0.10378166402133616,
+      "mood": -0.18917379972971193,
       "engagement": 0.3,
       "style": "balanced",
       "timeSlot": "late_night",
-      "ts": 1775339380479
+      "ts": 1775343084979
     }
   ],
   "domainBeliefs": {
     "闲聊": {
-      "alpha": 731,
-      "beta": 7.6999999999999895,
-      "lastSeen": 1775339380480
+      "alpha": 861,
+      "beta": 8.999999999999986,
+      "lastSeen": 1775343084979
     },
     "python": {
-      "alpha": 44,
-      "beta": 76.29999999999994,
-      "lastSeen": 1775339380321
+      "alpha": 57,
+      "beta": 89.2999999999992,
+      "lastSeen": 1775343084773
     },
     "swift": {
       "alpha": 2,
-      "beta": 66.10000000000052,
+      "beta": 80.39999999999971,
       "lastSeen": 1775057475158
     },
     "general": {
       "alpha": 10,
-      "beta": 65.00000000000058,
+      "beta": 79.29999999999977,
       "lastSeen": 1775094794764
     },
     "ios-reverse": {
       "alpha": 2,
-      "beta": 63.50000000000063,
+      "beta": 77.79999999999986,
       "lastSeen": 1775078662329
     },
     "career": {
       "alpha": 2,
-      "beta": 63.40000000000063,
+      "beta": 77.69999999999986,
       "lastSeen": 1775078679461
     },
     "咨询": {
       "alpha": 3,
-      "beta": 58.60000000000056,
+      "beta": 72.90000000000013,
       "lastSeen": 1775083866192
     },
     "tech": {
       "alpha": 2,
-      "beta": 58.60000000000056,
+      "beta": 72.90000000000013,
       "lastSeen": 1775081773619
     },
     "rust": {
       "alpha": 9,
-      "beta": 39.800000000000296,
+      "beta": 54.1000000000005,
       "lastSeen": 1775113924062
     },
     "javascript": {
       "alpha": 2,
-      "beta": 19.600000000000012,
+      "beta": 33.90000000000021,
       "lastSeen": 1775115646371
     }
   },
@@ -303,10 +303,10 @@
                 "children": {},
                 "counts": {
                   "general": 23,
-                  "闲聊": 4637,
+                  "闲聊": 5638,
                   "ios-reverse": 20
                 },
-                "total": 4680,
+                "total": 5681,
                 "escape": 0
               },
               "general": {
@@ -327,11 +327,11 @@
               }
             },
             "counts": {
-              "闲聊": 5389,
+              "闲聊": 6533,
               "general": 29,
               "ios-reverse": 22
             },
-            "total": 5440,
+            "total": 6584,
             "escape": 0
           },
           "general": {
@@ -370,11 +370,11 @@
           }
         },
         "counts": {
-          "闲聊": 6158,
+          "闲聊": 7445,
           "general": 32,
           "ios-reverse": 23
         },
-        "total": 6213,
+        "total": 7500,
         "escape": 0
       },
       "general": {
@@ -431,794 +431,14 @@
       }
     },
     "counts": {
-      "闲聊": 6223,
+      "闲聊": 7510,
       "general": 32,
       "ios-reverse": 23
     },
-    "total": 6278,
+    "total": 7565,
     "escape": 0
   },
   "observations": [
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.06798244377988699,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "morning",
-        "ts": 1775116531083
-      },
-      "reaction": "satisfied",
-      "ts": 1775116531125
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.1547941377808359,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "morning",
-        "ts": 1775116531149
-      },
-      "reaction": "neutral",
-      "ts": 1775116531167
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.10342784186504507,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "morning",
-        "ts": 1775116531174
-      },
-      "reaction": "neutral",
-      "ts": 1775116531195
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.04168041611561747,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "morning",
-        "ts": 1775116531537
-      },
-      "reaction": "satisfied",
-      "ts": 1775116531708
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.04168041611561747,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "morning",
-        "ts": 1775116531537
-      },
-      "reaction": "corrected",
-      "ts": 1775116531712
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.10443316071593084,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "morning",
-        "ts": 1775116555848
-      },
-      "reaction": "neutral",
-      "ts": 1775116571357
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.01776964368400409,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137543996
-      },
-      "reaction": "satisfied",
-      "ts": 1775137544036
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.2595746502789113,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137544056
-      },
-      "reaction": "neutral",
-      "ts": 1775137544070
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.10491529249449122,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137544077
-      },
-      "reaction": "neutral",
-      "ts": 1775137544097
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.12281415337528648,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137544417
-      },
-      "reaction": "satisfied",
-      "ts": 1775137544577
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.12281415337528648,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137544417
-      },
-      "reaction": "corrected",
-      "ts": 1775137544585
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.0030135793220775996,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137616415
-      },
-      "reaction": "neutral",
-      "ts": 1775137616499
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.003713392379601589,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137673004
-      },
-      "reaction": "neutral",
-      "ts": 1775137673085
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.05753807311969017,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137686098
-      },
-      "reaction": "neutral",
-      "ts": 1775137686179
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.009724850207204858,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137704402
-      },
-      "reaction": "neutral",
-      "ts": 1775137704485
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.03161347496234691,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137757272
-      },
-      "reaction": "satisfied",
-      "ts": 1775137757311
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.07910020515934452,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137757331
-      },
-      "reaction": "neutral",
-      "ts": 1775137757344
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.15398065341223563,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137757350
-      },
-      "reaction": "neutral",
-      "ts": 1775137757372
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.07956696558921911,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137757699
-      },
-      "reaction": "satisfied",
-      "ts": 1775137757859
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.07956696558921911,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137757699
-      },
-      "reaction": "corrected",
-      "ts": 1775137757863
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.1825705938126064,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137780997
-      },
-      "reaction": "neutral",
-      "ts": 1775137781074
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.025089574984799252,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775137835744
-      },
-      "reaction": "neutral",
-      "ts": 1775137835821
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.023519576747446317,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775138113867
-      },
-      "reaction": "satisfied",
-      "ts": 1775138113908
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.110904136814851,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775138113929
-      },
-      "reaction": "neutral",
-      "ts": 1775138113942
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.11410029865042783,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775138113948
-      },
-      "reaction": "neutral",
-      "ts": 1775138114234
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.19890776665799825,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775138114568
-      },
-      "reaction": "satisfied",
-      "ts": 1775138114733
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.19890776665799825,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775138114568
-      },
-      "reaction": "corrected",
-      "ts": 1775138114738
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.13480270390048077,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775139021508
-      },
-      "reaction": "neutral",
-      "ts": 1775139021590
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.28211566593307835,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775139063202
-      },
-      "reaction": "neutral",
-      "ts": 1775139063283
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.22617355933212194,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775139339233
-      },
-      "reaction": "neutral",
-      "ts": 1775139339313
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.021642693709632475,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775163930643
-      },
-      "reaction": "neutral",
-      "ts": 1775163930726
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.004038657189111637,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775163957365
-      },
-      "reaction": "neutral",
-      "ts": 1775163957438
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.22388539514581773,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164090226
-      },
-      "reaction": "neutral",
-      "ts": 1775164090306
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.02588612764671922,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164240320
-      },
-      "reaction": "neutral",
-      "ts": 1775164240393
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.03018141084165398,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164761225
-      },
-      "reaction": "satisfied",
-      "ts": 1775164761267
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.2174859531663453,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164761298
-      },
-      "reaction": "neutral",
-      "ts": 1775164761558
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.060236629187042805,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164761566
-      },
-      "reaction": "neutral",
-      "ts": 1775164761604
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.1920599732132543,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164761941
-      },
-      "reaction": "satisfied",
-      "ts": 1775164762109
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.1920599732132543,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164761941
-      },
-      "reaction": "corrected",
-      "ts": 1775164762114
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.05030139502715673,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164783057
-      },
-      "reaction": "satisfied",
-      "ts": 1775164783093
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.25197060277464567,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164783114
-      },
-      "reaction": "neutral",
-      "ts": 1775164783126
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.017116190625313703,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164783131
-      },
-      "reaction": "neutral",
-      "ts": 1775164783373
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.032400266596436106,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164783710
-      },
-      "reaction": "satisfied",
-      "ts": 1775164783876
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.032400266596436106,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775164783710
-      },
-      "reaction": "corrected",
-      "ts": 1775164783880
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.1665205871064384,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775165083251
-      },
-      "reaction": "satisfied",
-      "ts": 1775165083288
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.16423562519236853,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775165083307
-      },
-      "reaction": "neutral",
-      "ts": 1775165083320
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.07676065767883204,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775165083325
-      },
-      "reaction": "neutral",
-      "ts": 1775165083344
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.03844692809598982,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775165083683
-      },
-      "reaction": "satisfied",
-      "ts": 1775165083850
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.03844692809598982,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775165083683
-      },
-      "reaction": "corrected",
-      "ts": 1775165083854
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.07165444513496469,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775166224364
-      },
-      "reaction": "neutral",
-      "ts": 1775166224448
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.26755340227362123,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775167839827
-      },
-      "reaction": "neutral",
-      "ts": 1775167839905
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.18899121427264554,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775167894731
-      },
-      "reaction": "neutral",
-      "ts": 1775167894807
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.08388965527152083,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775167934232
-      },
-      "reaction": "neutral",
-      "ts": 1775167934308
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.14361760123924755,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775167954831
-      },
-      "reaction": "neutral",
-      "ts": 1775167954908
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.24346948952344216,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775168413980
-      },
-      "reaction": "neutral",
-      "ts": 1775168414058
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.058334567024092426,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775168550763
-      },
-      "reaction": "neutral",
-      "ts": 1775168550834
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.04788687970563844,
-        "engagement": 0.5,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775170404597
-      },
-      "reaction": "satisfied",
-      "ts": 1775170404638
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.06181859619805244,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775170404660
-      },
-      "reaction": "neutral",
-      "ts": 1775170404675
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.044493400759061386,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775170404682
-      },
-      "reaction": "neutral",
-      "ts": 1775170404704
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.15250387521561393,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775170405066
-      },
-      "reaction": "satisfied",
-      "ts": 1775170405236
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.15250387521561393,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775170405066
-      },
-      "reaction": "corrected",
-      "ts": 1775170405240
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": 0.018090526198642265,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775171727691
-      },
-      "reaction": "neutral",
-      "ts": 1775171727762
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.11727191045239581,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "late_night",
-        "ts": 1775173182492
-      },
-      "reaction": "neutral",
-      "ts": 1775173182574
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.020877680889997058,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775225587467
-      },
-      "reaction": "neutral",
-      "ts": 1775225587495
-    },
-    {
-      "state": {
-        "topic": "闲聊",
-        "mood": -0.08561348663118314,
-        "engagement": 0.3,
-        "style": "balanced",
-        "timeSlot": "afternoon",
-        "ts": 1775225599167
-      },
-      "reaction": "neutral",
-      "ts": 1775225599191
-    },
     {
       "state": {
         "topic": "闲聊",
@@ -1638,6 +858,786 @@
       },
       "reaction": "corrected",
       "ts": 1775339380497
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.032164956558903585,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342115083
+      },
+      "reaction": "satisfied",
+      "ts": 1775342115098
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.16657588169397897,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342115119
+      },
+      "reaction": "neutral",
+      "ts": 1775342115144
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.07510470266778108,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342115151
+      },
+      "reaction": "neutral",
+      "ts": 1775342115165
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.016740840014716485,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342115201
+      },
+      "reaction": "satisfied",
+      "ts": 1775342115215
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.016740840014716485,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342115201
+      },
+      "reaction": "corrected",
+      "ts": 1775342115219
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.05415868844397071,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342197068
+      },
+      "reaction": "satisfied",
+      "ts": 1775342197081
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.2704122584196081,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342197101
+      },
+      "reaction": "neutral",
+      "ts": 1775342197113
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.059854932644464225,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342197119
+      },
+      "reaction": "neutral",
+      "ts": 1775342197134
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.11157319432622922,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342197167
+      },
+      "reaction": "satisfied",
+      "ts": 1775342197180
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.11157319432622922,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342197167
+      },
+      "reaction": "corrected",
+      "ts": 1775342197185
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.19831641508581052,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342613800
+      },
+      "reaction": "satisfied",
+      "ts": 1775342613818
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.004091749946345122,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342613839
+      },
+      "reaction": "neutral",
+      "ts": 1775342613851
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.18286967459451783,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342613857
+      },
+      "reaction": "neutral",
+      "ts": 1775342613871
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.030211956458738008,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342613902
+      },
+      "reaction": "satisfied",
+      "ts": 1775342613914
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.030211956458738008,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342613902
+      },
+      "reaction": "corrected",
+      "ts": 1775342613918
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.09511690262678872,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342622013
+      },
+      "reaction": "satisfied",
+      "ts": 1775342622026
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.09383723158234925,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342622046
+      },
+      "reaction": "neutral",
+      "ts": 1775342622058
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.20622118881526602,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342622064
+      },
+      "reaction": "neutral",
+      "ts": 1775342622089
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.005781939756691421,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342622126
+      },
+      "reaction": "satisfied",
+      "ts": 1775342622138
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.005781939756691421,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342622126
+      },
+      "reaction": "corrected",
+      "ts": 1775342622141
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.030396784791213296,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342638999
+      },
+      "reaction": "satisfied",
+      "ts": 1775342639013
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.06539311302032155,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342639034
+      },
+      "reaction": "neutral",
+      "ts": 1775342639047
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.011721505151586452,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342639053
+      },
+      "reaction": "neutral",
+      "ts": 1775342639065
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.0213910796192134,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342639112
+      },
+      "reaction": "satisfied",
+      "ts": 1775342639126
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.0213910796192134,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342639112
+      },
+      "reaction": "corrected",
+      "ts": 1775342639130
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.028612830589086806,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342643238
+      },
+      "reaction": "satisfied",
+      "ts": 1775342643251
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.012295004001155643,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342643270
+      },
+      "reaction": "neutral",
+      "ts": 1775342643281
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.029702468487925793,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342643286
+      },
+      "reaction": "neutral",
+      "ts": 1775342643301
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.12575450357379134,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342643338
+      },
+      "reaction": "satisfied",
+      "ts": 1775342643351
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.12575450357379134,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342643338
+      },
+      "reaction": "corrected",
+      "ts": 1775342643355
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.12247918054636951,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342698873
+      },
+      "reaction": "satisfied",
+      "ts": 1775342698887
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.07786233569885014,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342698908
+      },
+      "reaction": "neutral",
+      "ts": 1775342698919
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.06538124164291892,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342698925
+      },
+      "reaction": "neutral",
+      "ts": 1775342698940
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.2162328626304443,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342698976
+      },
+      "reaction": "satisfied",
+      "ts": 1775342698990
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.2162328626304443,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342698976
+      },
+      "reaction": "corrected",
+      "ts": 1775342698994
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.008981702258789937,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342844617
+      },
+      "reaction": "satisfied",
+      "ts": 1775342844636
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.21109000882212087,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342844665
+      },
+      "reaction": "neutral",
+      "ts": 1775342844681
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.12403663532080295,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342844691
+      },
+      "reaction": "neutral",
+      "ts": 1775342844707
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.10213193145878424,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342844765
+      },
+      "reaction": "satisfied",
+      "ts": 1775342844780
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.10213193145878424,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342844765
+      },
+      "reaction": "corrected",
+      "ts": 1775342844784
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.01864252764224286,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342964115
+      },
+      "reaction": "satisfied",
+      "ts": 1775342964131
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.1456719957141522,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342964161
+      },
+      "reaction": "neutral",
+      "ts": 1775342964175
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.01808385837828491,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342964185
+      },
+      "reaction": "neutral",
+      "ts": 1775342964202
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.04241098564725028,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342964259
+      },
+      "reaction": "satisfied",
+      "ts": 1775342964274
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.04241098564725028,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342964259
+      },
+      "reaction": "corrected",
+      "ts": 1775342964278
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.12695253773667214,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342997049
+      },
+      "reaction": "satisfied",
+      "ts": 1775342997066
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.009577739023986995,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342997097
+      },
+      "reaction": "neutral",
+      "ts": 1775342997113
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.08904899505347713,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342997121
+      },
+      "reaction": "neutral",
+      "ts": 1775342997137
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.09520766779457697,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342997192
+      },
+      "reaction": "satisfied",
+      "ts": 1775342997208
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.09520766779457697,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775342997192
+      },
+      "reaction": "corrected",
+      "ts": 1775342997211
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.04028923609964784,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343043004
+      },
+      "reaction": "satisfied",
+      "ts": 1775343043022
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.013814108704328757,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343043053
+      },
+      "reaction": "neutral",
+      "ts": 1775343043069
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.07439379317390155,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343043079
+      },
+      "reaction": "neutral",
+      "ts": 1775343043097
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.0711558392889972,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343043154
+      },
+      "reaction": "satisfied",
+      "ts": 1775343043170
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.0711558392889972,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343043154
+      },
+      "reaction": "corrected",
+      "ts": 1775343043173
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.05543427118353543,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343066610
+      },
+      "reaction": "satisfied",
+      "ts": 1775343066626
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.026680874647304037,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343066661
+      },
+      "reaction": "neutral",
+      "ts": 1775343066676
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.07813291073100812,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343066685
+      },
+      "reaction": "neutral",
+      "ts": 1775343066702
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.049050496011666195,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343066758
+      },
+      "reaction": "satisfied",
+      "ts": 1775343066774
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.049050496011666195,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343066758
+      },
+      "reaction": "corrected",
+      "ts": 1775343066777
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.10871496410058812,
+        "engagement": 0.5,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343084833
+      },
+      "reaction": "satisfied",
+      "ts": 1775343084849
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.04020076407531986,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343084875
+      },
+      "reaction": "neutral",
+      "ts": 1775343084889
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": 0.02286026096552079,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343084898
+      },
+      "reaction": "neutral",
+      "ts": 1775343084915
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.18917379972971193,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343084979
+      },
+      "reaction": "satisfied",
+      "ts": 1775343084995
+    },
+    {
+      "state": {
+        "topic": "闲聊",
+        "mood": -0.18917379972971193,
+        "engagement": 0.3,
+        "style": "balanced",
+        "timeSlot": "late_night",
+        "ts": 1775343084979
+      },
+      "reaction": "corrected",
+      "ts": 1775343085000
     }
   ]
 }

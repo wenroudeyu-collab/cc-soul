@@ -20,6 +20,7 @@ import { tokenize } from './memory-utils.ts'
 import { isKnownWord } from './aam.ts'
 import { DATA_DIR, debouncedSave } from './persistence.ts'
 import { resolve } from 'path'
+import { existsSync, readFileSync } from 'fs'
 
 // ── Types ──
 
@@ -293,7 +294,6 @@ function saveDriftState(): void {
 
 function loadDriftState(): void {
   try {
-    const { existsSync, readFileSync } = require('fs')
     if (existsSync(STATE_FILE)) {
       const raw = readFileSync(STATE_FILE, 'utf-8')
       const data = JSON.parse(raw)

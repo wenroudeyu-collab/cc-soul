@@ -21,7 +21,7 @@ const ALWAYS_ON = new Set([
   'relationship_dynamics', 'intent_anticipation', 'plan_tracking',
   'smart_forget', 'context_compress', 'persona_drift', 'persona_drift_detection',
   'a2a', 'theory_of_mind', 'predictive_memory', 'scenario_shortcut',
-  'context_reminder', 'fingerprint', 'auto_time_travel',
+  'context_reminder', 'auto_time_travel',
   'persona_splitting', 'emotional_contagion',
   'lorebook', 'skill_library',
   'emotional_arc', 'metacognition', 'autonomous_goals', 'cron_agent',

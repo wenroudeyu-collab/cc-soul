@@ -2,7 +2,7 @@ import { resolve } from 'path'
 import { existsSync, writeFileSync } from 'fs'
 import type { SoulModule } from './brain.ts'
 import { getParam } from './auto-tune.ts'
-import { trigrams, trigramSimilarity } from './memory-utils.ts'
+import { trigrams, trigramSimilarity, detectPolarityFlip, WORD_PATTERN, TRIGRAM_THRESHOLD } from './memory-utils.ts'
 import { DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
 import { logDecision } from './decision-log.ts'
 import { emitCacheEvent } from './memory-utils.ts'
@@ -78,6 +78,12 @@ export function fsrsUpdate(state: FSRSState, rating: 1 | 2 | 3 | 4, elapsedDays:
     // Difficulty increases on failure
     s.difficulty = Math.max(0, Math.min(1, s.difficulty + 0.1 * (2 - rating)))
   }
+
+  // Accumulate training data for personalization
+  try {
+    const { dbAddFSRSTraining } = require('./sqlite-store.ts')
+    dbAddFSRSTraining(elapsedDays, state.stability, rating >= 3)
+  } catch {}
 
   return s
 }
@@ -421,7 +427,7 @@ function semanticInterference(memContent: string): number {
   let count = 0
   let contradictionPenalty = 0
   // A4: build memWords ONCE outside the loop for information gain weighting
-  const memWords = new Set((memContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
+  const memWords = new Set((memContent.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase()))
   // Check last 100 memories for interference
   const recent = allMems.slice(-100)
   for (const other of recent) {
@@ -431,7 +437,7 @@ function semanticInterference(memContent: string): number {
     if (sim < 0.15) continue  // 降低阈值，捕获更多弱关联
 
     // A4: information gain weighted interference — similar but novel content interferes less
-    const otherWords = (other.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+    const otherWords = (other.content.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase())
     let newWordCount = 0
     for (const w of otherWords) { if (!memWords.has(w)) newWordCount++ }
     const infoGain = otherWords.length > 0 ? newWordCount / otherWords.length : 0
@@ -439,8 +445,7 @@ function semanticInterference(memContent: string): number {
     count++
 
     // 矛盾记忆额外惩罚
-    const isContradiction = detectContradictionSignals(memContent, other.content)
-    if (isContradiction) contradictionPenalty += 0.2
+    if (detectPolarityFlip(memContent, other.content)) contradictionPenalty += 0.2
   }
 
   if (count === 0) return 1.0  // 独特记忆，无干扰
@@ -451,21 +456,7 @@ function semanticInterference(memContent: string): number {
   return 1 / (1 + clustering * 0.3)
 }
 
-/** 检测两条记忆之间是否有矛盾信号 */
-function detectContradictionSignals(a: string, b: string): boolean {
-  const CONTRADICTION_PAIRS: [RegExp, RegExp][] = [
-    [/喜欢|爱|偏好/, /讨厌|不喜欢|不想/],
-    [/在.*工作|在.*做/, /离职|辞职|被裁/],
-    [/住在|住/, /搬到|搬去/],
-    [/运动|跑步|健身/, /不运动|不跑|放弃/],
-    [/学|在学/, /不学|放弃/],
-    [/是|用/, /不是|不用|换了/],
-  ]
-  for (const [patA, patB] of CONTRADICTION_PAIRS) {
-    if ((patA.test(a) && patB.test(b)) || (patB.test(a) && patA.test(b))) return true
-  }
-  return false
-}
+// detectContradictionSignals → replaced by detectPolarityFlip from memory-utils.ts
 
 /**
  * @deprecated 使用 decideForget() 替代。此函数保留仅供测试兼容。
@@ -559,30 +550,6 @@ export function computeStructuralImportance(mem: any): number {
   else if (network === 'experience') I *= 0.8              // 经历衰减较快
   // opinion 不加权（由 Bayes C 值控制）
 
-  // ── 人格适配衰减（cc-soul 原创）──
-  // CIN confidence < 0.5 时不调制（样本不够，用默认权重）
-  try {
-    const cinMod = require('./cin.ts')
-    const field = cinMod.getCurrentField?.()
-    if (field && field.confidence > 0.5) {
-      const d3 = field.strength?.[2] ?? 0.5  // D3: 决策风格 (高=分析型, 低=直觉型)
-      const d2 = field.strength?.[1] ?? 0.5  // D2: 社交倾向 (高=社交型)
-
-      const scope = mem.scope || 'fact'
-
-      // 分析型用户：事实/纠正记忆更重要
-      if (d3 > 0.6) {
-        if (scope === 'fact' || scope === 'correction' || scope === 'consolidated') I *= 1.3
-        else if (scope === 'event' || scope === 'emotion') I *= 0.85
-      }
-
-      // 社交/感性用户：情感/事件记忆更重要
-      if (d2 > 0.6) {
-        if (scope === 'event' || scope === 'emotion' || scope === 'gratitude') I *= 1.3
-        else if (scope === 'fact') I *= 0.85
-      }
-    }
-  } catch {}
 
   return Math.max(0.1, I)  // 最小 0.1，防止 graph 空时完全归零
 }
@@ -600,6 +567,14 @@ export function computeContextBinding(mem: any, currentTopics: string[]): number
   const key = (mem.content || '').slice(0, 40) + '|' + mem.ts
   const now = Date.now()
 
+  // OOM protection: evict 2000 weakest bindings when exceeding cap
+  if (_crdBindings.size > 5000) {
+    const sorted = [..._crdBindings.entries()]
+      .sort((a, b) => a[1].bindingStrength - b[1].bindingStrength)
+    const toDelete = 2000
+    for (let i = 0; i < toDelete; i++) _crdBindings.delete(sorted[i][0])
+  }
+
   if (!_crdBindings.has(key)) {
     _crdBindings.set(key, { bindingStrength: 0.5, lastContextMatch: mem.lastAccessed || mem.ts })
   }
@@ -613,8 +588,8 @@ export function computeContextBinding(mem: any, currentTopics: string[]): number
   }
 
   // 话题匹配：记忆内容与 currentTopics 的关键词重叠
-  const memWords = new Set(((mem.content || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
-  const topicWords = new Set(currentTopics.flatMap(t => (t.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())))
+  const memWords = new Set(((mem.content || '').match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase()))
+  const topicWords = new Set(currentTopics.flatMap(t => (t.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase())))
 
   let overlap = 0
   for (const w of memWords) { if (topicWords.has(w)) overlap++ }
@@ -731,8 +706,8 @@ function computeDerivability(mem: MemoryInput): number {
     const { getMentalModel } = require('./distill.ts')
     const model = getMentalModel(mem.userId)
     if (model) {
-      const modelWords = new Set((model.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()))
-      const memWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+      const modelWords = new Set((model.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase()))
+      const memWords = (content.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase())
       let overlap = 0
       for (const w of memWords) if (modelWords.has(w)) overlap++
       if (memWords.length > 0 && overlap / memWords.length > 0.4) d += 0.2
@@ -813,7 +788,7 @@ export function reviveFromGraveyard(query: string, memories: any[], maxRevive: n
     if (!m || m.tier !== 'graveyard') continue
     const memTri = trigrams(m.content || '')
     const sim = trigramSimilarity(queryTri, memTri)
-    if (sim > 0.5) {
+    if (sim > TRIGRAM_THRESHOLD.GRAVEYARD_REVIVE) {
       m.tier = 'short_term'
       m.scope = m._graveyardOriginalScope || 'fact'
       m.fsrs = fsrsInit(m.scope)
@@ -821,7 +796,7 @@ export function reviveFromGraveyard(query: string, memories: any[], maxRevive: n
       delete m._graveyardOriginalScope
       revived.push(m)
       logDecision('revive', (m.content || '').slice(0, 30) + '|' + m.ts,
-        `trigramSim=${sim.toFixed(2)}>0.5, query="${query.slice(0, 20)}"`)
+        `trigramSim=${sim.toFixed(2)}>${TRIGRAM_THRESHOLD.GRAVEYARD_REVIVE}, query="${query.slice(0, 20)}"`)
       if (revived.length >= maxRevive) break
     }
   }

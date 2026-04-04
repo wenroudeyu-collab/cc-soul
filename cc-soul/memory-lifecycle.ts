@@ -20,6 +20,7 @@ import {
 } from './memory.ts'
 import { trigrams, trigramSimilarity, shuffleArray } from './memory-utils.ts'
 import { recall, recallWithScores, invalidateIDF, rebuildRecallIndex, _memLookup } from './memory-recall.ts'
+import { invalidateFieldIDF } from './activation-field.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Memory Consolidation (压缩合并)
@@ -342,6 +343,7 @@ export function consolidateMemories() {
               rebuildRecallIndex(memoryState.memories)
               saveMemories()
               invalidateIDF()
+              invalidateFieldIDF()
               // 巩固后缓存失效：通过事件总线通知所有缓存
               try { const { emitCacheEvent } = require('./memory-utils.ts'); emitCacheEvent('consolidation') } catch {}
               consolidating = false

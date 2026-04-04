@@ -13,7 +13,6 @@ import { getParam } from './auto-tune.ts'
 import {
   sqliteRecall as sqliteRecallAsync, tagRecall as sqliteTagRecall,
   sqliteFindByContent, sqliteUpdateMemory,
-  sqliteRecallByTime as _sqliteRecallByTime,
   isSQLiteReady,
 } from './sqlite-store.ts'
 import { findMentionedEntities, getRelatedEntities, graphWalkRecall } from './graph.ts'
@@ -26,7 +25,7 @@ import {
 import { queryFacts } from './fact-store.ts'
 import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
-  SYNONYM_MAP, onCacheEvent, tokenize as unifiedTokenize,
+  SYNONYM_MAP, onCacheEvent, tokenize as unifiedTokenize, WORD_PATTERN,
 } from './memory-utils.ts'
 import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
 import { positiveEvidence as _posEvidence, negativeEvidence as _negEvidence, confidenceRecallModifier as _confModifier } from './confidence-cascade.ts'
@@ -78,7 +77,7 @@ export const _primingCache = new Map<string, number>()  // word → last mention
 /** 更新启动缓存：从用户消息中提取词，记录提及时间 */
 export function updatePrimingCache(userMsg: string): void {
   const now = Date.now()
-  const words = (userMsg.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+  const words = (userMsg.match(WORD_PATTERN.CJK2_EN3) || [])
   for (const w of words) _primingCache.set(w.toLowerCase(), now)
   // 清理过期条目（>10 分钟）
   if (_primingCache.size > 200) {
@@ -589,7 +588,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     // CMR Layer 1: 词覆盖率（替换 BM25，短文本不需要文档长度归一化）
     const memContent = getContentForRecall(mem)
     const memWords = new Set(
-      (memContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+      (memContent.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase())
     )
 
     if (mem.tags && mem.tags.length > 0) {
@@ -851,7 +850,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       const idfMap = buildIDF()
       const activatedWordWeights = new Map<string, number>()
       for (const act of topActivators) {
-        const words = (act.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+        const words = (act.content.match(WORD_PATTERN.CJK24_EN3) || [])
         for (const w of words) {
           const wl = w.toLowerCase()
           const idfW = idfMap.get(wl) ?? 1.0
@@ -861,7 +860,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       // Boost only top candidates with IDF-weighted activation score
       for (let si = 3; si < spreadLimit; si++) {
         const s = scored[si]
-        const sWords = (s.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+        const sWords = (s.content.match(WORD_PATTERN.CJK24_EN3) || []).map(w => w.toLowerCase())
         let activation = 0
         for (const w of sWords) {
           const wt = activatedWordWeights.get(w)
@@ -881,7 +880,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
   const now = Date.now()
   if (_primingCache.size > 0) {
     for (const s of scored) {
-      const sWords = (s.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      const sWords = (s.content.match(WORD_PATTERN.CJK2_EN3) || []).map(w => w.toLowerCase())
       let primingHits = 0
       for (const w of sWords) {
         const primedAt = _primingCache.get(w)
@@ -1050,7 +1049,14 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       // FSRS 稳定度也受测试效应影响
       if (mem.fsrs) {
         const difficultyBonus = 1 + retrievalDifficulty * 0.5  // 困难召回 → stability 增长更多
-        mem.fsrs.stability *= difficultyBonus
+        try {
+          const { fsrsUpdate } = require('./smart-forget.ts')
+          const ageDays = (Date.now() - (mem.ts || Date.now())) / 86400000
+          const rating = difficultyBonus > 1.2 ? 4 : 3  // hard recall = stronger learning
+          mem.fsrs = fsrsUpdate(mem.fsrs, rating, ageDays)
+        } catch {
+          mem.fsrs.stability *= difficultyBonus  // fallback
+        }
       }
 
       syncToSQLite(mem, { confidence: mem.confidence, recallCount: mem.recallCount, lastAccessed: mem.lastAccessed, lastRecalled: mem.lastRecalled })
@@ -1082,7 +1088,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       // 零 LLM 调用，纯规则提取
       try {
         // 提取 query 和 memory 的共享关键词（这就是"为什么相关"的原因）
-        const memWords = (result.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase())
+        const memWords = (result.content.match(WORD_PATTERN.CJK24_EN3) || []).map((w: string) => w.toLowerCase())
         const sharedWords = memWords.filter((w: string) => queryWords.has(w))
 
         if (sharedWords.length >= 1) {
@@ -1166,40 +1172,6 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
 // ═══════════════════════════════════════════════════════════════════════════════
 // Meta-memory: Tip-of-Tongue recall
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/** 元记忆分级：recalled (确定记得) / tip_of_tongue (有印象但不确定) / not_found */
-export interface MetamemoryResult {
-  memory: Memory
-  score: number
-  state: 'recalled' | 'tip_of_tongue'
-  hint?: string  // tip_of_tongue 时给出模糊提示
-}
-
-export function recallWithMetamemory(msg: string, topN: number = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }): MetamemoryResult[] {
-  // 多检索一些候选
-  const scored = recallWithScores(msg, topN * 3, userId, channelId, moodCtx)
-  const results: MetamemoryResult[] = []
-
-  for (const mem of scored) {
-    if (mem.score > 0.3) {
-      results.push({ memory: mem, score: mem.score, state: 'recalled' })
-    } else if (mem.score > 0.08 && results.length < topN * 2) {
-      // Tip of tongue: 有信号但不确定
-      const topic = (mem.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{4,}/)?.[0]) || '某个话题'
-      results.push({
-        memory: mem,
-        score: mem.score,
-        state: 'tip_of_tongue',
-        hint: `好像聊过${topic}相关的内容`,
-      })
-    }
-  }
-
-  // 确定记得的优先，tip_of_tongue 补充
-  const recalled = results.filter(r => r.state === 'recalled').slice(0, topN)
-  const tipOfTongue = results.filter(r => r.state === 'tip_of_tongue').slice(0, 2)
-  return [...recalled, ...tipOfTongue]
-}
 
 /** Detect if user is explicitly asking about past memories */
 const MEMORY_RECALL_TRIGGERS = /你还记得|你记不记得|之前说过|上次提到|我们聊过|你忘了吗|还记得吗|do you remember|did i mention|we talked about|you forgot/i
@@ -1404,9 +1376,14 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
           original.confidence = Math.min(1.0, (original.confidence ?? 0.7) + 0.02)
         }
 
-        // FSRS stability 更新
+        // FSRS proper update (replaces wild stability *= hack)
         if ((original as any).fsrs) {
-          (original as any).fsrs.stability *= (1 + difficulty * 0.3)
+          try {
+            const { fsrsUpdate } = require('./smart-forget.ts')
+            const ageDays = (Date.now() - (original.ts || Date.now())) / 86400000
+            const rating = difficulty < 0.3 ? 4 : difficulty < 0.7 ? 3 : 2  // easy/good/hard
+            ;(original as any).fsrs = fsrsUpdate((original as any).fsrs, rating, ageDays)
+          } catch {}
         }
 
         syncToSQLite(original, { confidence: original.confidence, recallCount: original.recallCount, lastAccessed: original.lastAccessed, lastRecalled: original.lastRecalled })
@@ -1419,14 +1396,14 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
       const recalledContents = new Set(results.map(r => r.content))
       const recalledWords = new Set<string>()
       for (const r of results) {
-        const words = (r.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+        const words = (r.content.match(WORD_PATTERN.CJK2_EN3) || [])
         for (const w of words) recalledWords.add(w.toLowerCase())
       }
       // 对未被选中但关键词重叠的记忆轻微抑制
       for (const m of memoryState.memories) {
         if (!m || !m.content || recalledContents.has(m.content)) continue
         if (m.scope === 'core_memory' || m.scope === 'correction') continue  // 核心和纠正不抑制
-        const mWords = (m.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+        const mWords = (m.content.match(WORD_PATTERN.CJK2_EN3) || [])
         let overlap = 0
         for (const w of mWords) { if (recalledWords.has(w.toLowerCase())) overlap++ }
         if (overlap >= 3 && mWords.length > 0 && overlap / mWords.length > 0.4) {
@@ -1463,53 +1440,6 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
   // ── Fallback：只在激活场出错时走旧路径 ──
   // 保留 recallWithScores 作为紧急 fallback，但正常情况不会走到这里
   return recallWithScores(msg, topN, userId, channelId, moodCtx).map(({ score, ...rest }) => rest) as Memory[]
-}
-
-/**
- * Time-based memory query: recall memories from a specific time range.
- * Supports natural language shortcuts: 'today', 'yesterday', 'last_week', 'last_month'
- * or explicit {from, to} timestamps.
- */
-export function recallByTime(
-  opts: { range?: 'today' | 'yesterday' | 'last_week' | 'last_month' | 'last_3_days'; from?: number; to?: number; scope?: string; userId?: string; topN?: number }
-): Memory[] {
-  const now = Date.now()
-  const DAY = 86400000
-  let from = opts.from ?? 0
-  let to = opts.to ?? now
-
-  if (opts.range) {
-    switch (opts.range) {
-      case 'today': from = now - DAY; break
-      case 'yesterday': from = now - 2 * DAY; to = now - DAY; break
-      case 'last_3_days': from = now - 3 * DAY; break
-      case 'last_week': from = now - 7 * DAY; break
-      case 'last_month': from = now - 30 * DAY; break
-    }
-  }
-
-  const topN = opts.topN ?? 20
-
-  // Prefer SQLite path: uses idx_mem_scope_ts composite index → O(log n)
-  if (isSQLiteReady()) {
-    try {
-      const sqlResults = _sqliteRecallByTime({ from, to, scope: opts.scope, userId: opts.userId, topN })
-      if (sqlResults.length > 0) return sqlResults
-    } catch { /* fallback to in-memory scan */ }
-  }
-
-  // Fallback: in-memory scan (for compatibility when SQLite unavailable)
-  const results = memoryState.memories.filter(m => {
-    if (m.scope === 'expired' || m.scope === 'decayed') return false
-    if (m.ts < from || m.ts > to) return false
-    if (opts.scope && m.scope !== opts.scope) return false
-    if (opts.userId && m.userId !== opts.userId) return false
-    return true
-  })
-
-  // Sort by timestamp descending (newest first)
-  results.sort((a, b) => b.ts - a.ts)
-  return results.slice(0, topN)
 }
 
 // Cache vector results from async search for synchronous use in next turn
@@ -1606,67 +1536,6 @@ export function getCachedFusedRecall(): Memory[] {
     return []
   }
   return cachedFusedRecall.results
-}
-
-export async function recallFused(msg: string, topN = 3, userId?: string, channelId?: string): Promise<Memory[]> {
-  if (memoryState.memories.length === 0 || !msg) return []
-
-  // Strategy 1: existing text-based recall (tag + trigram + BM25) — with scores for fusion ranking
-  const textResults = recallWithScores(msg, topN * 2, userId, channelId)
-
-  // Vector search removed — activation field handles semantic recall
-  return textResults.slice(0, topN)
-  const fusionMap = new Map<string, { memory: Memory; textScore: number; vecScore: number; sources: number }>()
-
-  // Normalize scores relative to each strategy's top result
-  const maxTextScore = textResults[0]?.score || 1
-  const maxVecScore = (vectorResults[0] as any)?.score || 1
-
-  for (const m of textResults) {
-    const key = m.content + '|' + m.ts
-    fusionMap.set(key, {
-      memory: m,
-      textScore: (m.score || 0) / maxTextScore,
-      vecScore: 0,
-      sources: 1,
-    })
-  }
-
-  for (const m of vectorResults) {
-    const key = m.content + '|' + m.ts
-    const existing = fusionMap.get(key)
-    if (existing) {
-      existing.vecScore = ((m as any).score || 0) / maxVecScore
-      existing.sources = 2
-    } else {
-      fusionMap.set(key, {
-        memory: m,
-        textScore: 0,
-        vecScore: ((m as any).score || 0) / maxVecScore,
-        sources: 1,
-      })
-    }
-  }
-
-  // Final score: weighted sum + multi-source agreement bonus
-  const fused = Array.from(fusionMap.values())
-    .map(entry => {
-      const textWeight = getParam('memory.fusion_text_weight')    // 0.5
-      const vecWeight = getParam('memory.fusion_vec_weight')      // 0.5
-      const baseScore = entry.textScore * textWeight + entry.vecScore * vecWeight
-      // Ensemble bonus: boost if found by both text and vector methods
-      const multiSourceBoost = entry.sources >= 2 ? getParam('memory.fusion_multi_source_boost') : 1.0  // 1.3
-      return {
-        memory: entry.memory,
-        fusedScore: baseScore * multiSourceBoost,
-      }
-    })
-    .sort((a, b) => b.fusedScore - a.fusedScore)
-    .slice(0, topN)
-
-  const fusedMemories = fused.map(f => f.memory)
-  cachedFusedRecall = { query: msg, results: fusedMemories, ts: Date.now() }
-  return fusedMemories
 }
 
 let idfInvalidateCount = 0

@@ -16,7 +16,7 @@ import { notifySoulActivity } from './notify.ts'
 import { spawnCLI, queueLLMTask } from './cli.ts'
 import { extractJSON } from './utils.ts'
 import { getParam } from './auto-tune.ts'
-import { appendAudit } from './audit.ts'
+// audit.ts removed
 import { detectDomain } from './epistemic.ts'
 
 // ── Bayesian utilities ──
@@ -192,7 +192,6 @@ export function addRule(rule: string, source: string) {
     cause: source.includes('纠正') || source.includes('correction') ? source.slice(0, 80) : undefined,
     conditions: conditions.length > 0 ? conditions : undefined,
   })
-  appendAudit('rule_add', `${rule.slice(0, 100)} (src: ${source.slice(0, 50)})`)
 
   // Correction generalization: if domain has 2+ rules, create a broader rule
   generalizeRules(rule)
@@ -340,7 +339,6 @@ function _verifyHypothesisInner(situation: string, wasCorrect: boolean) {
     if (wasCorrect && h.verifyCount >= 3 && h.status === 'active') {
       h.status = 'verified'
       addRule(h.description, 'hypothesis_solidified')
-      appendAudit('rule_solidified', h.description.slice(0, 150))
       console.log(`[cc-soul][evolve] 规则固化: ${h.description.slice(0, 40)} (验证${h.verifyCount}次)`)
       notifySoulActivity(`🔒 规则固化: ${h.description.slice(0, 40)}`).catch(() => {}) // intentionally silent
       continue
@@ -589,7 +587,6 @@ export function importEvolutionAssets(filePath: string): { rulesAdded: number; h
   }
 
   console.log(`[cc-soul][gep] imported ${rulesAdded} rules + ${hypothesesAdded} hypotheses from ${filePath}`)
-  appendAudit('gep_import', `rules:+${rulesAdded} hypotheses:+${hypothesesAdded} from ${filePath}`)
 
   return { rulesAdded, hypothesesAdded }
 }

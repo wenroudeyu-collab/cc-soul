@@ -17,6 +17,8 @@ import { memoryState, addMemory, buildCoreMemoryContext } from './memory.ts'
 import { spawnCLI } from './cli.ts'
 import type { Memory } from './types.ts'
 import { logDecision } from './decision-log.ts'
+import { WORD_PATTERN } from './memory-utils.ts'
+import { detectPolarityFlip } from './memory-utils.ts'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PATHS & CONSTANTS
@@ -548,8 +550,8 @@ export function distillL2toL3() {
 
         // 变更检测：如果新旧内容几乎相同则跳过
         if (currentContent !== '（空）' && currentContent.length > 0) {
-          const oldWords = new Set((currentContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
-          const newWords = new Set((newContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase()))
+          const oldWords = new Set((currentContent.match(WORD_PATTERN.CJK2_EN3) || []).map(w => w.toLowerCase()))
+          const newWords = new Set((newContent.match(WORD_PATTERN.CJK2_EN3) || []).map(w => w.toLowerCase()))
           let overlap = 0
           for (const w of oldWords) { if (newWords.has(w)) overlap++ }
           const sim = overlap / Math.max(1, Math.max(oldWords.size, newWords.size))
@@ -840,7 +842,7 @@ export function getDistillStats() {
  *
  * cc-soul 原创核心算法 — P1b
  */
-function zeroLLMDistill(memories: string[]): string {
+export function zeroLLMDistill(memories: string[]): string {
   const parts: string[] = []
 
   // ── 第一层：fact-store 结构化三元组提取 ──
@@ -915,13 +917,12 @@ function zeroLLMDistill(memories: string[]): string {
     parts.push(behaviors.join('；'))
   }
 
-  // ── 第四层：时序矛盾检测 ──
-  // 简单版：检测同主题的极性翻转
+  // ── 第四层：时序矛盾检测（使用共享 detectPolarityFlip）──
   for (let i = 0; i < memories.length; i++) {
     for (let j = i + 1; j < memories.length; j++) {
       const a = memories[i], b = memories[j]
-      if (/喜欢|爱/.test(a) && /讨厌|不喜欢/.test(b)) {
-        // 检查是否关于同一实体
+      if (detectPolarityFlip(a, b)) {
+        // 检查是否关于同一实体（共享词）
         const wordsA = new Set((a.match(/[\u4e00-\u9fff]{2,4}/g) || []))
         const wordsB = new Set((b.match(/[\u4e00-\u9fff]{2,4}/g) || []))
         let shared = 0
@@ -931,8 +932,7 @@ function zeroLLMDistill(memories: string[]): string {
           // P6c: 矛盾检测 → 降低较早记忆的 Bayes 可信度
           try {
             const { penalizeTruthfulness } = require('./smart-forget.ts')
-            // 找到对应的 Memory 对象并降低可信度
-            const olderContent = a  // memories 数组中 i < j，a 是较早的
+            const olderContent = a
             const matchedMem = memoryState.memories.find((m: any) => m && m.content === olderContent)
             if (matchedMem) {
               penalizeTruthfulness(matchedMem, `矛盾检测：与"${b.slice(0, 20)}"冲突`)
@@ -950,7 +950,7 @@ function zeroLLMDistill(memories: string[]): string {
     const STOP_WORDS = new Set('的了是在我你他她它不有这那就也和但都要会可以如果因为所以然后已经还没到被把从用于关于对于提到'.match(/[\u4e00-\u9fff]/g) || [])
     const allWords = new Map<string, number>()
     for (const content of memories) {
-      const words = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      const words = (content.match(WORD_PATTERN.CJK24_EN3) || []).map(w => w.toLowerCase())
       for (const w of words) {
         // 过滤：纯停用字组成的词（如"的了"、"是在"）
         const chars = w.match(/[\u4e00-\u9fff]/g) || []
@@ -1027,7 +1027,7 @@ function memoryPMISimilarity(memContent: string, nodeText: string): number {
 function assignMemoryToNode(memContent: string, nodes: TopicNode[], userId?: string): TopicNode | null {
   let best: TopicNode | null = null, bestScore = 0
   for (const n of nodes) {
-    if (n.userId !== userId) continue
+    if (userId && n.userId && n.userId !== userId) continue
     const score = memoryPMISimilarity(memContent, `${n.topic} ${n.summary}`)
     if (score > bestScore) { bestScore = score; best = n }
   }

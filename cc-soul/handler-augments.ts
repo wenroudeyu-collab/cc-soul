@@ -7,12 +7,12 @@
 import type { Augment, Memory } from './types.ts'
 import type { SessionState } from './handler-state.ts'
 import { stats, getPrivacyMode, CJK_WORD_REGEX, metricsRecordAugmentTokens } from './handler-state.ts'
-import { onCacheEvent } from './memory-utils.ts'
+import { onCacheEvent, WORD_PATTERN } from './memory-utils.ts'
 import { brain } from './brain.ts'
 import { estimateTokens, selectAugments, checkNarrativeCacheTTL } from './prompt-builder.ts'
 import { isEnabled } from './features.ts'
 import {
-  memoryState, recall, addMemory, recallFused, getCachedFusedRecall,
+  memoryState, recall, addMemory, getCachedFusedRecall,
   getPendingSearchResults, predictiveRecall,
   buildCoreMemoryContext, buildEpisodeContext, buildWorkingMemoryContext,
   getMemoriesByScope, generatePrediction,
@@ -23,7 +23,7 @@ import { innerState, peekPendingFollowUps, checkActivePlans } from './inner-life
 import { body, bodyGetParams, getEmotionContext, getEmotionalArcContext, getEmotionAnchorWarning, getMoodState, isTodayMoodAllLow } from './body.ts'
 import { getRelevantRules } from './evolution.ts'
 import { getValueContext, recordConflict, getConflictContext } from './values.ts'
-import { getProfileContext, getRhythmContext, getProfile, getProfileTier, getRelationshipContext } from './user-profiles.ts'
+import { getProfileContext, getRhythmContext, getProfile, getRelationshipContext } from './user-profiles.ts'
 import { getDomainConfidence, detectDomain, popBlindSpotQuestion } from './epistemic.ts'
 import { getPersonModel, getUnifiedUserContext } from './person-model.ts'
 // blindSpots analysis now done inline (no heartbeat dependency)
@@ -37,9 +37,9 @@ import { getEvolutionSummary } from './evolution.ts'
 import { processIngestion } from './rag.ts'
 import { getBlendedPersonaOverlay } from './persona.ts'
 import { checkAugmentConsistency, getConflictResolutions, snapshotAugments } from './metacognition.ts'
-import { getCachedDriftWarning } from './fingerprint.ts'
+// fingerprint.ts removed
 import { getParam } from './auto-tune.ts'
-import { getBestPattern } from './patterns.ts'
+// patterns.ts removed
 import { detectConversationPace } from './cognition.ts'
 import { checkPredictions, generateNewPredictions, getBehaviorPrediction, getTimeSlotPrediction, isDecisionQuestion, predictUserDecision } from './behavioral-phase-space.ts'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
@@ -556,139 +556,6 @@ export function detectInjection(msg: string): boolean {
     /override\s+(system|safety)/i,
   ]
   return patterns.some(p => p.test(msg))
-}
-
-/**
- * Generates a context-aware 举一反三 augment based on message content and type.
- */
-/** @deprecated 已被 facts 驱动的参考信息替代。保留函数签名防止外部引用报错 */
-function buildExtraThinkAugment(msg: string, attentionType: string, senderId?: string): Augment | null {
-  return null  // 永久移除：600行硬编码正则被 facts 驱动替代
-  if (attentionType === 'correction') return null
-  // casual/emotional: still generate hints but at lower priority (was: return null)
-  const isSoft = attentionType === 'casual' || attentionType === 'emotional'
-
-  const tier = senderId ? getProfileTier(senderId) : 'new'
-  const m = msg.toLowerCase()
-  const hints: string[] = []
-
-  // ── Domain-specific hints ──
-  if (/python|\.py|pip |pip3|venv|conda|django|flask|fastapi|pandas|numpy/.test(m)) {
-    hints.push('Python 相关：注意提醒 with 语句管理资源、大数据用生成器/流式、GIL 对多线程的影响、类型标注')
-  }
-  if (/javascript|node\.?js|npm|yarn|pnpm|react|vue|typescript|\.ts |\.js /.test(m)) {
-    hints.push('JS/TS 相关：注意 async/await 错误处理、内存泄漏、bundle size、类型安全')
-  }
-  if (/swift|objc|objective-c|xcode|ios|macos|uikit|swiftui|cocoa|mach-o|dyld/.test(m)) {
-    hints.push('Apple 平台：注意内存管理(ARC循环引用)、主线程UI、后台任务限制、签名/Entitlements')
-  }
-  if (/ida|frida|hook|逆向|反编译|砸壳|签名|越狱|arm64|汇编|二进制/.test(m)) {
-    hints.push('逆向相关：注意反调试检测、ASLR偏移、符号strip情况、版本差异')
-  }
-  if (/sql|数据库|mysql|postgres|sqlite|redis|mongo|查询|索引/.test(m)) {
-    hints.push('数据库：注意 SQL 注入防护、索引优化、大表操作锁表风险、备份策略')
-  }
-  if (/docker|k8s|kubernetes|部署|deploy|ci\/cd|github action|nginx|服务器/.test(m)) {
-    hints.push('部署相关：注意安全组/端口暴露、环境变量管理、日志持久化、健康检查')
-  }
-  if (/git |git$|merge|rebase|branch|commit|pull request|pr /.test(m)) {
-    hints.push('Git 相关：注意 force push 风险、大文件(用LFS)、敏感信息泄漏(.env)')
-  }
-  if (/api|http|request|fetch|curl|axios|网络|接口|url|webhook/.test(m)) {
-    hints.push('网络相关：注意超时设置、重试策略、认证token过期处理、CORS')
-  }
-  if (/文件|读取|写入|open\(|fopen|读写|csv|json|xml|yaml|解析/.test(m)) {
-    hints.push('文件操作：注意编码(utf-8)、大文件流式处理、文件锁、异常时关闭句柄')
-  }
-  if (/ai|机器学习|深度学习|模型|训练|推理|llm|gpt|claude|prompt|embedding|微调|fine.?tun/.test(m)) {
-    hints.push('AI/ML：注意模型选型性价比、token成本控制、prompt注入防护、幻觉风险、本地vs云端部署取舍')
-  }
-  if (/linux|ubuntu|centos|shell|bash|zsh|命令行|终端|terminal|chmod|cron|systemd|ssh/.test(m)) {
-    hints.push('Linux：注意权限最小化原则、定时任务日志、SSH密钥而非密码、systemd比nohup可靠')
-  }
-  if (/设计模式|架构|重构|解耦|微服务|单体|monolith|pattern|solid|dry|kiss/.test(m)) {
-    hints.push('架构：注意过度设计风险、先跑起来再优化、微服务不是银弹、团队规模决定架构复杂度')
-  }
-
-  // ── 非技术领域 ──
-  if (/面试|简历|跳槽|涨薪|升职|离职|offer|工作|职场|老板|同事|加班|996|年终|绩效|kpi|晋升/.test(m)) {
-    hints.push('职场：注意谈薪技巧（先让对方出价）、背调范围、竞业协议陷阱、离职证明、社保断缴影响')
-  }
-  if (/理财|投资|基金|股票|房|贷款|利率|信用卡|保险|养老|公积金|存款|收益|定投|etf/.test(m)) {
-    hints.push('理财：注意风险承受能力匹配、分散投资、手续费/管理费隐性成本、税务影响、流动性需求')
-  }
-  if (/健康|减肥|健身|运动|饮食|卡路里|体重|跑步|睡眠|失眠|营养|蛋白质|碳水|脂肪|体检|医院/.test(m)) {
-    hints.push('健康：注意循序渐进防受伤、饮食比运动重要（7分吃3分练）、基础代谢不要压太低、体检项目按年龄选')
-  }
-  if (/学习|考试|考研|留学|英语|雅思|托福|课程|大学|认证|培训|自学|教程|刷题|备考/.test(m)) {
-    hints.push('学习：注意刻意练习>重复阅读、费曼技巧检验理解、真题>模拟题、时间管理（番茄钟/时间块）、注意备考心态')
-  }
-  if (/旅游|旅行|出行|机票|酒店|签证|攻略|自驾|高铁|行程|景点|民宿|出差|航班/.test(m)) {
-    hints.push('旅行：注意淡旺季价差、提前看退改政策、买旅游险、目的地实时政策/天气、电话卡/支付方式准备')
-  }
-  if (/买|推荐|选购|评测|性价比|预算|品牌|款|型号|配置|手机|电脑|耳机|显示器|键盘/.test(m)) {
-    hints.push('选购：注意明确核心需求再选（别被参数绑架）、看真实用户评价不看营销文、售后/保修很重要、等促销节点')
-  }
-  if (/做饭|菜谱|食谱|烹饪|炒菜|烤|蒸|煮|食材|调料|外卖|餐厅|好吃|厨房/.test(m)) {
-    hints.push('做饭：注意火候是灵魂（大火爆炒vs小火慢炖）、提前腌制提味、食材新鲜度判断、批量备菜省时间')
-  }
-  if (/朋友|女朋友|男朋友|对象|相亲|恋爱|分手|吵架|沟通|婆媳|父母|孩子|育儿|社交/.test(m)) {
-    hints.push('人际：注意先处理情绪再处理事情、非暴力沟通（观察-感受-需要-请求）、边界感很重要、别在情绪上头时做决定')
-  }
-  if (/法律|合同|维权|劳动法|纠纷|赔偿|仲裁|起诉|律师|版权|专利|知识产权|违约/.test(m)) {
-    hints.push('法律：注意保留证据（聊天记录/录音/转账记录）、注意诉讼时效、劳动仲裁不收费、合同看违约条款和管辖法院')
-  }
-  if (/租房|买房|房东|中介|合租|押金|装修|物业|小区|户型|楼层|朝向|学区|过户/.test(m)) {
-    hints.push('房产：注意合同细节（押金退还条件/维修责任）、实地看房不同时段、周边配套和通勤时间、中介费谈判空间')
-  }
-  if (/猫|狗|宠物|铲屎|猫粮|狗粮|疫苗|绝育|驱虫|宠物医院/.test(m)) {
-    hints.push('宠物：注意按时疫苗驱虫、绝育利大于弊、人食不等于宠物食（葡萄/巧克力有毒）、选靠谱宠物医院比省钱重要')
-  }
-
-  // ── General pattern hints ──
-  if (hints.length === 0) {
-    if (/怎么|如何|how to|how do/.test(m)) {
-      hints.push('用户在问"怎么做"，先想想有没有更好的方案，有就先推荐')
-    }
-    if (/还是|vs|对比|区别|选哪|哪个好|比较/.test(m)) {
-      hints.push('用户在做选择，给出明确推荐和理由，不要说"各有优劣"')
-    }
-    if (/你觉得|建议|推荐|应该|值得|有必要|划算|worth/.test(m)) {
-      hints.push('用户想要建议，给明确观点+理由，不要两边都说好')
-    }
-    if (/怎么办|咋办|救|完蛋|出问题|坏了|不行|失败|搞不定/.test(m)) {
-      hints.push('用户遇到问题，先给最快解法，再补充预防措施避免下次再遇到')
-    }
-    if (msg.length > 100) {
-      hints.push('用户说了很多，注意补充边界情况、替代方案、潜在风险')
-    }
-  }
-
-  const toneGuide = tier === 'owner'
-    ? ''
-    : '（注意：这个用户不是主人，回答要耐心友好，不要吐槽问题太简单，基础问题也要认真回答+补充。）'
-
-  const countGuide = isSoft ? '1-2' : '3'
-  const priority = isSoft ? 11 : 9
-
-  if (hints.length === 0) {
-    if (isSoft) return null  // pure casual with no domain hit → skip
-    // Format instruction already in SOUL.md top section — only remind briefly here
-    return {
-      content: `[举一反三] 补充 ${countGuide} 条实用信息（常见坑/注意事项/更好方案）。` + toneGuide,
-      priority,
-      tokens: 40,
-    }
-  }
-
-  // Only provide direction hints — format is defined once in SOUL.md top section
-  const content = `[举一反三] 参考方向：` + hints.join('；') + '。' + toneGuide
-
-  return {
-    content,
-    priority,
-    tokens: estimateTokens(content),
-  }
 }
 
 /**
@@ -1505,7 +1372,7 @@ export async function buildAndSelectAugments(params: {
     // 只看内容像问题的记忆（含 ? 或以"如何/怎么"开头，或 topic scope）
     // 提取用户消息关键词
     const userKeywords = new Set(
-      (userMsg.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      (userMsg.match(WORD_PATTERN.CJK24_EN3) || []).map(w => w.toLowerCase())
     )
     // 先用关键词快速过滤（避免 5000+ 条全做 trigram）
     const candidates = memoryState.memories.filter(m => {
@@ -1525,7 +1392,7 @@ export async function buildAndSelectAugments(params: {
       const memTri = trigrams(cleanContent)
       let sim = trigramSimilarity(userTri, memTri)
       // 关键词交集 bonus
-      const memKws = (cleanContent.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      const memKws = (cleanContent.match(WORD_PATTERN.CJK24_EN3) || []).map(w => w.toLowerCase())
       sim += memKws.filter(w => userKeywords.has(w)).length * 0.1
       if (sim > 0.3 && (!bestRepeat || sim > bestRepeat.sim)) {
         bestRepeat = { mem, sim }
@@ -1603,14 +1470,6 @@ export async function buildAndSelectAugments(params: {
     }
   }
 
-  // Success pattern hint
-  if (senderId) {
-    const patternHint = getBestPattern(userMsg, senderId)
-    if (patternHint) {
-      augments.push({ content: patternHint, priority: 7, tokens: estimateTokens(patternHint) })
-    }
-  }
-
   // Cognition hints
   if (cog.hints.length > 0) {
     const content = '[认知] ' + cog.hints.join('; ')
@@ -1684,17 +1543,6 @@ export async function buildAndSelectAugments(params: {
     if (isEnabled('skill_library')) autoCreateSkill(skillHint, userMsg)
   }
 
-  // CIN — Cognitive Interference Network (原创核心算法：理解层+预测层)
-  try {
-    const { getCINAugment, updateFieldIncremental } = await import('./cin.ts')
-    // 增量更新认知场
-    for (const mem of recalled.slice(0, 5)) updateFieldIncremental(mem)
-    // 获取认知预测 augment
-    const cinHint = getCINAugment(userMsg, recalled, body.mood)
-    if (cinHint) {
-      augments.push({ content: cinHint, priority: 9, tokens: estimateTokens(cinHint) })
-    }
-  } catch {}
 
   // Behavior engine — situational pattern matching (原创，竞品没有)
   // Priority arbitration: behavior engine's style hints override persona's tone hints
@@ -2050,14 +1898,6 @@ export async function buildAndSelectAugments(params: {
     if (anchorWarning) emotionParts.push(anchorWarning)
     if (emotionParts.length > 0) {
       augments.push({ content: emotionParts.join('\n'), priority: 8, tokens: estimateTokens(emotionParts.join('\n')) })
-    }
-  }
-
-  // Soul fingerprint drift warning
-  {
-    const driftWarning = getCachedDriftWarning()
-    if (driftWarning) {
-      augments.push({ content: driftWarning, priority: 8, tokens: estimateTokens(driftWarning) })
     }
   }
 

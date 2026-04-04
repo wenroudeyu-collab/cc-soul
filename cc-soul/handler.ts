@@ -56,7 +56,7 @@ import { notifySoulActivity, notifyOwnerDM } from './notify.ts'
 import { body, bodyTick, bodyOnMessage, bodyOnCorrection, bodyOnPositiveFeedback, bodyGetParams, processEmotionalContagion, getEmotionContext, loadBodyState, loadMoodHistory, getEmotionalArcContext, getEmotionSummary, emotionVector, generateMoodReport, trackEmotionAnchor } from './body.ts'
 import {
   memoryState, loadMemories, addMemory, addMemoryWithEmotion,
-  recall, recallFused, getCachedFusedRecall, invalidateIDF, addToHistory, buildHistoryContext,
+  recall, getCachedFusedRecall, invalidateIDF, addToHistory, buildHistoryContext,
   batchTagUntaggedMemories, consolidateMemories,
   recallFeedbackLoop, triggerSessionSummary,
   triggerAssociativeRecall, getAssociativeRecall,
@@ -113,10 +113,10 @@ import('./smart-forget.ts').then(m => { smartForgetSweep = m.smartForgetSweep })
 // cron-agent import removed
 import('./context-compress.ts').then(m => { compressAugments = m.compressAugments }).catch((e: any) => { console.error(`[cc-soul] module load failed (context-compress): ${e.message}`) })
 // debate.ts removed — multi-persona debate was too expensive (5x token per question)
-import('./theory-of-mind.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage; getToMContext = m.getToMContext; detectMisconception = m.detectMisconception }).catch((e: any) => { console.error(`[cc-soul] module load failed (theory-of-mind): ${e.message}`) })
+import('./person-model.ts').then(m => { updateBeliefFromMessage = m.updateBeliefFromMessage; getToMContext = m.getToMContext; detectMisconception = m.detectMisconception }).catch((e: any) => { console.error(`[cc-soul] module load failed (person-model/tom): ${e.message}`) })
 // ── End optional modules ──
 
-import { isAuditCommand, formatAuditLog, appendAudit } from './audit.ts'
+// audit.ts removed — hash-chain audit log retired
 import { buildSoulPrompt, selectAugments, estimateTokens, setNarrativeCache, narrativeCache, checkNarrativeCacheTTL } from './prompt-builder.ts'
 import {
   taskState, initTasks, detectAndDelegateTask, checkTaskConfirmation,
@@ -131,11 +131,11 @@ import { updateFlow, getFlowHints, getFlowContext, checkAllSessionEnds, generate
 import { loadValues, detectValueSignals, getValueContext, getAllValues } from './values.ts'
 import { loadLorebook, queryLorebook, autoPopulateFromMemories } from './lorebook.ts'
 import { prepareContext } from './context-prep.ts'
-import { loadPatterns, learnSuccessPattern, getBestPattern } from './patterns.ts'
+// patterns.ts removed — success pattern tracking retired
 import { selectPersona, getActivePersona, getPersonaOverlay, getBlendedPersonaOverlay, getPersonaMemoryBias, loadUserStyles, updateUserStylePreference, PERSONAS } from './persona.ts'
 import { checkAugmentConsistency, snapshotAugments, loadMetacognition, learnConflict, recordInteraction } from './metacognition.ts'
-import { loadMetaFeedback, recordAugmentOutcome } from './meta-feedback.ts'
-import { updateFingerprint, checkPersonaConsistency, loadFingerprint, getCachedDriftWarning, setCachedDriftWarning } from './fingerprint.ts'
+// meta-feedback.ts removed — augment outcome tracking retired
+// fingerprint.ts removed — style fingerprint retired
 import { loadFeatures, isEnabled, handleFeatureCommand } from './features.ts'
 import { processIngestion, ingestFile } from './rag.ts'
 // user-dashboard.ts 已删除
@@ -509,7 +509,6 @@ export async function handlePreprocessed(event: any): Promise<void> {
   // Metacognitive feedback
   if (session.lastAugmentsUsed.length > 0 && prevScore >= 0) {
     const wasCorrected = cog.attention === 'correction'
-    recordAugmentOutcome(session.lastAugmentsUsed, prevScore, wasCorrected)
     learnConflict(session.lastAugmentsUsed, wasCorrected)
     recordInteraction(session.lastAugmentsUsed, prevScore, wasCorrected)
   }
@@ -875,14 +874,6 @@ export function handleSent(event: any): void {
 
     // 举一反三 post-processing moved to context-engine.ts afterTurn()
 
-    // Update soul fingerprint
-    updateFingerprint(content)
-    const drift = checkPersonaConsistency(content)
-    if (drift) {
-      console.log(`[cc-soul][fingerprint] ${drift}`)
-      setCachedDriftWarning(drift)
-    }
-
     // Persona drift detection (rule-based)
     try {
       const persona = getActivePersona()
@@ -989,7 +980,6 @@ export function handleSent(event: any): void {
           if (result.satisfaction === 'POSITIVE') {
             bodyOnPositiveFeedback()
             detectValueSignals(snapPrompt, true, snapSenderId)
-            learnSuccessPattern(snapPrompt, snapResponse, snapSenderId)
             updateRelationship(snapSenderId, 'positive')
             stats.positiveFeedback++
             trackGratitude(snapPrompt, snapResponse, snapSenderId)

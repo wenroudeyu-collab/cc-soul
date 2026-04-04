@@ -412,9 +412,9 @@
     "bayesAlpha": 2,
     "bayesBeta": 1,
     "confidence": 1,
-    "lastAccessed": 1775339380483,
+    "lastAccessed": 1775343084983,
     "tier": "mid_term",
-    "recallCount": 69,
+    "recallCount": 186,
     "lineage": [
       {
         "action": "created",
@@ -438,8 +438,8 @@
       "mood": 0.1312525029484117,
       "energy": 0.9709999721127707
     },
-    "lastRecalled": 1775339380483,
-    "injectionMiss": 26,
+    "lastRecalled": 1775343084983,
+    "injectionMiss": 78,
     "tags": [
       "事实",
       "wal",

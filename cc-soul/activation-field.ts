@@ -22,7 +22,7 @@
  */
 
 import type { Memory } from './types.ts'
-import { trigrams, trigramSimilarity, tokenize as _utilTokenize } from './memory-utils.ts'
+import { trigrams, trigramSimilarity, tokenize as _utilTokenize, WORD_PATTERN, TRIGRAM_THRESHOLD } from './memory-utils.ts'
 import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken } from './aam.ts'
 // 顶层 import 替代运行时 require（修复 benchmark ESM 环境下 require is not defined）
 import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef } from './memory-recall.ts'
@@ -36,6 +36,7 @@ import * as _factStoreMod from './fact-store.ts'
 import { extractAnchors as _extractAnchors, inferTimeRange as _inferTemporalRange } from './temporal-anchor.ts'
 import { getTopicRecallModifier as _getDriftModifier } from './semantic-drift.ts'
 import { confidenceRecallModifier as _getConfModifier } from './confidence-cascade.ts'
+import { getParam as _getAutoTuneParam } from './auto-tune.ts'
 
 // ═══════════════════════════════════════════════════════════════
 // ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
@@ -65,13 +66,14 @@ export interface RejectionRecord {
 const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: RejectionRecord[] }>()
 
 // ── Recall Thermostat: learn which signals correlate with engaged memories ──
-const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; temporal: number } }[] = []
+const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; interference: number; temporal: number; pam: number } }[] = []
 
 export function recordRecallEngagement(engaged: boolean, signals: Record<string, number>): void {
   _signalBuffer.push({ engaged, signals: {
     base: signals.base || 0, context: signals.context || 0,
     emotion: signals.emotion || 0, spread: signals.spread || 0,
-    temporal: signals.temporal || 0,
+    interference: signals.interference || 0, temporal: signals.temporal || 0,
+    pam: signals.pam || 0,
   }})
   if (_signalBuffer.length > 200) _signalBuffer.shift()
 
@@ -82,6 +84,14 @@ export function recordRecallEngagement(engaged: boolean, signals: Record<string,
 
 let _baseWeight = 0.3
 let _contextWeight = 0.7
+
+// 5 个可学习调制系数（初始值 = 当前硬编码值）
+let _emotionCoeff = 0.5    // (0.5 + _emotionCoeff × s3)
+let _spreadCoeff = 1.0     // (1 + _spreadCoeff × s4)
+let _temporalCoeff = 0.2   // (0.8 + _temporalCoeff × s6)
+let _pamCoeff = 1.0        // (1 + _pamCoeff × s7)
+let _momentumCoeff = 1.0   // momentumScale 系数
+
 export function getSignalWeights(): { base: number; context: number } {
   return { base: _baseWeight, context: _contextWeight }
 }
@@ -99,11 +109,31 @@ function adjustSignalWeights(): void {
   const contextDelta = avgGoodContext - avgBadContext
   const baseDelta = avgGoodBase - avgBadBase
 
-  // Conservative adjustment: ±0.02 per cycle, clamped to [0.15, 0.45] for base
-  _baseWeight = Math.max(0.15, Math.min(0.45, _baseWeight + baseDelta * 0.02))
+  // Conservative adjustment: ±0.01 per cycle, clamped to [0.15, 0.45] for base
+  _baseWeight = Math.max(0.15, Math.min(0.45, _baseWeight + baseDelta * 0.01))
   _contextWeight = 1 - _baseWeight
 
-  try { require('./decision-log.ts').logDecision('recall_thermostat', 'weight_adjust', `base=${_baseWeight.toFixed(3)}, ctx=${_contextWeight.toFixed(3)}, samples=${_signalBuffer.length}`) } catch {}
+  // 5 信号自适应学习（学习率 0.003 = base/context 的 1/3，每 50 轮调一次）
+  const signalNames = ['emotion', 'spread', 'temporal', 'pam'] as const  // interference 跳过（MMR 层面单独控制）
+  const correlations: Record<string, number> = {}
+  for (const name of signalNames) {
+    const avgGood = good.reduce((s, g) => s + g.signals[name], 0) / good.length
+    const avgBad = bad.reduce((s, b) => s + b.signals[name], 0) / bad.length
+    correlations[name] = avgGood - avgBad
+  }
+
+  // 保守学习：步长 0.003，clamp 防极端
+  _emotionCoeff = Math.max(0.1, Math.min(1.0, _emotionCoeff + (correlations.emotion || 0) * 0.003))
+  _spreadCoeff = Math.max(0.2, Math.min(2.0, _spreadCoeff + (correlations.spread || 0) * 0.003))
+  _temporalCoeff = Math.max(0.1, Math.min(0.5, _temporalCoeff + (correlations.temporal || 0) * 0.003))
+  _pamCoeff = Math.max(0.3, Math.min(2.0, _pamCoeff + (correlations.pam || 0) * 0.003))
+  _momentumCoeff = Math.max(0.3, Math.min(2.0, _momentumCoeff))  // momentum 暂不学习，后续接入
+
+  try {
+    const corrStr = signalNames.map(n => `${n}=${correlations[n].toFixed(3)}`).join(', ')
+    const coeffStr = `emo=${_emotionCoeff.toFixed(3)},spr=${_spreadCoeff.toFixed(3)},tmp=${_temporalCoeff.toFixed(3)},pam=${_pamCoeff.toFixed(3)}`
+    require('./decision-log.ts').logDecision('recall_thermostat', 'weight_adjust', `base=${_baseWeight.toFixed(3)}, ctx=${_contextWeight.toFixed(3)}, ${coeffStr}, samples=${_signalBuffer.length}, corr: ${corrStr}`)
+  } catch {}
 }
 
 /** 获取最近 30 秒内的 trace（供 feedback 回溯用） */
@@ -147,26 +177,40 @@ function updateMomentum(query: string): void {
   } catch {}
 
   // 提取话题关键词
-  const words = (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const words = (query.match(WORD_PATTERN.CJK2_EN3) || []).map(w => w.toLowerCase())
+
+  // ── 话题切换检测 ──
+  // 短查询用绝对数量（零重叠才切换），长查询用比例（<15%）
+  let overlapCount = 0
+  for (const w of words) {
+    if (_topicMomentum.has(w) && (_topicMomentum.get(w)! > 0.5)) overlapCount++
+  }
+  const overlapRatio = words.length > 0 ? overlapCount / words.length : 1
+  const isSwitched = _topicMomentum.size > 3 && (
+    (overlapRatio < 0.15 && words.length >= 5) ||
+    (overlapCount === 0 && words.length >= 2)
+  )
+
+  // 衰减率：话题切换时急速衰减旧话题（×0.1），否则正常 EMA
+  const decayRate = isSwitched ? 0.1 : (MOMENTUM_DECAY[domain] || MOMENTUM_DECAY.default)
+
+  // 先衰减旧话题，再 +1 新词（顺序不能反）
+  for (const [topic, score] of _topicMomentum) {
+    const decayed = score * decayRate
+    if (decayed < 0.1) _topicMomentum.delete(topic)
+    else _topicMomentum.set(topic, decayed)
+  }
 
   // 每个关键词 +1
   for (const w of words) {
     const current = _topicMomentum.get(w) || 0
     _topicMomentum.set(w, current + 1)
   }
-
-  // EMA 衰减（每次调用都衰减全量）
-  const decayRate = MOMENTUM_DECAY[domain] || MOMENTUM_DECAY.default
-  for (const [topic, score] of _topicMomentum) {
-    const decayed = score * decayRate
-    if (decayed < 0.1) _topicMomentum.delete(topic)
-    else _topicMomentum.set(topic, decayed)
-  }
 }
 
 /** 获取记忆的 momentum 加成（capped at +50%） */
 export function getMomentumBoost(memContent: string): number {
-  const words = (memContent.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+  const words = (memContent.match(WORD_PATTERN.CJK2_EN3) || []).map(w => w.toLowerCase())
   let totalMomentum = 0
   for (const w of words) {
     totalMomentum += _topicMomentum.get(w) || 0
@@ -251,6 +295,12 @@ function categoryPrePrune(memories: Memory[], query: string): Memory[] {
 
   const queryCatSet = new Set(queryCats)
 
+  // 多类别查询自适应：跨领域保留更多候选
+  // 小池子由 dynamicMinPool 兜底，大池子由 maxPruneRatio 控制
+  const dynamicMinPool = CATEGORY_PRUNE_MIN_POOL + (queryCats.length - 1) * 15
+  const maxPruneRatio = 0.6 - (queryCats.length - 1) * 0.1  // 1类60%, 2类50%, 3类40%
+  const minAfterPrune = Math.max(dynamicMinPool, Math.floor(memories.length * (1 - maxPruneRatio)))
+
   const pruned: Memory[] = []
   for (const mem of memories) {
     // 高重要性无条件保留
@@ -273,11 +323,11 @@ function categoryPrePrune(memories: Memory[], query: string): Memory[] {
     }
   }
 
-  // 安全阈值：剪枝后太少 → 回退全集
-  if (pruned.length < CATEGORY_PRUNE_MIN_POOL) return memories
+  // 安全阈值：剪枝后低于自适应下限 → 回退全集
+  if (pruned.length < minAfterPrune) return memories
 
   if (pruned.length < memories.length) {
-    console.log(`[activation-field] category pre-prune: ${memories.length} → ${pruned.length} (query cats: ${queryCats.join(',')})`)
+    console.log(`[activation-field] category pre-prune: ${memories.length} → ${pruned.length} (query cats: ${queryCats.join(',')}, minPool: ${minAfterPrune})`)
   }
   return pruned
 }
@@ -288,12 +338,7 @@ function categoryPrePrune(memories: Memory[], query: string): Memory[] {
 
 const _activations = new Map<string, number>()  // memory content hash → activation value [0, 1]
 
-// ── Lazy-loaded fact-store module ──
-let _factStoreMod: any = null
-function getFactStoreMod() {
-  // _factStoreMod 已在顶层 import
-  return _factStoreMod
-}
+// fact-store 已在顶层 import 为 _factStoreMod（行 35）
 
 function memKey(mem: Memory): string {
   return `${(mem.content || '').slice(0, 50)}\0${mem.ts || 0}`
@@ -338,8 +383,13 @@ function baseActivation(mem: Memory, now: number): number {
 // SIGNAL 2: 上下文匹配（AAM 词扩展 + 关键词重叠 + trigram）
 // ═══════════════════════════════════════════════════════════════
 
-// ── 动态 IDF 缓存（在 computeActivationField 中一次性计算，避免 O(n²)）──
+// ── 动态 IDF 缓存（版本化：只在 memory 增删改时重建，O(1) 命中）──
 let _idfCache: Map<string, number> | null = null
+let _idfVersion = 0
+let _currentIdfVersion = -1
+
+/** 通知 IDF 缓存失效（memory 增/删/改时调用） */
+export function invalidateFieldIDF(): void { _idfVersion++ }
 
 /** 从 memory pool 计算动态 IDF：出现在越多记忆中的词权重越低 */
 function buildIdfCache(memories: Memory[]): Map<string, number> {
@@ -377,10 +427,11 @@ type QueryType = 'precise' | 'temporal' | 'broad'
 
 interface QueryTypeParams { k1: number; b: number; temporalBoost: number }
 
-const QUERY_TYPE_FACTORS: Record<QueryType, QueryTypeParams> = {
-  precise:  { k1: 2.0,  b: 0.75, temporalBoost: 1.0 },
-  temporal: { k1: 1.2,  b: 0.5,  temporalBoost: 2.0 },
-  broad:    { k1: 0.8,  b: 0.3,  temporalBoost: 1.0 },
+// Query-type multipliers applied on top of auto-tune base k1/b
+const QUERY_TYPE_MULTIPLIERS: Record<QueryType, { k1Mult: number; bMult: number; temporalBoost: number }> = {
+  precise:  { k1Mult: 1.5,  bMult: 1.0,  temporalBoost: 1.0 },
+  temporal: { k1Mult: 1.0,  bMult: 0.67, temporalBoost: 2.0 },
+  broad:    { k1Mult: 0.67, bMult: 0.4,  temporalBoost: 1.0 },
 }
 
 const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|when|how\s*many/i
@@ -394,19 +445,15 @@ function detectQueryType(query: string): QueryType {
   return 'broad'
 }
 
-/** Get adaptive k1/b — uses auto-tune base × query-type factor */
+/** Get adaptive k1/b — reads base from auto-tune, applies query-type multipliers */
 function getAdaptiveParams(queryType: QueryType): QueryTypeParams {
-  let baseK1 = 1.2, baseB = 0.75
-  try {
-    const { getParam } = require('./auto-tune.ts')
-    baseK1 = getParam('memory.bm25_k1')
-    baseB = getParam('memory.bm25_b')
-  } catch {}
-  const factor = QUERY_TYPE_FACTORS[queryType]
+  const baseK1 = _getAutoTuneParam('memory.bm25_k1')
+  const baseB = _getAutoTuneParam('memory.bm25_b')
+  const mult = QUERY_TYPE_MULTIPLIERS[queryType]
   return {
-    k1: baseK1 * (factor.k1 / 1.2),  // normalize: default factor k1=1.2 → multiplier=1.0
-    b: baseB * (factor.b / 0.75),     // normalize: default factor b=0.75 → multiplier=1.0
-    temporalBoost: factor.temporalBoost,
+    k1: baseK1 * mult.k1Mult,
+    b: baseB * mult.bMult,
+    temporalBoost: mult.temporalBoost,
   }
 }
 
@@ -475,7 +522,7 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // ── 方式 B：n-gram 短语匹配（连续词序列比独立词匹配更强）──
   // 从 query 提取 2-gram 和 3-gram，如果在记忆中完整出现则大幅加分
   const queryLower = query.toLowerCase()
-  const queryTokens = (queryLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase())
+  const queryTokens = (queryLower.match(WORD_PATTERN.CJK24_EN2_NUM) || []).map(w => w.toLowerCase())
   let phraseScore = 0
   if (queryTokens.length >= 2) {
     let phraseHits = 0, phrasePossible = 0
@@ -577,7 +624,7 @@ function buildEntityResonanceField(query: string, memories: Memory[]): Map<strin
     for (const e of queryEntities) erf.set(e, 1.0)
 
     // 也从查询关键词里找（防止实体提取遗漏）
-    const queryWords = (query.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+    const queryWords = (query.match(WORD_PATTERN.CJK24_EN3) || [])
     for (const w of queryWords) {
       if (!erf.has(w) && graph.findMentionedEntities(w).length > 0) {
         erf.set(w, 0.8)
@@ -649,7 +696,7 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
   // 旧版对每条记忆做 5×5×3=75 次 PMI 查询，438 条 = 32K 次 → 20 秒
   // 新版用 _aamNeighborCache（在 computeActivationField 中预建），O(1) 查表
   if (count < 3 && query && _aamNeighborCache && _aamNeighborCache.size > 0) {
-    const memKeywords = (mem.content || '').match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []
+    const memKeywords = (mem.content || '').match(WORD_PATTERN.CJK24_EN3) || []
     let aamBoost = 0
     for (const kw of memKeywords.slice(0, 8)) {
       const score = _aamNeighborCache.get(kw.toLowerCase())
@@ -672,29 +719,29 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
 // SIGNAL 5: 干扰抑制（相似记忆竞争）
 // ═══════════════════════════════════════════════════════════════
 
-function interferenceSuppress(mem: Memory, currentTop: Memory[]): number {
-  if (currentTop.length === 0) return 1.0  // 无竞争
+/** Compute MMR-based interference factor for a candidate against already-selected memories.
+ *  Uses max similarity to ANY selected memory (maximal marginal relevance style).
+ *  Trigrams are pre-cached to avoid recomputation.
+ *  Returns suppression factor in [0.3, 1.0]. */
+function interferenceMMR(memTri: Set<string>, selectedTris: Set<string>[], isSummary: boolean): number {
+  if (selectedTris.length === 0) return 1.0
 
-  // Summary/consolidated memories get relaxed thresholds to avoid
-  // session summaries suppressing each other when they share person names
-  const isSummary = mem.scope === 'fact' || mem.scope === 'consolidated'
-    || (mem.content || '').startsWith('[summary]')
-    || (mem.content || '').startsWith('[Session')
-
-  const memTri = trigrams(mem.content || '')
-  for (const top of currentTop) {
-    const sim = trigramSimilarity(memTri, trigrams(top.content || ''))
-    if (isSummary) {
-      // Relaxed: only suppress at very high similarity
-      if (sim > 0.7) return 0.5
-      if (sim > 0.5) return 0.8
-    } else {
-      // Original thresholds
-      if (sim > 0.5) return 0.3  // 大幅压制
-      if (sim > 0.3) return 0.7  // 轻微压制
-    }
+  // MMR core: max similarity to ANY already-selected memory
+  let maxSim = 0
+  for (const selTri of selectedTris) {
+    const sim = trigramSimilarity(memTri, selTri)
+    if (sim > maxSim) maxSim = sim
   }
-  return 1.0  // 无相似竞争
+
+  if (isSummary) {
+    // Relaxed thresholds for summaries/facts
+    if (maxSim > TRIGRAM_THRESHOLD.DEDUP_MERGE) return 0.5
+    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.8
+  } else {
+    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.3
+    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_LIGHT) return 0.7
+  }
+  return 1.0
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -726,7 +773,7 @@ function temporalContext(mem: Memory, timeRange?: TimeRange | null, queryWords?:
   let encodingSpecificity = 0
   if (queryWords && queryWords.size > 0 && mem.recallContexts && mem.recallContexts.length > 0) {
     for (const ctx of mem.recallContexts) {
-      const ctxWords = (ctx.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      const ctxWords = (ctx.match(WORD_PATTERN.CJK2_EN3) || []).map(w => w.toLowerCase())
       const overlap = ctxWords.filter(w => queryWords.has(w)).length
       if (overlap >= 2) {
         encodingSpecificity = Math.min(0.3, overlap * 0.08)  // 2词+0.16, 3词+0.24, cap 0.3
@@ -737,7 +784,7 @@ function temporalContext(mem: Memory, timeRange?: TimeRange | null, queryWords?:
 
   const base = timeMatch * 0.5 + sameType * 0.5 + encodingSpecificity
   // Temporal query type → boost temporal signal (capped at 1.0)
-  const tBoost = QUERY_TYPE_FACTORS[_currentQueryType]?.temporalBoost ?? 1.0
+  const tBoost = QUERY_TYPE_MULTIPLIERS[_currentQueryType]?.temporalBoost ?? 1.0
   return Math.min(1, base * tBoost)
 }
 
@@ -788,8 +835,11 @@ export function computeActivationField(
 ): ActivationResult[] {
   const now = Date.now()
 
-  // 构建动态 IDF 缓存（一次性，供 contextMatch 使用）
-  _idfCache = buildIdfCache(memories)
+  // 构建动态 IDF 缓存（版本化：只在 invalidateFieldIDF 被调用后才重建）
+  if (!_idfCache || _currentIdfVersion !== _idfVersion) {
+    _idfCache = buildIdfCache(memories)
+    _currentIdfVersion = _idfVersion
+  }
 
   // 构建实体共振场（ERF）— 一次性，供 spreadingActivation Path C 使用
   _erfCache = buildEntityResonanceField(query, memories)
@@ -801,7 +851,7 @@ export function computeActivationField(
     const fn = getAAMNeighborsFn()
     if (fn) {
       const queryWords = new Set(
-        (query.toLowerCase().match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+        (query.toLowerCase().match(WORD_PATTERN.CJK24_EN3) || []).map(w => w.toLowerCase())
       )
       // 对每个查询词，找其 AAM 邻居，记录 word → score
       for (const qw of queryWords) {
@@ -862,8 +912,8 @@ export function computeActivationField(
     const { base: wBase, context: wCtx } = getSignalWeights()
     const baseContextScore = wBase * s1 + wCtx * s2
 
-    // 其余信号保持乘法调制（它们的范围温和，不存在碾压问题）
-    const raw = baseContextScore * (0.5 + 0.5 * s3) * (1 + s4) * (0.8 + 0.2 * s6)
+    // 其余信号保持乘法调制（系数由 Recall Thermostat 自适应学习）
+    const raw = baseContextScore * (0.5 + _emotionCoeff * s3) * (1 + _spreadCoeff * s4) * (0.8 + _temporalCoeff * s6)
 
     // confidence 软缩放（不是乘法杀死，是 0.6-1.0 区间）
     const conf = mem.confidence ?? 0.7
@@ -882,7 +932,7 @@ export function computeActivationField(
     let s7 = 0
     if (temporalSuccessors && temporalSuccessors.size > 0) {
       const memContentLower = (mem.content || '').toLowerCase()
-      const memW = (memContentLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+      const memW = (memContentLower.match(WORD_PATTERN.CJK24_EN3) || [])
       let hits = 0
       for (const w of memW) {
         if (temporalSuccessors.has(w.toLowerCase())) hits++
@@ -891,11 +941,10 @@ export function computeActivationField(
       s7 = Math.min(0.3, hits * 0.1)  // 提升：each hit +0.1, max +0.3（对话惯性是 NAM 独有优势）
     }
 
-    // 对话惯性加成（momentum boost）
+    // 对话惯性加成（momentum boost，由 _momentumCoeff 调制）
     const momentum = getMomentumBoost(mem.content || '')
-    const momentumScale = 1 + momentum  // capped at 1.5 by getMomentumBoost
 
-    const finalRaw = raw * confScale * impBoost * momentumScale * (1 + s7)
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7)
 
     // 构建 trace path
     const path: TraceStep[] = [
@@ -922,15 +971,28 @@ export function computeActivationField(
   // 排序
   rawResults.sort((a, b) => b.raw - a.raw)
 
-  // 第二遍：加入干扰抑制（已选的会压制后续的相似记忆）
+  // 第二遍：MMR 干扰抑制（已选的会压制后续的相似记忆）
+  // Pre-cache trigrams for all candidates to avoid O(N²) recomputation
+  const _trigramCache = new Map<string, Set<string>>()
+  const _getTriCached = (content: string): Set<string> => {
+    let tri = _trigramCache.get(content)
+    if (!tri) { tri = trigrams(content); _trigramCache.set(content, tri) }
+    return tri
+  }
+  const selectedTris: Set<string>[] = []  // trigrams of selected memories (for MMR)
+
   for (const r of rawResults) {
-    const s5 = interferenceSuppress(r.mem, currentTop)
+    const memContent = r.mem.content || ''
+    const memTri = _getTriCached(memContent)
+    const isSummary = r.mem.scope === 'fact' || r.mem.scope === 'consolidated'
+      || memContent.startsWith('[summary]') || memContent.startsWith('[Session')
+    const s5 = interferenceMMR(memTri, selectedTris, isSummary)
     let activation = r.raw * s5
 
     // ── Semantic drift modifier：上升话题 boost，下降话题 slight reduction ──
     try {
       const content = r.mem.content || ''
-      const contentWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+      const contentWords = (content.match(WORD_PATTERN.CJK2_EN3) || [])
       let driftMod = 1.0
       for (const w of contentWords.slice(0, 5)) {
         const m = _getDriftModifier(w.toLowerCase())
@@ -961,6 +1023,7 @@ export function computeActivationField(
         path: r.path,
       })
       currentTop.push(r.mem)
+      selectedTris.push(memTri)
     }
 
     if (results.length >= topN) break
@@ -973,7 +1036,7 @@ export function computeActivationField(
     const selectedContents = new Set(results.map(r => (r.memory.content || '').slice(0, 50)))
     const selectedWords = new Set<string>()
     for (const r of results) {
-      const ws = ((r.memory.content || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+      const ws = ((r.memory.content || '').match(WORD_PATTERN.CJK2_EN3) || [])
       for (const w of ws) selectedWords.add(w.toLowerCase())
     }
     // runner-ups: rawResults 中排名靠后、未入选、但与选中记忆词重叠高的
@@ -983,7 +1046,7 @@ export function computeActivationField(
       const r = rawResults[i]
       if (selectedContents.has((r.mem.content || '').slice(0, 50))) continue
       if (r.mem.scope === 'core_memory' || r.mem.scope === 'correction') continue
-      const mw = ((r.mem.content || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+      const mw = ((r.mem.content || '').match(WORD_PATTERN.CJK2_EN3) || [])
       let overlap = 0
       for (const w of mw) { if (selectedWords.has(w.toLowerCase())) overlap++ }
       if (mw.length > 0 && overlap / mw.length > 0.4) {
@@ -1092,10 +1155,30 @@ export function expandQueryForField(query: string): Map<string, number> {
       if (_aamIsKnownWord(w)) queryWords.push(w)
     }
   }
+  // ── 查询抽象度感知：抽象查询放宽 AAM 扩展参数 ──
+  // Bower 认知网络模型：抽象概念激活范围比具体概念更广
+  // 向量做不到：向量不知道 "通勤方式" 该搜宽、"血压" 该搜窄
+  const _ABSTRACT_WORDS = new Set([
+    '方式', '习惯', '品味', '爱好', '特点', '性格', '规划', '想法',
+    '压力', '负担', '活动', '情况', '经历', '偏好', '风格', '水平',
+    '能力', '状况', '态度', '目标', '计划', '条件', '背景', '圈子',
+    'style', 'habit', 'taste', 'hobby', 'trait', 'plan', 'idea',
+    'preference', 'routine', 'activity', 'experience', 'skill',
+  ])
+  const _contentWords = queryWords.filter(w => !EN_STOP_WORDS.has(w) && w.length >= 2)
+  const _queryAbstract = _contentWords.length > 0 && _contentWords.some(w => _ABSTRACT_WORDS.has(w))
+
   try {
-    const aamExpanded = _aamExpandQuery(queryWords, 20)
+    const _aamMaxExp = _queryAbstract ? 30 : 20
+    const _aamMinW = _queryAbstract ? 0.1 : 0.15
+    const aamExpanded = _aamExpandQuery(queryWords, _aamMaxExp)
     for (const { word, weight } of aamExpanded) {
-      if (!expanded.has(word)) expanded.set(word, weight)
+      if (weight >= _aamMinW && !expanded.has(word)) {
+        expanded.set(word, weight)
+      }
+    }
+    if (_queryAbstract) {
+      console.log(`[activation-field] abstract query detected: maxExp=${_aamMaxExp}, minW=${_aamMinW}, expanded=${expanded.size}`)
     }
   } catch {}
 
@@ -1133,6 +1216,10 @@ export function activationRecall(
   alertness: number = 0.5,
 ): Memory[] {
   if (!query || memories.length === 0) return []
+
+  // ── 聚合查询自适应：分数平坦度判定（完全动态，零硬编码正则）──
+  let _isAggregation = false
+  const _originalTopN = topN
 
   // 查询类型检测（adaptive k1/b）
   _currentQueryType = detectQueryType(query)
@@ -1181,6 +1268,28 @@ export function activationRecall(
   // 3. 实体通道：图谱实体（已在下方 graph expansion 中处理）
   // 4. AAM 通道：保持使用完整原始 query（联想需要完整语境）
 
+  // ── 否定查询识别：搜索负面经历而非正面事实 ──
+  // "不擅长什么" → 搜 correction scope + painful emotion 的记忆
+  // 否定检测是语法特征（硬编码），扩展走 AAM + scope/emotion 标签（动态）
+  const _NEG_PATTERNS = /不擅长|不喜欢|不爱|不想|不敢|不吃|不看|不会|害怕|讨厌|恐惧|反感|忌口|don't like|afraid of|hate|bad at|can't stand/i
+  const _NEG_QUESTION = /什么|吗|呢|哪|几|\?|？/
+  const _isNegationQuery = _NEG_PATTERNS.test(query) && _NEG_QUESTION.test(query)
+
+  if (_isNegationQuery) {
+    const _negSeedWords = ['放弃', '失败', '不会', '怕', '讨厌', '难', '差', '糟', '亏',
+      'quit', 'failed', 'afraid', 'hate', 'bad', 'lost']
+    for (const nw of _negSeedWords) {
+      if (!expanded.has(nw)) expanded.set(nw, 0.5)
+    }
+    try {
+      const negExpanded = _aamExpandQuery(_negSeedWords.filter(w => w.length >= 2), 10)
+      for (const { word, weight } of negExpanded) {
+        if (!expanded.has(word)) expanded.set(word, weight * 0.6)
+      }
+    } catch {}
+    console.log(`[activation-field] negation query detected, expanded +${_negSeedWords.length} neg seeds`)
+  }
+
   // ── Category Pre-Pruning：按领域预筛，减少候选池 ──
   // 在 computeActivationField 之前执行，同时加速 IDF 缓存构建
   memories = categoryPrePrune(memories, query)
@@ -1189,11 +1298,11 @@ export function activationRecall(
   // 遍历所有已存三元组，用查询词+AAM扩展词评分，不短路，结果在 NAM 之后融合
   let _parallelFactMems: Memory[] = []
   try {
-    const factStore = getFactStoreMod()
+    const factStore = _factStoreMod
     const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number }[]
     const queryLowerS1 = query.toLowerCase()
     // 提取查询关键词（CJK 2-gram + 英文 2+ 字母 + 数字）
-    const queryTokensS1 = new Set((queryLowerS1.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase()))
+    const queryTokensS1 = new Set((queryLowerS1.match(WORD_PATTERN.CJK24_EN2_NUM) || []).map(w => w.toLowerCase()))
     // AAM 扩展词也参与匹配（扩展语义覆盖面）
     for (const [w] of expanded) queryTokensS1.add(w.toLowerCase())
 
@@ -1204,7 +1313,7 @@ export function activationRecall(
       const predLower = (fact.predicate || '').toLowerCase()
       const subjLower = (fact.subject || '').toLowerCase()
       const factText = `${subjLower} ${predLower} ${objLower}`
-      const factTokens = (factText.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase())
+      const factTokens = (factText.match(WORD_PATTERN.CJK24_EN2_NUM) || []).map(w => w.toLowerCase())
 
       // 双向匹配评分（不只 boolean，而是 overlap 程度）
       let matchScore = 0
@@ -1251,7 +1360,7 @@ export function activationRecall(
   // expanded 已经是 Map<string, number>，直接合并 AAM 扩展词
   try {
     const aamExpansion = _aamExpandQuery(
-      (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()),
+      (query.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase()),
       5
     )
     if (aamExpansion.length > 0) {
@@ -1265,6 +1374,23 @@ export function activationRecall(
 
   // Step 2: 激活场计算（用扩展后的查询，候选集更完整）
   let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * 2, timeRange)
+
+  // ── 分数平坦度检测 → 聚合查询自适应 topN ──
+  // 无明显赢家 = 查询需要综合多条记忆（"我是怎样的人"/"描述我的一天"）
+  if (results.length >= 5) {
+    const _scores = results.slice(0, Math.min(10, results.length)).map(r => r.activation)
+    const _topScore = _scores[0]
+    const _tailScore = _scores[_scores.length - 1]
+    const _dropoff = _topScore > 0 ? (_topScore - _tailScore) / _topScore : 1
+    let _dropoffThreshold = 0.3
+    try { _dropoffThreshold = require('./auto-tune.ts').getParam('recall.aggregation_dropoff') || 0.3 } catch {}
+
+    if (_dropoff < _dropoffThreshold) {
+      _isAggregation = true
+      topN = Math.max(topN, 8)
+      console.log(`[activation-field] aggregation detected: dropoff=${_dropoff.toFixed(3)} < ${_dropoffThreshold}, topN ${_originalTopN}→${topN}`)
+    }
+  }
 
   // ── 隐含时间 re-scoring（向量做不到的时间感知）──
   if (recencyBias !== 0 && results.length > 0) {
@@ -1293,7 +1419,7 @@ export function activationRecall(
     // 从 top-3 结果提取词并用 IDF 加权
     for (let i = 0; i < prfTopN; i++) {
       const content = results[i].memory.content || ''
-      const words = (content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || [])
+      const words = (content.match(WORD_PATTERN.CJK24_EN3) || [])
       for (const w of words) {
         const wl = w.toLowerCase()
         if (EN_STOP_WORDS.has(wl)) continue
@@ -1346,7 +1472,7 @@ export function activationRecall(
       const now = Date.now()
       const PRIMING_WINDOW = 5 * 60 * 1000
       for (const r of results) {
-        const words = (r.memory.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+        const words = (r.memory.content.match(WORD_PATTERN.CJK2_EN3) || [])
         let hits = 0
         for (const w of words) {
           const ts = _primingCacheRef.get(w.toLowerCase())
@@ -1378,6 +1504,11 @@ export function activationRecall(
     if (m.tags?.length) { bonus += (m.tags.filter((t: string) => queryLower.includes(t.toLowerCase())).length / m.tags.length) * 3.0 }
     const sk = SCOPE_KW[m.scope || '']; if (sk?.some((k: string) => queryLower.includes(k))) bonus += 1.5
     const ek = EMO_KW[m.emotion || '']; if (ek?.some((k: string) => queryLower.includes(k))) bonus += 2.0
+    // 否定查询：correction/painful 记忆加权（冷启动 fallback，不依赖 AAM）
+    if (_isNegationQuery) {
+      if (m.scope === 'correction') bonus += 2.0
+      if (m.emotion === 'painful') bonus += 2.0
+    }
     results[i].activation *= (1 + Math.min(0.3, bonus / 6.5))
   }
   results.sort((a, b) => b.activation - a.activation)
@@ -1410,7 +1541,8 @@ export function activationRecall(
   }
 
   // ── MMR Diversification：最大边际相关性，避免返回过于相似的记忆 ──
-  if (results.length > topN) {
+  // 聚合查询跳过 MMR：需要同主题多条记忆，MMR 会踢掉它们
+  if (results.length > topN && !_isAggregation) {
     const mmrResults: typeof results = []
     const remaining = [...results]
     const LAMBDA = 0.7  // 0.7 relevance, 0.3 diversity
@@ -1423,7 +1555,7 @@ export function activationRecall(
       for (let i = 0; i < remaining.length; i++) {
         const relevance = remaining[i].activation
 
-        // Max similarity to already selected
+        // Max similarity to already selected (trigrams() has built-in LRU cache)
         let maxSim = 0
         for (const selected of mmrResults) {
           const sim = trigramSimilarity(
@@ -1480,7 +1612,7 @@ export function activationRecall(
             // 存入 AAM 共现网络，让下次召回能用这些扩展词
             try {
               const aam = require('./aam.ts')
-              const queryWords = (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+              const queryWords = (query.match(WORD_PATTERN.CJK2_EN3) || [])
               for (const kw of keywords) {
                 for (const qw of queryWords) {
                   aam.learnAssociation?.(qw + ' ' + kw)

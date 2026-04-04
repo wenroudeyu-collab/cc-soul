@@ -11,6 +11,7 @@ import { spawnCLI } from './cli.ts'
 import { memoryState, addMemory } from './memory.ts'
 import { extractJSON } from './utils.ts'
 import { getParam } from './auto-tune.ts'
+import { isEndSignal as dynamicIsEndSignal } from './dynamic-extractor.ts'
 
 // ── Algorithm: Frustration Dynamics (挫败感动力学) ──
 // 不只检测"现在是否挫败"，而是建模挫败感的积累轨迹
@@ -244,15 +245,8 @@ let _currentEvent: EventSegment | null = null
 export function updateEventSegment(userMsg: string, topic: string, flowKey: string): void {
   const now = Date.now()
 
-  // 事件结束信号
-  // 结束信号：优先用动态学习，fallback 种子列表
-  let isEndSignal = false
-  try {
-    const { isEndSignal: dynamicEnd } = require('./dynamic-extractor.ts')
-    isEndSignal = dynamicEnd(userMsg)
-  } catch {
-    isEndSignal = /搞定|可以了|好了|解决了|谢谢|thanks|成功了|没问题了|fixed|done|solved|got it|success|works now/i.test(userMsg)
-  }
+  // 事件结束信号（统一使用 dynamic-extractor 的 isEndSignal，含种子兜底）
+  const isEndSignal = dynamicIsEndSignal(userMsg)
 
   if (_currentEvent) {
     const timeSinceLastUpdate = now - _currentEvent.endTs

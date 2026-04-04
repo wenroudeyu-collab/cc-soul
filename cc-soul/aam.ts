@@ -2333,33 +2333,31 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
   for (const w of queryWords) expanded.set(w, 1.0)
 
   // PMI-based associations (种子已注入 cooccur，始终可用)
-  if (true) {
-    for (const w of queryWords) {
-      const cooc = network().cooccur[w]
-      if (!cooc) continue
-      // Find top associated words by PMI
-      const candidates: { word: string; pmiScore: number }[] = []
-      for (const [other, _count] of Object.entries(cooc)) {
-        if (expanded.has(other)) continue
-        // Filter: skip 2-char CJK fragments that aren't real words
-        // Real words: in synonym table, or df >= 3 (appeared in 3+ memories)
-        if (other.length === 2 && /^[\u4e00-\u9fff]+$/.test(other)) {
-          const isKnown = Object.keys(langSynonyms).includes(other) ||
-            Object.values(langSynonyms).some(syns => syns.includes(other))
-          if (!isKnown && (network().df[other] || 0) < 3) continue
-        }
-        const p = pmi(w, other)
-        if (p > 1.5) candidates.push({ word: other, pmiScore: p })  // PMI > 1.5 = strong association
+  for (const w of queryWords) {
+    const cooc = network().cooccur[w]
+    if (!cooc) continue
+    // Find top associated words by PMI
+    const candidates: { word: string; pmiScore: number }[] = []
+    for (const [other, _count] of Object.entries(cooc)) {
+      if (expanded.has(other)) continue
+      // Filter: skip 2-char CJK fragments that aren't real words
+      // Real words: in synonym table, or df >= 3 (appeared in 3+ memories)
+      if (other.length === 2 && /^[\u4e00-\u9fff]+$/.test(other)) {
+        const isKnown = Object.keys(langSynonyms).includes(other) ||
+          Object.values(langSynonyms).some(syns => syns.includes(other))
+        if (!isKnown && (network().df[other] || 0) < 3) continue
       }
-      candidates.sort((a, b) => b.pmiScore - a.pmiScore)
-      for (const c of candidates.slice(0, 3)) {
-        // Weight proportional to PMI, capped at 0.8
-        const baseWeight = Math.min(0.8, c.pmiScore / 5)
-        // 应用 activationDamping：话题切换后旧话题词权重降低
-        const damping = getDamping(c.word)
-        const weight = baseWeight * damping
-        expanded.set(c.word, Math.max(expanded.get(c.word) || 0, weight))
-      }
+      const p = pmi(w, other)
+      if (p > 1.5) candidates.push({ word: other, pmiScore: p })  // PMI > 1.5 = strong association
+    }
+    candidates.sort((a, b) => b.pmiScore - a.pmiScore)
+    for (const c of candidates.slice(0, 3)) {
+      // Weight proportional to PMI, capped at 0.8
+      const baseWeight = Math.min(0.8, c.pmiScore / 5)
+      // 应用 activationDamping：话题切换后旧话题词权重降低
+      const damping = getDamping(c.word)
+      const weight = baseWeight * damping
+      expanded.set(c.word, Math.max(expanded.get(c.word) || 0, weight))
     }
   }
 
@@ -2694,33 +2692,6 @@ const RECALL_KEYS: RecallKey[] = [
     },
   },
 
-  // K9: Cognitive Field — CIN personality match (原创)
-  {
-    type: 'cognitive' as any,
-    match: (_query, mem, ctx) => {
-      try {
-        // Lazy load CIN field
-        const cin = require('./cin.ts')
-        const field = cin.getFieldSummary()
-        if (!field || !field.risk) return 0.3
-
-        // Memory matches personality direction → higher recall probability
-        // E.g., if user is "保守" and memory is about choosing stable tech → boost
-        let score = 0.3
-        const c = mem.content.toLowerCase()
-
-        // Risk dimension
-        if (field.risk.direction === '保守' && /稳定|成熟|可靠|传统/.test(c)) score += 0.2
-        if (field.risk.direction === '冒险' && /新的|尝试|创新|突破/.test(c)) score += 0.2
-
-        // Communication dimension
-        if (field.communication.direction === '直接' && /直说|明确|简单/.test(c)) score += 0.1
-        if (field.communication.direction === '委婉' && /可能|也许|大概/.test(c)) score += 0.1
-
-        return Math.min(1, score)
-      } catch { return 0.3 }
-    },
-  },
 ]
 
 /**
@@ -2965,17 +2936,6 @@ export function buildAAMContext(
   }
 }
 
-/**
- * Explain why a memory was recalled (for debugging/transparency).
- */
-export function explainAAM(result: AAMResult): string {
-  const activeKeys = Object.entries(result.keyScores)
-    .filter(([, v]) => v > 0.3)
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => `${k}=${v.toFixed(2)}`)
-  const expWords = result.expansions.length > 0 ? ` [扩展词: ${result.expansions.slice(0, 3).join(',')}]` : ''
-  return `score=${result.score.toFixed(3)} keys=[${activeKeys.join(', ')}]${expWords}`
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STATS
@@ -3003,19 +2963,6 @@ function _decayNetwork(lang: string, net: AssociationNetwork) {
         momentum = (getMomentumBoost(w1) || 0) + (getMomentumBoost(w2) || 0)
       } catch {}
       let factor = baseDRate * (1 + Math.min(0.1, momentum * 0.05))
-      // CIN drift → 性格变化时旧关联加速衰减
-      let driftMagnitude = 0
-      try {
-        const cinMod = require('./cin.ts')
-        const field = cinMod.getCurrentField?.()
-        if (field?.drift) {
-          driftMagnitude = field.drift.reduce((s: number, d: number) => s + Math.abs(d), 0) / field.drift.length
-        }
-      } catch {}
-      // drift 大 + momentum 低 → 旧关联加速衰减（最多额外 10%）
-      if (driftMagnitude > 0.2 && momentum < 0.1) {
-        factor *= (1 - Math.min(0.1, driftMagnitude * 0.1))
-      }
       const newCount = count * Math.min(factor, 1.0)
       if (newCount < 0.5) {
         // 衰减到 <0.5 时删边（pruning）
@@ -3154,6 +3101,9 @@ export function reinforceTrace(trace: { path: { stage: string; via: string; word
  * 不减边权重（信用分配问题），只减跳数
  */
 export function suppressExpansion(queryPattern: string, missedVia: string): void {
+  // OOM protection: clear cache when exceeding cap (safe to rebuild)
+  if (_maxHopByPattern.size > 1000) _maxHopByPattern.clear()
+
   const currentMax = _maxHopByPattern.get(queryPattern) ?? 2
 
   if (missedVia === 'aam_hop2' && currentMax > 1) {
@@ -3190,6 +3140,14 @@ const _emotionWordCandidates = new Map<string, { posCount: number; negCount: num
 export function learnEmotionWord(word: string, moodDelta: number): void {
   if (Math.abs(moodDelta) < 0.15) return
   if (word.length < 2) return
+
+  // OOM protection: evict lowest-count half when exceeding cap
+  if (_emotionWordCandidates.size > 10000) {
+    const sorted = [..._emotionWordCandidates.entries()]
+      .sort((a, b) => (a[1].posCount + a[1].negCount) - (b[1].posCount + b[1].negCount))
+    const toDelete = Math.floor(sorted.length / 2)
+    for (let i = 0; i < toDelete; i++) _emotionWordCandidates.delete(sorted[i][0])
+  }
 
   let entry = _emotionWordCandidates.get(word)
   if (!entry) { entry = { posCount: 0, negCount: 0 }; _emotionWordCandidates.set(word, entry) }

@@ -76,15 +76,15 @@ let lastTickTime = Date.now()
 // ── #7 双振荡器昼夜节律 ──
 // 24h 周期（昼夜）+ 12h 周期（上午/下午）叠加
 // 能捕获"下午2-3点犯困"的现象（单cos做不到）
-function circadianModifier(): { energyMod: number; moodMod: number } {
+function circadianModifier(peakHour = 10): { energyMod: number; moodMod: number } {
   const hour = new Date().getHours() + new Date().getMinutes() / 60
 
-  // 24h 主节律：10:00 为能量高峰
-  const phase24 = ((hour - 10) / 24) * 2 * Math.PI
+  // 24h 主节律：peakHour 为能量高峰（默认 10:00，可从用户行为数据推断）
+  const phase24 = ((hour - peakHour) / 24) * 2 * Math.PI
   const wave24 = Math.cos(phase24)
 
-  // 12h 副节律：10:00 和 22:00 为双峰，14:00 和 02:00 为双谷
-  const phase12 = ((hour - 10) / 12) * 2 * Math.PI
+  // 12h 副节律：peakHour 和 peakHour+12 为双峰
+  const phase12 = ((hour - peakHour) / 12) * 2 * Math.PI
   const wave12 = Math.cos(phase12)
 
   // 叠加：主节律权重 0.7，副节律权重 0.3
@@ -103,13 +103,13 @@ function circadianModifier(): { energyMod: number; moodMod: number } {
   return { energyMod, moodMod }
 }
 
-export function bodyTick() {
+export function bodyTick(userPeakHour?: number) {
   const now = Date.now()
   const minutes = Math.min(10, (now - lastTickTime) / 60000)
   lastTickTime = now
 
-  // #7 昼夜节律
-  const circadian = circadianModifier()
+  // #7 昼夜节律（peakHour 从 getUserPeakHour 推断，无数据时默认 10:00）
+  const circadian = circadianModifier(userPeakHour ?? 10)
 
   // Logistic 恢复：接近满时恢复变慢，接近空时也恢复慢（太累了恢复不动）
   // dE/dt = r * E * (1 - E) → 在 E=0.5 时恢复最快

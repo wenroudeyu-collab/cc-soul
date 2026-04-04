@@ -2,7 +2,7 @@
  * signals.ts — Shared keyword/signal lists
  *
  * Single source of truth for emotion, correction, tech, and casual keyword lists.
- * Used by cognition.ts, body.ts, and patterns.ts.
+ * Used by cognition.ts and body.ts.
  */
 
 export const EMOTION_POSITIVE = ['开心', '哈哈', '牛逼', '太棒', '感谢', '谢谢', '厉害', '完美', '爽', '赞', '舒服', '终于', 'happy', 'great', 'awesome', 'thanks', 'perfect', 'amazing', 'lol', 'haha', 'nice']
@@ -269,7 +269,7 @@ export const TECH_WORDS = [
 ]
 export const CASUAL_WORDS = ['嗯', '好', '哦', '行', '可以', 'ok', '明白', '在吗', '你好', '吃了', '无聊', '哈哈', '哈哈哈', '周末', '嘿嘿', '呵呵', 'hey', 'hi', 'hello', 'yeah', 'yep', 'sure', 'hmm', 'lol', 'haha', 'bored', 'weekend']
 
-// patterns.ts classification lists (superset of above for some categories)
+// classification lists (superset of above for some categories)
 export const TECH_CLASSIFY = ['代码', 'code', '函数', 'bug', 'error', '实现', '怎么写', 'function', 'class', '报错']
 export const EMOTION_CLASSIFY = ['烦', '累', '难过', '开心', '焦虑', '压力', '郁闷', '崩溃']
 

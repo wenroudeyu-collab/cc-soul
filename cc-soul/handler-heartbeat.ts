@@ -159,7 +159,9 @@ export function runHeartbeat() {
           } catch {}
         })
         safe('memoryDecay', () => processMemoryDecay())
+        safe('bayesDecay', () => { try { require('./confidence-cascade.ts').batchTimeDecay(require('./memory.ts').memoryState.memories) } catch {} })
         safe('aamDecay', () => { try { require('./aam.ts').decayCooccurrence() } catch {} })
+        safe('pmiClusters', () => { try { require('./aam.ts').buildPMIClusters() } catch {} })
         safe('pruneExpired', () => pruneExpiredMemories())
         safe('reviveDecayed', () => reviveDecayedMemories())
         safe('memoryAudit', () => auditMemoryHealth())
@@ -276,15 +278,6 @@ export function runHeartbeat() {
           } catch {}
         })
 
-        // ── CIN 认知场更新 + 因果链发现 ──
-        safe('cinField', async () => {
-          const { rebuildField, discoverCausalChains } = await import('./cin.ts')
-          const { memoryState } = await import('./memory.ts')
-          if (memoryState.memories.length >= 20) {
-            rebuildField(memoryState.memories)
-            discoverCausalChains(memoryState.memories)
-          }
-        })
 
         if (mode === 'deep_sleep') {
           // ══ 深睡：跑全量重计算 ══

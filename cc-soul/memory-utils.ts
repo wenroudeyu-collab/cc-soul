@@ -5,6 +5,34 @@
 
 import type { Memory } from './types.ts'
 
+/** Unified word extraction patterns — use these instead of inline regex */
+export const WORD_PATTERN = {
+  /** CJK 2+ chars OR English 3+ chars (most common) */
+  CJK2_EN3: /[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi,
+  /** CJK 2-4 chars OR English 2+ chars OR digits (for BM25/fact matching) */
+  CJK24_EN2_NUM: /[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi,
+  /** CJK 2-4 chars OR English 3+ chars (for spreading activation/graph) */
+  CJK24_EN3: /[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi,
+}
+
+/** Unified trigram similarity thresholds */
+export const TRIGRAM_THRESHOLD = {
+  /** Exact duplicate detection */
+  DEDUP_EXACT: 0.9,
+  /** Merge-worthy similarity */
+  DEDUP_MERGE: 0.7,
+  /** Strong interference suppression */
+  INTERFERENCE_STRONG: 0.5,
+  /** Light interference suppression */
+  INTERFERENCE_LIGHT: 0.3,
+  /** Topic freshness detection */
+  TOPIC_FRESHNESS: 0.15,
+  /** Graveyard revival threshold */
+  GRAVEYARD_REVIVE: 0.5,
+  /** Fallback similarity (CMR Layer 3) */
+  FALLBACK: 0.6,
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Event-Driven Cache Coherence（原创算法）
 // 各缓存注册自己关心的事件，事件发生时自动失效
@@ -499,12 +527,36 @@ export function defaultVisibility(scope: string): 'global' | 'channel' | 'privat
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Adaptive Decay — 通用自适应衰减（供 patterns.ts / epistemic.ts 复用）
+// Polarity Flip Detection — 共享矛盾信号检测（smart-forget + distill 复用）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CONTRADICTION_PAIRS: [RegExp, RegExp][] = [
+  [/喜欢|爱|偏好/, /讨厌|不喜欢|不想/],
+  [/在.*工作|在.*做/, /离职|辞职|被裁/],
+  [/住在|住/, /搬到|搬去/],
+  [/运动|跑步|健身/, /不运动|不跑|放弃/],
+  [/学|在学/, /不学|放弃/],
+  [/是|用/, /不是|不用|换了/],
+]
+
+/**
+ * 检测两段文本之间是否存在极性翻转（矛盾信号）
+ * 合并自 smart-forget.ts detectContradictionSignals + distill.ts 时序矛盾检测
+ */
+export function detectPolarityFlip(textA: string, textB: string): boolean {
+  for (const [patA, patB] of CONTRADICTION_PAIRS) {
+    if ((patA.test(textA) && patB.test(textB)) || (patB.test(textA) && patA.test(textB))) return true
+  }
+  return false
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Adaptive Decay — 通用自适应衰减（供 epistemic.ts 等复用）
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * 通用自适应衰减：年龄 + 使用频率 二维衰减
- * 供 patterns.ts (模式衰减) 和 epistemic.ts (知识衰减) 复用
+ * 供 epistemic.ts (知识衰减) 等复用
  *
  * @param ageMs - 距上次使用的毫秒数
  * @param useCount - 使用/命中次数

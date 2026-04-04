@@ -137,7 +137,9 @@ async function handleProcess(body: any): Promise<any> {
   const bodyResult = await safeCompute(async () => {
     const bodyMod = await import('./body.ts')
     try { bodyMod.loadBodyState() } catch {}
-    bodyMod.bodyTick()
+    let peakHour: number | undefined
+    try { peakHour = (await import('./user-profiles.ts')).getUserPeakHour(userId); if (peakHour === -1) peakHour = undefined } catch {}
+    bodyMod.bodyTick(peakHour)
     bodyMod.bodyOnMessage(message.length > 50 ? 0.6 : 0.3)
     return { mood: bodyMod.body.mood, energy: bodyMod.body.energy, alertness: bodyMod.body.alertness ?? 0.5 }
   }, bodyFallback, 'body-tick')
@@ -148,7 +150,9 @@ async function handleProcess(body: any): Promise<any> {
   const cogFallback = { attention: 'general' as const, intent: 'wants_answer', strategy: 'balanced', complexity: 0.3, hints: [], spectrum: { information: 0.5, action: 0.2, emotional: 0.2, validation: 0.1, exploration: 0.2 } }
   let cogResult: any = await safeCompute(async () => {
     const { cogProcess } = await import('./cognition.ts')
-    const result = cogProcess(message, userId)
+    const { getSessionState: _getSess } = await import('./handler-state.ts')
+    const _sess = _getSess(userId)
+    const result = cogProcess(message, _sess.lastResponseContent || '', _sess.lastPrompt || '', userId)
     if (result.attention === 'correction') {
       try {
         (await import('./user-profiles.ts')).updateProfileOnCorrection(userId)

@@ -7,7 +7,7 @@
 
 import type { Augment } from './types.ts'
 import { trigrams as _t, trigramSimilarity as _ts } from './memory-utils.ts'
-import { getAugmentPriorityMultiplier } from './meta-feedback.ts'
+// meta-feedback.ts removed
 import { body, bodyGetParams, bodyStateString } from './body.ts'
 import { memoryState, recall, coreMemories } from './memory.ts'
 import { rules, hypotheses } from './evolution.ts'
@@ -47,18 +47,8 @@ export function selectAugments(augments: Augment[], budget = 2000, energyMultipl
   // Dynamic budget based on body energy (if provided)
   const effectiveBudget = Math.round(budget * energyMultiplier)
 
-  // Apply metacognitive priority adjustment based on learned augment effectiveness
   // Clone to avoid mutating caller's objects
   const clonedAugments = augments.map(a => ({ ...a }))
-  for (const aug of clonedAugments) {
-    const typeMatch = aug.content.match(/^\[([^\]]+)\]/)
-    if (typeMatch) {
-      const metaMultiplier = getAugmentPriorityMultiplier(typeMatch[1])
-      if (metaMultiplier !== 1.0) {
-        aug.priority = Math.round(aug.priority * metaMultiplier)
-      }
-    }
-  }
 
   // Category buckets — ensure each category gets at least 1 slot
   const categories: Record<string, Augment[]> = {
@@ -74,7 +64,7 @@ export function selectAugments(augments: Augment[], budget = 2000, energyMultipl
     const c = a.content.toLowerCase()
     if (c.includes('memory') || c.includes('记忆') || c.includes('core memory') || c.includes('working memory') || c.includes('predictive') || c.includes('associative') || c.includes('search result') || c.includes('联想记忆')) {
       categories.memory.push(a)
-    } else if (c.includes('persona') || c.includes('emotion') || c.includes('drift') || c.includes('fingerprint') || c.includes('面向') || c.includes('当前对话者') || c.includes('情绪感知') || c.includes('用户档案') || c.includes('心智模型') || c.includes('mental model')) {
+    } else if (c.includes('persona') || c.includes('emotion') || c.includes('drift') || c.includes('面向') || c.includes('当前对话者') || c.includes('情绪感知') || c.includes('用户档案') || c.includes('心智模型') || c.includes('mental model')) {
       categories.persona.push(a)
     } else if (c.includes('rule') || c.includes('plan') || c.includes('epistemic') || c.includes('知识边界') || c.includes('metacognit') || c.includes('认知')) {
       categories.rules.push(a)

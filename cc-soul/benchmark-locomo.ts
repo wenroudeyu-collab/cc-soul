@@ -401,6 +401,13 @@ async function run() {
   const memoryCache = new Map<string, Memory[]>()
   const learnedConvs = new Set<string>()
 
+  // ── 论文维度：按对话长度分组 + 延迟追踪 + 存储统计 ──
+  const convMemoryCount = new Map<string, number>()  // convId → memory count
+  const perQueryLatency: number[] = []               // ms per query
+  let totalMemoryBytes = 0                           // 所有记忆的原始文本大小
+  // Per-question result for bucketing by conversation size
+  const perQuestionResult: { convId: string; hit: boolean; mcCorrect: boolean; isAdversarial: boolean }[] = []
+
   // Trackers — extended for recall-only Hit@1/3/5/10
   const typeStats: Record<string, {
     recallTotal: number,
@@ -432,6 +439,8 @@ async function run() {
       if (!learnedConvs.has(convId)) {
         for (const mem of memories) learnAssociation(mem.content, 0.2)
         learnedConvs.add(convId)
+        convMemoryCount.set(convId, memories.length)
+        totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
         suppressLogs = false
         print(`  [${convId}] ${memories.length} memories loaded`)
         suppressLogs = true
@@ -439,16 +448,20 @@ async function run() {
     }
     const memories = memoryCache.get(convId)!
 
-    // Recall
+    // Recall (with latency tracking)
+    const _qStart = Date.now()
     const recalled: Memory[] = activationRecall(memories, q.question, opts.topK, 0, 0.5)
+    perQueryLatency.push(Date.now() - _qStart)
 
     const stat = getStat(q.question_type)
 
     // Layer 1: Recall quality (always computed for non-adversarial)
     const isAdversarial = /not answerable|cannot be answered|unanswerable/i.test(q.answer)
+    let _qHit = false
     if (!isAdversarial) {
       stat.recallTotal++
       const { hit, rank } = answerInRecalled(recalled, q.answer)
+      _qHit = hit
       if (hit) {
         if (rank <= 1) stat.hitAt1++
         if (rank <= 3) stat.hitAt3++
@@ -459,11 +472,13 @@ async function run() {
     }
 
     // Layer 2: skip for recall-only
+    let _qMCCorrect = false
     if (!opts.recallOnly) {
       // String-match answer selection (always run)
       stat.mcTotal++
       const { choiceIndex, confidence } = selectAnswer(recalled, q.choices)
-      if (choiceIndex === q.correct_choice_index) stat.mcCorrect++
+      _qMCCorrect = choiceIndex === q.correct_choice_index
+      if (_qMCCorrect) stat.mcCorrect++
 
       // LLM answer selection
       if (opts.llm) {
@@ -511,6 +526,9 @@ async function run() {
       print(`  ${hit ? 'HIT' : 'MISS'}@${rank > 0 ? rank : '-'} [${q.question_type.padEnd(20)}] ${q.question.slice(0, 55)}`)
       suppressLogs = true
     }
+
+    // Record per-question result for conv-size bucketing
+    perQuestionResult.push({ convId, hit: _qHit, mcCorrect: _qMCCorrect, isAdversarial })
 
     // Progress
     if ((qi + 1) % 50 === 0) {
@@ -622,6 +640,104 @@ async function run() {
         print('  ──────────────────────  ──────  ────')
         print(`  ${'TOTAL'.padEnd(24)} ${(totalMCCorrect / totalMC * 100).toFixed(1).padStart(5)}%  ${String(totalMC).padStart(4)}`)
       }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // RESULTS: LATENCY STATISTICS
+  // ═══════════════════════════════════════════════════════════════
+
+  print()
+  print('═══════════════════════════════════════════════════════════')
+  print('  Layer 3: Latency & Storage')
+  print('═══════════════════════════════════════════════════════════')
+  print()
+
+  if (perQueryLatency.length > 0) {
+    const sorted = [...perQueryLatency].sort((a, b) => a - b)
+    const p50 = sorted[Math.floor(sorted.length * 0.5)]
+    const p95 = sorted[Math.floor(sorted.length * 0.95)]
+    const p99 = sorted[Math.floor(sorted.length * 0.99)]
+    const avg = sorted.reduce((a, b) => a + b, 0) / sorted.length
+    print(`  Recall Latency (${sorted.length} queries):`)
+    print(`    avg=${avg.toFixed(1)}ms  p50=${p50}ms  p95=${p95}ms  p99=${p99}ms`)
+    print(`    throughput: ${(questions.length / elapsed).toFixed(1)} q/s`)
+  }
+
+  // Storage comparison: NAM vs Vector
+  if (totalMemoryBytes > 0) {
+    const namStorageKB = totalMemoryBytes / 1024
+    // Vector embedding estimate: 1536-dim float32 per memory (OpenAI ada-002 standard)
+    const totalMemories = [...convMemoryCount.values()].reduce((a, b) => a + b, 0)
+    const vectorStorageKB = totalMemories * 1536 * 4 / 1024  // 1536 dims × 4 bytes/float32
+    const aamStorageKB = 2300  // AAM cooccur ~2.3MB (from real data)
+    print()
+    print(`  Storage Comparison (${totalMemories} memories):`)
+    print(`    NAM (text + AAM + SQLite):  ${((namStorageKB + aamStorageKB) / 1024).toFixed(1)} MB`)
+    print(`    Vector (ada-002 1536d):     ${(vectorStorageKB / 1024).toFixed(1)} MB  (embeddings only, +index)`)
+    print(`    Ratio: NAM is ${(vectorStorageKB / (namStorageKB + aamStorageKB)).toFixed(1)}x smaller`)
+    print(`    External API calls: NAM=0  Vector=N (embedding generation)`)
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // RESULTS: RECALL BY CONVERSATION LENGTH
+  // ═══════════════════════════════════════════════════════════════
+
+  // Group per-question results by conversation memory pool size
+  function getBucket(memCount: number): string {
+    if (memCount <= 200) return 'small (≤200)'
+    if (memCount <= 400) return 'medium (201-400)'
+    if (memCount <= 600) return 'large (401-600)'
+    return 'xlarge (600+)'
+  }
+
+  const lengthBuckets: Record<string, { hit: number; total: number; mcCorrect: number; mcTotal: number }> = {}
+  for (const r of perQuestionResult) {
+    const memCount = convMemoryCount.get(r.convId) || 0
+    const bucket = getBucket(memCount)
+    if (!lengthBuckets[bucket]) lengthBuckets[bucket] = { hit: 0, total: 0, mcCorrect: 0, mcTotal: 0 }
+    const b = lengthBuckets[bucket]
+    if (!r.isAdversarial) {
+      b.total++
+      if (r.hit) b.hit++
+    }
+    if (!opts.recallOnly) {
+      b.mcTotal++
+      if (r.mcCorrect) b.mcCorrect++
+    }
+  }
+
+  print()
+  print('═══════════════════════════════════════════════════════════')
+  print('  Layer 4: Recall by Conversation Size')
+  print('═══════════════════════════════════════════════════════════')
+  print()
+
+  // Per-conversation breakdown
+  print('  Conv ID     Memories   Questions   Size Bucket')
+  print('  ─────────  ────────  ──────────  ──────────────')
+  for (const convId of convIds) {
+    const memCount = convMemoryCount.get(convId) || 0
+    const qCount = convMap.get(convId)?.length || 0
+    if (memCount > 0) {
+      print(`  ${convId.padEnd(10)} ${String(memCount).padStart(7)}   ${String(qCount).padStart(9)}   ${getBucket(memCount)}`)
+    }
+  }
+
+  // Bucketed recall stats
+  const bucketOrder = ['small (≤200)', 'medium (201-400)', 'large (401-600)', 'xlarge (600+)']
+  print()
+  print(`  Size Bucket          Hit@10    ${opts.recallOnly ? '' : 'MC Acc    '}N`)
+  print(`  ───────────────────  ──────  ${opts.recallOnly ? '' : '──────  '}────`)
+  for (const bucket of bucketOrder) {
+    const b = lengthBuckets[bucket]
+    if (!b || b.total === 0) continue
+    const hitRate = (b.hit / b.total * 100).toFixed(1)
+    const mcRate = b.mcTotal > 0 ? (b.mcCorrect / b.mcTotal * 100).toFixed(1) : '-'
+    if (opts.recallOnly) {
+      print(`  ${bucket.padEnd(21)} ${hitRate.padStart(5)}%  ${String(b.total).padStart(4)}`)
+    } else {
+      print(`  ${bucket.padEnd(21)} ${hitRate.padStart(5)}%  ${mcRate.padStart(5)}%  ${String(b.total).padStart(4)}`)
     }
   }
 

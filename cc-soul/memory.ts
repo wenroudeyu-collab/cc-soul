@@ -8,7 +8,7 @@
  */
 
 import { resolve } from 'path'
-import { existsSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { existsSync, statSync, writeFileSync } from 'fs'
 
 import type { Memory } from './types.ts'
 import { MEMORIES_PATH, HISTORY_PATH, DATA_DIR, loadJson, debouncedSave } from './persistence.ts'
@@ -21,7 +21,7 @@ import {
   sqliteFindByContent, sqliteCount, sqliteGetAll,
   sqliteAddChatTurn, sqliteGetRecentHistory, sqliteTrimHistory,
 } from './sqlite-store.ts'
-import { appendAudit } from './audit.ts'
+// audit.ts removed
 import { addRelation } from './graph.ts'
 
 // ── Imports from sub-modules ──
@@ -32,6 +32,7 @@ import {
   emitCacheEvent, generateMemoryId, appendLineage, classifyConflict, contextAwareSimilarity,
 } from './memory-utils.ts'
 import { invalidateIDF, incrementalIDFUpdate, updateRecallIndex, rebuildRecallIndex } from './memory-recall.ts'
+import { invalidateFieldIDF } from './activation-field.ts'
 
 // ── Re-exports (barrel) ──
 export {
@@ -40,7 +41,7 @@ export {
   detectMemoryPoisoning, extractReasoning, defaultVisibility,
 } from './memory-utils.ts'
 export {
-  recall, recallFused, getCachedFusedRecall, invalidateIDF, degradeMemoryConfidence,
+  recall, getCachedFusedRecall, invalidateIDF, degradeMemoryConfidence,
   trackRecallImpact, getRecallImpactBoost, getRecallRate, recallStats, recallImpact,
   recallWithScores, updateRecallIndex, rebuildRecallIndex, incrementalIDFUpdate,
 } from './memory-recall.ts'
@@ -799,6 +800,7 @@ export function updateMemory(index: number, newContent: string) {
   } catch {}
 
   invalidateIDF()
+  invalidateFieldIDF()
   rebuildScopeIndex()
   saveMemories()
 
@@ -1187,7 +1189,7 @@ export function createMemoryVersion(oldContent: string, newContent: string, scop
   memoryState.memories.push(newMem)
   if (useSQLite) { sqliteAddMemory(newMem) }
   saveMemories()
-  appendAudit('memory_version', `[${existing.scope}] "${oldContent.slice(0, 50)}" → "${newContent.slice(0, 50)}"`)
+
 }
 
 /**
@@ -1374,8 +1376,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   if (_recentWriteHashes.size > 500) {
     // 防止集合无限增长
     const iterator = _recentWriteHashes.values()
-    for (let i = 0; i < 100; i++) iterator.next()  // 删除最早的 100 个
-    // Set 没有 shift，用 clear + 重建
+    // Set 没有 shift，用 clear + 重建（保留最近 400 个）
     const remaining = [..._recentWriteHashes].slice(-400)
     _recentWriteHashes.clear()
     for (const k of remaining) _recentWriteHashes.add(k)
@@ -1521,6 +1522,13 @@ export function addMemory(content: string, scope: string, userId?: string, visib
               if (!mem.history) mem.history = []
               mem.history.push({ content: mem.content, ts: Date.now() })
               mem.content = resolved
+              // Sync to SQLite (use old content _corefContent to find the record, then update)
+              try {
+                const { sqliteFindByContent, sqliteUpdateMemory } = require('./sqlite-store.ts')
+                const found = sqliteFindByContent(_corefContent)
+                if (found) sqliteUpdateMemory(found.id, { content: resolved })
+              } catch {}
+              try { updateRecallIndex(mem) } catch {}
               try { require('./decision-log.ts').logDecision('coreference_llm', resolved.slice(0, 30), `original: ${_corefContent.slice(0, 30)}`) } catch {}
             }
           },
@@ -1769,7 +1777,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
       contentIndex.set(ck, content)
     }
     incrementalIDFUpdate(content)
-    appendAudit('memory_add', `[${scope}] ${content.slice(0, 100)}`)
+    invalidateFieldIDF()
 
     // Async: queue semantic tag generation for the new memory (batched)
     // Bug #8 fix: don't pass index — eviction may shift it; use content+ts for stable lookup

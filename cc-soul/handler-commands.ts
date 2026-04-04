@@ -21,7 +21,7 @@ import {
   getSoulMode, setSoulMode,
 } from './handler-state.ts'
 import { loadJson, saveJson, debouncedSave, DATA_DIR } from './persistence.ts'
-import { isAuditCommand, formatAuditLog } from './audit.ts'
+// audit.ts removed
 import { dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
 import { handleFeatureCommand } from './features.ts'
 // embedder.ts removed — vector search retired
@@ -79,7 +79,7 @@ function _fullBackup(): { path: string; counts: Record<string, number> } {
     coreMemories: 'core_memories.json', userProfiles: 'user_profiles.json',
     theoryOfMind: 'theory_of_mind.json', body: 'body_state.json',
     emotionAnchors: 'emotion_anchors.json', graph: 'graph.json',
-    lorebook: 'lorebook.json', patterns: 'success_patterns.json',
+    lorebook: 'lorebook.json',
     journal: 'journal.json', workflows: 'workflows.json', plans: 'plans.json',
   }
   const bundle: Record<string, any> = { _meta: { version: 1, exportedAt: new Date().toISOString(), source: 'cc-soul' } }
@@ -112,7 +112,7 @@ function _fullRestore(filePath: string): Record<string, number> {
     coreMemories: 'core_memories.json', userProfiles: 'user_profiles.json',
     theoryOfMind: 'theory_of_mind.json', body: 'body_state.json',
     emotionAnchors: 'emotion_anchors.json', graph: 'graph.json',
-    lorebook: 'lorebook.json', patterns: 'success_patterns.json',
+    lorebook: 'lorebook.json',
     journal: 'journal.json', workflows: 'workflows.json', plans: 'plans.json',
   }
   const counts: Record<string, number> = {}
@@ -242,7 +242,6 @@ const HELP_TEXT_FULL = `cc-soul 命令指南
 ━━ 高级功能 ━━
 • 功能状态 / features             — 查看所有功能开关
 • 开启 <功能> / 关闭 <功能>       — 开关功能
-• 审计日志 / audit log            — 查看操作审计链
 • 开始实验 <描述>                 — 启动 A/B 实验
 
 向量搜索已退役，NAM 记忆引擎已覆盖语义匹配。`
@@ -305,16 +304,6 @@ const COMMANDS: SoulCommand[] = [
       setPrivacyMode(false)
       console.log('[cc-soul] privacy mode OFF')
       return '隐私模式已关闭，恢复记忆。'
-    },
-  },
-
-  // ── Audit log ──
-  {
-    pattern: /^(审计日志|audit log|审计|audit)/i,
-    mode: 'both',
-    execute: (_m, _c) => {
-      const log = formatAuditLog(20)
-      return log || '暂无审计日志。'
     },
   },
 
@@ -1216,7 +1205,6 @@ const CMD_PATTERNS = [
   /^(功能状态|features)$/i,
   /^(记忆健康|memory health)$/i,
   /^(功能|feature)\s+/i,
-  /^(审计|audit)/i,
   /^(人格列表|personas?)$/i,
   /^(导出|export)/i,
   /^(导入|import)/i,

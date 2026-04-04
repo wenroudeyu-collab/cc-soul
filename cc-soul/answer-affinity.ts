@@ -17,7 +17,7 @@
  */
 
 import type { Memory } from './types.ts'
-import { trigramSimilarity, tokenize } from './memory-utils.ts'
+import { trigrams, trigramSimilarity, tokenize } from './memory-utils.ts'
 
 interface AffinityResult {
   memory: Memory
@@ -44,7 +44,7 @@ export function scoreAffinity(
     if (!content) continue
 
     // Method 1: Trigram similarity (structural overlap)
-    const triSim = trigramSimilarity(content, responseLower)
+    const triSim = trigramSimilarity(trigrams(content), trigrams(responseLower))
 
     // Method 2: Keyword overlap (semantic contribution)
     const memWords = new Set(tokenize(content).filter(w => w.length >= 2))

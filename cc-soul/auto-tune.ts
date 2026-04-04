@@ -63,6 +63,9 @@ const DEFAULT_PARAMS: Record<string, number> = {
   'quality.ai_exposure_penalty': 2.0,
   'quality.relevance_weight': 1.5,
 
+  // activation-field.ts — 聚合查询检测
+  'recall.aggregation_dropoff': 0.3,
+
   // flow.ts
   'flow.frustration_shortening_rate': 0.2,
   'flow.frustration_terse': 0.15,
@@ -105,11 +108,6 @@ const DEFAULT_PARAMS: Record<string, number> = {
 
   // body.ts — emotional contagion
   'body.contagion_max_shift': 0.15,
-
-  // fingerprint.ts — deviation thresholds
-  'fingerprint.length_upper_multiplier': 3,
-  'fingerprint.length_lower_multiplier': 0.15,
-  'fingerprint.hedge_word_limit': 5,
 
   // graph.ts — stale entity threshold
   'graph.stale_days': 90,

@@ -57,19 +57,6 @@ function attentionGate(msg: string): { type: string; priority: number } {
     hypotheses[1].score += 1 // boost emotional even when technical words present
   }
 
-  // CIN 先验融合（原创增强）：用用户性格给假设加底分
-  try {
-    const cin = require('./cin.ts')
-    const field = cin.getCINField?.() || cin.getLatestWave?.()
-    if (field) {
-      // D3（决策风格）高 → technical 先验加底分
-      if ((field.D3 ?? field.strength?.[2] ?? 0) > 0.3) hypotheses[2].score += 0.5
-      // D2（社交倾向）高 → emotional 先验加底分
-      if ((field.D2 ?? field.strength?.[1] ?? 0) > 0.3) hypotheses[1].score += 0.3
-      // D4（沟通方式）偏直接 → correction 检测灵敏度提高
-      if ((field.D4 ?? field.strength?.[3] ?? 0) > 0.5) hypotheses[0].score += 0.2
-    }
-  } catch {}
 
   // Pick winner via softmax — 分数差距大时高优先级，差距小时中性
   hypotheses.sort((a, b) => b.score - a.score)
@@ -425,10 +412,6 @@ function intentTypeToSpectrumKey(type: string): keyof IntentSpectrum | null {
   }
 }
 
-// 向后兼容：updateNBClassifier 的外部调用者（如果有）
-export function updateNBClassifier(_msg: string, _cls: string) {
-  // NB 已被 intentMomentum 替代，此函数保留为空操作以防外部依赖
-}
 
 // ── Main Entry ──
 
@@ -483,7 +466,7 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
       emotionVector.dominance = clamp(emotionVector.dominance - 0.05)
       emotionVector.pleasure = clamp(emotionVector.pleasure - 0.08)
     }
-    // brain removed — feedback now handled by patterns.ts success tracking
+    // brain + patterns.ts removed — success tracking retired
   }
 
   // Emotional handling
