@@ -285,21 +285,8 @@ function parseArgs() {
 // LLM ANSWER SELECTION (Kimi k2.5)
 // ═══════════════════════════════════════════════════════════════
 
-function loadMoonshotKey(): string {
-  // 支持目录或文件两种 credentials 格式
-  let credPath = join(process.env.HOME || '~', '.openclaw', 'credentials')
-  if (!existsSync(credPath) || require('fs').statSync(credPath).isDirectory()) {
-    credPath = join(process.env.HOME || '~', '.openclaw', 'credentials.txt')
-  }
-  if (!existsSync(credPath)) throw new Error(`Credentials not found`)
-  const lines = readFileSync(credPath, 'utf-8').split('\n')
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (trimmed.startsWith('moonshot:')) {
-      return trimmed.slice('moonshot:'.length).trim()
-    }
-  }
-  throw new Error('moonshot: key not found in credentials')
+function loadLLMKey(): string {
+  return 'sk-2d29b4fb236b40908c54a9517f86d504'
 }
 
 async function selectAnswerWithLLM(
@@ -325,38 +312,28 @@ ${choiceBlock}
 
 Reply with ONLY the letter (A-J). Nothing else.`
 
-  const resp = await fetch('https://api.moonshot.cn/v1/chat/completions', {
+  const resp = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'kimi-k2.5',
+      model: 'deepseek-chat',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 1,  // kimi-k2.5 只允许 temperature=1
-      max_tokens: 1024,  // k2.5 是推理模型，需要足够空间输出 reasoning + answer
+      temperature: 0,
+      max_tokens: 5,
     }),
   })
 
   if (!resp.ok) {
     const body = await resp.text()
-    throw new Error(`Kimi API ${resp.status}: ${body.slice(0, 200)}`)
+    throw new Error(`DeepSeek API ${resp.status}: ${body.slice(0, 200)}`)
   }
 
   const json = await resp.json() as any
   const msg = json.choices?.[0]?.message || {}
-  // Kimi k2.5 是推理模型：答案可能在 content 或 reasoning_content 里
   let raw = (msg.content || '').trim()
-
-  // 如果 content 为空，从 reasoning_content 提取答案字母
-  if (!raw && msg.reasoning_content) {
-    // 在推理内容中找最后出现的单独字母 A-J
-    const matches = msg.reasoning_content.match(/\b([A-J])\b/g)
-    if (matches && matches.length > 0) {
-      raw = matches[matches.length - 1]  // 取最后一个（通常是结论）
-    }
-  }
 
   const letter = raw.charAt(0).toUpperCase()
   const idx = letters.indexOf(letter)
@@ -379,8 +356,8 @@ async function run() {
   let apiKey = ''
   if (opts.llm) {
     try {
-      apiKey = loadMoonshotKey()
-      print('  Kimi k2.5 API key loaded')
+      apiKey = loadLLMKey()
+      print('  DeepSeek API key loaded')
     } catch (e: any) {
       print(`  ERROR: ${e.message}`)
       return

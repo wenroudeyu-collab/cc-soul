@@ -1,0 +1,41 @@
+{
+  "bias": 0.3573886327204868,
+  "weights": {
+    "mediumLength": 0.5,
+    "longLength": 0.5,
+    "tooLong": -1,
+    "tooShort": -1.5,
+    "hasReasoning": 1.1712832431296727,
+    "hasCode": 0.5,
+    "hasList": 0.3,
+    "hasUncertainty": 0.3,
+    "hasRefusal": -1.5,
+    "relevance": 1.7241013963662566,
+    "aiExposure": -2,
+    "lengthRatio": 0.3961489153964011,
+    "repetitionPenalty": -1.5,
+    "informationGain": 0.5,
+    "userEngagement": 0.5
+  },
+  "learningRate": 0.1,
+  "trainingExamples": 0,
+  "gradientSquaredSum": {
+    "_bias": 0.043931518921148514,
+    "mediumLength": 0,
+    "longLength": 0,
+    "tooLong": 0,
+    "tooShort": 0,
+    "hasReasoning": 0.0004769757071702353,
+    "hasCode": 0,
+    "hasList": 0,
+    "hasUncertainty": 0,
+    "hasRefusal": 0,
+    "relevance": 0.0014466311345082581,
+    "aiExposure": 0,
+    "lengthRatio": 0.08658990467008408,
+    "repetitionPenalty": 0,
+    "informationGain": 0,
+    "userEngagement": 0
+  },
+  "hardExamples": []
+}

@@ -148,7 +148,7 @@ import { loadDistillState } from './distill.ts'
 import { loadAbsenceState } from './absence-detection.ts'
 import { healthCheck, recordModuleError, recordModuleActivity, postReplyCleanup } from './health.ts'
 import { checkAutoTune, handleTuneCommand, getParam, updateBanditReward } from './auto-tune.ts'
-import { loadExperiments, checkExperiments, getExperimentSummary, startExperiment, loadEvolutions, checkEvolutionProgress, getEvolutionSummary } from './experiment.ts'
+import { loadEvolutions, checkEvolutionProgress, getEvolutionSummary } from './evolution.ts'
 import { isContextEngineActive, isContextEngineRegistered, setLastAugments } from './context-engine.ts'
 
 let agentBusyTimer: ReturnType<typeof setTimeout> | null = null
@@ -845,6 +845,19 @@ export function handleSent(event: any): void {
         }
       }
     }
+
+    // ── Answer Affinity：评估注入记忆对回答的贡献度 ──
+    try {
+      if (session.lastRecalledContents.length > 0 && content.length > 20) {
+        const { scoreAffinity } = require('./answer-affinity.ts')
+        const stubMemories = session.lastRecalledContents.map((c: string) => ({ content: c, ts: Date.now(), scope: 'recalled' as const }))
+        const affinityResults = scoreAffinity(stubMemories, content, session.lastPrompt || '')
+        const usedCount = affinityResults.filter((r: any) => r.signal === 'used').length
+        if (usedCount > 0 || affinityResults.length > 0) {
+          console.log(`[cc-soul][affinity] ${usedCount}/${affinityResults.length} memories contributed to response`)
+        }
+      }
+    } catch {}
 
     // Cost tracking
     {

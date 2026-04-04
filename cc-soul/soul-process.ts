@@ -126,6 +126,9 @@ async function handleProcess(body: any): Promise<any> {
   // ── 交叉学习：每条用户消息喂 AAM（不只是查询时）──
   try { (await import('./aam.ts')).learnAssociation(message) } catch {}
 
+  // ── 语义漂移追踪：每条用户消息喂滑动窗口 ──
+  try { (await import('./semantic-drift.ts')).trackMessage(message) } catch {}
+
   // ── 0.5 语言自适应种子翻译（首次启动 + 有 LLM → 翻译种子词；没 LLM → 跳过）──
   try { (await import('./aam.ts')).maybeTranslateSeedsForLanguage(message) } catch {}
 

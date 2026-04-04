@@ -1,10 +1,10 @@
 {
-  "ts": 1774966338313,
+  "ts": 1775312795825,
   "duplicates": [],
   "tooShort": [],
-  "untagged": 0,
+  "untagged": 20,
   "lowConfidence": 0,
   "zombie": 0,
-  "staleExpiry": 0,
-  "suggestions": "记忆状态良好"
+  "staleExpiry": 4,
+  "suggestions": "20 条记忆缺少标签，建议批量打标；4 条记忆已过 validUntil 但未过期，建议清理"
 }

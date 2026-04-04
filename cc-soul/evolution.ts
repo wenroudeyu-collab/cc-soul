@@ -594,10 +594,75 @@ export function importEvolutionAssets(filePath: string): { rulesAdded: number; h
   return { rulesAdded, hypothesesAdded }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// GRADUAL EVOLUTION (Phased Upgrades) — migrated from experiment.ts
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface EvolutionPhase {
+  phase: number
+  description: string
+  status: 'pending' | 'active' | 'completed' | 'failed'
+  startedAt: number
+  duration: number
+  metrics: { quality: number; corrections: number } | null
+}
+
+interface GradualEvolution {
+  id: string
+  goal: string
+  phases: EvolutionPhase[]
+  currentPhase: number
+  startedAt: number
+  status: 'in_progress' | 'completed' | 'abandoned'
+}
+
+const EVOLUTIONS_PATH = resolve(DATA_DIR, 'evolutions.json')
+let evolutions: GradualEvolution[] = loadJson(EVOLUTIONS_PATH, [])
+
+export function loadEvolutions() {
+  evolutions = loadJson(EVOLUTIONS_PATH, [])
+}
+
+export function startEvolution(goal: string, phaseDescriptions: string[], phaseDurationDays = 2): string {
+  const id = `evo_${Date.now()}`
+  const phases: EvolutionPhase[] = phaseDescriptions.map((desc, i) => ({
+    phase: i + 1, description: desc,
+    status: i === 0 ? 'active' as const : 'pending' as const,
+    startedAt: i === 0 ? Date.now() : 0, duration: phaseDurationDays * 86400000, metrics: null,
+  }))
+  evolutions.push({ id, goal, phases, currentPhase: 0, startedAt: Date.now(), status: 'in_progress' })
+  debouncedSave(EVOLUTIONS_PATH, evolutions)
+  return id
+}
+
+export function checkEvolutionProgress() {
+  const now = Date.now()
+  for (const evo of evolutions) {
+    if (evo.status !== 'in_progress') continue
+    const current = evo.phases[evo.currentPhase]
+    if (!current || current.status !== 'active') continue
+    if (now - current.startedAt < current.duration) continue
+    current.status = 'completed'
+    const next = evo.phases[evo.currentPhase + 1]
+    if (next) { next.status = 'active'; next.startedAt = now; evo.currentPhase++ }
+    else { evo.status = 'completed' }
+    debouncedSave(EVOLUTIONS_PATH, evolutions)
+  }
+}
+
+export function getEvolutionSummary(): string {
+  const active = evolutions.filter(e => e.status === 'in_progress')
+  if (active.length === 0) return ''
+  return active.map(e => {
+    const p = e.phases[e.currentPhase]
+    return `进化: ${e.goal} — 阶段 ${p?.phase ?? '?'}/${e.phases.length}: ${p?.description ?? '?'}`
+  }).join('\n')
+}
+
 export const evolutionModule: SoulModule = {
   id: 'evolution',
   name: '进化引擎',
   dependencies: ['memory'],
   priority: 50,
-  init() { loadRules(); loadHypotheses() },
+  init() { loadRules(); loadHypotheses(); loadEvolutions() },
 }

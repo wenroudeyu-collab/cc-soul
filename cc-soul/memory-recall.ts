@@ -29,6 +29,7 @@ import {
   SYNONYM_MAP, onCacheEvent, tokenize as unifiedTokenize,
 } from './memory-utils.ts'
 import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
+import { positiveEvidence as _posEvidence, negativeEvidence as _negEvidence, confidenceRecallModifier as _confModifier } from './confidence-cascade.ts'
 
 // Event-Driven Cache Coherence：注册缓存失效
 onCacheEvent('memory_added', () => { idfCache = null; lastIdfBuildTs = 0 })
@@ -1336,6 +1337,14 @@ function system1FastRecall(msg: string, topN: number, _userId?: string): Memory[
 export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }): Memory[] {
   if (!msg || memoryState.memories.length === 0) return []
 
+  // ── 认知负荷自适应：根据消息复杂度动态调整 topN ──
+  try {
+    const { getInjectionStrategy, shouldInjectMemories } = require('./cognitive-load.ts')
+    if (!shouldInjectMemories(msg)) return []
+    const strategy = getInjectionStrategy(msg)
+    if (strategy.topN < topN) topN = strategy.topN  // 只降不升（调用者的 topN 是上限）
+  } catch {}
+
   // P3: 推进 A/B 通道实验计数器
   tickABExperiment()
 
@@ -1386,13 +1395,14 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
         original.lastAccessed = Date.now()
         original.recallCount = (original.recallCount ?? 0) + 1
         original.lastRecalled = Date.now()
-        original.confidence = Math.min(1.0, (original.confidence ?? 0.7) + 0.02)
-
-        // 测试效应：困难召回（在结果靠后）获得更大强化
+        // Bayesian confidence update (replaces simple += 0.02)
         const idx = results.indexOf(mem)
         const difficulty = idx / Math.max(1, results.length)
-        const testingBoost = 0.01 + difficulty * 0.04
-        original.confidence = Math.min(1.0, original.confidence + testingBoost)
+        try {
+          _posEvidence(original, difficulty)
+        } catch {
+          original.confidence = Math.min(1.0, (original.confidence ?? 0.7) + 0.02)
+        }
 
         // FSRS stability 更新
         if ((original as any).fsrs) {
@@ -1420,9 +1430,13 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
         let overlap = 0
         for (const w of mWords) { if (recalledWords.has(w.toLowerCase())) overlap++ }
         if (overlap >= 3 && mWords.length > 0 && overlap / mWords.length > 0.4) {
-          // 高度相关但未被选中 → 轻微抑制（-0.02 confidence）
+          // 高度相关但未被选中 → 轻微抑制（Bayesian negative evidence）
           const oldConf = m.confidence ?? 0.7
-          m.confidence = Math.max(0.1, oldConf - 0.02)
+          try {
+            _negEvidence(m, overlap / mWords.length * 0.3)  // strength proportional to overlap ratio, scaled down
+          } catch {
+            m.confidence = Math.max(0.1, oldConf - 0.02)
+          }
           try { require('./decision-log.ts').logDecision('rif_suppress', (m.content || '').slice(0, 30) + '|' + m.ts, `conf=${oldConf.toFixed(2)}→${m.confidence.toFixed(2)}, overlap=${overlap}/${mWords.length}`) } catch {}
         }
       }

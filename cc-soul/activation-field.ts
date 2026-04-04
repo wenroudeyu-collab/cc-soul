@@ -30,9 +30,12 @@ import { extractTagsLocal as _extractTagsLocal } from './memory.ts'
 
 // ── 统一 import 所有模块（不用 require，ESM 兼容）──
 // 核心模块直接 import，可选模块 lazy require（在 try/catch 里）
-import { detectDomain as _detectDomain } from './cognition.ts'
+import { detectDomain as _detectDomain } from './epistemic.ts'
 import * as _graphMod from './graph.ts'
 import * as _factStoreMod from './fact-store.ts'
+import { extractAnchors as _extractAnchors, inferTimeRange as _inferTemporalRange } from './temporal-anchor.ts'
+import { getTopicRecallModifier as _getDriftModifier } from './semantic-drift.ts'
+import { confidenceRecallModifier as _getConfModifier } from './confidence-cascade.ts'
 
 // ═══════════════════════════════════════════════════════════════
 // ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
@@ -520,10 +523,9 @@ function emotionResonance(mem: Memory, currentMood: number, currentAlertness: nu
   if (currentMood > 0.3 && mem.emotion === 'warm') score *= 1.4
   if (currentMood < -0.3 && mem.emotion === 'painful') score *= 1.4
 
-  // 闪光灯效应（Cahill & McGaugh）：高情绪强度的记忆始终更容易浮现
+  // 闪光灯效应（Cahill & McGaugh）：平滑曲线替代 3 档跳跃
   const ei = mem.emotionIntensity || 0
-  if (ei >= 0.8) score *= 1.5
-  else if (ei >= 0.5) score *= 1.2
+  score *= (1 + ei * 0.5)  // ei=0 → ×1.0, ei=0.5 �� ×1.25, ei=1.0 → ×1.5
 
   return Math.min(1, score)
 }
@@ -868,7 +870,8 @@ export function computeActivationField(
     const confScale = 0.6 + conf * 0.4
 
     // importance 加成（surprise 编码的结果）
-    let impBoost = (mem.importance ?? 5) >= 8 ? 1.2 : (mem.importance ?? 5) >= 6 ? 1.1 : 1.0
+    // importance 线性插值替代二值跳跃（imp=5→1.0, imp=8→1.15, imp=10→1.25）
+    let impBoost = 1 + Math.max(0, ((mem.importance ?? 5) - 5)) * 0.05
     // 纠正免疫：correction scope 的记忆永久加权（向量做不到——语义距离无法区分纠正前后）
     if (mem.scope === 'correction') impBoost *= 1.5
     // 被纠正的记忆（有 supersededBy）永久降权
@@ -922,7 +925,25 @@ export function computeActivationField(
   // 第二遍：加入干扰抑制（已选的会压制后续的相似记忆）
   for (const r of rawResults) {
     const s5 = interferenceSuppress(r.mem, currentTop)
-    const activation = r.raw * s5
+    let activation = r.raw * s5
+
+    // ── Semantic drift modifier：上升话题 boost，下降话题 slight reduction ──
+    try {
+      const content = r.mem.content || ''
+      const contentWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+      let driftMod = 1.0
+      for (const w of contentWords.slice(0, 5)) {
+        const m = _getDriftModifier(w.toLowerCase())
+        if (m !== 1.0) { driftMod = m; break }  // 取第一个有信号的词
+      }
+      activation *= driftMod
+    } catch {}
+
+    // ── Confidence cascade modifier：高置信 boost，低置信 penalize ──
+    try {
+      activation *= _getConfModifier(r.mem)
+    } catch {}
+
     r.signals.interference = s5
 
     // trace: 记录干扰抑制
@@ -1057,7 +1078,7 @@ export function expandQueryForField(query: string): Map<string, number> {
 
   // AAM 查询扩展（同义词 + 概念层级 + 共字关联 + PMI）
   // 直接 import，不用 require（ESM 兼容）
-  const KNOWN_SINGLE_CJK = new Set('吃喝睡走跑坐站看听说写读洗穿买卖车钱房书药酒茶'.split(''))
+  const KNOWN_SINGLE_CJK = new Set('吃喝睡走跑坐站看听说写读洗穿买卖车钱房书药酒茶怕蛇猫狗鱼学玩住飞骑游'.split(''))
   const queryWords: string[] = []
   for (const [w, wt] of expanded) {
     if ((wt as number) < 0.3) continue
@@ -1128,6 +1149,20 @@ export function activationRecall(
   try {
     timeRange = _extractTimeRange(query)  // 顶层 import，ESM 安全
   } catch {}
+
+  // 1.2 时间锚推理：当正则提取失败时，从高情绪记忆推断时间范围
+  if (!timeRange) {
+    try {
+      const anchors = _extractAnchors(memories)
+      if (anchors.length > 0) {
+        const inferred = _inferTemporalRange(query, anchors)
+        if (inferred) {
+          timeRange = { fromMs: inferred.from, toMs: inferred.to }
+          console.log(`[activation-field] temporal-anchor: inferred range [${new Date(inferred.from).toLocaleDateString()} ~ ${new Date(inferred.to).toLocaleDateString()}] from ${anchors.length} anchors`)
+        }
+      }
+    } catch {}
+  }
 
   // 1.5 隐含时间感知（向量做不到——向量不知道"最近"意味着什么）
   let recencyBias = 0  // 0=no bias, >0=天数(偏好近N天), -1=偏好旧记忆
@@ -1372,6 +1407,44 @@ export function activationRecall(
       results = [...factResults, ...results]
       console.log(`[activation-field] fusion: ${factResults.length} facts merged with ${results.length - factResults.length} NAM results`)
     }
+  }
+
+  // ── MMR Diversification：最大边际相关性，避免返回过于相似的记忆 ──
+  if (results.length > topN) {
+    const mmrResults: typeof results = []
+    const remaining = [...results]
+    const LAMBDA = 0.7  // 0.7 relevance, 0.3 diversity
+
+    // Greedily select MMR-optimal memories
+    while (mmrResults.length < topN && remaining.length > 0) {
+      let bestIdx = 0
+      let bestScore = -Infinity
+
+      for (let i = 0; i < remaining.length; i++) {
+        const relevance = remaining[i].activation
+
+        // Max similarity to already selected
+        let maxSim = 0
+        for (const selected of mmrResults) {
+          const sim = trigramSimilarity(
+            trigrams(remaining[i].memory.content || ''),
+            trigrams(selected.memory.content || '')
+          )
+          if (sim > maxSim) maxSim = sim
+        }
+
+        const mmrScore = LAMBDA * relevance - (1 - LAMBDA) * maxSim
+        if (mmrScore > bestScore) {
+          bestScore = mmrScore
+          bestIdx = i
+        }
+      }
+
+      mmrResults.push(remaining[bestIdx])
+      remaining.splice(bestIdx, 1)
+    }
+
+    results = mmrResults
   }
 
   // 截断到 topN

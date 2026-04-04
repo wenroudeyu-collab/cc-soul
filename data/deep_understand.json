@@ -1,12 +1,12 @@
 {
   "temporal": {
     "peakHours": [
-      1,
-      20,
-      22
+      23,
+      15,
+      16
     ],
-    "stressDay": "周一",
-    "lateNightFrequency": 0.45
+    "stressDay": "周五",
+    "lateNightFrequency": 0.54
   },
   "sayDo": {
     "gaps": []
@@ -18,19 +18,9 @@
   "unspoken": {
     "needs": [
       {
-        "domain": "职场",
-        "confidence": 1,
-        "evidence": "本周13次"
-      },
-      {
         "domain": "编程",
-        "confidence": 0.7,
-        "evidence": "本周7次"
-      },
-      {
-        "domain": "情感",
-        "confidence": 0.5,
-        "evidence": "本周5次"
+        "confidence": 1,
+        "evidence": "本周11次"
       }
     ]
   },
@@ -39,11 +29,9 @@
     "indicator": ""
   },
   "stress": {
-    "stressLevel": 0.2,
-    "signals": [
-      "深夜"
-    ]
+    "stressLevel": 0,
+    "signals": []
   },
-  "dynamicProfile": "活跃1/20/22时；夜猫子；平台期，可能需要新挑战；潜在需求:职场；我的核心驱动力是对“掌控感”与“效率”的极致追求。我选择性能与成本最优的方案，偏好简洁直接的工具和沟通，这源于一种深层的",
-  "updatedAt": 1774991238440
+  "dynamicProfile": "活跃23/15/16时；夜猫子；压力临界(挫败3%,压力100%,耦合76%)；预计0轮后可能爆发；有所下滑，建议调整方向；潜在需求:编程；我的核心驱动力是对“可控的创造”的渴望——我研究供应链安全、开发自动化工具，都是在构建一种可靠、高效的秩序，这让我感到踏",
+  "updatedAt": 1775341595973
 }

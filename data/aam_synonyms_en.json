@@ -1,0 +1,1027 @@
+{
+  "Python": [
+    "python",
+    "py",
+    "pip"
+  ],
+  "JavaScript": [
+    "js",
+    "node",
+    "npm",
+    "typescript",
+    "ts"
+  ],
+  "Docker": [
+    "docker",
+    "容器",
+    "container",
+    "k8s"
+  ],
+  "Git": [
+    "git",
+    "github",
+    "gitlab",
+    "版本控制"
+  ],
+  "Linux": [
+    "linux",
+    "ubuntu",
+    "centos",
+    "shell",
+    "bash"
+  ],
+  "API": [
+    "api",
+    "接口",
+    "请求",
+    "http",
+    "rest"
+  ],
+  "KPI": [
+    "指标",
+    "绩效",
+    "目标",
+    "OKR"
+  ],
+  "HR": [
+    "人事",
+    "人力资源",
+    "招聘"
+  ],
+  "PPT": [
+    "幻灯片",
+    "演示文稿",
+    "slide",
+    "做PPT"
+  ],
+  "Go": [
+    "golang",
+    "goroutine",
+    "channel",
+    "go语言"
+  ],
+  "Rust": [
+    "rust",
+    "cargo",
+    "crate",
+    "borrow checker"
+  ],
+  "Java": [
+    "java",
+    "jvm",
+    "spring",
+    "maven",
+    "gradle"
+  ],
+  "C++": [
+    "cpp",
+    "c plus plus",
+    "指针",
+    "stl"
+  ],
+  "Swift": [
+    "swift",
+    "swiftui",
+    "xcode",
+    "ios开发"
+  ],
+  "PHP": [
+    "php",
+    "laravel",
+    "composer",
+    "wordpress"
+  ],
+  "Ruby": [
+    "ruby",
+    "rails",
+    "gem",
+    "rake"
+  ],
+  "React": [
+    "react",
+    "jsx",
+    "hooks",
+    "redux",
+    "前端框架"
+  ],
+  "Vue": [
+    "vue",
+    "vuex",
+    "nuxt",
+    "vue3"
+  ],
+  "Angular": [
+    "angular",
+    "rxjs",
+    "ngrx",
+    "ng"
+  ],
+  "TypeScript": [
+    "ts",
+    "typescript",
+    "类型",
+    "泛型"
+  ],
+  "SQL": [
+    "sql",
+    "查询",
+    "SELECT",
+    "JOIN",
+    "数据库查询"
+  ],
+  "Redis": [
+    "redis",
+    "缓存",
+    "cache",
+    "key-value"
+  ],
+  "MongoDB": [
+    "mongo",
+    "nosql",
+    "文档数据库",
+    "mongoose"
+  ],
+  "PostgreSQL": [
+    "pg",
+    "postgres",
+    "关系型数据库",
+    "psql"
+  ],
+  "MySQL": [
+    "mysql",
+    "mariadb",
+    "关系型数据库"
+  ],
+  "SQLite": [
+    "sqlite",
+    "sqlite3",
+    "嵌入式数据库",
+    "轻量数据库"
+  ],
+  "Kubernetes": [
+    "k8s",
+    "kubectl",
+    "pod",
+    "helm",
+    "容器编排"
+  ],
+  "HTTP": [
+    "http",
+    "https",
+    "请求",
+    "响应",
+    "status code"
+  ],
+  "REST": [
+    "restful",
+    "rest api",
+    "接口设计"
+  ],
+  "GraphQL": [
+    "graphql",
+    "query",
+    "mutation",
+    "schema"
+  ],
+  "gRPC": [
+    "grpc",
+    "protobuf",
+    "rpc"
+  ],
+  "bug": [
+    "error",
+    "issue",
+    "problem",
+    "crash",
+    "failure",
+    "glitch"
+  ],
+  "Shell": [
+    "bash",
+    "zsh",
+    "终端",
+    "terminal",
+    "命令行"
+  ],
+  "Nginx": [
+    "nginx",
+    "反向代理",
+    "负载均衡",
+    "web服务器"
+  ],
+  "CI/CD": [
+    "持续集成",
+    "持续部署",
+    "pipeline",
+    "Jenkins",
+    "GitHub Actions"
+  ],
+  "ORM": [
+    "orm",
+    "ActiveRecord",
+    "SQLAlchemy",
+    "Prisma"
+  ],
+  "GPA": [
+    "绩点",
+    "成绩",
+    "学分"
+  ],
+  "KTV": [
+    "唱歌",
+    "K歌",
+    "麦霸"
+  ],
+  "happy": [
+    "glad",
+    "joyful",
+    "cheerful",
+    "pleased",
+    "delighted",
+    "content"
+  ],
+  "sad": [
+    "unhappy",
+    "depressed",
+    "down",
+    "miserable",
+    "heartbroken",
+    "upset"
+  ],
+  "angry": [
+    "mad",
+    "furious",
+    "annoyed",
+    "irritated",
+    "pissed",
+    "outraged"
+  ],
+  "work": [
+    "job",
+    "office",
+    "career",
+    "employment",
+    "workplace"
+  ],
+  "home": [
+    "house",
+    "apartment",
+    "flat",
+    "condo",
+    "place",
+    "residence"
+  ],
+  "food": [
+    "meal",
+    "eat",
+    "dinner",
+    "lunch",
+    "breakfast",
+    "snack"
+  ],
+  "health": [
+    "fitness",
+    "exercise",
+    "workout",
+    "medical",
+    "wellness"
+  ],
+  "money": [
+    "cash",
+    "funds",
+    "finance",
+    "finances",
+    "financial"
+  ],
+  "family": [
+    "parents",
+    "children",
+    "kids",
+    "relatives",
+    "siblings"
+  ],
+  "friend": [
+    "buddy",
+    "mate",
+    "pal",
+    "bestie",
+    "best friend",
+    "close friend"
+  ],
+  "learn": [
+    "study",
+    "practice",
+    "training",
+    "course",
+    "tutorial"
+  ],
+  "travel": [
+    "trip",
+    "vacation",
+    "holiday",
+    "journey",
+    "flight"
+  ],
+  "code": [
+    "programming",
+    "coding",
+    "development",
+    "software",
+    "dev"
+  ],
+  "deploy": [
+    "release",
+    "ship",
+    "publish",
+    "launch",
+    "rollout"
+  ],
+  "database": [
+    "db",
+    "sql",
+    "postgres",
+    "mysql",
+    "mongo",
+    "redis"
+  ],
+  "frontend": [
+    "ui",
+    "react",
+    "vue",
+    "css",
+    "html",
+    "web"
+  ],
+  "backend": [
+    "server",
+    "api",
+    "rest",
+    "graphql",
+    "microservice"
+  ],
+  "tired": [
+    "exhausted",
+    "drained",
+    "burnt",
+    "burnout",
+    "fatigue"
+  ],
+  "stressed": [
+    "anxious",
+    "overwhelmed",
+    "pressure",
+    "tense"
+  ],
+  "excited": [
+    "thrilled",
+    "pumped",
+    "stoked",
+    "hyped",
+    "eager"
+  ],
+  "boring": [
+    "dull",
+    "tedious",
+    "monotonous",
+    "uninteresting"
+  ],
+  "difficult": [
+    "hard",
+    "tough",
+    "challenging",
+    "tricky",
+    "complex"
+  ],
+  "easy": [
+    "simple",
+    "straightforward",
+    "effortless",
+    "trivial"
+  ],
+  "expensive": [
+    "costly",
+    "pricey",
+    "overpriced"
+  ],
+  "cheap": [
+    "affordable",
+    "budget",
+    "bargain",
+    "inexpensive"
+  ],
+  "afraid": [
+    "scared",
+    "frightened",
+    "terrified",
+    "fearful",
+    "phobia",
+    "phobias"
+  ],
+  "worried": [
+    "concerned",
+    "anxious",
+    "nervous",
+    "uneasy",
+    "apprehensive"
+  ],
+  "lonely": [
+    "alone",
+    "isolated",
+    "solitary",
+    "lonesome"
+  ],
+  "proud": [
+    "accomplished",
+    "fulfilled",
+    "satisfied",
+    "achieved"
+  ],
+  "confused": [
+    "puzzled",
+    "bewildered",
+    "lost",
+    "unsure"
+  ],
+  "grateful": [
+    "thankful",
+    "appreciative",
+    "blessed"
+  ],
+  "frustrated": [
+    "stuck",
+    "blocked",
+    "hitting a wall",
+    "can't figure out"
+  ],
+  "sick": [
+    "ill",
+    "unwell",
+    "not feeling well",
+    "under the weather"
+  ],
+  "pain": [
+    "ache",
+    "hurt",
+    "sore",
+    "discomfort",
+    "chronic"
+  ],
+  "allergy": [
+    "allergic",
+    "allergies",
+    "intolerance",
+    "sensitive",
+    "reaction"
+  ],
+  "exercise": [
+    "workout",
+    "training",
+    "gym",
+    "fitness",
+    "running",
+    "jogging"
+  ],
+  "sleep": [
+    "rest",
+    "nap",
+    "insomnia",
+    "bedtime",
+    "wake up",
+    "sleeping"
+  ],
+  "diet": [
+    "eating",
+    "nutrition",
+    "fasting",
+    "calories",
+    "weight loss",
+    "meal plan"
+  ],
+  "surgery": [
+    "operation",
+    "procedure",
+    "medical procedure"
+  ],
+  "medication": [
+    "medicine",
+    "pills",
+    "prescription",
+    "drugs",
+    "treatment"
+  ],
+  "doctor": [
+    "physician",
+    "specialist",
+    "appointment",
+    "checkup",
+    "clinic"
+  ],
+  "phobia": [
+    "fear",
+    "afraid",
+    "phobias",
+    "terrified",
+    "scared of"
+  ],
+  "wellness": [
+    "wellbeing",
+    "health",
+    "self-care",
+    "mindfulness",
+    "meditation"
+  ],
+  "job": [
+    "work",
+    "career",
+    "employment",
+    "position",
+    "role",
+    "occupation"
+  ],
+  "boss": [
+    "manager",
+    "supervisor",
+    "lead",
+    "director",
+    "superior"
+  ],
+  "colleague": [
+    "coworker",
+    "teammate",
+    "peer",
+    "workmate"
+  ],
+  "promotion": [
+    "promoted",
+    "advancement",
+    "raise",
+    "title change",
+    "career progress"
+  ],
+  "salary": [
+    "pay",
+    "wage",
+    "income",
+    "compensation",
+    "earnings"
+  ],
+  "interview": [
+    "job interview",
+    "hiring",
+    "recruiter",
+    "application"
+  ],
+  "resign": [
+    "quit",
+    "leave",
+    "resign",
+    "hand in notice",
+    "stepping down"
+  ],
+  "meeting": [
+    "conference",
+    "standup",
+    "sync",
+    "call",
+    "huddle"
+  ],
+  "deadline": [
+    "due date",
+    "timeline",
+    "crunch",
+    "rush"
+  ],
+  "overtime": [
+    "extra hours",
+    "working late",
+    "staying late",
+    "long hours"
+  ],
+  "review": [
+    "evaluation",
+    "assessment",
+    "appraisal",
+    "feedback",
+    "annual review"
+  ],
+  "mentor": [
+    "mentoring",
+    "coaching",
+    "guiding",
+    "teaching",
+    "training"
+  ],
+  "wife": [
+    "spouse",
+    "partner",
+    "significant other",
+    "better half"
+  ],
+  "husband": [
+    "spouse",
+    "partner",
+    "significant other"
+  ],
+  "child": [
+    "kid",
+    "son",
+    "daughter",
+    "children",
+    "kids"
+  ],
+  "parent": [
+    "mom",
+    "dad",
+    "mother",
+    "father",
+    "parents"
+  ],
+  "pet": [
+    "cat",
+    "dog",
+    "pets",
+    "animal",
+    "fur baby"
+  ],
+  "dating": [
+    "relationship",
+    "seeing someone",
+    "going out",
+    "girlfriend",
+    "boyfriend"
+  ],
+  "marriage": [
+    "married",
+    "wedding",
+    "engaged",
+    "engagement"
+  ],
+  "divorce": [
+    "separated",
+    "split up",
+    "broke up",
+    "ex"
+  ],
+  "baby": [
+    "infant",
+    "newborn",
+    "toddler",
+    "little one"
+  ],
+  "birthday": [
+    "bday",
+    "born",
+    "turning",
+    "anniversary"
+  ],
+  "rent": [
+    "renting",
+    "tenant",
+    "landlord",
+    "lease"
+  ],
+  "mortgage": [
+    "home loan",
+    "house payment",
+    "monthly payment"
+  ],
+  "move": [
+    "moving",
+    "relocate",
+    "relocation",
+    "new place"
+  ],
+  "renovation": [
+    "remodel",
+    "remodeling",
+    "fixing up",
+    "home improvement"
+  ],
+  "commute": [
+    "daily travel",
+    "getting to work",
+    "ride to work"
+  ],
+  "invest": [
+    "investment",
+    "investing",
+    "portfolio",
+    "stocks",
+    "crypto"
+  ],
+  "save": [
+    "savings",
+    "saving up",
+    "piggy bank",
+    "emergency fund"
+  ],
+  "debt": [
+    "loan",
+    "owe",
+    "borrowed",
+    "credit card debt"
+  ],
+  "budget": [
+    "budgeting",
+    "spending",
+    "expenses",
+    "cost"
+  ],
+  "insurance": [
+    "coverage",
+    "policy",
+    "premium",
+    "insured"
+  ],
+  "school": [
+    "university",
+    "college",
+    "campus",
+    "alma mater",
+    "class"
+  ],
+  "degree": [
+    "diploma",
+    "bachelor",
+    "master",
+    "MBA",
+    "PhD",
+    "graduate"
+  ],
+  "study": [
+    "studying",
+    "learning",
+    "coursework",
+    "homework",
+    "exam"
+  ],
+  "teacher": [
+    "professor",
+    "instructor",
+    "tutor",
+    "lecturer"
+  ],
+  "roommate": [
+    "flatmate",
+    "housemate",
+    "dorm mate"
+  ],
+  "graduation": [
+    "graduated",
+    "commencement",
+    "finishing school"
+  ],
+  "car": [
+    "vehicle",
+    "automobile",
+    "ride",
+    "drive",
+    "driving"
+  ],
+  "flight": [
+    "airplane",
+    "plane",
+    "flying",
+    "airline",
+    "airport"
+  ],
+  "train": [
+    "railway",
+    "rail",
+    "metro",
+    "subway"
+  ],
+  "trip": [
+    "travel",
+    "vacation",
+    "holiday",
+    "journey",
+    "getaway"
+  ],
+  "restaurant": [
+    "dining",
+    "eat out",
+    "eatery",
+    "place to eat",
+    "dine"
+  ],
+  "cook": [
+    "cooking",
+    "prepare",
+    "make food",
+    "kitchen",
+    "homemade"
+  ],
+  "breakfast": [
+    "morning meal",
+    "brunch"
+  ],
+  "lunch": [
+    "midday meal",
+    "lunchtime"
+  ],
+  "dinner": [
+    "supper",
+    "evening meal",
+    "dinnertime"
+  ],
+  "vegetarian": [
+    "vegan",
+    "plant-based",
+    "meatless"
+  ],
+  "recipe": [
+    "dish",
+    "meal prep",
+    "ingredients",
+    "how to make"
+  ],
+  "movie": [
+    "film",
+    "cinema",
+    "theater",
+    "watching",
+    "streaming"
+  ],
+  "book": [
+    "reading",
+    "novel",
+    "read",
+    "literature",
+    "author"
+  ],
+  "game": [
+    "gaming",
+    "video game",
+    "playing",
+    "gamer"
+  ],
+  "music": [
+    "song",
+    "listen",
+    "playlist",
+    "concert",
+    "band"
+  ],
+  "sport": [
+    "sports",
+    "athletic",
+    "playing",
+    "team"
+  ],
+  "running": [
+    "jogging",
+    "jog",
+    "marathon",
+    "half marathon",
+    "run"
+  ],
+  "hiking": [
+    "hike",
+    "trail",
+    "trekking",
+    "outdoor"
+  ],
+  "photography": [
+    "photo",
+    "camera",
+    "pictures",
+    "shooting"
+  ],
+  "volunteer": [
+    "volunteering",
+    "charity",
+    "community service",
+    "giving back"
+  ],
+  "hobby": [
+    "hobbies",
+    "pastime",
+    "side project",
+    "interest",
+    "passion"
+  ],
+  "laptop": [
+    "computer",
+    "notebook",
+    "PC",
+    "MacBook",
+    "ThinkPad"
+  ],
+  "phone": [
+    "mobile",
+    "smartphone",
+    "iPhone",
+    "Android",
+    "cell phone"
+  ],
+  "app": [
+    "application",
+    "software",
+    "program",
+    "tool"
+  ],
+  "update": [
+    "upgrade",
+    "new version",
+    "patch",
+    "release"
+  ],
+  "password": [
+    "credential",
+    "login",
+    "authentication",
+    "passphrase"
+  ],
+  "wifi": [
+    "internet",
+    "network",
+    "connection",
+    "online"
+  ],
+  "morning": [
+    "AM",
+    "sunrise",
+    "early",
+    "dawn",
+    "wake up"
+  ],
+  "evening": [
+    "PM",
+    "night",
+    "sunset",
+    "dusk",
+    "nighttime"
+  ],
+  "routine": [
+    "habit",
+    "daily",
+    "regular",
+    "schedule",
+    "ritual"
+  ],
+  "weekend": [
+    "Saturday",
+    "Sunday",
+    "day off",
+    "off day"
+  ],
+  "big": [
+    "large",
+    "huge",
+    "massive",
+    "enormous"
+  ],
+  "small": [
+    "tiny",
+    "little",
+    "mini",
+    "compact"
+  ],
+  "fast": [
+    "quick",
+    "rapid",
+    "speedy",
+    "swift"
+  ],
+  "slow": [
+    "sluggish",
+    "lagging",
+    "delayed"
+  ],
+  "good": [
+    "great",
+    "excellent",
+    "awesome",
+    "fantastic",
+    "wonderful"
+  ],
+  "bad": [
+    "terrible",
+    "awful",
+    "horrible",
+    "poor",
+    "worst"
+  ],
+  "old": [
+    "ancient",
+    "vintage",
+    "previous",
+    "former",
+    "used to"
+  ],
+  "new": [
+    "latest",
+    "recent",
+    "fresh",
+    "brand new",
+    "modern"
+  ],
+  "important": [
+    "critical",
+    "crucial",
+    "essential",
+    "vital",
+    "key"
+  ]
+}

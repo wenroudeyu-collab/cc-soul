@@ -41,7 +41,7 @@ let _exportEvolutionAssets: ((stats: any) => { data: any; path: string }) | null
 let _importEvolutionAssets: ((filePath: string) => { rulesAdded: number; hypothesesAdded: number }) | null = null
 import('./evolution.ts').then(m => { _exportEvolutionAssets = m.exportEvolutionAssets; _importEvolutionAssets = m.importEvolutionAssets }).catch((e: any) => { console.error(`[cc-soul] module load failed (evolution): ${e.message}`) })
 // ── End optional modules ──
-import { startExperiment } from './experiment.ts'
+// A/B experiment retired — startExperiment removed
 import { handleTuneCommand } from './auto-tune.ts'
 import { ingestFile } from './rag.ts'
 import { innerState } from './inner-life.ts'
@@ -402,11 +402,7 @@ const COMMANDS: SoulCommand[] = [
   {
     pattern: /^开始实验(.*)$/i,
     mode: 'write',
-    execute: (m) => {
-      const desc = m[1]?.trim() || '手动实验'
-      const expId = startExperiment(desc, desc, 3, 20)
-      return `已创建 A/B 实验 "${desc}" (id: ${expId})，20% 流量，3 天后自动结论。`
-    },
+    execute: () => '实验功能已退役。参数调优已由 auto-tune 自动处理。',
   },
 
   // ── 向量搜索退役提示 ──
