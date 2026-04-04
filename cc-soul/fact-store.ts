@@ -36,11 +36,13 @@ interface ExtractionRule {
 }
 
 const RULES: ExtractionRule[] = [
-  // "我叫X" / "我是X" / "我名字叫X" / "大家叫我X" → name
-  { pattern: /(?:我叫|我名字(?:是|叫)|大家(?:都)?叫我|我的名字(?:是|叫)?)\s*([^\s，。！？,;；\n]{1,8})/, extract: (m) => {
+  // "我叫X" / "我是X" / "我名字叫X" / "大家叫我X" / "my name is X" / "call me X" → name
+  { pattern: /(?:我叫|我名字(?:是|叫)|大家(?:都)?叫我|我的名字(?:是|叫)?|my name is|i'm called|call me|i am)\s*([^\s，。！？,;；\n]{1,8})/i, extract: (m) => {
     const name = m[1].trim()
     // 排除疑问句："我叫什么名字" / "我叫什么" 不是在告诉名字
     if (/^(什么|啥|谁|哪|吗|呢|嘛)/.test(name)) return null
+    // 排除英文常见非名字词（"i am fine" / "i am tired" 等不是名字）
+    if (/^(fine|good|ok|okay|tired|happy|sad|sorry|here|back|done|sure|ready|not|just|also|very|so|a|an|the|doing|going|trying|using|looking|working|from)\b/i.test(name)) return null
     if (name.length < 1) return null
     return { subject: 'user', predicate: 'name', object: name,
       confidence: 0.95, source: 'user_said', ts: Date.now(), validUntil: 0 }
@@ -50,32 +52,32 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'likes', object: m[1].trim(),
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我不喜欢X" / "我讨厌X" / "我不爱X"
-  { pattern: /我(?:不喜欢|讨厌|不爱|不想用|受不了)\s*(.{2,20})/, extract: (m) => ({
+  // "我不喜欢X" / "我讨厌X" / "我不爱X" / "i don't like" / "i hate" / "i dislike"
+  { pattern: /(?:我(?:不喜欢|讨厌|不爱|不想用|受不了)|i don'?t like|i hate|i dislike|can'?t stand)\s*(.{2,20})/i, extract: (m) => ({
     subject: 'user', predicate: 'dislikes', object: m[1].replace(/[。，！？\s]+$/, ''),
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我用X" / "我在用X" / "我常用X"
-  { pattern: /我(?:用|在用|常用|一直用)\s*(.{2,20})/, extract: (m) => ({
+  // "我用X" / "我在用X" / "我常用X" / "i use" / "i'm using"
+  { pattern: /(?:我(?:用|在用|常用|一直用)|i use|i'm using|i usually use)\s*(.{2,20})/i, extract: (m) => ({
     subject: 'user', predicate: 'uses', object: m[1].replace(/[。，！？\s]+$/, ''),
     confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我在X工作" / "我在X做Y" / "我是X的"
-  { pattern: /我(?:在|是)\s*(.{2,15})(?:工作|上班|就职|的员工|做\S{2,10})/, extract: (m) => ({
-    subject: 'user', predicate: 'works_at', object: m[0].replace(/^我(?:在|是)\s*/, '').replace(/[。，！？\s]+$/, ''),
+  // "我在X工作" / "我在X做Y" / "我是X的" / "i work at" / "i work for" / "employed at"
+  { pattern: /(?:我(?:在|是)\s*(.{2,15})(?:工作|上班|就职|的员工|做\S{2,10})|(?:i work (?:at|for)|employed at)\s*(.{2,15}))/i, extract: (m) => ({
+    subject: 'user', predicate: 'works_at', object: (m[2] || m[0].replace(/^我(?:在|是)\s*/, '')).replace(/^(?:i work (?:at|for)|employed at)\s*/i, '').replace(/[。，！？\s]+$/, ''),
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我住在X" — only match explicit residence, not "我在X工作"
-  { pattern: /(?:我(?:住在|住|搬到|搬去|移居|去了)\s*|已经(?:搬|到)了?\s*)([^，。！？,;；\n]{2,10})/, extract: (m) => {
+  // "我住在X" / "i live in" / "i'm based in" / "i'm from" — only match explicit residence, not "我在X工作"
+  { pattern: /(?:我(?:住在|住|搬到|搬去|移居|去了)\s*|已经(?:搬|到)了?\s*|i live in\s*|i'm based in\s*|i'm from\s*)([^，。！？,;；\n]{2,10})/i, extract: (m) => {
     const place = m[1].trim()
     if (place.length < 2 || /^(这|那|哪|什么|怎么)/.test(place)) return null
     if (/工作|上班|就职/.test(place)) return null  // "住在X工作" → skip
     return { subject: 'user', predicate: 'lives_in', object: place,
       confidence: 0.7, source: 'user_said', ts: Date.now(), validUntil: 0 }
   }},
-  // "我是做X的" / "我是X工程师/开发/设计师"
-  { pattern: /我是(?:做)?(.{2,15})(?:的|工程师|开发|设计师|产品|运营)/, extract: (m) => ({
-    subject: 'user', predicate: 'occupation', object: m[1].replace(/[。，！？\s]+$/, ''),
+  // "我是做X的" / "我是X工程师/开发/设计师" / "i'm a X" / "i work as" / "my job is"
+  { pattern: /(?:我是(?:做)?(.{2,15})(?:的|工程师|开发|设计师|产品|运营)|(?:i'm a|i work as|my job is)\s*(.{2,15}))/i, extract: (m) => ({
+    subject: 'user', predicate: 'occupation', object: (m[2] || m[1]).replace(/[。，！？\s]+$/, ''),
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "X比Y好" / "X比Y快" — preference
@@ -83,21 +85,21 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'prefers', object: `${m[1].trim()} over ${m[2].trim()}`,
     confidence: 0.7, source: 'ai_inferred', ts: Date.now(), validUntil: 0,
   })},
-  // "我X岁" / "我今年X" → age
-  { pattern: /我(?:今年)?(\d{1,3})岁/, extract: (m) => ({
-    subject: 'user', predicate: 'age', object: m[1],
+  // "我X岁" / "我今年X" / "i'm X years old" / "i am X" → age
+  { pattern: /(?:我(?:今年)?(\d{1,3})岁|i(?:'m| am)\s*(\d{1,3})\s*(?:years?\s*old)?)/i, extract: (m) => ({
+    subject: 'user', predicate: 'age', object: m[1] || m[2],
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我养了一只猫叫X" / "我家有一条狗" → has_pet（匹配到句尾，保留名字）
-  { pattern: /我们?(?:养了|家有|有一只|有一条|有一个)\s*([^，。！？,;；\n]{2,20})/, extract: (m) => {
+  // "我养了一只猫叫X" / "我家有一条狗" / "i have a pet" / "my cat" / "my dog" → has_pet（匹配到句尾，保留名字）
+  { pattern: /(?:我们?(?:养了|家有|有一只|有一条|有一个)|i have a pet|i own a|my cat|my dog)\s*([^，。！？,;；\n]{2,20})/i, extract: (m) => {
     let obj = m[1].trim().replace(/[。，！？\s]+$/, '')
     if (obj.length < 2 || /^(什么|哪|这|那)/.test(obj)) return null
     return { subject: 'user', predicate: 'has_pet', object: obj,
       confidence: 0.8, source: 'user_said', ts: Date.now(), validUntil: 0 }
   }},
-  // "我有个女儿/儿子/孩子" / "我有X个孩子" → has_family
-  { pattern: /我有(?:个|一个|两个|三个)?\s*([^，。！？,;；\n]{1,10}?)(?:女儿|儿子|孩子|闺女|宝宝|小孩|老婆|老公|丈夫|妻子|爸|妈|哥|姐|弟|妹)/, extract: (m) => ({
-    subject: 'user', predicate: 'has_family', object: m[0].replace(/^我有(?:个|一个|两个|三个)?\s*/, '').replace(/[。，！？\s]+$/, ''),
+  // "我有个女儿/儿子/孩子" / "我有X个孩子" / "i have a daughter/son" / "my kid" → has_family
+  { pattern: /(?:我有(?:个|一个|两个|三个)?\s*([^，。！？,;；\n]{1,10}?)(?:女儿|儿子|孩子|闺女|宝宝|小孩|老婆|老公|丈夫|妻子|爸|妈|哥|姐|弟|妹)|i have a\s*(daughter|son|kid|child)|my\s*(kid|child|son|daughter))/i, extract: (m) => ({
+    subject: 'user', predicate: 'has_family', object: (m[2] || m[3] || m[0].replace(/^我有(?:个|一个|两个|三个)?\s*/, '').replace(/^(?:i have a|my)\s*/i, '')).replace(/[。，！？\s]+$/, ''),
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
   // "我女儿/儿子叫X" → family_name
@@ -105,19 +107,19 @@ const RULES: ExtractionRule[] = [
     subject: 'user', predicate: 'family_name', object: m[0].replace(/^我/, '').replace(/[。，！？\s]+$/, ''),
     confidence: 0.9, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我每天X" / "我习惯X" → habit
-  { pattern: /我(?:每天|习惯|一般都|通常|经常)\s*([^，。！？,;；\n]{2,20})/, extract: (m) => ({
+  // "我每天X" / "我习惯X" / "i always" / "every day i" / "my daily" → habit
+  { pattern: /(?:我(?:每天|习惯|一般都|通常|经常)|i always|every day i|my daily)\s*([^，。！？,;；\n]{2,20})/i, extract: (m) => ({
     subject: 'user', predicate: 'habit', object: m[1].replace(/[。，！？\s]+$/, ''),
     confidence: 0.75, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我毕业于X" / "我读的X大学" → educated_at
-  { pattern: /我(?:毕业于|毕业|读的|上的)\s*([^，。！？,;；\n]{2,15})(?:大学|学院|学校)?/, extract: (m) => ({
+  // "我毕业于X" / "我读的X大学" / "i graduated from" / "i went to" / "my school" / "my university" → educated_at
+  { pattern: /(?:我(?:毕业于|毕业|读的|上的)|i graduated from|i went to|my school is|my university is)\s*([^，。！？,;；\n]{2,15})(?:大学|学院|学校)?/i, extract: (m) => ({
     subject: 'user', predicate: 'educated_at', object: m[1].replace(/[。，！？\s]+$/, ''),
     confidence: 0.85, source: 'user_said', ts: Date.now(), validUntil: 0,
   })},
-  // "我老婆/老公/女朋友/男朋友" → relationship
-  { pattern: /我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)\s*([^，。！？,;；\n\s]{0,8})/, extract: (m, content) => {
-    const relType = m[0].match(/老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人/)?.[0] || 'partner'
+  // "我老婆/老公/女朋友/男朋友" / "my wife/husband/girlfriend/boyfriend" → relationship
+  { pattern: /(?:我(?:老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人)|my (?:wife|husband|girlfriend|boyfriend|partner|spouse))\s*([^，。！？,;；\n\s]{0,8})/i, extract: (m, content) => {
+    const relType = m[0].match(/老婆|老公|女朋友|男朋友|媳妇|对象|另一半|爱人|wife|husband|girlfriend|boyfriend|partner|spouse/i)?.[0] || 'partner'
     const detail = m[1]?.trim()
     // 过滤隐式疑问：捕获内容含"什么/哪/谁/怎么/叫什么" = 在提问不是在陈述
     if (detail && /什么|哪|谁|怎么|吗$|呢$/.test(detail)) return null
@@ -150,7 +152,9 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
     /[吗呢吧嘛]$/.test(trimmed) ||                           // 语气词结尾
     /^.{0,6}(?:什么|哪个|哪里|谁|怎么|为什么)/.test(trimmed) || // 开头附近有疑问代词
     /(?:叫|是|做|在|有)(?:什么|哪个|谁|怎么)/.test(trimmed) || // 动词+疑问代词（"叫什么""做什么""是谁"）
-    /(?:什么|哪|谁|怎么|多少|几)(?:时候|地方|样|个|种|岁|楼)/.test(trimmed) // 疑问代词+量词/名词
+    /(?:什么|哪|谁|怎么|多少|几)(?:时候|地方|样|个|种|岁|楼)/.test(trimmed) || // 疑问代词+量词/名词
+    /^(?:what|who|where|when|why|how|which|do you|does|did|is|are|was|were|can|could|will|would)\b/i.test(trimmed) || // English question starters
+    /\b(?:what is|who is|what's my|where do i|what do i)\b/i.test(trimmed) // English question phrases
   if (isQuestion) {
     return extracted
   }
@@ -221,7 +225,7 @@ export function extractFacts(content: string, source: StructuredFact['source'] =
         const { getCurrentSegmentId } = require('./memory.ts')
         const _segId = getCurrentSegmentId?.() ?? 0
         spawnCLI(
-          `从这句话提取事实三元组。输出JSON数组：[{"subject":"主语","predicate":"谓语","object":"宾语"}]。没有事实就输出[]。\n\n"${content.slice(0, 200)}"`,
+          `从这句话提取事实三元组。输出JSON数组：[{"subject":"主语","predicate":"谓语","object":"宾语"}]。没有事实就输出[]。\nExtract fact triples from this sentence. Output JSON array: [{"subject":"subject","predicate":"predicate","object":"object"}]. If no facts, output [].\n\n"${content.slice(0, 200)}"`,
           (output: string) => {
             try {
               const parsed = JSON.parse(output.match(/\[[\s\S]*\]/)?.[0] || '[]')
@@ -293,6 +297,12 @@ export function addFacts(newFacts: StructuredFact[]) {
     }
     // 非排他性谓语不 supersede 但仍然追加（likes/learning/habit 可以有多个值）
     facts.push(nf)
+
+    // 交叉学习：高质量三元组注入 AAM（weight=1.5，比普通消息强但不过激）
+    try {
+      const { learnAssociation } = require('./aam.ts')
+      learnAssociation(`${nf.subject} ${nf.predicate} ${nf.object}`, 0, 1.5)
+    } catch {}
 
     // Dual-write to SQLite (indexed queries)
     if (isSQLiteReady()) {

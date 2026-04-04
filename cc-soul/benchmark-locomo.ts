@@ -20,6 +20,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const require = createRequire(import.meta.url)
 ;(globalThis as any).require = require
+process.env.CC_SOUL_BENCHMARK = "1"
 
 // Suppress noisy logs during benchmark
 const _origLog = console.log
@@ -333,8 +334,8 @@ Reply with ONLY the letter (A-J). Nothing else.`
     body: JSON.stringify({
       model: 'kimi-k2.5',
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0,
-      max_tokens: 4,
+      temperature: 1,  // kimi-k2.5 只允许 temperature=1
+      max_tokens: 1024,  // k2.5 是推理模型，需要足够空间输出 reasoning + answer
     }),
   })
 
@@ -344,7 +345,19 @@ Reply with ONLY the letter (A-J). Nothing else.`
   }
 
   const json = await resp.json() as any
-  const raw = (json.choices?.[0]?.message?.content || '').trim()
+  const msg = json.choices?.[0]?.message || {}
+  // Kimi k2.5 是推理模型：答案可能在 content 或 reasoning_content 里
+  let raw = (msg.content || '').trim()
+
+  // 如果 content 为空，从 reasoning_content 提取答案字母
+  if (!raw && msg.reasoning_content) {
+    // 在推理内容中找最后出现的单独字母 A-J
+    const matches = msg.reasoning_content.match(/\b([A-J])\b/g)
+    if (matches && matches.length > 0) {
+      raw = matches[matches.length - 1]  // 取最后一个（通常是结论）
+    }
+  }
+
   const letter = raw.charAt(0).toUpperCase()
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }

@@ -5,10 +5,9 @@
  * Framework-specific routing (cmdReply, replySender, registerCommand) stays in the caller.
  */
 
-import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 
-import { DATA_DIR } from './persistence.ts'
+import { DATA_DIR, loadJson } from './persistence.ts'
 import { memoryState, recall, queryMemoryTimeline } from './memory.ts'
 import { stats } from './handler-state.ts'
 import { body } from './body.ts'
@@ -22,7 +21,7 @@ import { getDb } from './sqlite-store.ts'
 function readMemoriesFromDisk(): any[] {
   try {
     const memPath = resolve(DATA_DIR, 'memories.json')
-    if (existsSync(memPath)) return JSON.parse(readFileSync(memPath, 'utf-8'))
+    return loadJson(memPath, [] as any[])
   } catch (_) {}
   return memoryState.memories || []
 }
@@ -205,7 +204,7 @@ export function executeHealth(): string {
 export function executeFeatures(): string {
   try {
     const featPath = resolve(DATA_DIR, 'features.json')
-    const feats = existsSync(featPath) ? JSON.parse(readFileSync(featPath, 'utf-8')) : {}
+    const feats = loadJson(featPath, {})
     const lines = Object.entries(feats)
       .sort(([, a], [, b]) => (b ? 1 : 0) - (a ? 1 : 0))
       .map(([k, v]) => `${v ? '✅' : '❌'} ${k}`)

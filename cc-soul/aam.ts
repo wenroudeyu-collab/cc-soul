@@ -27,7 +27,7 @@ import { existsSync } from 'fs'
 // "吃"和"减肥"共现 3 次 → 关联强度 3.2
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ASSOC_PATH = resolve(DATA_DIR, 'aam_associations.json')
+const ASSOC_PATH = resolve(DATA_DIR, 'aam_associations.json') // legacy path for migration
 
 interface AssociationNetwork {
   // word → { related_word → co-occurrence count }
@@ -38,9 +38,55 @@ interface AssociationNetwork {
   lastRebuild: number
 }
 
-let network: AssociationNetwork = loadJson<AssociationNetwork>(ASSOC_PATH, {
-  cooccur: {}, df: {}, totalDocs: 0, lastRebuild: 0,
-})
+// ── Language detection utility ──
+function detectLanguage(text: string): string {
+  const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length
+  const latin = (text.match(/[a-zA-Z]/g) || []).length
+  if (cjk > latin * 0.3) return 'zh'
+  return 'en'
+}
+
+// ── Per-language network storage ──
+const networks = new Map<string, AssociationNetwork>()
+
+function cooccurPath(lang: string): string {
+  return resolve(DATA_DIR, `aam_cooccur_${lang}.json`)
+}
+
+function synonymsPath(lang: string): string {
+  return resolve(DATA_DIR, `aam_synonyms_${lang}.json`)
+}
+
+function getNetwork(lang: string): AssociationNetwork {
+  if (!networks.has(lang)) {
+    const p = cooccurPath(lang)
+    networks.set(lang, loadJson<AssociationNetwork>(p, {
+      cooccur: {}, df: {}, totalDocs: 0, lastRebuild: 0,
+    }))
+  }
+  return networks.get(lang)!
+}
+
+// ── Backward-compatible migration: old single file → per-language ──
+function migrateOldAssociations(): void {
+  if (!existsSync(ASSOC_PATH)) return
+  const zhPath = cooccurPath('zh')
+  if (existsSync(zhPath)) return // already migrated
+  try {
+    const old = loadJson<AssociationNetwork>(ASSOC_PATH, { cooccur: {}, df: {}, totalDocs: 0, lastRebuild: 0 })
+    if (old.totalDocs > 0) {
+      networks.set('zh', old)
+      debouncedSave(zhPath, old)
+      console.log(`[cc-soul][aam] migrated legacy aam_associations.json → aam_cooccur_zh.json (${old.totalDocs} docs)`)
+    }
+  } catch {}
+}
+migrateOldAssociations()
+
+// Convenience: default network accessor for functions that need backward compat
+// (internal use only — gradually being replaced by explicit lang parameter)
+let _currentLang = 'zh'
+function network(): AssociationNetwork { return getNetwork(_currentLang) }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAM: Temporal Directed Co-occurrence（有向时序共现）
@@ -92,7 +138,7 @@ export function learnTemporalLink(currentContent: string): void {
     }
 
     // 每 20 轮持久化
-    if (network.totalDocs % 20 === 0) {
+    if (network().totalDocs % 20 === 0) {
       debouncedSave(TEMPORAL_PATH, _temporalNet)
     }
   }
@@ -713,26 +759,274 @@ const _defaultSynonyms: Record<string, string[]> = {
   '臭': ['难闻', '臭味', '恶臭', 'stink'],
   '正常': ['没毛病', '正常的', '一切正常', 'normal'],
   '奇怪': ['怪', '诡异', '不正常', '离谱', 'weird'],
+
+  // ── English synonym groups ──────────────────────────────────────────────
+  'happy': ['glad', 'cheerful', 'joyful', 'pleased', 'delighted'],
+  'sad': ['unhappy', 'depressed', 'down', 'miserable', 'upset'],
+  'angry': ['mad', 'furious', 'annoyed', 'irritated', 'pissed'],
+  'work': ['job', 'office', 'career', 'employment', 'workplace'],
+  'home': ['house', 'apartment', 'residence', 'place'],
+  'food': ['meal', 'eat', 'dinner', 'lunch', 'breakfast', 'snack'],
+  'health': ['fitness', 'exercise', 'workout', 'medical', 'wellness'],
+  'money': ['salary', 'income', 'budget', 'savings', 'pay', 'wage'],
+  'family': ['parents', 'children', 'kids', 'relatives', 'siblings'],
+  'friend': ['buddy', 'mate', 'pal', 'colleague', 'peer'],
+  'learn': ['study', 'practice', 'training', 'course', 'tutorial'],
+  'travel': ['trip', 'vacation', 'holiday', 'journey', 'flight'],
+  'code': ['programming', 'coding', 'development', 'software', 'dev'],
+  'bug': ['error', 'issue', 'problem', 'crash', 'failure', 'glitch'],
+  'deploy': ['release', 'ship', 'publish', 'launch', 'rollout'],
+  'database': ['db', 'sql', 'postgres', 'mysql', 'mongo', 'redis'],
+  'frontend': ['ui', 'react', 'vue', 'css', 'html', 'web'],
+  'backend': ['server', 'api', 'rest', 'graphql', 'microservice'],
+  'tired': ['exhausted', 'drained', 'burnt', 'burnout', 'fatigue'],
+  'stressed': ['anxious', 'overwhelmed', 'pressure', 'tense'],
+  'excited': ['thrilled', 'pumped', 'stoked', 'hyped', 'eager'],
+  'boring': ['dull', 'tedious', 'monotonous', 'uninteresting'],
+  'difficult': ['hard', 'tough', 'challenging', 'tricky', 'complex'],
+  'easy': ['simple', 'straightforward', 'effortless', 'trivial'],
+  'expensive': ['costly', 'pricey', 'overpriced'],
+  'cheap': ['affordable', 'budget', 'bargain', 'inexpensive'],
+
+  // ── English cold-start synonyms (200+ groups) ──────────────────────────
+
+  // Emotions & feelings
+  'happy': ['glad', 'joyful', 'cheerful', 'pleased', 'delighted', 'content'],
+  'sad': ['unhappy', 'depressed', 'down', 'miserable', 'heartbroken', 'upset'],
+  'angry': ['mad', 'furious', 'annoyed', 'irritated', 'pissed', 'outraged'],
+  'afraid': ['scared', 'frightened', 'terrified', 'fearful', 'phobia', 'phobias'],
+  'worried': ['concerned', 'anxious', 'nervous', 'uneasy', 'apprehensive'],
+  'lonely': ['alone', 'isolated', 'solitary', 'lonesome'],
+  'proud': ['accomplished', 'fulfilled', 'satisfied', 'achieved'],
+  'confused': ['puzzled', 'bewildered', 'lost', 'unsure'],
+  'grateful': ['thankful', 'appreciative', 'blessed'],
+  'frustrated': ['stuck', 'blocked', 'hitting a wall', 'can\'t figure out'],
+
+  // Health & body
+  'sick': ['ill', 'unwell', 'not feeling well', 'under the weather'],
+  'pain': ['ache', 'hurt', 'sore', 'discomfort', 'chronic'],
+  'allergy': ['allergic', 'allergies', 'intolerance', 'sensitive', 'reaction'],
+  'exercise': ['workout', 'training', 'gym', 'fitness', 'running', 'jogging'],
+  'sleep': ['rest', 'nap', 'insomnia', 'bedtime', 'wake up', 'sleeping'],
+  'diet': ['eating', 'nutrition', 'fasting', 'calories', 'weight loss', 'meal plan'],
+  'surgery': ['operation', 'procedure', 'medical procedure'],
+  'medication': ['medicine', 'pills', 'prescription', 'drugs', 'treatment'],
+  'doctor': ['physician', 'specialist', 'appointment', 'checkup', 'clinic'],
+  'phobia': ['fear', 'afraid', 'phobias', 'terrified', 'scared of'],
+  'wellness': ['wellbeing', 'health', 'self-care', 'mindfulness', 'meditation'],
+
+  // Work & career
+  'job': ['work', 'career', 'employment', 'position', 'role', 'occupation'],
+  'boss': ['manager', 'supervisor', 'lead', 'director', 'superior'],
+  'colleague': ['coworker', 'teammate', 'peer', 'workmate'],
+  'promotion': ['promoted', 'advancement', 'raise', 'title change', 'career progress'],
+  'salary': ['pay', 'wage', 'income', 'compensation', 'earnings'],
+  'interview': ['job interview', 'hiring', 'recruiter', 'application'],
+  'resign': ['quit', 'leave', 'resign', 'hand in notice', 'stepping down'],
+  'meeting': ['conference', 'standup', 'sync', 'call', 'huddle'],
+  'deadline': ['due date', 'timeline', 'crunch', 'rush'],
+  'overtime': ['extra hours', 'working late', 'staying late', 'long hours'],
+  'review': ['evaluation', 'assessment', 'appraisal', 'feedback', 'annual review'],
+  'mentor': ['mentoring', 'coaching', 'guiding', 'teaching', 'training'],
+
+  // Family & relationships
+  'wife': ['spouse', 'partner', 'significant other', 'better half'],
+  'husband': ['spouse', 'partner', 'significant other'],
+  'child': ['kid', 'son', 'daughter', 'children', 'kids'],
+  'parent': ['mom', 'dad', 'mother', 'father', 'parents'],
+  'friend': ['buddy', 'mate', 'pal', 'bestie', 'best friend', 'close friend'],
+  'pet': ['cat', 'dog', 'pets', 'animal', 'fur baby'],
+  'dating': ['relationship', 'seeing someone', 'going out', 'girlfriend', 'boyfriend'],
+  'marriage': ['married', 'wedding', 'engaged', 'engagement'],
+  'divorce': ['separated', 'split up', 'broke up', 'ex'],
+  'baby': ['infant', 'newborn', 'toddler', 'little one'],
+  'birthday': ['bday', 'born', 'turning', 'anniversary'],
+
+  // Housing & living
+  'home': ['house', 'apartment', 'flat', 'condo', 'place', 'residence'],
+  'rent': ['renting', 'tenant', 'landlord', 'lease'],
+  'mortgage': ['home loan', 'house payment', 'monthly payment'],
+  'move': ['moving', 'relocate', 'relocation', 'new place'],
+  'renovation': ['remodel', 'remodeling', 'fixing up', 'home improvement'],
+  'commute': ['commuting', 'travel to work', 'daily drive', 'train ride'],
+
+  // Finance & money
+  'money': ['cash', 'funds', 'finance', 'finances', 'financial'],
+  'invest': ['investment', 'investing', 'portfolio', 'stocks', 'crypto'],
+  'save': ['savings', 'saving up', 'piggy bank', 'emergency fund'],
+  'debt': ['loan', 'owe', 'borrowed', 'credit card debt'],
+  'budget': ['budgeting', 'spending', 'expenses', 'cost'],
+  'insurance': ['coverage', 'policy', 'premium', 'insured'],
+
+  // Education
+  'school': ['university', 'college', 'campus', 'alma mater', 'class'],
+  'degree': ['diploma', 'bachelor', 'master', 'MBA', 'PhD', 'graduate'],
+  'study': ['studying', 'learning', 'coursework', 'homework', 'exam'],
+  'teacher': ['professor', 'instructor', 'tutor', 'lecturer'],
+  'roommate': ['flatmate', 'housemate', 'dorm mate'],
+  'graduation': ['graduated', 'commencement', 'finishing school'],
+
+  // Transportation
+  'car': ['vehicle', 'automobile', 'ride', 'drive', 'driving'],
+  'flight': ['airplane', 'plane', 'flying', 'airline', 'airport'],
+  'train': ['railway', 'rail', 'metro', 'subway'],
+  'trip': ['travel', 'vacation', 'holiday', 'journey', 'getaway'],
+  'commute': ['daily travel', 'getting to work', 'ride to work'],
+
+  // Food & dining
+  'restaurant': ['dining', 'eat out', 'eatery', 'place to eat', 'dine'],
+  'cook': ['cooking', 'prepare', 'make food', 'kitchen', 'homemade'],
+  'breakfast': ['morning meal', 'brunch'],
+  'lunch': ['midday meal', 'lunchtime'],
+  'dinner': ['supper', 'evening meal', 'dinnertime'],
+  'vegetarian': ['vegan', 'plant-based', 'meatless'],
+  'recipe': ['dish', 'meal prep', 'ingredients', 'how to make'],
+
+  // Hobbies & leisure
+  'movie': ['film', 'cinema', 'theater', 'watching', 'streaming'],
+  'book': ['reading', 'novel', 'read', 'literature', 'author'],
+  'game': ['gaming', 'video game', 'playing', 'gamer'],
+  'music': ['song', 'listen', 'playlist', 'concert', 'band'],
+  'sport': ['sports', 'athletic', 'playing', 'team'],
+  'running': ['jogging', 'jog', 'marathon', 'half marathon', 'run'],
+  'hiking': ['hike', 'trail', 'trekking', 'outdoor'],
+  'photography': ['photo', 'camera', 'pictures', 'shooting'],
+  'volunteer': ['volunteering', 'charity', 'community service', 'giving back'],
+  'hobby': ['hobbies', 'pastime', 'side project', 'interest', 'passion'],
+
+  // Technology
+  'laptop': ['computer', 'notebook', 'PC', 'MacBook', 'ThinkPad'],
+  'phone': ['mobile', 'smartphone', 'iPhone', 'Android', 'cell phone'],
+  'app': ['application', 'software', 'program', 'tool'],
+  'update': ['upgrade', 'new version', 'patch', 'release'],
+  'password': ['credential', 'login', 'authentication', 'passphrase'],
+  'wifi': ['internet', 'network', 'connection', 'online'],
+
+  // Time expressions
+  'morning': ['AM', 'sunrise', 'early', 'dawn', 'wake up'],
+  'evening': ['PM', 'night', 'sunset', 'dusk', 'nighttime'],
+  'routine': ['habit', 'daily', 'regular', 'schedule', 'ritual'],
+  'weekend': ['Saturday', 'Sunday', 'day off', 'off day'],
+
+  // General adjectives
+  'big': ['large', 'huge', 'massive', 'enormous'],
+  'small': ['tiny', 'little', 'mini', 'compact'],
+  'fast': ['quick', 'rapid', 'speedy', 'swift'],
+  'slow': ['sluggish', 'lagging', 'delayed'],
+  'good': ['great', 'excellent', 'awesome', 'fantastic', 'wonderful'],
+  'bad': ['terrible', 'awful', 'horrible', 'poor', 'worst'],
+  'old': ['ancient', 'vintage', 'previous', 'former', 'used to'],
+  'new': ['latest', 'recent', 'fresh', 'brand new', 'modern'],
+  'important': ['critical', 'crucial', 'essential', 'vital', 'key'],
 }
-let COLD_START_SYNONYMS: Record<string, string[]> = loadJson(SYNONYMS_PATH, _defaultSynonyms)
-// 合并源码中的新默认同义词到已加载的 JSON（确保代码新增的同义词不被旧 JSON 覆盖）
-let _synDirty = false
-for (const [key, syns] of Object.entries(_defaultSynonyms)) {
-  if (!COLD_START_SYNONYMS[key]) {
-    COLD_START_SYNONYMS[key] = syns
-    _synDirty = true
-  } else {
-    // key 存在但可能缺少新同义词 → 合并
-    for (const syn of syns) {
-      if (!COLD_START_SYNONYMS[key].includes(syn)) {
-        COLD_START_SYNONYMS[key].push(syn)
-        _synDirty = true
+// ── Per-language synonym storage ──
+const _synonymsByLang = new Map<string, Record<string, string[]>>()
+
+/** Classify a synonym key as 'zh' or 'en' */
+function classifySynonymLang(key: string): string {
+  return detectLanguage(key)
+}
+
+/** Split _defaultSynonyms by language */
+function splitDefaultSynonyms(): { zh: Record<string, string[]>; en: Record<string, string[]> } {
+  const zh: Record<string, string[]> = {}
+  const en: Record<string, string[]> = {}
+  for (const [key, syns] of Object.entries(_defaultSynonyms)) {
+    const lang = classifySynonymLang(key)
+    if (lang === 'zh') zh[key] = syns
+    else en[key] = syns
+  }
+  return { zh, en }
+}
+
+function getSynonyms(lang: string): Record<string, string[]> {
+  if (!_synonymsByLang.has(lang)) {
+    const p = synonymsPath(lang)
+    const defaults = splitDefaultSynonyms()
+    const seed = (defaults as any)[lang] || {}
+    const loaded = loadJson<Record<string, string[]>>(p, seed)
+    // Merge code defaults into loaded (ensure new code synonyms aren't lost)
+    let dirty = false
+    for (const [key, syns] of Object.entries(seed)) {
+      if (!loaded[key]) { loaded[key] = syns; dirty = true }
+      else {
+        for (const syn of syns) {
+          if (!loaded[key].includes(syn)) { loaded[key].push(syn); dirty = true }
+        }
       }
     }
+    if (dirty || !existsSync(p)) debouncedSave(p, loaded)
+    _synonymsByLang.set(lang, loaded)
   }
+  return _synonymsByLang.get(lang)!
 }
-if (_synDirty || !existsSync(SYNONYMS_PATH)) {
-  debouncedSave(SYNONYMS_PATH, COLD_START_SYNONYMS)
+
+// Backward compat: migrate old single aam_synonyms.json → per-language
+function migrateOldSynonyms(): void {
+  const oldPath = resolve(DATA_DIR, 'aam_synonyms.json')
+  if (!existsSync(oldPath)) return
+  if (existsSync(synonymsPath('zh'))) return // already migrated
+  try {
+    const old = loadJson<Record<string, string[]>>(oldPath, {})
+    const zh: Record<string, string[]> = {}
+    const en: Record<string, string[]> = {}
+    for (const [key, syns] of Object.entries(old)) {
+      if (classifySynonymLang(key) === 'zh') zh[key] = syns
+      else en[key] = syns
+    }
+    if (Object.keys(zh).length > 0) debouncedSave(synonymsPath('zh'), zh)
+    if (Object.keys(en).length > 0) debouncedSave(synonymsPath('en'), en)
+    console.log(`[cc-soul][aam] migrated legacy aam_synonyms.json → per-language (zh: ${Object.keys(zh).length}, en: ${Object.keys(en).length})`)
+  } catch {}
+}
+migrateOldSynonyms()
+
+// Eagerly initialize zh and en synonym caches
+let COLD_START_SYNONYMS = getSynonyms('zh')
+const _enSynonyms = getSynonyms('en')
+
+// ── 首次启动 LLM 种子翻译（语言自适应冷启动）──
+// 检测用户语言 → 有 LLM 时一次性翻译种子词 → 缓存永不再调
+// 没有 LLM → 跳过，靠 emoji + AAM 自学习 + 中英双语种子兜底
+let _seedTranslationDone = false
+export function maybeTranslateSeedsForLanguage(userMsg: string): void {
+  if (_seedTranslationDone) return
+  _seedTranslationDone = true  // 只尝试一次
+
+  // 检测语言：非中非英才需要翻译
+  const hasCJK = /[\u4e00-\u9fff]/.test(userMsg)
+  const hasLatin = /[a-zA-Z]{3,}/.test(userMsg)
+  if (hasCJK || hasLatin) return  // 中文或英文 → 种子已覆盖，不需要翻译
+
+  // 检测 LLM 可用性
+  try {
+    const { hasLLM, spawnCLI } = require('./cli.ts')
+    if (!hasLLM()) return  // 没 LLM → 降级到 emoji + AAM 自学习
+
+    // 提取少量种子词（不翻译全部，只翻译高频情绪词）
+    const coreSeedWords = ['开心', '难过', '生气', '害怕', '喜欢', '讨厌', '工作', '家人', '朋友', '健康']
+    spawnCLI(
+      `Translate these Chinese words to the SAME language as this message: "${userMsg.slice(0, 50)}"\n\nWords: ${coreSeedWords.join(', ')}\n\nOutput format: one translation per line, same order. Just the word, no explanation.`,
+      (output: string) => {
+        if (!output || output.length < 10) return
+        const translations = output.split('\n').map(l => l.trim()).filter(l => l.length >= 1)
+        if (translations.length < 5) return  // 翻译结果太少，不可靠
+
+        // 把翻译结果加入同义词表
+        for (let i = 0; i < Math.min(coreSeedWords.length, translations.length); i++) {
+          const key = coreSeedWords[i]
+          const translated = translations[i].toLowerCase()
+          if (!COLD_START_SYNONYMS[key]) COLD_START_SYNONYMS[key] = []
+          if (!COLD_START_SYNONYMS[key].includes(translated)) {
+            COLD_START_SYNONYMS[key].push(translated)
+          }
+        }
+        debouncedSave(synonymsPath('zh'), COLD_START_SYNONYMS)
+        try { require('./decision-log.ts').logDecision('seed_translation', userMsg.slice(0, 20), `translated ${translations.length} seed words`) } catch {}
+      },
+      15000
+    )
+  } catch {}
 }
 
 /**
@@ -740,59 +1034,52 @@ if (_synDirty || !existsSync(SYNONYMS_PATH)) {
  * 关键：种子词必须通过 tokenizer 分词后再注入，保证粒度匹配
  * 例如 "心情好" 会被拆成 ["心情", "情好"]，每个片段都跟对应的同义词建关联
  */
-function injectSeedsIntoCooccur() {
+function injectSeedsIntoCooccur(lang: string) {
+  const net = getNetwork(lang)
+  const syns = getSynonyms(lang)
   let injected = 0
 
   function injectPair(a: string, b: string) {
-    const existing = network.cooccur[a]?.[b] ?? 0
+    const existing = net.cooccur[a]?.[b] ?? 0
     if (existing < 2) {
-      if (!network.cooccur[a]) network.cooccur[a] = {}
-      network.cooccur[a][b] = 2
-      if (!network.cooccur[b]) network.cooccur[b] = {}
-      network.cooccur[b][a] = 2
-      // 种子词也需要 df（否则 expandQuery 的 df<3 过滤会跳过）
-      if (!network.df[a]) network.df[a] = 2
-      if (!network.df[b]) network.df[b] = 2
+      if (!net.cooccur[a]) net.cooccur[a] = {}
+      net.cooccur[a][b] = 2
+      if (!net.cooccur[b]) net.cooccur[b] = {}
+      net.cooccur[b][a] = 2
+      if (!net.df[a]) net.df[a] = 2
+      if (!net.df[b]) net.df[b] = 2
       injected++
     }
   }
 
-  // 将种子词拆成 tokenizer 粒度的 2-char 片段
   function seedTokens(word: string): string[] {
     const tokens: string[] = []
-    // CJK 2-char sliding window（跟 tokenize() 一致）
     const cjk = word.match(/[\u4e00-\u9fff]+/g) || []
     for (const seg of cjk) {
       if (seg.length === 2) tokens.push(seg)
-      else {
-        for (let i = 0; i <= seg.length - 2; i++) tokens.push(seg.slice(i, i + 2))
-      }
+      else { for (let i = 0; i <= seg.length - 2; i++) tokens.push(seg.slice(i, i + 2)) }
     }
-    // English 3+ letters
     const en = word.match(/[a-zA-Z]{3,}/g) || []
     tokens.push(...en.map(w => w.toLowerCase()))
-    // 原词本身也保留（2字以上的完整词）
     if (word.length >= 2) tokens.push(word)
     return [...new Set(tokens)]
   }
 
-  for (const [word, synonyms] of Object.entries(COLD_START_SYNONYMS)) {
+  for (const [word, synonyms] of Object.entries(syns)) {
     const wordTokens = seedTokens(word)
     for (const syn of synonyms) {
       const synTokens = seedTokens(syn)
-      // 所有 wordToken × synToken 的组合都建关联
       for (const wt of wordTokens) {
         for (const st of synTokens) {
-          if (wt !== st && wt.length >= 2 && st.length >= 2) {
-            injectPair(wt, st)
-          }
+          if (wt !== st && wt.length >= 2 && st.length >= 2) injectPair(wt, st)
         }
       }
     }
   }
-  if (injected > 0) console.log(`[cc-soul][aam] seed injection: ${injected} pairs into cooccur`)
+  if (injected > 0) console.log(`[cc-soul][aam] seed injection [${lang}]: ${injected} pairs into cooccur`)
 }
-injectSeedsIntoCooccur()
+injectSeedsIntoCooccur('zh')
+injectSeedsIntoCooccur('en')
 
 /**
  * Tokenize text into words for association network.
@@ -839,11 +1126,11 @@ export function isJunkToken(word: string): boolean {
   if (chars.length === 2 && CJK_FUNCTION_CHARS.has(chars[0]) && CJK_FUNCTION_CHARS.has(chars[1])) return true
 
   // Phase 2: 数据驱动（需要足够样本）
-  if (network.totalDocs >= 50) {
-    const cooc = network.cooccur[word]
+  if (network().totalDocs >= 50) {
+    const cooc = network().cooccur[word]
     const fanOut = cooc ? Object.keys(cooc).length : 0
-    const df = network.df[word] || 0
-    const dfRatio = df / Math.max(1, network.totalDocs)
+    const df = network().df[word] || 0
+    const dfRatio = df / Math.max(1, network().totalDocs)
 
     // 计算 avgPMI
     let avgPMI = 0
@@ -892,6 +1179,20 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   '休闲': ['电影','游戏','音乐','旅游','看书','刷剧'],
   '生育': ['怀孕','预产期','产检','当爸爸','当妈妈','生孩子','月子','爸爸','妈妈'],
   '购物': ['买车','买房','网购','下单','退货','特斯拉','车','手机'],
+
+  // ── English concept hierarchy ──
+  'health': ['blood pressure','weight','sleep','insomnia','exercise','checkup','allergy','headache','vision'],
+  'finance': ['mortgage','salary','income','stocks','savings','budget','credit card','loan','tax'],
+  'career': ['overtime','colleague','boss','project','promotion','interview','resume','performance'],
+  'family': ['parents','children','kids','spouse','partner','pets','cat','dog'],
+  'housing': ['mortgage','rent','renovation','moving','apartment','landlord'],
+  'food': ['takeout','cooking','recipe','breakfast','lunch','dinner','snack'],
+  'transport': ['driving','subway','flight','business trip','train','taxi','traffic'],
+  'emotion': ['anxiety','stress','depression','insomnia','happiness','frustration','loneliness','burnout'],
+  'social': ['friend','colleague','neighbor','dating','party','argument','breakup'],
+  'tech': ['server','database','deploy','frontend','backend','bug','framework','api','devops'],
+  'programming': ['server','database','frontend','backend','bug','framework','api','algorithm'],
+  'entertainment': ['movie','game','music','running','travel','reading','streaming'],
 }
 
 /** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */
@@ -918,7 +1219,9 @@ export function isKnownWord(word: string): boolean {
  * Feed a new memory into the association network.
  * Updates word co-occurrence counts.
  */
-export function learnAssociation(content: string, emotionIntensity: number = 0) {
+export function learnAssociation(content: string, emotionIntensity: number = 0, weight: number = 1.0) {
+  const lang = detectLanguage(content)
+  _currentLang = lang
   const emotionMultiplier = emotionIntensity >= 0.7 ? 3 : emotionIntensity >= 0.5 ? 2 : 1
   const words = filterStopWords(tokenize(content))
   const unique = [...new Set(words)].filter(w => !isJunkToken(w))
@@ -928,32 +1231,36 @@ export function learnAssociation(content: string, emotionIntensity: number = 0) 
     console.log(`[AAM] emotion-weighted learning: intensity=${emotionIntensity.toFixed(2)} multiplier=x${emotionMultiplier}`)
   }
 
-  network.totalDocs++
+  network().totalDocs++
 
   // Update document frequency
   for (const w of unique) {
-    network.df[w] = (network.df[w] || 0) + 1
+    network().df[w] = (network().df[w] || 0) + 1
   }
 
   // Update co-occurrence (all pairs within the same memory)
   for (let i = 0; i < unique.length; i++) {
-    if (!network.cooccur[unique[i]]) network.cooccur[unique[i]] = {}
+    if (!network().cooccur[unique[i]]) network().cooccur[unique[i]] = {}
     for (let j = i + 1; j < unique.length; j++) {
-      network.cooccur[unique[i]][unique[j]] = (network.cooccur[unique[i]][unique[j]] || 0) + emotionMultiplier
+      network().cooccur[unique[i]][unique[j]] = (network().cooccur[unique[i]][unique[j]] || 0) + emotionMultiplier * weight
+      // Cap at 50 to prevent positive feedback bubble
+      if (network().cooccur[unique[i]][unique[j]] > 50) network().cooccur[unique[i]][unique[j]] = 50
       // Bidirectional
-      if (!network.cooccur[unique[j]]) network.cooccur[unique[j]] = {}
-      network.cooccur[unique[j]][unique[i]] = (network.cooccur[unique[j]][unique[i]] || 0) + emotionMultiplier
+      if (!network().cooccur[unique[j]]) network().cooccur[unique[j]] = {}
+      network().cooccur[unique[j]][unique[i]] = (network().cooccur[unique[j]][unique[i]] || 0) + emotionMultiplier * weight
+      if (network().cooccur[unique[j]][unique[i]] > 50) network().cooccur[unique[j]][unique[i]] = 50
     }
   }
 
-  // Periodic save (every 10 documents)
-  if (network.totalDocs % 10 === 0) {
-    debouncedSave(ASSOC_PATH, network)
+  // Periodic save (every 10 documents) — benchmark 跳过（4.5MB JSON 写入慢）
+  if (!process.env.CC_SOUL_BENCHMARK && network().totalDocs % 10 === 0) {
+    debouncedSave(cooccurPath(lang), network())
   }
 
   // PMI 强关联自动毕业到同义词表（全动态，不需要人工维护）
   // 每 50 个文档检查一次，发现 PMI > 2.5 的词对自动写入 aam_synonyms.json
-  if (network.totalDocs >= 30 && network.totalDocs % 50 === 0) {
+  // benchmark 环境跳过（231K cooccur entries 遍历太慢）
+  if (!process.env.CC_SOUL_BENCHMARK && network().totalDocs >= 30 && network().totalDocs % 50 === 0) {
     graduateStrongAssociations()
   }
 }
@@ -964,28 +1271,28 @@ export function learnAssociation(content: string, emotionIntensity: number = 0) 
  * 同义词表是"活的"，会随着用户聊天自动增长
  */
 function graduateStrongAssociations() {
+  const lang = _currentLang
+  const syns = getSynonyms(lang)
   let graduated = 0
-  for (const [w1, related] of Object.entries(network.cooccur)) {
+  for (const [w1, related] of Object.entries(network().cooccur)) {
     if (w1.length < 2) continue
     if (isJunkToken(w1)) continue
     for (const [w2, count] of Object.entries(related)) {
       if (w2.length < 2 || count < 3) continue
       if (isJunkToken(w2)) continue
       const p = pmi(w1, w2)
-      if (p > 2.5) {  // 非常强的关联
-        // 检查是否已在同义词表中
-        const existing = COLD_START_SYNONYMS[w1]
+      if (p > 2.5) {
+        const existing = syns[w1]
         if (existing && existing.includes(w2)) continue
-        // 自动加入
-        if (!COLD_START_SYNONYMS[w1]) COLD_START_SYNONYMS[w1] = []
-        COLD_START_SYNONYMS[w1].push(w2)
+        if (!syns[w1]) syns[w1] = []
+        syns[w1].push(w2)
         graduated++
       }
     }
   }
   if (graduated > 0) {
-    debouncedSave(SYNONYMS_PATH, COLD_START_SYNONYMS)
-    console.log(`[cc-soul][aam] graduated ${graduated} strong associations to synonym table (total groups: ${Object.keys(COLD_START_SYNONYMS).length})`)
+    debouncedSave(synonymsPath(lang), syns)
+    console.log(`[cc-soul][aam] graduated ${graduated} strong associations to synonym table [${lang}] (total groups: ${Object.keys(syns).length})`)
   }
 }
 
@@ -994,11 +1301,11 @@ function graduateStrongAssociations() {
  * PMI > 0 means they co-occur more than expected by chance.
  */
 export function pmi(w1: string, w2: string): number {
-  const N = Math.max(1, network.totalDocs)
-  const cooccurCount = network.cooccur[w1]?.[w2] || 0
+  const N = Math.max(1, network().totalDocs)
+  const cooccurCount = network().cooccur[w1]?.[w2] || 0
   if (cooccurCount === 0) return 0
-  const df1 = network.df[w1] || 1
-  const df2 = network.df[w2] || 1
+  const df1 = network().df[w1] || 1
+  const df2 = network().df[w2] || 1
   // PMI = log2(P(w1,w2) / (P(w1) × P(w2)))
   const pmiVal = Math.log2((cooccurCount * N) / (df1 * df2))
   return Math.max(0, pmiVal) // Positive PMI only
@@ -1010,18 +1317,18 @@ export function pmi(w1: string, w2: string): number {
  */
 /** 查询两个词的共现次数（供 hybridSimilarity 的 AAM 同义词融合用）*/
 export function getCooccurrence(wordA: string, wordB: string): number {
-  return network.cooccur[wordA]?.[wordB] ?? network.cooccur[wordB]?.[wordA] ?? 0
+  return network().cooccur[wordA]?.[wordB] ?? network().cooccur[wordB]?.[wordA] ?? 0
 }
 
 /** 获取词的 AAM 共现邻居（1-hop），返回 { word, pmiScore, fanOut } */
 export function getAAMNeighbors(word: string, topK = 5): { word: string; pmiScore: number; fanOut: number }[] {
-  const cooc = network.cooccur[word]
+  const cooc = network().cooccur[word]
   if (!cooc) return []
   const results: { word: string; pmiScore: number; fanOut: number }[] = []
   for (const [other, _count] of Object.entries(cooc)) {
     const p = pmi(word, other)
     if (p > 0.5) {
-      const fanOut = Object.keys(network.cooccur[other] || {}).length
+      const fanOut = Object.keys(network().cooccur[other] || {}).length
       results.push({ word: other, pmiScore: p, fanOut })
     }
   }
@@ -1030,6 +1337,11 @@ export function getAAMNeighbors(word: string, topK = 5): { word: string; pmiScor
 }
 
 export function expandQuery(queryWords: string[], maxExpansion = 10): { word: string; weight: number }[] {
+  // Detect language from query words and switch context
+  const lang = detectLanguage(queryWords.join(' '))
+  _currentLang = lang
+  const langSynonyms = getSynonyms(lang)
+
   const expanded: Map<string, number> = new Map()
 
   // Original words get weight 1.0
@@ -1038,7 +1350,7 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
   // PMI-based associations (种子已注入 cooccur，始终可用)
   if (true) {
     for (const w of queryWords) {
-      const cooc = network.cooccur[w]
+      const cooc = network().cooccur[w]
       if (!cooc) continue
       // Find top associated words by PMI
       const candidates: { word: string; pmiScore: number }[] = []
@@ -1047,9 +1359,9 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
         // Filter: skip 2-char CJK fragments that aren't real words
         // Real words: in synonym table, or df >= 3 (appeared in 3+ memories)
         if (other.length === 2 && /^[\u4e00-\u9fff]+$/.test(other)) {
-          const isKnown = Object.keys(COLD_START_SYNONYMS).includes(other) ||
-            Object.values(COLD_START_SYNONYMS).some(syns => syns.includes(other))
-          if (!isKnown && (network.df[other] || 0) < 3) continue
+          const isKnown = Object.keys(langSynonyms).includes(other) ||
+            Object.values(langSynonyms).some(syns => syns.includes(other))
+          if (!isKnown && (network().df[other] || 0) < 3) continue
         }
         const p = pmi(w, other)
         if (p > 1.5) candidates.push({ word: other, pmiScore: p })  // PMI > 1.5 = strong association
@@ -1070,7 +1382,7 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
   // 同义词是人工/毕业验证过的高质量关联，权重应该高于 PMI 碎片
   for (const w of queryWords) {
     // 正向查：w 是同义词表的 key
-    const directSyns = COLD_START_SYNONYMS[w]
+    const directSyns = langSynonyms[w]
     if (directSyns) {
       for (const syn of directSyns) {
         if (syn.length >= 2) {
@@ -1081,7 +1393,7 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
       }
     }
     // 反向查：w 是某个 key 的同义词
-    for (const [key, syns] of Object.entries(COLD_START_SYNONYMS)) {
+    for (const [key, syns] of Object.entries(langSynonyms)) {
       if (syns.includes(w)) {
         if (key.length >= 2) {
           const existing = expanded.get(key) || 0
@@ -1164,7 +1476,7 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     if (!/^[\u4e00-\u9fff]{2,}$/.test(w)) continue  // 只对中文词做
     const chars = [...w]
     // 在同义词表中找共享字的词
-    for (const [key, syns] of Object.entries(COLD_START_SYNONYMS)) {
+    for (const [key, syns] of Object.entries(langSynonyms)) {
       if (expanded.has(key)) continue
       // key 和查询词共享至少一个字
       const keyChars = [...key]
@@ -1503,7 +1815,7 @@ export function antiHebbianDecay() {
 
   // 找出关联网络中高共现但低 PMI 的词对（噪音关联）
   let pruned = 0
-  for (const [w1, related] of Object.entries(network.cooccur)) {
+  for (const [w1, related] of Object.entries(network().cooccur)) {
     for (const [w2, count] of Object.entries(related)) {
       if (count < 3) continue  // 样本不够，不判定
       const pmiVal = pmi(w1, w2)
@@ -1518,8 +1830,8 @@ export function antiHebbianDecay() {
   }
 
   if (pruned > 0) {
-    debouncedSave(ASSOC_PATH, network)
-    console.log(`[cc-soul][aam] anti-Hebbian: pruned ${pruned} noise associations`)
+    debouncedSave(cooccurPath(_currentLang), network())
+    console.log(`[cc-soul][aam] anti-Hebbian [${_currentLang}]: pruned ${pruned} noise associations`)
   }
 }
 
@@ -1653,18 +1965,39 @@ export function explainAAM(result: AAMResult): string {
 
 /** 时间衰减：分层衰减共现权重，由 heartbeat 触发 */
 export function decayCooccurrence() {
+  // Decay all loaded language networks
+  for (const [lang, net] of networks) {
+    _decayNetwork(lang, net)
+  }
+  // 顺带衰减时序共现
+  decayTemporalLinks()
+}
+
+function _decayNetwork(lang: string, net: AssociationNetwork) {
+  _currentLang = lang  // for pmi() etc.
   let decayed = 0, pruned = 0
-  for (const [w1, related] of Object.entries(network.cooccur)) {
+  for (const [w1, related] of Object.entries(net.cooccur)) {
     for (const [w2, count] of Object.entries(related)) {
-      // 分层衰减：强关联慢衰减，弱关联快衰减
       const baseDRate = count > 10 ? 0.995 : 0.98
-      // A1: momentum-aware decay — high momentum words decay slower
       let momentum = 0
       try {
         const { getMomentumBoost } = require('./activation-field.ts')
         momentum = (getMomentumBoost(w1) || 0) + (getMomentumBoost(w2) || 0)
       } catch {}
-      const factor = baseDRate * (1 + Math.min(0.1, momentum * 0.05))
+      let factor = baseDRate * (1 + Math.min(0.1, momentum * 0.05))
+      // CIN drift → 性格变化时旧关联加速衰减
+      let driftMagnitude = 0
+      try {
+        const cinMod = require('./cin.ts')
+        const field = cinMod.getCurrentField?.()
+        if (field?.drift) {
+          driftMagnitude = field.drift.reduce((s: number, d: number) => s + Math.abs(d), 0) / field.drift.length
+        }
+      } catch {}
+      // drift 大 + momentum 低 → 旧关联加速衰减（最多额外 10%）
+      if (driftMagnitude > 0.2 && momentum < 0.1) {
+        factor *= (1 - Math.min(0.1, driftMagnitude * 0.1))
+      }
       const newCount = count * Math.min(factor, 1.0)
       if (newCount < 0.5) {
         // 衰减到 <0.5 时删边（pruning）
@@ -1677,23 +2010,34 @@ export function decayCooccurrence() {
     }
     // 如果节点没有任何边了，删节点
     if (Object.keys(related).length === 0) {
-      delete network.cooccur[w1]
+      delete net.cooccur[w1]
     }
   }
   if (pruned > 0) {
-    console.log(`[cc-soul][aam] decay: ${decayed} edges decayed, ${pruned} pruned`)
-    debouncedSave(ASSOC_PATH, network)
+    console.log(`[cc-soul][aam] decay [${lang}]: ${decayed} edges decayed, ${pruned} pruned`)
+    debouncedSave(cooccurPath(lang), net)
   }
-  // 顺带衰减时序共现
-  decayTemporalLinks()
 }
 
 export function getAAMStats() {
+  // Aggregate stats across all loaded language networks
+  const langStats: Record<string, { vocabularySize: number; totalDocs: number; associationPairs: number; synonyms: number }> = {}
+  for (const [lang, net] of networks) {
+    const syns = _synonymsByLang.get(lang)
+    langStats[lang] = {
+      vocabularySize: Object.keys(net.df).length,
+      totalDocs: net.totalDocs,
+      associationPairs: Object.values(net.cooccur).reduce((s, v) => s + Object.keys(v).length, 0),
+      synonyms: syns ? Object.keys(syns).length : 0,
+    }
+  }
   return {
-    vocabularySize: Object.keys(network.df).length,
-    totalDocs: network.totalDocs,
-    associationPairs: Object.values(network.cooccur).reduce((s, v) => s + Object.keys(v).length, 0),
-    coldStartSynonyms: Object.keys(COLD_START_SYNONYMS).length,
+    languages: Object.keys(langStats),
+    perLanguage: langStats,
+    vocabularySize: Object.keys(network().df).length,
+    totalDocs: network().totalDocs,
+    associationPairs: Object.values(network().cooccur).reduce((s, v) => s + Object.keys(v).length, 0),
+    coldStartSynonyms: Object.keys(getSynonyms(_currentLang)).length,
     keyWeights: { ...keyWeights.weights },
     feedbackCount: keyWeights.feedbackCount,
   }
@@ -1768,19 +2112,19 @@ export function reinforceTrace(trace: { path: { stage: string; via: string; word
       // hop1 路径：强化 +0.5
       const words = step.word.split(/\s+/).filter(w => w.length >= 2)
       for (let i = 0; i < words.length - 1; i++) {
-        if (!network.cooccur[words[i]]) network.cooccur[words[i]] = {}
-        network.cooccur[words[i]][words[i + 1]] = (network.cooccur[words[i]][words[i + 1]] || 0) + 0.5
-        if (!network.cooccur[words[i + 1]]) network.cooccur[words[i + 1]] = {}
-        network.cooccur[words[i + 1]][words[i]] = (network.cooccur[words[i + 1]][words[i]] || 0) + 0.5
+        if (!network().cooccur[words[i]]) network().cooccur[words[i]] = {}
+        network().cooccur[words[i]][words[i + 1]] = (network().cooccur[words[i]][words[i + 1]] || 0) + 0.5
+        if (!network().cooccur[words[i + 1]]) network().cooccur[words[i + 1]] = {}
+        network().cooccur[words[i + 1]][words[i]] = (network().cooccur[words[i + 1]][words[i]] || 0) + 0.5
       }
     } else if (step.via === 'aam_hop2') {
       // hop2 路径：弱强化 +0.3
       const words = step.word.split(/\s+/).filter(w => w.length >= 2)
       for (let i = 0; i < words.length - 1; i++) {
-        if (!network.cooccur[words[i]]) network.cooccur[words[i]] = {}
-        network.cooccur[words[i]][words[i + 1]] = (network.cooccur[words[i]][words[i + 1]] || 0) + 0.3
-        if (!network.cooccur[words[i + 1]]) network.cooccur[words[i + 1]] = {}
-        network.cooccur[words[i + 1]][words[i]] = (network.cooccur[words[i + 1]][words[i]] || 0) + 0.3
+        if (!network().cooccur[words[i]]) network().cooccur[words[i]] = {}
+        network().cooccur[words[i]][words[i + 1]] = (network().cooccur[words[i]][words[i + 1]] || 0) + 0.3
+        if (!network().cooccur[words[i + 1]]) network().cooccur[words[i + 1]] = {}
+        network().cooccur[words[i + 1]][words[i]] = (network().cooccur[words[i + 1]][words[i]] || 0) + 0.3
       }
     }
   }
@@ -1813,3 +2157,78 @@ export function restoreExpansion(queryPattern: string): void {
     console.log(`[cc-soul][aam] expansion restored: ${queryPattern} → hop${currentMax + 1}`)
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AAM 情绪词自学习（语言无关）
+// 从 mood 反馈学习哪些词是正面/负面的，不依赖任何预定义词表
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const _emotionWordCandidates = new Map<string, { posCount: number; negCount: number }>()
+
+/**
+ * Record that a word appeared in a message where mood changed.
+ * Over time, words that consistently appear with positive mood → positive emotion word.
+ */
+export function learnEmotionWord(word: string, moodDelta: number): void {
+  if (Math.abs(moodDelta) < 0.15) return
+  if (word.length < 2) return
+
+  let entry = _emotionWordCandidates.get(word)
+  if (!entry) { entry = { posCount: 0, negCount: 0 }; _emotionWordCandidates.set(word, entry) }
+
+  if (moodDelta > 0.15) entry.posCount++
+  else if (moodDelta < -0.15) entry.negCount++
+}
+
+/**
+ * Get learned emotion words (graduated: 3+ consistent mood associations)
+ */
+export function getLearnedEmotionWords(): { positive: string[]; negative: string[] } {
+  const positive: string[] = []
+  const negative: string[] = []
+  for (const [word, counts] of _emotionWordCandidates) {
+    const total = counts.posCount + counts.negCount
+    if (total < 3) continue
+    if (counts.posCount > counts.negCount * 2) positive.push(word)
+    if (counts.negCount > counts.posCount * 2) negative.push(word)
+  }
+  return { positive, negative }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 启动 bootstrap：从已有记忆补课 AAM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function bootstrapFromMemories(): void {
+  if (network().totalDocs > 100) return  // 已有足够数据
+  try {
+    const { memoryState, ensureMemoriesLoaded } = require('./memory.ts')
+    ensureMemoriesLoaded()
+    // 只学高价值 scope（过滤掉 WAL/insight/consolidated 等格式化文本）
+    const LEARN_SCOPES = new Set(['fact', 'preference', 'event', 'correction', 'opinion', 'episode'])
+    const candidates = memoryState.memories
+      .filter((m: any) => m.content && LEARN_SCOPES.has(m.scope))
+      .slice(-200)
+    for (const m of candidates) {
+      learnAssociation(m.content)
+    }
+    if (candidates.length > 0) console.log(`[cc-soul][aam] bootstrapped from ${candidates.length} memories`)
+  } catch {}
+}
+
+// 延迟 3 秒执行（避免阻塞启动）
+setTimeout(() => bootstrapFromMemories(), 3000)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LLM SEED GENERATION STUB — for new languages
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Generate synonym seed for a new language via LLM (stub — not yet implemented) */
+export async function generateSynonymSeed(lang: string): Promise<void> {
+  // TODO: Call LLM to generate ~200 synonym groups for this language
+  // Save to data/aam_synonyms_{lang}.json
+  console.log(`[AAM] New language detected: ${lang}. LLM seed generation not yet implemented.`)
+}
+
+// ── Export language detection for external use ──
+export { detectLanguage }

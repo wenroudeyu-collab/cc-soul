@@ -12,6 +12,16 @@ import { handleError } from './errors.ts'
 // 去重：防止同一条记忆在飞书群聊拆消息场景下被多次 penalize
 const _lastPenalizeTs = new Map<string, number>()
 
+// ── In-memory dedup cache (replaces file-based recent_replies.json) ──
+const _dedupCache = new Map<string, { reply: string; ts: number }>()
+const DEDUP_TTL = 3600000 // 1 hour (matches original expiry)
+function cleanDedup() {
+  const now = Date.now()
+  for (const [k, v] of _dedupCache) {
+    if (now - v.ts > DEDUP_TTL) _dedupCache.delete(k)
+  }
+}
+
 export { handleProcess, handleFeedback }
 
 /** Isolate independent pipeline steps — on throw, log degradation and return fallback */
@@ -112,6 +122,12 @@ async function handleProcess(body: any): Promise<any> {
     try { (await import('./memory.ts')).ensureSQLiteReady() } catch {}
   } catch {}
   try { (await import('./handler.ts')).initializeSoul() } catch {}
+
+  // ── 交叉学习：每条用户消息喂 AAM（不只是查询时）──
+  try { (await import('./aam.ts')).learnAssociation(message) } catch {}
+
+  // ── 0.5 语言自适应种子翻译（首次启动 + 有 LLM → 翻译种子词；没 LLM → 跳过）──
+  try { (await import('./aam.ts')).maybeTranslateSeedsForLanguage(message) } catch {}
 
   // ── 1. Body tick + emotional processing (isolated — failure won't block cognition) ──
   const bodyFallback = { mood: 0, energy: 0.5, alertness: 0.5 }
@@ -223,29 +239,22 @@ async function handleProcess(body: any): Promise<any> {
     }
   } catch {}
 
-  // ── 7b. Duplicate message detection (read fresh from disk, not cached) ──
+  // ── 7b. Duplicate message detection (in-memory cache) ──
   let dupHint = ''
   try {
-    const { resolve } = await import('path')
-    const { readFileSync, writeFileSync, existsSync } = await import('fs')
-    const { DATA_DIR } = await import('./persistence.ts')
-    const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
-    let dedup: Record<string, { reply: string; ts: number }> = {}
-    try { if (existsSync(DEDUP_PATH)) dedup = JSON.parse(readFileSync(DEDUP_PATH, 'utf-8')) } catch {}
+    cleanDedup()
     const dedupKey = message.slice(0, 100).toLowerCase().trim()
-    const prev = dedup[dedupKey]
-    if (prev && Date.now() - prev.ts < 3600000) {
+    const prev = _dedupCache.get(dedupKey)
+    if (prev && Date.now() - prev.ts < DEDUP_TTL) {
       const replyHint = prev.reply ? `上次的回复摘要："${prev.reply.slice(0, 100)}"。` : ''
       dupHint = `[重要] 用户发了和之前一样的消息："${message.slice(0, 50)}"。${replyHint}不要重复上次的回答，换个角度或说"这个刚说过，还有什么不清楚的？"。`
     }
     // Only write if no existing entry (don't overwrite reply from feedback)
-    if (!dedup[dedupKey]) {
-      dedup[dedupKey] = { reply: '', ts: Date.now() }
+    if (!_dedupCache.has(dedupKey)) {
+      _dedupCache.set(dedupKey, { reply: '', ts: Date.now() })
     } else {
-      dedup[dedupKey].ts = Date.now()  // update timestamp but preserve reply
+      _dedupCache.get(dedupKey)!.ts = Date.now()  // update timestamp but preserve reply
     }
-    for (const [k, v] of Object.entries(dedup)) { if (Date.now() - v.ts > 3600000) delete dedup[k] }
-    writeFileSync(DEDUP_PATH, JSON.stringify(dedup, null, 2), 'utf-8')
   } catch {}
 
   // ── 8. Build augments ──
@@ -346,21 +355,11 @@ async function handleFeedback(body: any): Promise<any> {
     if (getPrivacyMode()) return { learned: false, reason: 'privacy_mode' }
   } catch {}
 
-  // Update dedup cache with actual reply content (read fresh from disk to avoid stale cache)
+  // Update dedup cache with actual reply content (in-memory)
   try {
-    const { resolve } = await import('path')
-    const { readFileSync, writeFileSync, existsSync } = await import('fs')
-    const { DATA_DIR } = await import('./persistence.ts')
-    const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
-    // Read fresh from disk (not cached) to avoid cross-process stale data
-    let dedup: Record<string, { reply: string; ts: number }> = {}
-    try { if (existsSync(DEDUP_PATH)) dedup = JSON.parse(readFileSync(DEDUP_PATH, 'utf-8')) } catch {}
     const dedupKey = userMessage.slice(0, 100).toLowerCase().trim()
-    dedup[dedupKey] = { reply: aiReply.slice(0, 200), ts: Date.now() }
-    // Clean expired
-    const now = Date.now()
-    for (const [k, v] of Object.entries(dedup)) { if (now - v.ts > 3600000) delete dedup[k] }
-    writeFileSync(DEDUP_PATH, JSON.stringify(dedup, null, 2), 'utf-8')
+    _dedupCache.set(dedupKey, { reply: aiReply.slice(0, 200), ts: Date.now() })
+    cleanDedup()
   } catch {}
 
   // History
@@ -469,6 +468,7 @@ async function handleFeedback(body: any): Promise<any> {
                     const aamMod = require('./aam.ts')
                     const bodyMod = require('./body.ts')
                     aamMod.learnAssociation?.(`${phrase} ${m.scope}`, Math.abs(bodyMod?.body?.mood ?? 0))
+                    aamMod.learnTemporalLink?.(phrase)  // PAM 有向时序共现学习
                   } catch {}
                 }
               }

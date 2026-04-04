@@ -40,15 +40,15 @@ let _domainCache: { msg: string; result: string } | null = null
 
 // 领域关键词表（种子，按特异性排序——越具体的越前面）
 const DOMAIN_KEYWORDS: Array<{ domain: string; words: string[]; specificity: number }> = [
-  { domain: 'ios-reverse', words: ['frida', 'hook', 'ida', 'mach-o', 'dyld', 'arm64', 'objc', '逆向', '砸壳', 'tweak', 'substrate', 'theos', 'cycript'], specificity: 0.95 },
+  { domain: 'ios-reverse', words: ['frida', 'hook', 'ida', 'mach-o', 'dyld', 'arm64', 'objc', '逆向', '砸壳', 'tweak', 'substrate', 'theos', 'cycript', 'reverse engineering', 'binary analysis'], specificity: 0.95 },
   { domain: 'rust', words: ['rust', 'cargo', '.rs', 'lifetime', 'borrow checker'], specificity: 0.9 },
   { domain: 'swift', words: ['swift', 'xcode', 'swiftui', 'uikit', 'cocoa', 'appkit'], specificity: 0.85 },
   { domain: 'golang', words: ['go ', 'golang', 'goroutine', '.go', 'func '], specificity: 0.85 },
   { domain: 'python', words: ['python', 'pip', 'flask', 'django', 'def ', 'import ', '.py', 'asyncio', 'pandas'], specificity: 0.7 },
   { domain: 'javascript', words: ['typescript', 'javascript', 'node', 'react', 'vue', '.ts', '.js', 'npm', 'pnpm', 'bun'], specificity: 0.7 },
   { domain: 'devops', words: ['docker', 'k8s', 'kubernetes', 'nginx', 'linux', 'bash', 'shell', 'systemd', 'ssh'], specificity: 0.75 },
-  { domain: 'database', words: ['sql', 'mysql', 'postgres', 'mongodb', '数据库', 'redis', 'sqlite'], specificity: 0.8 },
-  { domain: '图片识别', words: ['图片', 'ocr', '识别', '照片', '截图', '看看这个', '这张图'], specificity: 0.85 },
+  { domain: 'database', words: ['sql', 'mysql', 'postgres', 'mongodb', '数据库', 'redis', 'sqlite', 'database', 'query', 'index', 'schema'], specificity: 0.8 },
+  { domain: '图片识别', words: ['图片', 'ocr', '识别', '照片', '截图', '看看这个', '这张图', 'image recognition', 'computer vision'], specificity: 0.85 },
   { domain: 'git', words: ['git', 'github', 'pr', 'merge', 'branch', 'commit', 'rebase'], specificity: 0.8 },
 ]
 
@@ -96,7 +96,8 @@ export function detectDomain(msg: string): string {
 
   if (bestDomain === '通用') {
     if (msg.length < 20) bestDomain = '闲聊'
-    else if (['怎么看', '你觉得', '建议', '应该', '推荐'].some(w => m.includes(w))) bestDomain = '咨询'
+    else if (['怎么看', '你觉得', '建议', '应该', '推荐', 'what do you think', 'advice', 'suggest', 'recommend', 'should i', 'consultation'].some(w => m.includes(w))) bestDomain = '咨询'
+    else if (['chat', 'casual', 'hey', 'hi ', 'hello', 'sup', "what's up"].some(w => m.includes(w)) && msg.length < 30) bestDomain = '闲聊'
   }
 
   _domainCache = { msg, result: bestDomain }

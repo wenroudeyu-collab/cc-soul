@@ -105,11 +105,10 @@ export function feedbackMemoryEngagement(userReply: string): void {
     return
   }
 
-  const { memoryState } = require('./memory.ts')
+  let memoryState: any, _memLookup: any
+  try { memoryState = require('./memory.ts').memoryState } catch { return }
+  try { _memLookup = require('./memory-recall.ts')._memLookup } catch {}
   const replyTri = trigrams(userReply)
-
-  // 用 _memLookup 精确查找，避免 content 前 40 字相同的误匹配
-  const { _memLookup } = require('./memory-recall.ts')
   let engagedTotal = 0
   let matchedTotal = 0
 
@@ -134,6 +133,11 @@ export function feedbackMemoryEngagement(userReply: string): void {
     if (overlap > 0.3) {
       mem.injectionEngagement = (mem.injectionEngagement ?? 0) + 1
       engagedTotal++
+      // 交叉学习：engaged 记忆的词关联 → AAM 加强
+      try {
+        const { learnAssociation } = require('./aam.ts')
+        learnAssociation(mem.content, 0, 2.0)  // engaged = 2x weight
+      } catch {}
       // 代谢确认：如果被 engaged 的记忆是 ABSORB 产生的（lineage 里有 absorbed），记录验证
       if (mem.lineage?.some((l: any) => l.action === 'absorbed')) {
         try { require('./decision-log.ts').logDecision('metabolism_confirmed', mem.content.slice(0, 30), 'ABSORB memory was engaged by user') } catch {}
@@ -249,8 +253,8 @@ function getContextReminders(userId?: string): { id: number; keyword: string; co
 
 // ── Memory distillation: group recalled memories into narrative paragraphs to save tokens ──
 const SCOPE_LABELS: Record<string, string> = {
-  preference: '偏好', fact: '事实', event: '经历', opinion: '观点', topic: '话题',
-  correction: '纠正', task: '任务', discovery: '发现', reflection: '思考',
+  preference: '偏好/Pref', fact: '事实/Fact', event: '经历/Event', opinion: '观点/Opinion', topic: '话题/Topic',
+  correction: '纠正/Fix', task: '任务/Task', discovery: '发现/Discovery', reflection: '思考/Reflect',
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -265,14 +269,14 @@ const SCOPE_LABELS: Record<string, string> = {
 function presentMemory(mem: Memory, query: string, mood: number, trace?: any): string {
   // 1. 可信度梯度（基于信号来源的语义标注）
   let prefix = ''
-  if (trace?.path?.some((p: any) => p.via === 'system1_fact')) prefix = '[确认事实]'
-  else if (mem.source === 'user_said' && (mem.confidence ?? 0) > 0.8) prefix = '[用户说过]'
-  else if ((mem.recallCount ?? 0) >= 3 && (mem.injectionEngagement ?? 0) >= 2) prefix = '[多次验证]'
-  else if (mem.source === 'ai_inferred' && (mem.confidence ?? 0) < 0.5) prefix = '[推测]'
+  if (trace?.path?.some((p: any) => p.via === 'system1_fact')) prefix = '[确认事实/Confirmed]'
+  else if (mem.source === 'user_said' && (mem.confidence ?? 0) > 0.8) prefix = '[用户说过/UserSaid]'
+  else if ((mem.recallCount ?? 0) >= 3 && (mem.injectionEngagement ?? 0) >= 2) prefix = '[多次验证/Verified]'
+  else if (mem.source === 'ai_inferred' && (mem.confidence ?? 0) < 0.5) prefix = '[推测/Guess]'
 
   // 2. 情绪重构（当前心情影响记忆呈现角度）
   let suffix = ''
-  if (mood > 0.3 && mem.emotion === 'painful') suffix = '（但后来好起来了）'
+  if (mood > 0.3 && mem.emotion === 'painful') suffix = '（但后来好起来了/but got better）'
 
   // 3. 时间语境（复用已有的 annotateMemoryFreshness）
   const content = annotateMemoryFreshness(mem.content, mem, query)
@@ -1309,13 +1313,13 @@ export async function buildAndSelectAugments(params: {
 
   // Layer A (associateSync) 已移除 — 被 activation-field + AAM 替代
 
-  // System 1 facts 直接注入（绕过 crystallize，确保不被挤掉）
-  const s1Facts = recalled.filter((m: any) => m.source === 'activation_field_s1')
+  // Fact-store parallel recall facts 直接注入（绕过 crystallize，确保不被挤掉）
+  const s1Facts = recalled.filter((m: any) => m.source === 'fact_store_parallel' || m.source === 'activation_field_s1')
   if (s1Facts.length > 0) {
     const factContent = '[相关事实] ' + s1Facts.map((m: any) => m.content).join('；')
     augments.push({ content: factContent, priority: 9, tokens: estimateTokens(factContent) })
 
-    // 记录 S1 注入决策 + 激活路径
+    // 记录 fact 注入决策 + 激活路径
     try {
       const { logDecision } = require('./decision-log.ts')
       const { getRecentTrace } = require('./activation-field.ts')
@@ -1323,12 +1327,12 @@ export async function buildAndSelectAugments(params: {
       for (const fact of s1Facts) {
         const matchedTrace = recent?.traces?.find((t: any) => t.memory?.content === fact.content)
         const topStep = matchedTrace?.path?.[0]
-        logDecision('inject', (fact.content || '').slice(0, 30), `s1_fact, ${s1Facts.length} facts injected`, topStep ? { via: topStep.via, score: matchedTrace.score } : undefined)
+        logDecision('inject', (fact.content || '').slice(0, 30), `fact_parallel, ${s1Facts.length} facts injected`, topStep ? { via: topStep.via, score: matchedTrace.score } : undefined)
       }
     } catch {}
 
-    // 从 recalled 中移除 S1 facts，避免 crystallize 重复
-    recalled = recalled.filter((m: any) => m.source !== 'activation_field_s1')
+    // 从 recalled 中移除 fact-store facts，避免 crystallize 重复
+    recalled = recalled.filter((m: any) => m.source !== 'fact_store_parallel' && m.source !== 'activation_field_s1')
   }
 
   session.lastRecalledContents = recalled.map(m => m.content)

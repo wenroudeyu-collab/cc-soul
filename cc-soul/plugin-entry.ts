@@ -176,40 +176,15 @@ export default {
           })
           const data = await resp.json()
 
-          // Command: always write to SOUL.md (commands need immediate relay)
+          // Command: SOUL.md disk write removed — Context Engine mode
           if (data.command && data.command_reply) {
-            const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
-            const basePrompt = data.system_prompt || ''
-            const cmdBlock = `\n\n## 内部指令（仅本轮有效，最高优先级）\n用户输入了系统命令"${rawMsg}"。以下是命令执行结果，请原样转发给用户，保持全部格式，不要添加任何额外内容：\n\n${data.command_reply}`
-            writeFileSync(soulPath, basePrompt + cmdBlock, 'utf-8')
-            console.log(`[cc-soul] command → SOUL.md (${data.command_reply.length} chars)`)
+            console.log(`[cc-soul] command processed (${data.command_reply.length} chars)`)
             return
           }
 
           // Context Engine 推送已移除——cc-soul 独立 API 模式
 
-          // Fallback: if context-engine NOT registered, write SOUL.md as before
-          if (!_contextEngineRegistered && (data.system_prompt || data.augments)) {
-            const soulPath = resolve(homedir(), '.openclaw/workspace/SOUL.md')
-            const MAX_SOUL_CHARS = 6000
-            let augmentStr = data.augments || ''
-            const baseLen = (data.system_prompt || '').length
-            if (baseLen + augmentStr.length > MAX_SOUL_CHARS) {
-              const budget = MAX_SOUL_CHARS - baseLen - 50
-              if (budget > 200) {
-                augmentStr = augmentStr.slice(0, budget)
-                const lastNewline = augmentStr.lastIndexOf('\n')
-                if (lastNewline > 100) augmentStr = augmentStr.slice(0, lastNewline)
-              } else {
-                augmentStr = ''
-              }
-            }
-            const fullPrompt = data.system_prompt
-              ? data.system_prompt + (augmentStr ? '\n\n## 内部指令（仅本轮有效）\n' + augmentStr : '')
-              : augmentStr
-            writeFileSync(soulPath, fullPrompt, 'utf-8')
-            console.log(`[cc-soul] SOUL.md updated (${fullPrompt.length} chars, fallback mode)`)
-          }
+          // SOUL.md fallback write removed — Context Engine mode is now the only path
 
           // Store for feedback
           _lastMsg = rawMsg

@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, writeFileSync } from 'fs'
 import type { SoulModule } from './brain.ts'
 import { getParam } from './auto-tune.ts'
 import { trigrams, trigramSimilarity } from './memory-utils.ts'
@@ -238,10 +238,8 @@ function loadDecayParams(dataDir: string) {
   } catch {}
   // JSON fallback
   try {
-    if (existsSync(_decayParamsPath)) {
-      const raw = readFileSync(_decayParamsPath, 'utf-8').trim()
-      if (raw) Object.assign(_decayParams, JSON.parse(raw))
-    }
+    const loaded = loadJson(_decayParamsPath, null)
+    if (loaded) Object.assign(_decayParams, loaded)
   } catch {}
 }
 

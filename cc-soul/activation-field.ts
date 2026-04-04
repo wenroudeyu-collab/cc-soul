@@ -28,6 +28,12 @@ import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownW
 import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef } from './memory-recall.ts'
 import { extractTagsLocal as _extractTagsLocal } from './memory.ts'
 
+// ── 统一 import 所有模块（不用 require，ESM 兼容）──
+// 核心模块直接 import，可选模块 lazy require（在 try/catch 里）
+import { detectDomain as _detectDomain } from './cognition.ts'
+import * as _graphMod from './graph.ts'
+import * as _factStoreMod from './fact-store.ts'
+
 // ═══════════════════════════════════════════════════════════════
 // ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
 // ═══════════════════════════════════════════════════════════════
@@ -134,8 +140,7 @@ function updateMomentum(query: string): void {
   // 检测 domain
   let domain = 'default'
   try {
-    const { detectDomain } = require('./cognition.ts')
-    domain = detectDomain(query) || 'default'
+    domain = _detectDomain(query) || 'default'
   } catch {}
 
   // 提取话题关键词
@@ -165,7 +170,113 @@ export function getMomentumBoost(memContent: string): number {
   }
   if (words.length === 0) return 0
   // 归一化：每词平均 momentum × 0.1，上限 +50%
-  return Math.min(0.5, (totalMomentum / words.length) * 0.1)
+  // 对话惯性是 NAM 独有能力，cap 提升到 80%（向量做不到连续对话加权）
+  return Math.min(0.8, (totalMomentum / words.length) * 0.15)
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CATEGORY PRE-PRUNING — 按领域预筛，减少候选池，提升召回精度
+// ═══════════════════════════════════════════════════════════════
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  work: ['工作', '上班', '公司', '同事', '加班', '薪资', '面试', '简历', '老板', '晋升', 'work', 'job', 'company', 'boss', 'salary'],
+  tech: ['代码', '编程', '服务器', '数据库', 'bug', 'Python', 'code', 'deploy', '开发', '接口', 'API', '框架', 'debug'],
+  health: ['血压', '睡眠', '运动', '减肥', '过敏', '体检', '医院', '吃药', '感冒', '头疼', 'health', 'doctor', 'exercise'],
+  family: ['老婆', '女朋友', '孩子', '父母', '家人', '宝宝', '老公', '男朋友', '爸', '妈', 'wife', 'family', 'husband', 'kid'],
+  finance: ['房贷', '工资', '股票', '理财', '存款', '基金', '投资', '账单', 'mortgage', 'salary', 'stock', 'invest'],
+  food: ['吃', '做饭', '火锅', '外卖', '餐厅', '菜', '烧烤', '奶茶', 'food', 'restaurant', 'cook', 'recipe'],
+  travel: ['旅游', '出差', '机票', '酒店', '签证', '景点', 'travel', 'trip', 'flight', 'hotel'],
+  emotion: ['开心', '难过', '焦虑', '压力', '心情', '烦', '崩溃', '郁闷', 'happy', 'sad', 'anxious', 'stress'],
+  housing: ['房子', '租房', '装修', '搬家', '物业', '小区', 'house', 'rent', 'apartment', 'move'],
+  social: ['朋友', '聚会', '约会', '社交', '饭局', 'friend', 'party', 'date', 'hangout'],
+  education: ['学习', '大学', '考试', '课程', '论文', '毕业', 'study', 'university', 'exam', 'course'],
+  entertainment: ['电影', '游戏', '音乐', '看书', '追剧', '综艺', 'movie', 'game', 'music', 'book'],
+  pet: ['猫', '狗', '宠物', '铲屎', '猫粮', '狗粮', 'cat', 'dog', 'pet'],
+}
+
+// 预编译：为每个 category 建一个 Set（加速查找）
+const _categoryWordSets = new Map<string, Set<string>>()
+for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+  _categoryWordSets.set(cat, new Set(words.map(w => w.toLowerCase())))
+}
+
+/** 检测文本的领域分类，返回命中的 category 列表（按命中数降序） */
+function detectCategories(text: string): string[] {
+  const lower = text.toLowerCase()
+  const scores: [string, number][] = []
+  for (const [cat, wordSet] of _categoryWordSets) {
+    let hits = 0
+    for (const w of wordSet) {
+      if (lower.includes(w)) hits++
+    }
+    if (hits > 0) scores.push([cat, hits])
+  }
+  scores.sort((a, b) => b[1] - a[1])
+  return scores.map(s => s[0])
+}
+
+/** 内容级 category 缓存（避免对同一条记忆重复检测） */
+const _memCategoryCache = new Map<string, string[]>()
+const MEM_CATEGORY_CACHE_MAX = 5000
+
+function getMemCategories(mem: Memory): string[] {
+  const key = (mem.content || '').slice(0, 80)
+  let cats = _memCategoryCache.get(key)
+  if (cats !== undefined) return cats
+  cats = detectCategories(mem.content || '')
+  if (_memCategoryCache.size >= MEM_CATEGORY_CACHE_MAX) {
+    const keys = [..._memCategoryCache.keys()]
+    for (let i = 0; i < keys.length / 2; i++) _memCategoryCache.delete(keys[i])
+  }
+  _memCategoryCache.set(key, cats)
+  return cats
+}
+
+const CATEGORY_PRUNE_THRESHOLD = 100  // 只在候选池 > 100 时才启用剪枝
+const CATEGORY_PRUNE_MIN_POOL = 20    // 剪枝后最少保留的记忆数
+const CATEGORY_HIGH_IMPORTANCE = 8    // 高重要性记忆无条件保留
+
+/**
+ * 按领域预筛记忆：只保留与查询同 category 的 + 高重要性的
+ * 返回剪枝后的 memories 子集（如果不值得剪枝，返回原数组）
+ */
+function categoryPrePrune(memories: Memory[], query: string): Memory[] {
+  if (memories.length <= CATEGORY_PRUNE_THRESHOLD) return memories
+
+  const queryCats = detectCategories(query)
+  if (queryCats.length === 0) return memories  // 查询无明确领域，不剪
+
+  const queryCatSet = new Set(queryCats)
+
+  const pruned: Memory[] = []
+  for (const mem of memories) {
+    // 高重要性无条件保留
+    if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE) {
+      pruned.push(mem)
+      continue
+    }
+    // 记忆的 category 与查询有交集 → 保留
+    const memCats = getMemCategories(mem)
+    if (memCats.length === 0) {
+      // 无 category 标签的记忆（太短/太泛）→ 保留（不冤枉）
+      pruned.push(mem)
+      continue
+    }
+    for (const mc of memCats) {
+      if (queryCatSet.has(mc)) {
+        pruned.push(mem)
+        break
+      }
+    }
+  }
+
+  // 安全阈值：剪枝后太少 → 回退全集
+  if (pruned.length < CATEGORY_PRUNE_MIN_POOL) return memories
+
+  if (pruned.length < memories.length) {
+    console.log(`[activation-field] category pre-prune: ${memories.length} → ${pruned.length} (query cats: ${queryCats.join(',')})`)
+  }
+  return pruned
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -177,7 +288,7 @@ const _activations = new Map<string, number>()  // memory content hash → activ
 // ── Lazy-loaded fact-store module ──
 let _factStoreMod: any = null
 function getFactStoreMod() {
-  if (!_factStoreMod) try { _factStoreMod = require('./fact-store.ts') } catch {}
+  // _factStoreMod 已在顶层 import
   return _factStoreMod
 }
 
@@ -446,6 +557,7 @@ function getAAMNeighborsFn(): typeof _aamGetNeighbors {
 
 // 实体激活值缓存（每次查询重建）
 let _erfCache: Map<string, number> | null = null
+let _aamNeighborCache: Map<string, number> | null = null  // 查询级 AAM 邻居缓存
 
 /**
  * 构建实体共振场：从查询中提取实体，通过图谱边扩散
@@ -455,7 +567,7 @@ function buildEntityResonanceField(query: string, memories: Memory[]): Map<strin
   const erf = new Map<string, number>()
 
   try {
-    const graph = require('./graph.ts')
+    const graph = _graphMod
     if (!graph.findMentionedEntities || !graph.getRelatedEntities) return erf
 
     // Step 1: 从查询中找实体 → 激活值 1.0
@@ -531,49 +643,17 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
     }
   }
 
-  // ── Path B: AAM co-occurrence fallback (when tags empty/insufficient) ──
-  // Extract keywords from memory, look up AAM neighbors, match against query
-  if (count < 3 && query) {
-    const fn = getAAMNeighborsFn()
-    if (fn) {
-      // Extract keywords from memory content
-      const memKeywords = (mem.content || '').match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []
-      const queryLower = query.toLowerCase()
-      const queryWords = new Set(
-        (queryLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
-      )
-
-      let aamBoost = 0
-      const visited = new Set<string>()  // avoid double-counting
-
-      for (const kw of memKeywords.slice(0, 5)) {
-        const kwLower = kw.toLowerCase()
-        // 1-hop: direct AAM neighbors
-        const neighbors = fn(kwLower, 5)
-        for (const n of neighbors) {
-          if (visited.has(n.word)) continue
-          visited.add(n.word)
-          if (queryWords.has(n.word)) {
-            // Fan effect: high-fanout nodes contribute less
-            const fanDamping = 1 / Math.sqrt(Math.max(1, n.fanOut))
-            aamBoost += n.pmiScore / 5 * fanDamping  // normalize PMI to ~[0,1]
-          }
-
-          // 2-hop: neighbors of neighbors (with 0.3 damping)
-          const hop2 = fn(n.word, 3)
-          for (const n2 of hop2) {
-            if (visited.has(n2.word)) continue
-            visited.add(n2.word)
-            if (queryWords.has(n2.word)) {
-              const fanDamping2 = 1 / Math.sqrt(Math.max(1, n2.fanOut))
-              aamBoost += n2.pmiScore / 5 * fanDamping2 * 0.3  // 2-hop damping
-            }
-          }
-        }
-      }
-
-      totalSpread += Math.min(0.3, aamBoost)  // cap AAM contribution
+  // ── Path B: AAM co-occurrence（查询级缓存版，不再对每条记忆重复计算 PMI）──
+  // 旧版对每条记忆做 5×5×3=75 次 PMI 查询，438 条 = 32K 次 → 20 秒
+  // 新版用 _aamNeighborCache（在 computeActivationField 中预建），O(1) 查表
+  if (count < 3 && query && _aamNeighborCache && _aamNeighborCache.size > 0) {
+    const memKeywords = (mem.content || '').match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []
+    let aamBoost = 0
+    for (const kw of memKeywords.slice(0, 8)) {
+      const score = _aamNeighborCache.get(kw.toLowerCase())
+      if (score) aamBoost += score
     }
+    totalSpread += Math.min(0.3, aamBoost)
   }
 
   // ── Path C: Entity Resonance Field（实体共振场）──
@@ -712,6 +792,28 @@ export function computeActivationField(
   // 构建实体共振场（ERF）— 一次性，供 spreadingActivation Path C 使用
   _erfCache = buildEntityResonanceField(query, memories)
 
+  // 预建 AAM neighbor 缓存 — 把查询词的 1-hop AAM 邻居预计算好
+  // 供 spreadingActivation Path B 用，避免每条记忆重复 PMI 计算（O(N²) → O(N)）
+  _aamNeighborCache = new Map()
+  try {
+    const fn = getAAMNeighborsFn()
+    if (fn) {
+      const queryWords = new Set(
+        (query.toLowerCase().match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).map(w => w.toLowerCase())
+      )
+      // 对每个查询词，找其 AAM 邻居，记录 word → score
+      for (const qw of queryWords) {
+        const neighbors = fn(qw, 5)
+        for (const n of neighbors) {
+          const fanDamping = 1 / Math.sqrt(Math.max(1, n.fanOut))
+          const score = n.pmiScore / 5 * fanDamping
+          const existing = _aamNeighborCache.get(n.word) || 0
+          if (score > existing) _aamNeighborCache.set(n.word, score)
+        }
+      }
+    }
+  } catch {}
+
   const results: ActivationResult[] = []
   const currentTop: Memory[] = []  // 用于干扰抑制
 
@@ -766,7 +868,11 @@ export function computeActivationField(
     const confScale = 0.6 + conf * 0.4
 
     // importance 加成（surprise 编码的结果）
-    const impBoost = (mem.importance ?? 5) >= 8 ? 1.2 : (mem.importance ?? 5) >= 6 ? 1.1 : 1.0
+    let impBoost = (mem.importance ?? 5) >= 8 ? 1.2 : (mem.importance ?? 5) >= 6 ? 1.1 : 1.0
+    // 纠正免疫：correction scope 的记忆永久加权（向量做不到——语义距离无法区分纠正前后）
+    if (mem.scope === 'correction') impBoost *= 1.5
+    // 被纠正的记忆（有 supersededBy）永久降权
+    if ((mem as any).supersededBy) impBoost *= 0.3
 
     // Signal 7: PAM Temporal Co-occurrence（有向共现加成）
     // 用户先说 A 再说 B → 下次说 A 时，含 B 的记忆获得 boost
@@ -779,7 +885,7 @@ export function computeActivationField(
         if (temporalSuccessors.has(w.toLowerCase())) hits++
         if (hits >= 3) break  // cap contribution
       }
-      s7 = Math.min(0.15, hits * 0.05)  // each hit +0.05, max +0.15
+      s7 = Math.min(0.3, hits * 0.1)  // 提升：each hit +0.1, max +0.3（对话惯性是 NAM 独有优势）
     }
 
     // 对话惯性加成（momentum boost）
@@ -1023,6 +1129,13 @@ export function activationRecall(
     timeRange = _extractTimeRange(query)  // 顶层 import，ESM 安全
   } catch {}
 
+  // 1.5 隐含时间感知（向量做不到——向量不知道"最近"意味着什么）
+  let recencyBias = 0  // 0=no bias, >0=天数(偏好近N天), -1=偏好旧记忆
+  if (!timeRange) {
+    if (/最近|目前|现在|these days|lately|recently/i.test(query)) recencyBias = 7
+    if (/以前|之前|曾经|过去|当年|before|used to/i.test(query)) recencyBias = -1
+  }
+
   // 2. 关键词通道：去停用词后的 BM25 关键词（更精准的词法匹配）
   let lexicalQuery = query
   try {
@@ -1033,65 +1146,68 @@ export function activationRecall(
   // 3. 实体通道：图谱实体（已在下方 graph expansion 中处理）
   // 4. AAM 通道：保持使用完整原始 query（联想需要完整语境）
 
-  // 快速路径：fact-store 动态匹配（System 1）
-  // 零硬编码：遍历所有已存三元组，用查询词匹配 object/predicate/subject
+  // ── Category Pre-Pruning：按领域预筛，减少候选池 ──
+  // 在 computeActivationField 之前执行，同时加速 IDF 缓存构建
+  memories = categoryPrePrune(memories, query)
+
+  // ── Parallel Channel: fact-store 关键词召回（与 NAM 并行，最终融合）──
+  // 遍历所有已存三元组，用查询词+AAM扩展词评分，不短路，结果在 NAM 之后融合
+  let _parallelFactMems: Memory[] = []
   try {
     const factStore = getFactStoreMod()
     const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number }[]
-    const allFactMems: Memory[] = []
     const queryLowerS1 = query.toLowerCase()
     // 提取查询关键词（CJK 2-gram + 英文 2+ 字母 + 数字）
     const queryTokensS1 = new Set((queryLowerS1.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase()))
-    // AAM 扩展词也参与匹配
+    // AAM 扩展词也参与匹配（扩展语义覆盖面）
     for (const [w] of expanded) queryTokensS1.add(w.toLowerCase())
 
+    const scoredFacts: { mem: Memory; matchScore: number }[] = []
     for (const fact of allFacts) {
-      if (fact.validUntil && fact.validUntil < Date.now()) continue  // 已失效
+      if (fact.validUntil && fact.validUntil > 0 && fact.validUntil < Date.now()) continue  // 已失效
       const objLower = (fact.object || '').toLowerCase()
       const predLower = (fact.predicate || '').toLowerCase()
+      const subjLower = (fact.subject || '').toLowerCase()
+      const factText = `${subjLower} ${predLower} ${objLower}`
+      const factTokens = (factText.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || []).map(w => w.toLowerCase())
 
-      // 匹配策略：查询词出现在 object 或 predicate 中
-      let matched = false
-      // 1. 查询整体包含 object（"我的猫叫什么" 包含 "猫"）
+      // 双向匹配评分（不只 boolean，而是 overlap 程度）
+      let matchScore = 0
+      // 1. 查询词 → fact 字段（"猫" in "一只叫豆豆的猫"）
       for (const token of queryTokensS1) {
-        if (objLower.includes(token) || token.includes(objLower)) { matched = true; break }
-        if (predLower.includes(token)) { matched = true; break }
+        if (objLower.includes(token) || token.includes(objLower)) matchScore += 2  // object 命中权重高
+        if (predLower.includes(token)) matchScore += 1.5  // predicate 命中
+        if (subjLower.includes(token)) matchScore += 0.5  // subject 命中（通常是 "user"，低权重）
       }
-      // 2. object 的词出现在查询中（"PostgreSQL" 出现在查询"我用什么数据库"→ 通过 AAM 扩展匹配）
-      if (!matched) {
-        const objTokens = (objLower.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{2,}|\d+/gi) || [])
-        for (const ot of objTokens) {
-          if (queryTokensS1.has(ot.toLowerCase())) { matched = true; break }
-        }
+      // 2. fact 的词 → 查询词集合（"PostgreSQL" in queryTokens）
+      for (const ft of factTokens) {
+        if (queryTokensS1.has(ft)) matchScore += 1
       }
+      // 3. confidence 加权
+      matchScore *= (fact.confidence || 0.7)
 
-      if (matched) {
-        allFactMems.push({
-          content: `[事实] ${fact.predicate}: ${fact.object}`,
-          scope: 'fact', ts: fact.ts || Date.now(), confidence: fact.confidence || 0.9, source: 'activation_field_s1',
-          recallCount: 10, lastAccessed: Date.now(), importance: 9,
-        } as Memory)
+      if (matchScore > 0) {
+        scoredFacts.push({
+          mem: {
+            content: `[事实] ${fact.predicate}: ${fact.object}`,
+            scope: 'fact', ts: fact.ts || Date.now(), confidence: fact.confidence || 0.9,
+            source: 'fact_store_parallel',
+            recallCount: 10, lastAccessed: Date.now(), importance: 9,
+          } as Memory,
+          matchScore,
+        })
       }
     }
-    // 去重（同一 predicate 只取最新 2 条）
+    // 按评分排序 + 去重（同一 predicate 只取 top 2）
+    scoredFacts.sort((a, b) => b.matchScore - a.matchScore)
     const predCount = new Map<string, number>()
-    const dedupFacts: Memory[] = []
-    for (const m of allFactMems) {
-      const pred = m.content.split(':')[0] || ''
+    for (const sf of scoredFacts) {
+      const pred = sf.mem.content.match(/\[事实\]\s*([^:]+)/)?.[1] || ''
       const count = predCount.get(pred) || 0
-      if (count < 2) { dedupFacts.push(m); predCount.set(pred, count + 1) }
+      if (count < 2) { _parallelFactMems.push(sf.mem); predCount.set(pred, count + 1) }
     }
-    if (dedupFacts.length > 0) {
-      console.log(`[activation-field] System 1 dynamic: ${dedupFacts.length} facts matched from ${allFacts.length} total`)
-    }
-    if (allFactMemsFinal.length > 0) {
-      // System 1 做增强不做短路：facts + 激活场补充
-      const fieldResults = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN, timeRange)
-      const seen = new Set(allFactMemsFinal.map(m => m.content))
-      for (const r of fieldResults) {
-        if (!seen.has(r.memory.content)) { allFactMemsFinal.push(r.memory); seen.add(r.memory.content) }
-      }
-      return allFactMemsFinal.slice(0, topN)
+    if (_parallelFactMems.length > 0) {
+      console.log(`[activation-field] fact-store parallel: ${_parallelFactMems.length} facts scored from ${allFacts.length} total`)
     }
   } catch {}
 
@@ -1114,6 +1230,23 @@ export function activationRecall(
 
   // Step 2: 激活场计算（用扩展后的查询，候选集更完整）
   let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * 2, timeRange)
+
+  // ── 隐含时间 re-scoring（向量做不到的时间感知）──
+  if (recencyBias !== 0 && results.length > 0) {
+    // 不修改原始 activation（后续 PRF/fusion 还需要原始值），用 _recencyScore 排序
+    const now = Date.now()
+    const scored = results.map(r => {
+      const ageDays = (now - (r.memory.ts || now)) / 86400000
+      let boost = 1.0
+      if (recencyBias > 0 && ageDays <= recencyBias) boost = 1.5
+      if (recencyBias < 0 && ageDays > 30) boost = 1.3
+      return { ...r, _recencyScore: r.activation * boost }
+    })
+    scored.sort((a, b) => b._recencyScore - a._recencyScore)
+    results = scored.map(({ _recencyScore, ...r }) => r) as typeof results
+    // 注：不改 r.activation，只改排序
+  }
+
   // 过采样 2x，给 Step 3 的 rerank 留空间
 
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
@@ -1181,16 +1314,16 @@ export function activationRecall(
         const words = (r.memory.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
         let hits = 0
         for (const w of words) {
-          const ts = _primingCache.get(w.toLowerCase())
+          const ts = _primingCacheRef.get(w.toLowerCase())
           if (ts && now - ts < PRIMING_WINDOW) hits++
         }
         if (hits > 0 && words.length > 0) {
           const boost = Math.min(0.3, hits / words.length)
-          r.score *= (1 + boost)
+          r.activation *= (1 + boost)
           try { require('./decision-log.ts').logDecision('priming', (r.memory.content || '').slice(0, 30), `hits=${hits}/${words.length}, boost=${boost.toFixed(2)}`) } catch {}
         }
       }
-      results.sort((a, b) => b.score - a.score)
+      results.sort((a, b) => b.activation - a.activation)
     }
   } catch {}
 
@@ -1210,9 +1343,36 @@ export function activationRecall(
     if (m.tags?.length) { bonus += (m.tags.filter((t: string) => queryLower.includes(t.toLowerCase())).length / m.tags.length) * 3.0 }
     const sk = SCOPE_KW[m.scope || '']; if (sk?.some((k: string) => queryLower.includes(k))) bonus += 1.5
     const ek = EMO_KW[m.emotion || '']; if (ek?.some((k: string) => queryLower.includes(k))) bonus += 2.0
-    results[i].score *= (1 + Math.min(0.3, bonus / 6.5))
+    results[i].activation *= (1 + Math.min(0.3, bonus / 6.5))
   }
-  results.sort((a, b) => b.score - a.score)
+  results.sort((a, b) => b.activation - a.activation)
+
+
+  // ── Fact-Store Parallel Fusion：将 fact-store 结果融合到 NAM 结果中 ──
+  // 策略：facts 插入到 NAM 结果前部（高优先级），content 去重防止重复
+  if (_parallelFactMems.length > 0) {
+    const seenContent = new Set(results.map(r => r.memory.content))
+    const factResults: ActivationResult[] = []
+    for (const fm of _parallelFactMems) {
+      // 内容去重：NAM 中已有相同内容的跳过
+      if (seenContent.has(fm.content)) continue
+      // 语义去重：NAM 结果中已有同一 fact object 的跳过（避免 "[事实] name: 小明" 和 "记住了，你叫小明" 重复）
+      const factObj = fm.content.replace(/^\[事实\]\s*\S+:\s*/, '')
+      const hasSimilar = results.some(r => r.memory.content.includes(factObj) && factObj.length >= 2)
+      if (hasSimilar) continue
+      factResults.push({
+        memory: fm,
+        activation: 1.0,  // facts 给最高激活值，保证排在前面
+        signals: { base: 0, context: 1, emotion: 0, spread: 0, interference: 1, temporal: 0 },
+      })
+      seenContent.add(fm.content)
+    }
+    if (factResults.length > 0) {
+      // facts 置顶，NAM 结果跟在后面
+      results = [...factResults, ...results]
+      console.log(`[activation-field] fusion: ${factResults.length} facts merged with ${results.length - factResults.length} NAM results`)
+    }
+  }
 
   // 截断到 topN
   const topResults = results.slice(0, topN)
@@ -1224,11 +1384,16 @@ export function activationRecall(
   // 学习：每条消息都喂入 AAM 关联网络 + 时序共现
   try {
     _aamLearn(query, Math.abs(mood))
+    // PAM 有向时序共现：用户说 A 后说 B → A→B 链接
+    // PAM 时序学习已在 aam.ts import 中，但 learnTemporalLink 没有顶层 import
+    // 保留 require 兜底（非核心路径，失败不影响召回）
+    try { require('./aam.ts').learnTemporalLink?.(query) } catch {}
   } catch {}
 
   // ── System 1→2：零 LLM 召回质量低时，LLM 兜底 ──
   // 异步模式 B：不阻塞当前返回，LLM 结果异步写入，下一轮受益
-  if (topResults.length === 0 || (topResults.length > 0 && topResults[0].score < 0.1)) {
+  // benchmark 环境跳过（避免 spawnCLI 超时阻塞）
+  if (!process.env.CC_SOUL_BENCHMARK && (topResults.length === 0 || (topResults.length > 0 && topResults[0].activation < 0.1))) {
     try {
       const { hasLLM } = require('./cli.ts')
       if (hasLLM()) {

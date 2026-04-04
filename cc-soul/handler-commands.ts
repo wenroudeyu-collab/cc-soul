@@ -20,7 +20,7 @@ import {
   getCompressionRate,
   getSoulMode, setSoulMode,
 } from './handler-state.ts'
-import { loadJson, debouncedSave, DATA_DIR } from './persistence.ts'
+import { loadJson, saveJson, debouncedSave, DATA_DIR } from './persistence.ts'
 import { isAuditCommand, formatAuditLog } from './audit.ts'
 import { dbAddContextReminder, dbGetContextReminders, getDb } from './sqlite-store.ts'
 import { handleFeatureCommand } from './features.ts'
@@ -32,7 +32,10 @@ import {
 } from './memory.ts'
 import { generateMoodReport, formatEmotionAnchors } from './body.ts'
 import { getCapabilityScore } from './epistemic.ts'
-import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } from './user-dashboard.ts'
+// user-dashboard.ts 已删除（A2A/MCP/Dashboard 清理）
+const handleDashboardCommand = () => '该功能已停用'
+const generateMemoryMapHTML = () => ''
+const generateDashboardHTML = () => ''
 // ── Optional modules (absent in public build) ──
 let _exportEvolutionAssets: ((stats: any) => { data: any; path: string }) | null = null
 let _importEvolutionAssets: ((filePath: string) => { rulesAdded: number; hypothesesAdded: number }) | null = null
@@ -67,7 +70,7 @@ function _sanitize(obj: any): any {
     .replace(/\b(?:sk-|api[_-]?key|token|secret|password)[=:]\s*\S+/gi, '[REDACTED]')
   return JSON.parse(s)
 }
-function _readJson(p: string): any { try { return existsSync(p) ? JSON.parse(readFileSync(p, 'utf-8')) : null } catch { return null } }
+function _readJson(p: string): any { return loadJson(p, null) }
 function _fullBackup(): { path: string; counts: Record<string, number> } {
   const d = DATA_DIR + '/export'; if (!existsSync(d)) mkdirSync(d, { recursive: true })
   const files: Record<string, string> = {
@@ -123,7 +126,7 @@ function _fullRestore(filePath: string): Record<string, number> {
     const apDir = resolve(DATA_DIR, 'avatar_profiles')
     if (!existsSync(apDir)) mkdirSync(apDir, { recursive: true })
     for (const [uid, data] of Object.entries(raw.avatarProfiles)) {
-      writeFileSync(resolve(apDir, `${uid}.json`), JSON.stringify(data, null, 2), 'utf-8')
+      saveJson(resolve(apDir, `${uid}.json`), data)
     }
     counts.avatarProfiles = Object.keys(raw.avatarProfiles).length
   }
@@ -420,7 +423,7 @@ const COMMANDS: SoulCommand[] = [
     execute: () => {
       try {
         const skillsPath = resolve(DATA_DIR, 'skills.json')
-        const skills = existsSync(skillsPath) ? JSON.parse(readFileSync(skillsPath, 'utf-8')) : []
+        const skills = loadJson(skillsPath, [])
         if (skills.length === 0) return '还没有发现技能。多聊几轮后会自动生成。'
         const list = skills.slice(0, 10).map((s: any, i: number) => `${i + 1}. ${s.name || s.pattern || s.content?.slice(0, 40) || '未命名'}`).join('\n')
         return `你的技能（${skills.length} 个）：\n${list}`
@@ -505,7 +508,7 @@ const COMMANDS: SoulCommand[] = [
       if (!existsSync(exportDir)) mkdirSync(exportDir, { recursive: true })
       const lorebookPath = resolve(DATA_DIR, 'lorebook.json')
       let raw: any[] = []
-      try { raw = existsSync(lorebookPath) ? JSON.parse(readFileSync(lorebookPath, 'utf-8')) : [] } catch { /* corrupted lorebook.json */ }
+      try { raw = loadJson(lorebookPath, []) } catch { /* corrupted lorebook.json */ }
       const sanitized = raw
         .filter((e: any) => e.enabled !== false)
         .map((e: any) => ({
@@ -647,10 +650,10 @@ const COMMANDS: SoulCommand[] = [
           if (!existsSync(branchDir)) mkdirSync(branchDir, { recursive: true })
           const currentTopic = `_autosave_${Date.now()}`
           const currentBranch = { topic: currentTopic, savedAt: Date.now(), chatHistory: memoryState.chatHistory.slice(-50) }
-          writeFileSync(resolve(branchDir, `${currentTopic}.json`), JSON.stringify(currentBranch, null, 2), 'utf-8')
+          saveJson(resolve(branchDir, `${currentTopic}.json`), currentBranch)
         }
         if (!existsSync(branchPath)) return `话题「${topicName}」不存在，用"话题列表"查看可用话题。`
-        const branchData = JSON.parse(readFileSync(branchPath, 'utf-8'))
+        const branchData = loadJson(branchPath, {} as any)
         if (branchData.chatHistory && Array.isArray(branchData.chatHistory)) {
           memoryState.chatHistory.length = 0
           memoryState.chatHistory.push(...branchData.chatHistory)
@@ -674,7 +677,7 @@ const COMMANDS: SoulCommand[] = [
         const lines: string[] = [`话题列表（${files.length} 个）：`]
         for (const f of files) {
           try {
-            const data = JSON.parse(readFileSync(resolve(branchDir, f), 'utf-8'))
+            const data = loadJson(resolve(branchDir, f), {} as any)
             const age = Math.floor((Date.now() - (data.savedAt || 0)) / 86400000)
             const ageStr = age === 0 ? '今天' : `${age}天前`
             lines.push(`• ${data.topic || f.replace('.json', '')} — ${data.chatHistory?.length || 0} 轮对话（${ageStr}）`)
@@ -734,7 +737,7 @@ const COMMANDS: SoulCommand[] = [
       if (allHistory.length === 0) {
         try {
           const histPath = resolve(DATA_DIR, 'history.json')
-          allHistory = existsSync(histPath) ? JSON.parse(readFileSync(histPath, 'utf-8')) : []
+          allHistory = loadJson(histPath, [])
         } catch (_) {}
       }
       const recent = allHistory.slice(-25)

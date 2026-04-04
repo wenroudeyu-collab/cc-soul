@@ -160,11 +160,11 @@ export function fitLearningCurve(history: { user: string; ts: number }[]): Learn
 function analyzeUnspokenNeeds(): DeepUnderstandState['unspoken'] {
   const recent = memoryState.chatHistory.filter(h => h.ts > Date.now() - 7 * 86400000)
   const domains: [string, RegExp][] = [
-    ['编程', /代码|bug|error|函数|class|api|编程|开发|调试|debug/i],
-    ['职场', /工作|老板|同事|面试|加班|薪|绩效|晋升/i],
-    ['健康', /睡眠|运动|头疼|累|健身|饮食|体检/i],
-    ['情感', /感觉|心情|焦虑|压力|开心|难过|孤独/i],
-    ['学习', /学习|考试|课程|教程|理解|掌握/i],
+    ['编程/coding', /代码|bug|error|函数|class|api|编程|开发|调试|debug|code|programming|development|compile|runtime|stack/i],
+    ['职场/career', /工作|老板|同事|面试|加班|薪|绩效|晋升|job|boss|colleague|interview|overtime|salary|promotion|workplace|career/i],
+    ['健康/health', /睡眠|运动|头疼|累|健身|饮食|体检|sleep|exercise|headache|tired|fitness|diet|medical|workout/i],
+    ['情感/emotion', /感觉|心情|焦虑|压力|开心|难过|孤独|feeling|mood|anxious|stress|happy|sad|lonely|depressed/i],
+    ['学习/learning', /学习|考试|课程|教程|理解|掌握|study|exam|course|tutorial|understand|learn|education/i],
   ]
   const counts = new Map<string, number>()
   for (const h of recent) for (const [d, re] of domains) if (re.test(h.user)) counts.set(d, (counts.get(d) || 0) + 1)
@@ -196,7 +196,7 @@ function analyzeStress(): DeepUnderstandState['stress'] {
   const hAvg = history.reduce((s, h) => s + h.user.length, 0) / history.length
   if (rAvg < hAvg * 0.5 && rAvg < 15) { score += 0.3; signals.push('碎片化') }
   if (recent.reduce((s, h) => s + (h.user.match(/[?？!！.。…]{2,}/g) || []).length, 0) >= 3) { score += 0.2; signals.push('标点激增') }
-  if (recent.filter(h => /算了|随便|fuck|shit|烦|累|不管了|懒得|无所谓|操|靠|妈的/.test(h.user)).length >= 2) { score += 0.3; signals.push('压力词') }
+  if (recent.filter(h => /算了|随便|fuck|shit|烦|累|不管了|懒得|无所谓|操|靠|妈的|whatever|tired|give up|don't care|screw it|damn|crap|ugh|fed up|sick of|over it/.test(h.user)).length >= 2) { score += 0.3; signals.push('压力词/stress words') }
   if (recent.filter(h => { const hr = new Date(h.ts).getHours(); return hr >= 1 && hr < 5 }).length >= 2) { score += 0.2; signals.push('深夜') }
   return { stressLevel: Math.min(1, score), signals }
 }
@@ -238,9 +238,9 @@ export function analyzeStressDynamics(history: { user: string; ts: number }[]): 
     else if (msg.length > 80) signal -= 0.1  // 长消息 = 在思考/释放
 
     // 负面词信号
-    if (/烦|累|崩|急|压力|焦虑|受不了|算了|不想|头疼|烦死/.test(msg)) signal += 0.25
+    if (/烦|累|崩|急|压力|焦虑|受不了|算了|不想|头疼|烦死|frustrated|stressed|overwhelmed|exhausted|annoyed|ugh|burnout/.test(msg)) signal += 0.25
     // 正面词信号
-    if (/谢|好的|明白|解决|搞定|不错|太好/.test(msg)) signal -= 0.15
+    if (/谢|好的|明白|解决|搞定|不错|太好|thanks|got it|solved|fixed|great|awesome|nice/.test(msg)) signal -= 0.15
 
     // 标点信号：多个感叹号/问号 = 激动
     if (/[！!]{2,}|[？?]{2,}/.test(msg)) signal += 0.1

@@ -138,7 +138,10 @@ import { loadMetaFeedback, recordAugmentOutcome } from './meta-feedback.ts'
 import { updateFingerprint, checkPersonaConsistency, loadFingerprint, getCachedDriftWarning, setCachedDriftWarning } from './fingerprint.ts'
 import { loadFeatures, isEnabled, handleFeatureCommand } from './features.ts'
 import { processIngestion, ingestFile } from './rag.ts'
-import { handleDashboardCommand, generateMemoryMapHTML, generateDashboardHTML } from './user-dashboard.ts'
+// user-dashboard.ts 已删除
+const handleDashboardCommand = () => '该功能已停用'
+const generateMemoryMapHTML = () => ''
+const generateDashboardHTML = () => ''
 import { autoImportHistory } from './history-import.ts'
 import { collectAvatarData } from './avatar.ts'
 import { loadDistillState } from './distill.ts'
@@ -315,7 +318,7 @@ export async function handlePreprocessed(event: any): Promise<void> {
             persona: getActivePersona()?.id || 'default',
           }
           const branchPath = resolve(branchDir, `${topicLabel}.json`)
-          writeFileSync(branchPath, JSON.stringify(branchData, null, 2), 'utf-8')
+          saveJson(branchPath, branchData)
           console.log(`[cc-soul][auto-topic-save] saved topic「${topicLabel}」(${recentMsgs.length} turns) → ${branchPath}`)
         }
       } catch (e: any) {
@@ -689,9 +692,8 @@ export async function handlePreprocessed(event: any): Promise<void> {
     // 举一反三已移除 — 被 facts 驱动的参考信息替代（handler-augments.ts）
     let tipsSection = ''
 
-    writeFileSync(soulPath, baseSoul + augmentSection + tipsSection, 'utf-8')
-    import('./plugin-entry.ts').then(m => m.setSoulDynamicLock?.(30000)).catch((e: any) => { console.error(`[cc-soul] module load failed (plugin-entry): ${e.message}`) })
-    console.log(`[cc-soul] SOUL.md updated: ${cleanedSelected.length} augments${tipsSection ? ' + 举一反三' : ''}`)
+    // SOUL.md disk write removed — Context Engine mode returns prompt via assemble()
+    console.log(`[cc-soul] prompt built: ${cleanedSelected.length} augments${tipsSection ? ' + 举一反三' : ''}`)
   } catch (e: any) {
     console.log(`[cc-soul] SOUL.md dynamic update failed: ${e.message}`)
   }

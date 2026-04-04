@@ -31,28 +31,28 @@ export interface StructureWord {
 
 const SEED_STRUCTURES: StructureWord[] = [
   // 所有权/宠物
-  { words: ['养了', '喂', '遛', '家有', '有一只', '有一条', '有一个'], slot: 'ownership', predicate: 'has_pet', seedStrength: 'strong' },
+  { words: ['养了', '喂', '遛', '家有', '有一只', '有一条', '有一个', 'have a', 'own a', 'my pet', 'feed', 'walk'], slot: 'ownership', predicate: 'has_pet', seedStrength: 'strong' },
   // 居住
-  { words: ['住在', '搬到', '搬去', '搬家到'], slot: 'location', predicate: 'lives_in', seedStrength: 'strong' },
-  { gapPatterns: [{ prefix: '住在', suffix: '' }], slot: 'location', predicate: 'lives_in', seedStrength: 'strong' },
+  { words: ['住在', '搬到', '搬去', '搬家到', 'live in', 'moved to', 'located in', 'based in'], slot: 'location', predicate: 'lives_in', seedStrength: 'strong' },
+  { gapPatterns: [{ prefix: '住在', suffix: '' }, { prefix: 'live in', suffix: '' }, { prefix: 'moved to', suffix: '' }, { prefix: 'based in', suffix: '' }], slot: 'location', predicate: 'lives_in', seedStrength: 'strong' },
   // 偏好
-  { words: ['喜欢', '爱', '偏好', '迷上', '着迷', '特别喜欢', '超喜欢'], slot: 'preference', predicate: 'likes', seedStrength: 'strong' },
+  { words: ['喜欢', '爱', '偏好', '迷上', '着迷', '特别喜欢', '超喜欢', 'like', 'love', 'prefer', 'enjoy', 'into', 'fan of'], slot: 'preference', predicate: 'likes', seedStrength: 'strong' },
   // 反感
-  { words: ['讨厌', '不喜欢', '受不了', '不想用', '烦死'], slot: 'dislike', predicate: 'dislikes', seedStrength: 'strong' },
+  { words: ['讨厌', '不喜欢', '受不了', '不想用', '烦死', 'hate', 'dislike', "can't stand", "don't like"], slot: 'dislike', predicate: 'dislikes', seedStrength: 'strong' },
   // 工作
-  { gapPatterns: [{ prefix: '在', suffix: '工作' }, { prefix: '在', suffix: '上班' }, { prefix: '入职', suffix: '' }, { prefix: '加入了', suffix: '' }], slot: 'workplace', predicate: 'works_at', seedStrength: 'strong' },
+  { gapPatterns: [{ prefix: '在', suffix: '工作' }, { prefix: '在', suffix: '上班' }, { prefix: '入职', suffix: '' }, { prefix: '加入了', suffix: '' }, { prefix: 'work at', suffix: '' }, { prefix: 'work for', suffix: '' }, { prefix: 'employed at', suffix: '' }, { prefix: 'joined', suffix: '' }], slot: 'workplace', predicate: 'works_at', seedStrength: 'strong' },
   // 关系
-  { words: ['女朋友', '男朋友', '老婆', '老公', '对象', '媳妇', '另一半', '爱人'], slot: 'relationship', predicate: 'relationship', seedStrength: 'strong' },
+  { words: ['女朋友', '男朋友', '老婆', '老公', '对象', '媳妇', '另一半', '爱人', 'girlfriend', 'boyfriend', 'wife', 'husband', 'partner', 'spouse'], slot: 'relationship', predicate: 'relationship', seedStrength: 'strong' },
   // 家庭
-  { words: ['女儿', '儿子', '孩子', '爸', '妈', '哥', '姐', '弟', '妹'], slot: 'family', predicate: 'has_family', seedStrength: 'strong' },
+  { words: ['女儿', '儿子', '孩子', '爸', '妈', '哥', '姐', '弟', '妹', 'daughter', 'son', 'child', 'dad', 'mom', 'brother', 'sister', 'father', 'mother'], slot: 'family', predicate: 'has_family', seedStrength: 'strong' },
   // 职业
-  { gapPatterns: [{ prefix: '我是', suffix: '工程师' }, { prefix: '我是', suffix: '开发' }, { prefix: '我是做', suffix: '的' }], slot: 'occupation', predicate: 'occupation', seedStrength: 'strong' },
+  { gapPatterns: [{ prefix: '我是', suffix: '工程师' }, { prefix: '我是', suffix: '开发' }, { prefix: '我是做', suffix: '的' }, { prefix: 'i am a', suffix: '' }, { prefix: 'i work as', suffix: '' }, { prefix: 'my job is', suffix: '' }], slot: 'occupation', predicate: 'occupation', seedStrength: 'strong' },
   // 习惯
-  { words: ['每天', '习惯', '经常', '总是', '一般都'], slot: 'habit', predicate: 'habit', seedStrength: 'medium' },
+  { words: ['每天', '习惯', '经常', '总是', '一般都', 'every day', 'usually', 'always', 'habit', 'routine'], slot: 'habit', predicate: 'habit', seedStrength: 'medium' },
   // 学习
-  { words: ['在学', '在研究', '开始学', '入门', '最近在看', '想学', '准备学', '打算学'], slot: 'learning', predicate: 'learning', seedStrength: 'medium' },
+  { words: ['在学', '在研究', '开始学', '入门', '最近在看', '想学', '准备学', '打算学', 'learning', 'studying', 'started learning', 'getting into', 'picked up'], slot: 'learning', predicate: 'learning', seedStrength: 'medium' },
   // 引用（弱信号）
-  { words: ['提到', '说过', '聊到', '听说'], slot: 'mention', predicate: 'mentioned', seedStrength: 'weak' },
+  { words: ['提到', '说过', '聊到', '听说', 'mentioned', 'said', 'talked about', 'heard'], slot: 'mention', predicate: 'mentioned', seedStrength: 'weak' },
   // 比较偏好
   { gapPatterns: [{ prefix: '', suffix: '比' }], slot: 'comparison', predicate: 'prefers', seedStrength: 'medium' },
 ]

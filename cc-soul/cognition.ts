@@ -85,11 +85,11 @@ function attentionGate(msg: string): { type: string; priority: number } {
 
 function detectIntent(msg: string): string {
   const m = msg.toLowerCase()
-  if (['你觉得', '你看', '你认为', '你怎么看', '你的看法', '建议'].some(w => m.includes(w))) return 'wants_opinion'
+  if (['你觉得', '你看', '你认为', '你怎么看', '你的看法', '建议', 'what do you think', 'your opinion', 'suggestion', 'recommend'].some(w => m.includes(w))) return 'wants_opinion'
   if (['顺便', '另外', '还有', '对了'].some(w => m.includes(w))) return 'wants_proactive'
   if (m.endsWith('?') || m.endsWith('？') || ['吗', '呢', '么'].some(w => m.endsWith(w))) return 'wants_answer'
   if (msg.length < 20) return 'wants_quick'
-  if (['做', '写', '改', '帮我', '实现', '生成'].some(w => m.includes(w))) return 'wants_action'
+  if (['做', '写', '改', '帮我', '实现', '生成', 'do', 'write', 'change', 'fix', 'create', 'help me'].some(w => m.includes(w))) return 'wants_action'
   return 'unclear'
 }
 
@@ -117,12 +117,12 @@ function detectImplicitFeedbackSync(msg: string, prevResponse: string): string |
   }
 
   // Brief acknowledgment = silent accept
-  if (['嗯', '好的', '明白', '了解', 'ok', '收到', '可以', '好'].some(w => m === w)) {
+  if (['嗯', '好的', '明白', '了解', 'ok', '收到', '可以', '好', 'sure', 'got it', 'understood', 'alright'].some(w => m === w)) {
     return 'silent_accept'
   }
 
   // Enthusiastic response = positive
-  if (['太好了', '牛', '厉害', '完美', '正是', '对对对', '就是这个', '感谢'].some(w => m.includes(w))) {
+  if (['太好了', '牛', '厉害', '完美', '正是', '对对对', '就是这个', '感谢', 'great', 'perfect', 'exactly', "that's it", 'thanks'].some(w => m.includes(w))) {
     return 'positive'
   }
 
@@ -139,23 +139,23 @@ export function computeIntentSpectrum(msg: string): IntentSpectrum {
   const spectrum: IntentSpectrum = { information: 0.3, action: 0.1, emotional: 0.1, validation: 0.1, exploration: 0.1 }
 
   // 信息需求信号
-  const infoSignals = (msg.match(/什么|怎么|为什么|哪个|多少|是不是|如何|区别|对比|原理/g) || []).length
+  const infoSignals = (msg.match(/什么|怎么|为什么|哪个|多少|是不是|如何|区别|对比|原理|what|how|why|which|explain|difference|compare/gi) || []).length
   spectrum.information = Math.min(1, 0.2 + infoSignals * 0.2)
 
   // 行动需求信号
-  const actionSignals = (msg.match(/帮我|做|写|改|实现|生成|创建|删除|修复|部署|安装|配置/g) || []).length
+  const actionSignals = (msg.match(/帮我|做|写|改|实现|生成|创建|删除|修复|部署|安装|配置|help me|do|write|change|fix|create|delete|deploy|install/gi) || []).length
   spectrum.action = Math.min(1, actionSignals * 0.3)
 
   // 情感需求信号
-  const emotionSignals = (msg.match(/烦|累|难受|焦虑|开心|郁闷|崩溃|压力|害怕|纠结|迷茫|无聊|孤独/g) || []).length
+  const emotionSignals = (msg.match(/烦|累|难受|焦虑|开心|郁闷|崩溃|压力|害怕|纠结|迷茫|无聊|孤独|annoyed|tired|sad|anxious|happy|stressed|overwhelmed|lonely/gi) || []).length
   spectrum.emotional = Math.min(1, emotionSignals * 0.35)
 
   // 验证需求信号
-  const validationSignals = (msg.match(/对吗|是吧|可以吗|行不行|这样[好行对]|没问题吧|对不对/g) || []).length
+  const validationSignals = (msg.match(/对吗|是吧|可以吗|行不行|这样[好行对]|没问题吧|对不对|right\?|correct\?|is that ok|does that work|makes sense\?/gi) || []).length
   spectrum.validation = Math.min(1, validationSignals * 0.4)
 
   // 探索需求信号
-  const explorationSignals = (msg.match(/有没有.*更|还有.*方法|其他|替代|更好|优化|改进|推荐/g) || []).length
+  const explorationSignals = (msg.match(/有没有.*更|还有.*方法|其他|替代|更好|优化|改进|推荐|any other|alternative|better way|optimize|improve|recommend/gi) || []).length
   spectrum.exploration = Math.min(1, explorationSignals * 0.3)
 
   // 消息长度调节：长消息通常信息/行动需求高

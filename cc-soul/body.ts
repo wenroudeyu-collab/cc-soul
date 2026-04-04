@@ -327,6 +327,8 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
     if (oldestKey) userEmotions.delete(oldestKey)
   }
 
+  const _moodBefore = body.mood  // snapshot for AAM emotion word learning
+
   // === Ornstein-Uhlenbeck mood process — mean-reverting + stochastic + external forcing ===
   // dX = θ(μ - X)dt + σ√dt·dW + f(valence)·dt
   // θ = resilience (mean-reversion speed)
@@ -383,6 +385,18 @@ export function processEmotionalContagion(msg: string, attentionType: string, fr
   if (userEmotion.trend > 0.1) {
     body.mood = Math.max(-1, Math.min(1, body.mood + 0.03))
   }
+
+  // ── AAM 情绪词自学习：将 mood 变化反馈给 AAM ──
+  const _moodDelta = body.mood - _moodBefore
+  if (Math.abs(_moodDelta) > 0.15) {
+    try {
+      const { learnEmotionWord } = require('./aam.ts')
+      const words = (msg.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || [])
+      for (const w of words) {
+        learnEmotionWord(w.toLowerCase(), _moodDelta)
+      }
+    } catch {}
+  }
 }
 
 /**
@@ -395,16 +409,16 @@ export function getEmotionContext(senderId?: string): string {
   // User emotional state
   const uValence = userEmotion.valence
   if (uValence < -0.3) {
-    parts.push(`用户情绪偏低(${uValence.toFixed(2)})`)
-    if (userEmotion.trend < -0.1) parts.push('且在恶化')
-    if (userEmotion.arousal > 0.6) parts.push('情绪激烈')
+    parts.push(`用户情绪偏低/user mood low(${uValence.toFixed(2)})`)
+    if (userEmotion.trend < -0.1) parts.push('且在恶化/worsening')
+    if (userEmotion.arousal > 0.6) parts.push('情绪激烈/intense')
   } else if (uValence > 0.3) {
-    parts.push(`用户情绪积极(${uValence.toFixed(2)})`)
+    parts.push(`用户情绪积极/user mood positive(${uValence.toFixed(2)})`)
   }
 
   // CC's own mood affected by contagion
   if (body.mood < -0.3) {
-    parts.push('你自己也受到影响了，保持冷静')
+    parts.push('你自己也受到影响了，保持冷静/you are affected too, stay calm')
   }
 
   if (parts.length === 0) return ''
@@ -546,24 +560,24 @@ export function isTodayMoodAllLow(threshold = -0.2, minCount = 3): boolean {
 export function getEmotionSummary(): string {
   const ev = emotionVector
   const parts: string[] = []
-  if (ev.pleasure > 0.3) parts.push('愉悦')
-  else if (ev.pleasure < -0.3) parts.push('不快')
-  if (ev.arousal > 0.3) parts.push('兴奋')
-  else if (ev.arousal < -0.3) parts.push('平静')
-  if (ev.dominance > 0.3) parts.push('自信')
-  else if (ev.dominance < -0.3) parts.push('被动')
-  if (ev.certainty > 0.3) parts.push('确定')
-  else if (ev.certainty < -0.3) parts.push('不确定')
-  if (ev.novelty > 0.3) parts.push('好奇')
-  else if (ev.novelty < -0.3) parts.push('熟悉')
-  return parts.length > 0 ? parts.join('且') : '平衡'
+  if (ev.pleasure > 0.3) parts.push('愉悦/pleased')
+  else if (ev.pleasure < -0.3) parts.push('不快/displeased')
+  if (ev.arousal > 0.3) parts.push('兴奋/excited')
+  else if (ev.arousal < -0.3) parts.push('平静/calm')
+  if (ev.dominance > 0.3) parts.push('自信/confident')
+  else if (ev.dominance < -0.3) parts.push('被动/passive')
+  if (ev.certainty > 0.3) parts.push('确定/certain')
+  else if (ev.certainty < -0.3) parts.push('不确定/uncertain')
+  if (ev.novelty > 0.3) parts.push('好奇/curious')
+  else if (ev.novelty < -0.3) parts.push('熟悉/familiar')
+  return parts.length > 0 ? parts.join('且') : '平衡/balanced'
 }
 
 export function bodyGetParams(): BodyParams {
   const maxTokensMultiplier = body.energy > 0.6 ? 1.0 : body.energy > 0.3 ? 0.8 : 0.6
-  const soulTone = body.mood > 0.3 ? '积极' : body.mood < -0.3 ? '低落' : '平静'
+  const soulTone = body.mood > 0.3 ? '积极/positive' : body.mood < -0.3 ? '低落/low' : '平静/calm'
   const shouldSelfCheck = body.alertness > 0.7 || body.anomaly > 0.5
-  const responseStyle = body.load > 0.7 ? '简洁' : body.energy > 0.7 ? '详细' : '适中'
+  const responseStyle = body.load > 0.7 ? '简洁/concise' : body.energy > 0.7 ? '详细/detailed' : '适中/moderate'
   return { maxTokensMultiplier, soulTone, shouldSelfCheck, responseStyle }
 }
 

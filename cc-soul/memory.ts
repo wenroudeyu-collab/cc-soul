@@ -1253,15 +1253,15 @@ function computeSurprise(content: string, scope: string, _userId?: string): numb
   let score = 5 // 默认中等
 
   // 身份信息 → 高 surprise（重要但稀少）
-  if (/名字|叫我|职业|住在|工作|年龄|生日|毕业/.test(content)) score = 9
+  if (/名字|叫我|职业|住在|工作|年龄|生日|毕业|my name|call me|i work|i live|birthday|graduated|i'm a/i.test(content)) score = 9
   // 偏好信息 → 中高
-  if (/喜欢|讨厌|偏好|习惯|最爱|受不了/.test(content)) score = 7
+  if (/喜欢|讨厌|偏好|习惯|最爱|受不了|i like|i love|i hate|i prefer|favorite|can't stand/i.test(content)) score = 7
   // 纠正 → 高（意味着之前的理解错了）
   if (scope === 'correction') score = 8
   // 情绪爆发 → 高
-  if (/[！!]{2,}|卧槽|崩溃|太开心|难受|焦虑/.test(content)) score += 2
+  if (/[！!]{2,}|卧槽|崩溃|太开心|难受|焦虑|omg|fuck|shit|so happy|breaking down|anxious/i.test(content)) score += 2
   // 时效性信息 → 降级（"今天""刚才"这类信息过期快）
-  if (/今天|刚才|现在|刚刚/.test(content)) score -= 2
+  if (/今天|刚才|现在|刚刚|today|just now|right now|earlier today/i.test(content)) score -= 2
   // 常见寒暄/无信息量回复 → 极低
   if (/^(你好|嗯+|好的?|谢谢|哈哈+|ok|行吧?|收到|了解|明白|可以|没问题|好吧|哦+|是的?|嗯嗯|对的?|没事|算了|随便|都行|无所谓|不用了?|知道了)$/i.test(content.trim())) score = 1
   // 日常闲聊/无决策价值 → 降级
@@ -1575,11 +1575,11 @@ export function addMemory(content: string, scope: string, userId?: string, visib
 
   // ── 前瞻锚定（Prospective Anchoring）：检测前瞻信号并嵌入 Memory ──
   const PROSPECTIVE_PATTERNS: Array<{ detect: RegExp; trigger: string; action: string; days: number }> = [
-    { detect: /下周.*面试|面试.*下周/, trigger: '面试|紧张|准备', action: '主动问面试准备得怎么样', days: 14 },
-    { detect: /要出差|出差.*天/, trigger: '出差|机场|酒店', action: '问出差顺利吗', days: 14 },
-    { detect: /deadline|截止|交付/, trigger: 'deadline|截止|进度', action: '问项目进度', days: 14 },
-    { detect: /搬家|要搬/, trigger: '搬家|新房|地址', action: '问搬家顺利吗', days: 30 },
-    { detect: /考试|备考/, trigger: '考试|成绩|通过', action: '问考试结果', days: 30 },
+    { detect: /下周.*面试|面试.*下周|interview.*next week|next week.*interview/i, trigger: '面试|紧张|准备|interview|nervous|prepare', action: '主动问面试准备得怎么样/ask about interview prep', days: 14 },
+    { detect: /要出差|出差.*天|business trip|traveling for work/i, trigger: '出差|机场|酒店|business trip|airport|hotel', action: '问出差顺利吗/ask how the trip went', days: 14 },
+    { detect: /deadline|截止|交付|due date/i, trigger: 'deadline|截止|进度|progress|due', action: '问项目进度/ask about progress', days: 14 },
+    { detect: /搬家|要搬|moving house|relocating/i, trigger: '搬家|新房|地址|moving|new place|address', action: '问搬家顺利吗/ask how the move went', days: 30 },
+    { detect: /考试|备考|exam|test prep/i, trigger: '考试|成绩|通过|exam|results|passed', action: '问考试结果/ask about exam results', days: 30 },
   ]
   for (const p of PROSPECTIVE_PATTERNS) {
     if (p.detect.test(content)) {
@@ -1609,6 +1609,31 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     try { require('./person-model.ts').crystallizeTraits?.() } catch {}
   }
   // PASS and SUPERSEDE: continue normal flow
+
+  // ── 语义近似去重：新记忆与已有记忆 trigram 相似度 > 0.7 → 合并而非新增 ──
+  // 解决"我住上海"和"我住在上海浦东"作为两条独立记忆互相竞争 top-3 的问题
+  // 这是记忆池膨胀导致召回率下降（800条78%→1200条68%）的根因之一
+  try {
+    const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
+    const newTri = trigrams(content)
+    for (const existing of memoryState.memories) {
+      if (!existing.content || existing.scope === 'expired') continue
+      const sim = trigramSimilarity(newTri, trigrams(existing.content))
+      if (sim > 0.7) {
+        // 高度相似 → 更新已有记忆而不是新增
+        // 保留更长的版本（信息更丰富），更新时间戳
+        if (content.length > existing.content.length) existing.content = content
+        existing.ts = Date.now()
+        existing.lastAccessed = Date.now()
+        existing.confidence = Math.min(1.0, (existing.confidence ?? 0.7) + 0.05)  // 重复提及 → 更可信
+        try { appendLineage(existing, { action: 'dedup_merged', ts: Date.now(), delta: `merged similar: ${content.slice(0, 30)}` }) } catch {}
+        syncToSQLite(existing, { content: existing.content, ts: existing.ts, confidence: existing.confidence })
+        updateRecallIndex(existing)
+        console.log(`[cc-soul][memory-crud] dedup: merged into existing (sim=${sim.toFixed(2)}): ${content.slice(0, 40)}`)
+        return  // 不新增，已合并到现有记忆
+      }
+    }
+  } catch {}
 
   // 写入后才更新索引（学自 Claude Code strict write discipline）
   // SQLite 写入优先，失败则不更新内存索引
@@ -1653,11 +1678,11 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     // 例："用户不运动了" vs 已有"运动型" → 冲突 → 更新旧记忆
     try {
       const CONFLICT_PAIRS: [RegExp, RegExp][] = [
-        [/喜欢|偏好|爱/, /讨厌|不喜欢|不想|放弃/],
-        [/在.*工作|在.*上班/, /离职|辞职|被裁|不干了/],
-        [/住在|住/, /搬到|搬去|搬家/],
-        [/运动|跑步|健身/, /不运动|放弃运动|不跑了/],
-        [/学|在学/, /不学了|放弃了|学不动/],
+        [/喜欢|偏好|爱|like|love|prefer|enjoy/, /讨厌|不喜欢|不想|放弃|hate|dislike|don't like|quit|gave up/i],
+        [/在.*工作|在.*上班|work at|working at|employed/, /离职|辞职|被裁|不干了|quit|fired|laid off|left the job|resigned/i],
+        [/住在|住|live in|living in|reside/, /搬到|搬去|搬家|moved to|relocat|moving to/i],
+        [/运动|跑步|健身|exercise|running|workout|gym/, /不运动|放弃运动|不跑了|stopped exercising|quit gym|no longer run/i],
+        [/学|在学|studying|learning|taking a course/, /不学了|放弃了|学不动|stopped studying|dropped out|gave up learning/i],
       ]
 
       for (const [patternA, patternB] of CONFLICT_PAIRS) {

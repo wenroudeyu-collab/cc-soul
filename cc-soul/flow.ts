@@ -251,7 +251,7 @@ export function updateEventSegment(userMsg: string, topic: string, flowKey: stri
     const { isEndSignal: dynamicEnd } = require('./dynamic-extractor.ts')
     isEndSignal = dynamicEnd(userMsg)
   } catch {
-    isEndSignal = /搞定|可以了|好了|解决了|谢谢|thanks|成功了|没问题了/.test(userMsg)
+    isEndSignal = /搞定|可以了|好了|解决了|谢谢|thanks|成功了|没问题了|fixed|done|solved|got it|success|works now/i.test(userMsg)
   }
 
   if (_currentEvent) {
@@ -406,7 +406,7 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
   }
 
   // Frustration keywords
-  if (['算了', '不对', '还是不行', '怎么又', '说了多少遍'].some(w => userMsg.includes(w))) {
+  if (['算了', '不对', '还是不行', '怎么又', '说了多少遍', 'forget it', 'still not working', 'why again', 'how many times'].some(w => userMsg.toLowerCase().includes(w))) {
     flow.frustration = Math.min(1, flow.frustration + getParam('flow.frustration_keyword_rate'))
   }
 
@@ -436,7 +436,7 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
   // Frustration Dynamics: compute trajectory alongside existing frustration
   const prevMsgLen = flow.lastMsgLengths.length >= 2 ? flow.lastMsgLengths[flow.lastMsgLengths.length - 2] : 0
   const hasQuestionMark = /[？?]/.test(userMsg)
-  const hasNegativeWords = ['算了', '不对', '还是不行', '怎么又', '说了多少遍', '烦', '累'].some(w => userMsg.includes(w))
+  const hasNegativeWords = ['算了', '不对', '还是不行', '怎么又', '说了多少遍', '烦', '累', 'annoyed', 'tired', 'forget it', 'whatever', 'give up'].some(w => userMsg.toLowerCase().includes(w))
   flow.frustrationTrajectory = computeFrustrationDynamics(flowKey, userMsg.length, prevMsgLen, flow.turnCount, hasQuestionMark, hasNegativeWords)
 
   // 耦合压力振荡器更新（在挫败感计算后触发）
@@ -449,7 +449,7 @@ export function updateFlow(userMsg: string, botResponse: string, flowKey: string
   })
 
   // Resolution detection
-  if (['搞定', '可以了', '好了', '解决了', '谢谢', 'thanks', '成功了'].some(w => userMsg.toLowerCase().includes(w))) {
+  if (['搞定', '可以了', '好了', '解决了', '谢谢', 'thanks', '成功了', 'fixed', 'done', 'solved', 'got it', 'success', 'works now'].some(w => userMsg.toLowerCase().includes(w))) {
     flow.resolved = true
     flow.frustration = Math.max(0, flow.frustration - 0.3)
     if (typeof onSessionResolved === 'function') onSessionResolved()

@@ -5,10 +5,10 @@
  */
 
 import { resolve } from 'path'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync } from 'fs'
 import { homedir } from 'os'
 import type { Memory } from './types.ts'
-import { DATA_DIR, debouncedSave, MEMORIES_PATH } from './persistence.ts'
+import { DATA_DIR, debouncedSave, loadJson, MEMORIES_PATH } from './persistence.ts'
 import { getParam } from './auto-tune.ts'
 import {
   sqliteRecall as sqliteRecallAsync, tagRecall as sqliteTagRecall,
@@ -40,12 +40,12 @@ onCacheEvent('correction_received', () => { _bm25TokenCache.clear() })
 
 // ── P2a: 日期归一化（懒生成）──
 const DATE_PATTERNS: Array<{ re: RegExp; replacer: (match: string, ...args: string[]) => string }> = [
-  { re: /昨天/g, replacer: () => { const d = new Date(Date.now() - 86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /昨天|yesterday/gi, replacer: () => { const d = new Date(Date.now() - 86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
   { re: /前天/g, replacer: () => { const d = new Date(Date.now() - 2*86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
-  { re: /今天/g, replacer: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
-  { re: /明天/g, replacer: () => { const d = new Date(Date.now() + 86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
-  { re: /上周/g, replacer: () => '7天前' },
-  { re: /上个月/g, replacer: () => '30天前' },
+  { re: /今天|today/gi, replacer: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /明天|tomorrow/gi, replacer: () => { const d = new Date(Date.now() + 86400000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` } },
+  { re: /上周|last week/gi, replacer: () => '7天前' },
+  { re: /上个月|last month/gi, replacer: () => '30天前' },
 ]
 
 /** 懒生成日期归一化内容。原始 content 不变，contentNormalized 用于召回和注入 */
@@ -114,19 +114,20 @@ export function extractTimeRange(query: string): TimeRange | null {
   const now = Date.now()
   const DAY = 86400000
 
-  if (/昨天/.test(query)) return { fromMs: now - 2 * DAY, toMs: now - DAY }
+  if (/昨天|yesterday/i.test(query)) return { fromMs: now - 2 * DAY, toMs: now - DAY }
   if (/前天/.test(query)) return { fromMs: now - 3 * DAY, toMs: now - 2 * DAY }
-  if (/上周/.test(query)) return { fromMs: now - 14 * DAY, toMs: now - 7 * DAY }
-  if (/上个月/.test(query)) return { fromMs: now - 60 * DAY, toMs: now - 30 * DAY }
-  if (/最近/.test(query)) return { fromMs: now - 7 * DAY, toMs: now }
-  if (/今天/.test(query)) return { fromMs: now - DAY, toMs: now }
+  if (/上周|last week/i.test(query)) return { fromMs: now - 14 * DAY, toMs: now - 7 * DAY }
+  if (/上个月|last month/i.test(query)) return { fromMs: now - 60 * DAY, toMs: now - 30 * DAY }
+  if (/最近|recently/i.test(query)) return { fromMs: now - 7 * DAY, toMs: now }
+  if (/今天|today/i.test(query)) return { fromMs: now - DAY, toMs: now }
+  if (/明天|tomorrow/i.test(query)) return { fromMs: now, toMs: now + DAY }
 
-  const daysAgo = query.match(/(\d+)\s*天前/)
+  const daysAgo = query.match(/(\d+)\s*(?:天前|days?\s*ago)/i)
   if (daysAgo) {
     const d = parseInt(daysAgo[1])
     return { fromMs: now - (d + 1) * DAY, toMs: now - (d - 1 < 0 ? 0 : d - 1) * DAY }
   }
-  const weeksAgo = query.match(/(\d+)\s*周前/)
+  const weeksAgo = query.match(/(\d+)\s*(?:周前|weeks?\s*ago)/i)
   if (weeksAgo) {
     const w = parseInt(weeksAgo[1])
     return { fromMs: now - (w + 1) * 7 * DAY, toMs: now - (w - 1 < 0 ? 0 : w - 1) * 7 * DAY }
@@ -372,7 +373,7 @@ function getBM25K1() { return getParam('memory.bm25_k1') }
 function getBM25B() { return getParam('memory.bm25_b') }
 
 // ── BM25 CJK n-gram tokenizer (2-gram + 3-gram) with stop-word filtering ──
-const BM25_STOP_WORDS = new Set('的了是在我你他不有这那就也和但'.split(''))
+const BM25_STOP_WORDS = new Set([...'的了是在我你他不有这那就也和但'.split(''), 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'to', 'for', 'in', 'on', 'at', 'and', 'or', 'but', 'not'])
 
 /** Tokenize for BM25 — 使用统一 tokenize('bm25') from memory-utils.ts */
 function bm25Tokenize(text: string): string[] {
@@ -489,6 +490,15 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
       '工作': ['公司', '上班', '就职', '字节', '腾讯', '阿里'],
       '讨厌': ['不喜欢', '不想', '受不了'],
       '跑步': ['运动', '锻炼', '公里'],
+      'live': ['住在', 'location', 'city', 'moved'],
+      'pet': ['cat', 'dog', '猫', '狗', '养了'],
+      'work': ['company', 'job', 'office', '公司', '上班'],
+      'hate': ['dislike', "don't like", '讨厌', '不喜欢'],
+      'like': ['love', 'enjoy', 'prefer', '喜欢'],
+      'family': ['daughter', 'son', 'wife', 'husband', '女儿', '儿子'],
+      'computer': ['macbook', 'mac', 'laptop', 'desktop', '电脑'],
+      'drink': ['coffee', 'tea', '咖啡', '茶'],
+      'run': ['exercise', 'workout', 'running', '跑步', '运动'],
     }
     for (const w of [...rawWords]) {
       const expand = QUERY_EXPAND[w]
@@ -565,7 +575,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     // ── 事实版本链：被取代的记忆默认不参与 recall ──
     // 除非用户问"之前/以前/曾经"（触发 historical 通道）
     if (mem.supersededBy && mem.scope === 'historical') {
-      if (!/之前|以前|曾经|过去|原来|上次/.test(msg)) continue
+      if (!/之前|以前|曾经|过去|原来|上次|before|previously|used to|in the past|last time/i.test(msg)) continue
     }
     // If no channelId provided (e.g. DM), include private + global (skip channel-scoped from other channels)
     let sim = 0
@@ -597,7 +607,7 @@ export function recallWithScores(msg: string, topN = 3, userId?: string, channel
     // BM25+ delta: 每个命中词至少贡献 delta，防止长文档被过度惩罚
     if (sim < 0.3) {
       if (!idf) { idf = buildIDF(); avgDocLen = avgDocLenCache || 1 }
-      const QUESTION_STOPWORDS = new Set(['什么', '怎么', '哪个', '哪里', '多少', '为什么', '是否', '有没有', '是不是', '还', '记得', '知道', '叫'])
+      const QUESTION_STOPWORDS = new Set(['什么', '怎么', '哪个', '哪里', '多少', '为什么', '是否', '有没有', '是不是', '还', '记得', '知道', '叫', 'what', 'who', 'where', 'when', 'why', 'how', 'which', 'does', 'did', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'to', 'for', 'in', 'on', 'at', 'and', 'or', 'but', 'not'])
       const BM25_DELTA = 1.0  // BM25+ lower-bound correction
       let matchedWeight = 0, totalWeight = 0
       for (const qw of queryWords) {
@@ -1191,7 +1201,7 @@ export function recallWithMetamemory(msg: string, topN: number = 3, userId?: str
 }
 
 /** Detect if user is explicitly asking about past memories */
-const MEMORY_RECALL_TRIGGERS = /你还记得|你记不记得|之前说过|上次提到|我们聊过|你忘了吗|还记得吗/
+const MEMORY_RECALL_TRIGGERS = /你还记得|你记不记得|之前说过|上次提到|我们聊过|你忘了吗|还记得吗|do you remember|did i mention|we talked about|you forgot/i
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 认知双通道召回 (Cognitive Dual-Channel Recall)
@@ -1207,7 +1217,7 @@ const MEMORY_RECALL_TRIGGERS = /你还记得|你记不记得|之前说过|上次
 // 自适应切换：查询复杂度 > 阈值 → 直接跳到 System 2
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const SYSTEM2_KEYWORDS = /为什么|怎么看|如何|对比|区别|上次|之前|总结|分析|比较|回顾/
+const SYSTEM2_KEYWORDS = /为什么|怎么看|如何|对比|区别|上次|之前|总结|分析|比较|回顾|why|how come|compare|difference|last time|before|summarize|analyze|review/i
 
 /** Predicate → 中文可读标签 */
 const PRED_LABELS: Record<string, string> = {
@@ -1219,19 +1229,19 @@ const PRED_LABELS: Record<string, string> = {
 
 /** Fact query pattern → predicate 映射 */
 const FACT_QUERY_PATTERNS: { pattern: RegExp; predicates: string[] }[] = [
-  { pattern: /叫什么|我是谁|名字/, predicates: [] },  // empty = all user facts
-  { pattern: /工作|公司|在哪.*工作|上班/, predicates: ['works_at', 'occupation'] },
-  { pattern: /住哪|住在|地址/, predicates: ['lives_in'] },
-  { pattern: /喜欢|偏好|最爱/, predicates: ['likes', 'prefers'] },
-  { pattern: /讨厌|不喜欢|受不了/, predicates: ['dislikes'] },
-  { pattern: /职业|做什么的/, predicates: ['occupation'] },
-  { pattern: /多大|几岁|年龄/, predicates: ['age'] },
-  { pattern: /宠物|猫|狗|养/, predicates: ['has_pet'] },
-  { pattern: /家人|女儿|儿子|孩子|老婆|老公/, predicates: ['has_family', 'family_name', 'relationship'] },
-  { pattern: /习惯|每天/, predicates: ['habit'] },
-  { pattern: /用什么|电脑|设备/, predicates: ['uses', 'uses_os'] },
-  { pattern: /喝什么|饮料|咖啡|茶/, predicates: ['likes', 'dislikes'] },
-  { pattern: /毕业|学校|大学/, predicates: ['educated_at'] },
+  { pattern: /叫什么|我是谁|名字|what.?s my name|who am i|my name/i, predicates: [] },  // empty = all user facts
+  { pattern: /工作|公司|在哪.*工作|上班|where do i work|my job|my company|what do i do/i, predicates: ['works_at', 'occupation'] },
+  { pattern: /住哪|住在|地址|where do i live|my address|where.?m i based/i, predicates: ['lives_in'] },
+  { pattern: /喜欢|偏好|最爱|what do i like|my favorite|my preference/i, predicates: ['likes', 'prefers'] },
+  { pattern: /讨厌|不喜欢|受不了|what do i hate|what do i dislike/i, predicates: ['dislikes'] },
+  { pattern: /职业|做什么的|my occupation|what.?s my job/i, predicates: ['occupation'] },
+  { pattern: /多大|几岁|年龄|how old|my age/i, predicates: ['age'] },
+  { pattern: /宠物|猫|狗|养|my pet|my cat|my dog/i, predicates: ['has_pet'] },
+  { pattern: /家人|女儿|儿子|孩子|老婆|老公|my family|my daughter|my son|my kid|my wife|my husband/i, predicates: ['has_family', 'family_name', 'relationship'] },
+  { pattern: /习惯|每天|my habit|my routine|daily/i, predicates: ['habit'] },
+  { pattern: /用什么|电脑|设备|what do i use|my computer|my device/i, predicates: ['uses', 'uses_os'] },
+  { pattern: /喝什么|饮料|咖啡|茶|what do i drink|coffee|tea/i, predicates: ['likes', 'dislikes'] },
+  { pattern: /毕业|学校|大学|my school|my university|where did i graduate/i, predicates: ['educated_at'] },
 ]
 
 function system1FastRecall(msg: string, topN: number, _userId?: string): Memory[] | null {
@@ -1517,7 +1527,7 @@ function recallFromJsonFile(msg: string, topN: number): Memory[] {
   try {
     const memPath = resolve(DATA_DIR, 'memories.json')
     if (!existsSync(memPath)) return []
-    const data = JSON.parse(readFileSync(memPath, 'utf-8')) as Memory[]
+    const data = loadJson(memPath, []) as Memory[]
     const keywords = (msg.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []).map(w => w.toLowerCase())
     if (keywords.length === 0) return []
 

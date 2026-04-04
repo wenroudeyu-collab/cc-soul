@@ -8,6 +8,7 @@ import type { Memory } from './types.ts'
 
 const require = createRequire(import.meta.url)
 ;(globalThis as any).require = require
+process.env.CC_SOUL_BENCHMARK = "1"
 
 // Lazy-load modules to avoid side effects
 const { activationRecall } = require('./activation-field.ts')

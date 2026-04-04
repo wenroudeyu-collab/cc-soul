@@ -43,8 +43,13 @@ async function main() {
   } catch {}
 
   // 启动 HTTP API
-  const { startSoulApi } = require('./soul-api.ts')
-  startSoulApi()
+  try {
+    const { startSoulApi } = require('./soul-api.ts')
+    startSoulApi()
+  } catch (e: any) {
+    console.error(`[cc-soul] soul-api start failed: ${e.message}`)
+    process.exit(1)
+  }
 
   console.log(`[cc-soul] ✅ standalone API ready — http://0.0.0.0:${port}`)
   console.log(`[cc-soul] endpoints:`)
