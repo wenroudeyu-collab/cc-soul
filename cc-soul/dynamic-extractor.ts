@@ -55,6 +55,30 @@ const SEED_STRUCTURES: StructureWord[] = [
   { words: ['提到', '说过', '聊到', '听说', 'mentioned', 'said', 'talked about', 'heard'], slot: 'mention', predicate: 'mentioned', seedStrength: 'weak' },
   // 比较偏好
   { gapPatterns: [{ prefix: '', suffix: '比' }], slot: 'comparison', predicate: 'prefers', seedStrength: 'medium' },
+
+  // ── S2: 英文扩展模式（补充覆盖面）──
+  // 教育
+  { words: ['graduated from', 'studied at', 'majored in', 'degree in', 'enrolled in', 'attended'], slot: 'education', predicate: 'education', seedStrength: 'strong' },
+  // 健康
+  { words: ['allergic to', "can't eat", 'diagnosed with', 'suffer from', 'taking medication', 'prescribed'], slot: 'health', predicate: 'health_condition', seedStrength: 'strong' },
+  // 年龄/身份
+  { gapPatterns: [{ prefix: "i'm", suffix: 'years old' }, { prefix: 'i am', suffix: 'years old' }, { prefix: 'my name is', suffix: '' }, { prefix: 'call me', suffix: '' }], slot: 'identity', predicate: 'identity', seedStrength: 'strong' },
+  // 乐器/运动
+  { words: ['play the', 'play guitar', 'play piano', 'play violin', 'practice', 'train for'], slot: 'activity', predicate: 'plays', seedStrength: 'medium' },
+  // 语言
+  { words: ['speak', 'fluent in', 'native speaker', 'bilingual', 'learning to speak'], slot: 'language', predicate: 'speaks', seedStrength: 'medium' },
+  // 旅行
+  { words: ['traveled to', 'visited', 'went to', 'been to', 'trip to', 'vacation in'], slot: 'travel', predicate: 'traveled_to', seedStrength: 'medium' },
+  // 购买/拥有
+  { words: ['bought', 'purchased', 'got a new', 'recently got', 'just bought'], slot: 'purchase', predicate: 'bought', seedStrength: 'medium' },
+  // 创作
+  { words: ['painted', 'wrote', 'built', 'created', 'made', 'designed', 'composed'], slot: 'creation', predicate: 'created', seedStrength: 'medium' },
+  // 婚姻
+  { words: ['married to', 'engaged to', 'dating', 'in a relationship', 'my fiancé', 'my fiancée'], slot: 'relationship', predicate: 'married_to', seedStrength: 'strong' },
+  // 恐惧
+  { words: ['afraid of', 'scared of', 'phobia', 'terrified of', "can't stand"], slot: 'fear', predicate: 'fears', seedStrength: 'medium' },
+  // 目标
+  { words: ['want to', 'planning to', 'hope to', 'dream of', 'goal is', 'aiming for'], slot: 'goal', predicate: 'wants_to', seedStrength: 'weak' },
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════════

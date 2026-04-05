@@ -1881,52 +1881,49 @@ export function maybeTranslateSeedsForLanguage(userMsg: string): void {
  * 关键：种子词必须通过 tokenizer 分词后再注入，保证粒度匹配
  * 例如 "心情好" 会被拆成 ["心情", "情好"]，每个片段都跟对应的同义词建关联
  */
-function injectSeedsIntoCooccur(lang: string) {
+// Seeds 注入策略：df 全量注入 + cooccur 只注入 key↔synonym 直接对（不做笛卡尔积）
+// 这样 PMI 路径仍然可用，但 cooccur 规模从 500K → ~50K（可控）
+function injectSeedsLite(lang: string) {
   const net = getNetwork(lang)
   const syns = getSynonyms(lang)
-  let injected = 0
-
-  function injectPair(a: string, b: string) {
-    const existing = net.cooccur[a]?.[b] ?? 0
-    if (existing < 2) {
-      if (!net.cooccur[a]) net.cooccur[a] = {}
-      net.cooccur[a][b] = 2
-      if (!net.cooccur[b]) net.cooccur[b] = {}
-      net.cooccur[b][a] = 2
-      if (!net.df[a]) net.df[a] = 2
-      if (!net.df[b]) net.df[b] = 2
-      injected++
-    }
-  }
-
-  function seedTokens(word: string): string[] {
-    const tokens: string[] = []
-    const cjk = word.match(/[\u4e00-\u9fff]+/g) || []
-    for (const seg of cjk) {
-      if (seg.length === 2) tokens.push(seg)
-      else { for (let i = 0; i <= seg.length - 2; i++) tokens.push(seg.slice(i, i + 2)) }
-    }
-    const en = word.match(/[a-zA-Z]{3,}/g) || []
-    tokens.push(...en.map(w => w.toLowerCase()))
-    if (word.length >= 2) tokens.push(word)
-    return [...new Set(tokens)]
-  }
+  let dfInjected = 0, pairInjected = 0
 
   for (const [word, synonyms] of Object.entries(syns)) {
-    const wordTokens = seedTokens(word)
-    for (const syn of synonyms) {
-      const synTokens = seedTokens(syn)
-      for (const wt of wordTokens) {
-        for (const st of synTokens) {
-          if (wt !== st && wt.length >= 2 && st.length >= 2) injectPair(wt, st)
+    // 1. df 全量注入
+    const allWords = [word, ...synonyms]
+    for (const w of allWords) {
+      if (w.length >= 2 && !net.df[w]) { net.df[w] = 2; dfInjected++ }
+      const cjk = w.match(/[\u4e00-\u9fff]+/g) || []
+      for (const seg of cjk) {
+        for (let i = 0; i <= seg.length - 2; i++) {
+          const sub = seg.slice(i, i + 2)
+          if (!net.df[sub]) { net.df[sub] = 2; dfInjected++ }
         }
       }
     }
+
+    // 2. cooccur 只注入 key↔每个 synonym 的直接对（不做 synonym×synonym 笛卡尔积）
+    const keyToken = word.length >= 2 ? word.toLowerCase() : null
+    if (!keyToken) continue
+    for (const syn of synonyms) {
+      const synToken = syn.length >= 2 ? syn.toLowerCase() : null
+      if (!synToken || synToken === keyToken) continue
+      const existing = net.cooccur[keyToken]?.[synToken] ?? 0
+      if (existing < 2) {
+        if (!net.cooccur[keyToken]) net.cooccur[keyToken] = {}
+        net.cooccur[keyToken][synToken] = 2
+        if (!net.cooccur[synToken]) net.cooccur[synToken] = {}
+        net.cooccur[synToken][keyToken] = 2
+        pairInjected++
+      }
+    }
   }
-  if (injected > 0) console.log(`[cc-soul][aam] seed injection [${lang}]: ${injected} pairs into cooccur`)
+  if (dfInjected > 0 || pairInjected > 0) {
+    console.log(`[cc-soul][aam] seed injection [${lang}]: ${dfInjected} df + ${pairInjected} cooccur pairs`)
+  }
 }
-injectSeedsIntoCooccur('zh')
-injectSeedsIntoCooccur('en')
+injectSeedsLite('zh')
+injectSeedsLite('en')
 
 /**
  * Tokenize text into words for association network.
@@ -2000,36 +1997,43 @@ export function isJunkToken(word: string): boolean {
 
 // ── 概念层级（模块级，供 isKnownWord 和 expandQuery 共用）──
 const CONCEPT_HIERARCHY: Record<string, string[]> = {
-  // ── 健康 & 身体 ──
-  '健康': ['血压','血糖','体重','睡眠','失眠','运动','体检','感冒','过敏','头疼','腰疼','视力','近视','手术','减肥','疫苗','中暑'],
-  '身体': ['血压','血糖','体重','睡眠','运动','体检','疲劳','腰疼'],
+  // ── 健康 & 身体 & 健康隐患 ──
+  '健康': ['血压','血糖','体重','睡眠','失眠','运动','体检','感冒','过敏','头疼','腰疼','视力','近视','手术','减肥','疫苗','中暑','哮喘','胃炎','牙疼','膝盖','腰椎','颈椎'],
+  '身体': ['血压','血糖','体重','睡眠','运动','体检','疲劳','腰疼','身高','体温','心率'],
+  '健康隐患': ['过敏','近视','血压','血糖','失眠','胃炎','腰疼','颈椎','焦虑','肥胖'],
+  '健康问题': ['血压','血糖','过敏','失眠','近视','胃炎','头疼','腰疼','手术','减肥','哮喘','焦虑'],
 
-  // ── 经济 & 财务 & 理财 ──
-  '经济': ['房贷','工资','薪资','收入','股票','理财','储蓄','花销','信用卡','贷款','税'],
+  // ── 经济 & 财务 & 理财 & 经济压力 ──
+  '经济': ['房贷','工资','薪资','收入','股票','理财','储蓄','花销','信用卡','贷款','税','亏钱','欠款'],
   '财务': ['房贷','工资','收入','股票','理财','储蓄','信用卡','贷款','预算'],
-  '理财': ['投资','存款','基金','股票','房贷','车贷','保险','预算','收入','花销'],
+  '理财': ['投资','存款','基金','股票','房贷','车贷','保险','预算','收入','花销','定投'],
+  '经济压力': ['房贷','车贷','贷款','欠款','亏钱','花销','信用卡','工资','涨薪','开销'],
+  '收入变化': ['涨薪','降薪','奖金','跳槽','加薪','升职','绩效'],
 
   // ── 学校 & 教育 & 考试 ──
   '学校': ['大学','母校','高中','专业','导师','论文','考试','学位','毕业','同学'],
   '教育': ['大学','母校','高中','专业','导师','论文','考试','培训','学位','认证','考证','自学','网课'],
   '考试': ['考研','考公','雅思','托福','PMP','驾照','教资','认证','考证'],
 
-  // ── 工作 & 职业 ──
+  // ── 工作 & 职业 & 职业规划 ──
   '工作': ['加班','薪资','同事','老板','项目','晋升','跳槽','面试','绩效','裸辞','简历','远程','出差','创业','自由职业','认证','PMP'],
   '职业': ['加班','薪资','晋升','跳槽','面试','绩效','转行'],
+  '职业规划': ['跳槽','面试','转行','晋升','简历','考证','培训','换工作','创业','目标'],
+  '工作累': ['加班','疲惫','压力','996','熬夜','休息','年假','倦怠'],
 
   // ── 家庭 & 家人 ──
   '家庭': ['父母','爸妈','孩子','老婆','老公','宠物','猫','狗','家务','怀孕','预产期','生孩子','婚礼','生日','搬家','装修'],
-  '家人': ['父母','爸妈','孩子','老婆','老公','兄弟','姐妹'],
+  '家人': ['父母','爸妈','孩子','老婆','老公','兄弟','姐妹','女儿','儿子','爷爷','奶奶','外婆','舅舅'],
 
   // ── 住房 & 居住 ──
   '住房': ['房贷','租房','装修','搬家','小区','物业','房东','房价'],
   '居住': ['房贷','租房','装修','搬家','小区','房东'],
 
-  // ── 饮食 & 吃 & 饮品 ──
+  // ── 饮食 & 吃 & 饮品 & 美食 ──
   '饮食': ['减肥','外卖','做饭','食谱','早餐','午餐','晚餐','零食','营养','忌口','香菜','过敏食物','素食','辣','甜','厨艺','拿手菜'],
   '吃': ['外卖','做饭','早餐','午餐','晚餐','零食','火锅','奶茶'],
   '饮品': ['咖啡','茶','奶茶','果汁','可乐','啤酒','红酒'],
+  '美食': ['火锅','烤肉','拉面','寿司','烧烤','甜品','小吃','海鲜','川菜','粤菜','日料','西餐','拿手菜','外卖'],
 
   // ── 厨艺 ──
   '厨艺': ['做饭','烹饪','炒菜','蒸','煮','烤','拿手菜','菜谱','下厨房'],
@@ -2038,10 +2042,12 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   '出行': ['开车','地铁','航班','出差','高铁','打车','堵车','机票','通勤','共享单车','驾照','自驾','骑行'],
   '交通': ['开车','地铁','高铁','打车','堵车','公交'],
 
-  // ── 情绪 & 心理 & 烦恼 ──
+  // ── 情绪 & 心理 & 烦恼 & 恐惧 ──
   '情绪': ['焦虑','压力','抑郁','失眠','开心','烦躁','疲惫','孤独','崩溃','恐惧','社恐','紧张','害怕','恐惧症'],
-  '心理': ['焦虑','压力','抑郁','失眠','烦躁','孤独','咨询'],
+  '心理': ['焦虑','压力','抑郁','失眠','烦躁','孤独','咨询','心理医生','冥想'],
   '烦恼': ['压力','焦虑','亏钱','加班','失眠','吵架','纠结'],
+  '恐惧': ['害怕','怕','恐惧症','紧张','蛇','高处','打针','黑暗','蜘蛛','密闭','深水'],
+  '担心': ['焦虑','压力','怀孕','晋升','健康','钱','加班','失业','考试','孩子'],
 
   // ── 社交 & 人际 & 社交媒体 ──
   '社交': ['朋友','同事','邻居','相亲','聚会','吵架','分手','约会','微信','朋友圈','小红书','社交媒体','八卦'],
@@ -2071,11 +2077,10 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
 
   // ── 梦想 & 自我提升 ──
   '梦想': ['目标','理想','愿望','计划','创业','开店','攒钱','未来'],
-  '自我提升': ['学习','读书','考证','培训','语言','技能','认证'],
+  '自我提升': ['学习','读书','考证','培训','语言','技能','认证','日语','英语','健身'],
 
-  // ── 坏习惯 & 恐惧 ──
-  '坏习惯': ['戒','改掉','克服','上瘾','熬夜','抽烟','喝酒','拖延'],
-  '恐惧': ['害怕','怕','恐惧症','紧张','蛇','高处','打针','黑暗'],
+  // ── 坏习惯 ──
+  '坏习惯': ['戒','改掉','克服','上瘾','熬夜','抽烟','喝酒','拖延','戒烟','戒酒'],
 
   // ── 宠物护理 ──
   '宠物护理': ['猫粮','狗粮','宠物医院','洗澡','遛狗','铲屎'],
@@ -2083,30 +2088,76 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   // ── 季节 ──
   '季节': ['春天','夏天','秋天','冬天','花开','下雪','落叶'],
 
-  // ── 个人特质 ──
+  // ── 个人特质 & 性格 ──
   '个人特质': ['性格','怕','喜欢','讨厌','习惯','特长','缺点'],
+  '性格': ['急躁','内向','外向','正义','纠结','独立','敏感','乐观','悲观','执着','随和','倔强'],
 
-  // ── 日常 ──
+  // ── 日常 & 晨练 ──
   '日常': ['起床','通勤','午休','下班','散步','洗澡','睡觉'],
+  '晨练': ['跑步','晨跑','早起','锻炼','运动','瑜伽','太极'],
+
+  // ── 运动 & 锻炼 ──
+  '运动爱好': ['跑步','篮球','羽毛球','游泳','健身','瑜伽','骑行','登山','足球','乒乓球','网球','滑雪'],
+  '锻炼': ['跑步','健身','游泳','瑜伽','篮球','羽毛球','登山','骑行','散步'],
+
+  // ── 课外活动 ──
+  '课外活动': ['钢琴','舞蹈','画画','书法','围棋','跆拳道','游泳','篮球','足球','编程','英语'],
+
+  // ── 矛盾 & 碎片时间 & 仪式感 ──
+  '矛盾': ['纠结','犹豫','两难','取舍','冲突','明知故犯','忍不住'],
+  '碎片时间': ['抖音','微博','B站','播客','小红书','刷手机','短视频','朋友圈'],
+  '仪式感': ['咖啡','早起','散步','冥想','日记','整理','打扫','洗漱','视频通话'],
 
   // ── English concept hierarchy（expanded for LOCOMO coverage）──
-  'health': ['blood pressure','weight','sleep','insomnia','exercise','checkup','allergy','headache','vision','surgery','medication','therapy','diet','symptoms','diagnosis','prescription','hospital','doctor','mental health','chronic'],
-  'finance': ['mortgage','salary','income','stocks','savings','budget','credit card','loan','tax','investment','retirement','insurance','debt','expenses','bonus','raise','rent','bills','financial'],
-  'career': ['overtime','colleague','boss','project','promotion','interview','resume','performance','coworker','manager','meeting','deadline','startup','business','company','hired','fired','layoff','remote','office'],
-  'family': ['parents','children','kids','spouse','partner','pets','cat','dog','mother','father','sister','brother','son','daughter','wife','husband','wedding','divorce','pregnant','baby'],
+  'health': ['blood pressure','weight','sleep','insomnia','exercise','checkup','allergy','headache','vision','surgery','medication','therapy','diet','symptoms','diagnosis','prescription','hospital','doctor','mental health','chronic','asthma','inhaler','cholesterol','knee','back pain','concussion','heart rate'],
+  'health problems': ['allergy','asthma','blood pressure','cholesterol','knee','back pain','concussion','insomnia','anxiety','peanut','shellfish','vision','contacts','prescription','inhaler','surgery'],
+  'breathing': ['asthma','inhaler','allergy','lung','respiratory'],
+  'medical': ['doctor','surgery','prescription','hospital','checkup','therapy','chiropractor','dental','EpiPen','inhaler','cholesterol','blood type','diagnosis'],
+  'finance': ['mortgage','salary','income','stocks','savings','budget','credit card','loan','tax','investment','retirement','insurance','debt','expenses','bonus','raise','rent','bills','financial','401k','Roth IRA','index funds','emergency fund','crypto'],
+  'retirement': ['401k','Roth IRA','index funds','pension','savings','investment','retirement fund','social security'],
+  'credit': ['credit score','credit card','loan','debt','mortgage','interest rate','FICO'],
+  'income': ['salary','bonus','raise','wages','paycheck','compensation','earnings','promotion'],
+  'career': ['overtime','colleague','boss','project','promotion','interview','resume','performance','coworker','manager','meeting','deadline','startup','business','company','hired','fired','layoff','remote','office','mentor','mentoring','review'],
+  'career progress': ['promoted','promotion','raise','bonus','review','performance','title','senior','lead','manager'],
+  'employer': ['company','work at','Microsoft','Google','startup','office','job','hired','position'],
+  'work setup': ['laptop','desk','standing desk','monitor','keyboard','office','remote','ThinkPad','chair','screen'],
+  'office culture': ['coworker','manager','standup','meeting','Jira','team','donuts','coffee','lunch'],
+  'family': ['parents','children','kids','spouse','partner','pets','cat','dog','mother','father','sister','brother','son','daughter','wife','husband','wedding','divorce','pregnant','baby','grandma','uncle','niece','nephew','cousin','in-law'],
+  'children': ['son','daughter','kid','school','soccer','birthday','grade','coaching','homework','recital','vet dream','daycare'],
+  'extended family': ['uncle','aunt','cousin','niece','nephew','grandma','grandfather','in-law','father-in-law','mother-in-law'],
   'housing': ['mortgage','rent','renovation','moving','apartment','landlord','house','condo','neighborhood','lease','furniture','kitchen','bedroom','backyard','property'],
-  'food': ['takeout','cooking','recipe','breakfast','lunch','dinner','snack','restaurant','cuisine','diet','vegetarian','baking','groceries','meal prep','favorite food','allergic'],
+  'real estate': ['mortgage','house','condo','rent','buy','sell','property','renovation','kitchen','sold','bedroom','HOA','closing'],
+  'food': ['takeout','cooking','recipe','breakfast','lunch','dinner','snack','restaurant','cuisine','diet','vegetarian','baking','groceries','meal prep','favorite food','allergic','pasta','sourdough','brew','hot sauce'],
+  'food restrictions': ['allergy','allergic','shellfish','peanut','vegetarian','vegan','lactose','gluten','intolerance','EpiPen','celiac'],
+  'beverages': ['coffee','tea','beer','wine','oat milk','brew','Chemex','latte','espresso','cocktail','juice','smoothie'],
   'transport': ['driving','subway','flight','business trip','train','taxi','traffic','commute','bus','car','parking','road trip','uber','bicycle','walk'],
-  'emotion': ['anxiety','stress','depression','insomnia','happiness','frustration','loneliness','burnout','excited','worried','angry','sad','grateful','confident','overwhelmed','jealous'],
-  'social': ['friend','colleague','neighbor','dating','party','argument','breakup','relationship','wedding','reunion','group','community','club','gathering','social media'],
-  'tech': ['server','database','deploy','frontend','backend','bug','framework','api','devops','cloud','machine learning','software','hardware','app','website','coding'],
+  'emotion': ['anxiety','stress','depression','insomnia','happiness','frustration','loneliness','burnout','excited','worried','angry','sad','grateful','confident','overwhelmed','jealous','cry','nightmares','panic','therapy'],
+  'weakness': ['overthink','procrastinate','road rage','impatient','anxious','stubborn','perfectionist','indecisive'],
+  'fear': ['afraid','phobia','heights','spiders','public speaking','dark','claustrophobic','needles','snakes','deep water'],
+  'social': ['friend','colleague','neighbor','dating','party','argument','breakup','relationship','wedding','reunion','group','community','club','gathering','social media','poker','game night','book club','BBQ'],
+  'gatherings': ['poker','game night','book club','BBQ','party','reunion','dinner party','brunch','meetup','potluck'],
+  'tech': ['server','database','deploy','frontend','backend','bug','framework','api','devops','cloud','machine learning','software','hardware','app','website','coding','React','TypeScript','Python','JavaScript'],
   'entertainment': ['movie','game','music','running','travel','reading','streaming','concert','show','podcast','book','series','hobby','sport','painting','photography'],
-  'education': ['school','college','university','degree','professor','thesis','exam','grade','scholarship','class','major','student','homework','graduation','campus'],
-  'personality': ['introvert','extrovert','shy','confident','patient','impatient','organized','messy','punctual','procrastinate','competitive','easygoing','stubborn','generous','ambitious'],
-  'travel': ['vacation','trip','flight','hotel','destination','passport','sightseeing','backpacking','beach','mountain','abroad','tourist','itinerary','luggage','adventure'],
-  'hobby': ['running','hiking','yoga','painting','gardening','cooking','photography','chess','reading','gaming','cycling','fishing','woodworking','singing','dancing'],
+  'education': ['school','college','university','degree','professor','thesis','exam','grade','scholarship','class','major','student','homework','graduation','campus','bootcamp','MBA','hackathon','TA'],
+  'academic': ['thesis','hackathon','scholarship','TA','dean','GPA','honors','research','published','peer review'],
+  'personality': ['introvert','extrovert','shy','confident','patient','impatient','organized','messy','punctual','procrastinate','competitive','easygoing','stubborn','generous','ambitious','left-handed','morning person'],
+  'travel': ['vacation','trip','flight','hotel','destination','passport','sightseeing','backpacking','beach','mountain','abroad','tourist','itinerary','luggage','adventure','Tokyo','Bali','Italy','London'],
+  'travel documents': ['passport','visa','ID','driver license','TSA','boarding pass','vaccination card'],
+  'hobby': ['running','hiking','yoga','painting','gardening','cooking','photography','chess','reading','gaming','cycling','fishing','woodworking','singing','dancing','brewing','vinyl','guitar','puzzle','sourdough'],
+  'crafts': ['woodworking','painting','photography','knitting','pottery','brewing','sourdough','vinyl','puzzle','scrapbook'],
+  'exercise': ['running','marathon','gym','basketball','yoga','cycling','hiking','swimming','5K','half marathon','CrossFit','stretching','weights','cardio','heart rate'],
+  'running': ['marathon','half marathon','5K','10K','pace','time','PR','race','training','treadmill'],
   'routine': ['morning','commute','lunch break','afternoon','evening','bedtime','wake up','coffee','workout','dinner','walk','shower','sleep','alarm','schedule'],
+  'morning routine': ['wake up','alarm','coffee','meditate','gym','run','shower','breakfast','commute','journal'],
+  'evening routine': ['dinner','walk','shower','journal','read','bedtime','white noise','melatonin','TV','stretch'],
+  'self improvement': ['learning','Spanish','guitar','mentor','mentoring','reading','meditation','fasting','journal','screen time','therapy','bootcamp','MBA'],
   'life event': ['wedding','graduation','promotion','moving','birth','death','accident','surgery','retirement','engagement','breakup','new job','bought house','lost job'],
+  'addiction': ['quit','drinking','smoking','screen time','gambling','caffeine','social media','gaming'],
+  'appearance': ['tattoo','height','weight','gray hair','birthmark','glasses','contacts','left-handed','shoe size','haircut'],
+  'body measurements': ['height','weight','shoe size','waist','BMI','blood type','vision','prescription'],
+  'outdoor': ['garden','backyard','grill','fire pit','patio','deck','lawn','hiking','camping','picnic','BBQ'],
+  'green energy': ['Tesla','solar panels','EV','electric car','hybrid','recycling','compost','carbon footprint'],
+  'sleep': ['insomnia','white noise','melatonin','nightmare','snore','nap','bedtime','alarm','sleep schedule','mattress'],
 }
 
 /** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */

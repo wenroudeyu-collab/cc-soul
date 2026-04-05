@@ -1,0 +1,19 @@
+[
+  {
+    "id": "learned_1775345202589_iqt4",
+    "condition": {
+      "timeSlot": "late_night",
+      "topicDomain": "闲聊",
+      "mood": "neutral"
+    },
+    "action": {
+      "style": "balanced",
+      "hint": "late_night+闲聊+neutral时用balanced风格"
+    },
+    "hits": 920,
+    "misses": 1380,
+    "lastHit": 1775426202249,
+    "createdAt": 1775345202589,
+    "source": "learned"
+  }
+]

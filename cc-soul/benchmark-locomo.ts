@@ -139,6 +139,92 @@ function buildMemories(q: LocomoQuestion): Memory[] {
   return memories
 }
 
+/**
+ * 从 LOCOMO summary 提取英文结构化事实（轻量正则，不依赖 LLM）
+ * 原创双通道架构：NAM 模糊召回 + fact-store 精确匹配
+ */
+function extractFactsFromSummaries(memories: Memory[]): void {
+  try {
+    const factStore = require('./fact-store.ts')
+    const summaries = memories.filter(m => m.tags?.includes('summary'))
+    let totalFacts = 0
+
+    for (const mem of summaries) {
+      const text = mem.content || ''
+      // 按句子拆分
+      const sentences = text.split(/[.!?]\s+/).filter(s => s.length > 10)
+
+      for (const sent of sentences) {
+        // 提取主语（大写开头的名字）
+        const nameMatch = sent.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/)
+        const subject = nameMatch ? nameMatch[1] : 'speaker'
+
+        // 模式匹配：主语 + 动词 + 宾语
+        const patterns = [
+          // "X works as/at Y" / "X is a Y"
+          { re: /\b(?:works?\s+(?:as|at|in|for)|is\s+a)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'occupation' },
+          // "X lives in/moved to Y"
+          { re: /\b(?:lives?\s+in|moved?\s+to|relocated\s+to|from)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'location' },
+          // "X has/have/owns Y" (pets, children, etc.)
+          { re: /\b(?:has|have|owns?|adopted)\s+(?:a\s+)?(.+?)(?:\.|,|and\s|$)/i, pred: 'has' },
+          // "X enjoys/likes/loves Y"
+          { re: /\b(?:enjoys?|likes?|loves?|passionate\s+about|interested\s+in)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'likes' },
+          // "X volunteers/participates/attends Y"
+          { re: /\b(?:volunteers?\s+at|participates?\s+in|attends?|joined)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'participates' },
+          // "X plays/practices Y" (instruments, sports)
+          { re: /\b(?:plays?|practices?|performs?)\s+(?:the\s+)?(.+?)(?:\.|,|and\s|$)/i, pred: 'plays' },
+          // "X studied/majored/graduated Y"
+          { re: /\b(?:studied|majored\s+in|graduated\s+(?:from|with)|degree\s+in)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'education' },
+          // "X is married to / dating / in a relationship with Y"
+          { re: /\b(?:married\s+to|dating|in\s+a\s+relationship\s+with|partner\s+is|spouse\s+is)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'relationship' },
+          // "X reads/read Y"
+          { re: /\b(?:reads?|has\s+read|been\s+reading)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'reads' },
+          // "X traveled/visited/went to Y"
+          { re: /\b(?:traveled\s+to|visited|went\s+to|been\s+to|trip\s+to)\s+(.+?)(?:\.|,|and\s|$)/i, pred: 'traveled' },
+          // "X bought/purchased Y"
+          { re: /\b(?:bought|purchased|got)\s+(?:a\s+)?(.+?)(?:\.|,|and\s|$)/i, pred: 'bought' },
+          // "X made/created/painted Y"
+          { re: /\b(?:made|created|painted|built|designed|wrote)\s+(?:a\s+)?(.+?)(?:\.|,|and\s|$)/i, pred: 'created' },
+          // Generic: "X's Y is Z" / "X's Y"
+          { re: /\b([A-Z][a-z]+)'s\s+(\w+(?:\s+\w+)?)\s+(?:is|are|was|were)\s+(.+?)(?:\.|,|$)/i, pred: '_possessive' },
+        ]
+
+        for (const { re, pred } of patterns) {
+          const match = sent.match(re)
+          if (match) {
+            let object = (match[1] || match[3] || '').trim()
+            let predicate = pred
+            // _possessive 特殊处理：X's pets are Y → pred="pets", obj="Y"
+            if (pred === '_possessive' && match[2]) {
+              predicate = match[2].toLowerCase()
+              object = (match[3] || '').trim()
+            }
+            if (object.length >= 2 && object.length <= 100) {
+              factStore.addFacts([{
+                subject: subject.toLowerCase(),
+                predicate,
+                object,
+                confidence: 0.85,
+                source: 'ai_observed',
+                ts: mem.ts || Date.now(),
+                validUntil: 0,
+              }])
+              totalFacts++
+            }
+          }
+        }
+      }
+    }
+    if (totalFacts > 0) {
+      suppressLogs = false
+      print(`  [fact-store] extracted ${totalFacts} facts from ${summaries.length} summaries`)
+      suppressLogs = true
+    }
+  } catch (e: any) {
+    // fact extraction 失败不影响 benchmark
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // LAYER 1: RECALL QUALITY (Hit@K, MRR)
 // ═══════════════════════════════════════════════════════════════
@@ -442,7 +528,34 @@ async function run() {
       const memories = buildMemories(q)
       memoryCache.set(convId, memories)
       if (!learnedConvs.has(convId)) {
+        // 普通记忆学习（低权重）
         for (const mem of memories) learnAssociation(mem.content, 0.2)
+        // Summary 强化学习（高权重 + 二次拆分）——summary 信息密度高，实体关联更重要
+        for (const mem of memories) {
+          if (mem.tags?.includes('summary')) {
+            learnAssociation(mem.content, 0.8)  // 4x 权重
+            // 拆句学习：summary 通常是多句，每句独立学习增强句内共现
+            const sentences = mem.content.split(/[.!?;]\s+/).filter(s => s.length > 10)
+            for (const sent of sentences) learnAssociation(sent, 0.5)
+          }
+        }
+        // S2: 从 episode 记忆提取英文事实到 fact-store（用 dynamic-extractor 增强后的模式）
+        // 不灌 summary（之前证明会干扰 NAM），只灌 episode 中能精确提取的事实
+        try {
+          const { extractFacts, addFacts } = require('./fact-store.ts')
+          let factCount = 0
+          for (const mem of memories) {
+            if (mem.scope === 'episode' && mem.content && mem.content.length > 20) {
+              const facts = extractFacts(mem.content, 'user_said')
+              if (facts.length > 0) { addFacts(facts); factCount += facts.length }
+            }
+          }
+          if (factCount > 0) {
+            suppressLogs = false
+            print(`  [fact-store] extracted ${factCount} facts from episodes`)
+            suppressLogs = true
+          }
+        } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
