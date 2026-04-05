@@ -2181,6 +2181,22 @@ export function isKnownWord(word: string): boolean {
 }
 
 /**
+ * 清空用户学习数据（benchmark per-conv 隔离用）
+ * 保留：seeds df、synonyms、concept hierarchy
+ * 清空：cooccur（共现）、totalDocs、temporal network
+ */
+export function resetLearnedData(): void {
+  for (const [, net] of _networks) {
+    net.cooccur = {}
+    net.totalDocs = 0
+    // 保留 net.df（seeds 注入的 df 不清，否则 IDF 废掉）
+  }
+  // 重新注入 seeds 共现对（lite injection）
+  try { injectSeedsLite('zh') } catch {}
+  try { injectSeedsLite('en') } catch {}
+}
+
+/**
  * Feed a new memory into the association network.
  * Updates word co-occurrence counts.
  */

@@ -433,6 +433,11 @@ export function autoExtractFromMemory(content: string, scope: string, source?: S
 }
 
 export function getAllFacts(): StructuredFact[] { return facts }
+
+/** 清空所有事实（benchmark per-conv 隔离用）*/
+export function clearFacts(): void {
+  facts.length = 0
+}
 export function getFactCount(): number {
   if (isSQLiteReady()) { try { return sqliteFactCount() } catch { /* fallback */ } }
   return facts.filter(f => f.validUntil === 0).length

@@ -95,14 +95,14 @@ const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: Re
 let _currentAvgDocLen = 20
 
 // ── Recall Thermostat: learn which signals correlate with engaged memories ──
-const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; interference: number; temporal: number; pam: number } }[] = []
+const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; interference: number; temporal: number; pam: number; momentum: number } }[] = []
 
 export function recordRecallEngagement(engaged: boolean, signals: Record<string, number>): void {
   _signalBuffer.push({ engaged, signals: {
     base: signals.base || 0, context: signals.context || 0,
     emotion: signals.emotion || 0, spread: signals.spread || 0,
     interference: signals.interference || 0, temporal: signals.temporal || 0,
-    pam: signals.pam || 0,
+    pam: signals.pam || 0, momentum: signals.momentum || 0,
   }})
   if (_signalBuffer.length > 200) _signalBuffer.shift()
 
@@ -143,7 +143,7 @@ function adjustSignalWeights(): void {
   _contextWeight = 1 - _baseWeight
 
   // 5 信号自适应学习（学习率 0.003 = base/context 的 1/3，每 50 轮调一次）
-  const signalNames = ['emotion', 'spread', 'temporal', 'pam'] as const  // interference 跳过（MMR 层面单独控制）
+  const signalNames = ['emotion', 'spread', 'temporal', 'pam', 'momentum'] as const  // interference 跳过（MMR 层面单独控制）
   const correlations: Record<string, number> = {}
   for (const name of signalNames) {
     const avgGood = good.reduce((s, g) => s + g.signals[name], 0) / good.length
@@ -156,7 +156,7 @@ function adjustSignalWeights(): void {
   _spreadCoeff = Math.max(0.2, Math.min(2.0, _spreadCoeff + (correlations.spread || 0) * 0.003))
   _temporalCoeff = Math.max(0.1, Math.min(0.5, _temporalCoeff + (correlations.temporal || 0) * 0.003))
   _pamCoeff = Math.max(0.3, Math.min(2.0, _pamCoeff + (correlations.pam || 0) * 0.003))
-  _momentumCoeff = Math.max(0.3, Math.min(2.0, _momentumCoeff))  // momentum 暂不学习，后续接入
+  _momentumCoeff = Math.max(0.3, Math.min(2.0, _momentumCoeff + (correlations.momentum || 0) * 0.003))
 
   try {
     const corrStr = signalNames.map(n => `${n}=${correlations[n].toFixed(3)}`).join(', ')
@@ -477,6 +477,7 @@ const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|w
 const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|last|before|ago|when\s+did|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
 
 let _currentQueryType: QueryType = 'broad'
+let _moduleRouteScopes: Set<string> | null = null
 
 function detectQueryType(query: string): QueryType {
   if (PRECISE_RE.test(query)) return 'precise'
@@ -549,8 +550,10 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // ═══════════════════════════════════════════════════════════════
 
   // ── 维度 2: encoding — 信息密度（替代 BM25 length norm）──
-  const uniqueWordCount = Math.max(memWords.size, 1)
-  const density = 1 / Math.sqrt(uniqueWordCount)
+  // 用内容实际词数（CJK 完整词段 + 英文词 + 数字），不�� 2-char 滑动窗口碎片
+  // memWords.size 被碎片膨胀不适合做密度分母
+  const contentTokenCount = (content.match(/[\u4e00-\u9fff]+|[a-zA-Z]{2,}|\d+/gi) || []).length
+  const density = 1 / Math.sqrt(Math.max(contentTokenCount, 1))
   // fact-store 记忆编码更深（结构化存储 = 确认过的知识）
   const factBonus = mem.scope === 'fact' ? 1.2 : 1.0
 
@@ -873,13 +876,14 @@ interface TimeRange { fromMs: number; toMs: number }
 
 function temporalContext(mem: Memory, timeRange?: TimeRange | null, queryWords?: Set<string>): number {
   // Triple Query Decomposition: 如果有明确时间范围，用范围过滤代替新近性衰减
+  // S4: 优先用 validFrom（事件时间），没有才用 ts（录入时间）
   if (timeRange) {
-    const ts = mem.ts || 0
-    return (ts >= timeRange.fromMs && ts <= timeRange.toMs) ? 1.0 : 0
+    const eventTs = mem.validFrom || mem.ts || 0
+    return (eventTs >= timeRange.fromMs && eventTs <= timeRange.toMs) ? 1.0 : 0
   }
 
   const now = new Date()
-  const memDate = new Date(mem.ts || Date.now())
+  const memDate = new Date(mem.validFrom || mem.ts || Date.now())
 
   // 编码特异性（时间维度）：同一时段的记忆更容易被想起
   const hourDiff = Math.abs(now.getHours() - memDate.getHours())
@@ -1103,7 +1107,7 @@ export function computeActivationField(
     const explorationBonus = (ageDays < 7 && (mem.recallCount || 0) === 0) ? 1.3 : 1.0
 
     // S1 Typed Routing: 非目标 scope 降权 0.5（不硬删，保留翻身机会）
-    const routePenalty = (_routeScopes && !_routeScopes.has(mem.scope || '')) ? 0.5 : 1.0
+    const routePenalty = (_moduleRouteScopes && !_moduleRouteScopes.has(mem.scope || '')) ? 0.5 : 1.0
 
     const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight * truthPenalty * explorationBonus * routePenalty
 
@@ -1463,15 +1467,15 @@ export function activationRecall(
   // ── S1: Typed Recall Routing — 按查询意图路由到不同记忆子集 ──
   // Engram 论证：typed routing 是 80% vs 46% 的关键差异
   // 只做 scope penalty + topNMult，不覆盖 Thermostat 的学习权重
-  let _routeScopes: Set<string> | null = null
+  _moduleRouteScopes = null
   if (/谁是|叫什么|在哪|什么是|多少|几个|几岁|what is|who is|where does|how many|how old|what kind/i.test(query)) {
-    _routeScopes = new Set(['fact', 'correction', 'topic'])
+    _moduleRouteScopes = new Set(['fact', 'correction', 'topic'])
     topN = Math.max(2, Math.round(topN * 0.7))  // 事实查询缩小 topN
   } else if (/最近|上次|什么时候|发生了|那年|when did|last time|recently|how long|ago|first time/i.test(query)) {
-    _routeScopes = new Set(['event', 'episode'])
+    _moduleRouteScopes = new Set(['event', 'episode'])
     topN = Math.round(topN * 1.5)  // 时间查询扩大 topN
   } else if (/喜欢|偏好|建议|怎么看|看法|觉得|prefer|like|recommend|opinion|favorite/i.test(query)) {
-    _routeScopes = new Set(['preference', 'opinion', 'reflection'])
+    _moduleRouteScopes = new Set(['preference', 'opinion', 'reflection'])
   } else if (/说说|描述|介绍|怎样的|总结|所有|summarize|describe|tell me about/i.test(query)) {
     topN = Math.round(topN * 2.0)  // 叙事查询大幅扩大
   }
@@ -1885,6 +1889,38 @@ export function activationRecall(
     }
     results[i].activation *= (1 + Math.min(0.5, bonus / 6.5))
   }
+
+  // ── 因果链 Boost：top-5 实体的因果目标记忆加权 ──
+  // ERF 做邻近（A 认识 B），这里做因果（A 导致 B）——不同维度
+  try {
+    const graph = _graphMod
+    if (graph?.traceCausalChain && graph?.findMentionedEntities && results.length >= 3) {
+      const topEntities = new Set<string>()
+      for (let k = 0; k < Math.min(5, results.length); k++) {
+        const ents = graph.findMentionedEntities(results[k].memory.content || '') as string[]
+        if (ents) for (const e of ents) topEntities.add(e)
+      }
+      const causalTargets = new Set<string>()
+      for (const e of topEntities) {
+        try {
+          const chain = graph.traceCausalChain([e], 2)
+          if (chain) for (const node of chain) {
+            const target = node.entity || node.target || node.name || ''
+            if (target) causalTargets.add(target.toLowerCase())
+          }
+        } catch {}
+      }
+      if (causalTargets.size > 0) {
+        for (const r of results) {
+          const cl = (r.memory.content || '').toLowerCase()
+          for (const ct of causalTargets) {
+            if (ct.length >= 2 && cl.includes(ct)) { r.activation *= 1.2; break }
+          }
+        }
+      }
+    }
+  } catch {}
+
   results.sort((a, b) => b.activation - a.activation)
 
 

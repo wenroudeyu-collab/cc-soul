@@ -1464,6 +1464,44 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     } catch {}
   }
 
+  // ── S4: Temporal Fact Anchoring — 写入时解析相对时间→绝对时间 ──
+  // Zep 双时间模型启发：event time T（事件发生时间）vs ingestion time T'（录入时间）
+  // ts = 录入时间，validFrom = 事件实际发生时间（如果能解析）
+  let _eventTime: number | undefined
+  try {
+    const now = Date.now()
+    const DAY = 86400000
+    const text = content
+    // 中文
+    if (/昨天/.test(text)) _eventTime = now - DAY
+    else if (/前天/.test(text)) _eventTime = now - 2 * DAY
+    else if (/上周/.test(text)) _eventTime = now - 7 * DAY
+    else if (/上个月/.test(text)) _eventTime = now - 30 * DAY
+    else if (/去年/.test(text)) _eventTime = now - 365 * DAY
+    else {
+      const cnDays = text.match(/(\d+)\s*天前/); if (cnDays) _eventTime = now - parseInt(cnDays[1]) * DAY
+      const cnMonths = text.match(/(\d+)\s*个月前/); if (cnMonths) _eventTime = now - parseInt(cnMonths[1]) * 30 * DAY
+    }
+    // 英文
+    if (!_eventTime) {
+      if (/yesterday/i.test(text)) _eventTime = now - DAY
+      else if (/last\s+week/i.test(text)) _eventTime = now - 7 * DAY
+      else if (/last\s+month/i.test(text)) _eventTime = now - 30 * DAY
+      else if (/last\s+year/i.test(text)) _eventTime = now - 365 * DAY
+      else {
+        const enAgo = text.match(/(\d+)\s+(days?|weeks?|months?|years?)\s+ago/i)
+        if (enAgo) {
+          const n = parseInt(enAgo[1])
+          const u = enAgo[2].toLowerCase()
+          if (u.startsWith('day')) _eventTime = now - n * DAY
+          else if (u.startsWith('week')) _eventTime = now - n * 7 * DAY
+          else if (u.startsWith('month')) _eventTime = now - n * 30 * DAY
+          else if (u.startsWith('year')) _eventTime = now - n * 365 * DAY
+        }
+      }
+    }
+  } catch {}
+
   const resolvedVisibility = visibility || defaultVisibility(scope)
   const newIndex = memoryState.memories.length
   const FACT_SCOPES = ['fact', 'preference', 'correction', 'discovery']
@@ -1553,7 +1591,8 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     network: autoNetwork,
     emotionIntensity: autoEmotionIntensity,
     importance: surprise,
-    ...(FACT_SCOPES.includes(scope) ? { validFrom: Date.now(), validUntil: 0 } : {}),
+    ...(FACT_SCOPES.includes(scope) ? { validFrom: _eventTime || Date.now(), validUntil: 0 } : {}),
+    ...(!FACT_SCOPES.includes(scope) && _eventTime ? { validFrom: _eventTime } : {}),
     ...extractReasoning(content),
     ...(autoSituationCtx ? { situationCtx: autoSituationCtx } : {}),
     ...(_corefHistory ? { history: _corefHistory } : {}),

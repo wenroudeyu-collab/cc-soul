@@ -519,9 +519,18 @@ async function run() {
   const startTime = Date.now()
   suppressLogs = true
 
+  let _lastConvId = ''
+
   for (let qi = 0; qi < questions.length; qi++) {
     const q = questions[qi]
     const convId = q.question_id.split('_')[0]
+
+    // ── Per-conv 数据隔离：清空上一个 conv 的学习数据 ──
+    if (convId !== _lastConvId && _lastConvId !== '') {
+      try { require('./aam.ts').resetLearnedData?.() } catch {}
+      try { require('./fact-store.ts').clearFacts?.() } catch {}
+    }
+    _lastConvId = convId
 
     // Build memories (cached)
     if (!memoryCache.has(convId)) {
@@ -869,9 +878,43 @@ async function run() {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // Layer 5: 记忆量 vs 召回精度（按记忆池大小升序，证明"记忆越多不会变笨"）
+  // ═══════════════════════════════════════════════════════════════
+
+  print()
+  print('═══════════════════════════════════════════════════════════')
+  print('  Layer 5: Memory Pool Size vs Recall Accuracy')
+  print('═══════════════════════════════════════════════════════════')
+  print()
+
+  // 按记忆量升序排列 conv
+  const convsBySize = convIds
+    .filter(id => convMemoryCount.get(id))
+    .map(id => ({ id, memCount: convMemoryCount.get(id)!, questions: perQuestionResult.filter(r => r.convId === id) }))
+    .sort((a, b) => a.memCount - b.memCount)
+
+  print(`  Memories   Conv ID    Hit@10   ${opts.recallOnly ? '' : 'MC Acc   '}Questions`)
+  print(`  ────────  ─────────  ──────  ${opts.recallOnly ? '' : '──────  '}─────────`)
+  for (const conv of convsBySize) {
+    const nonAdv = conv.questions.filter(r => !r.isAdversarial)
+    const hits = nonAdv.filter(r => r.hit).length
+    const total = nonAdv.length
+    const hitRate = total > 0 ? (hits / total * 100).toFixed(1) : '-'
+    if (opts.recallOnly) {
+      print(`  ${String(conv.memCount).padStart(7)}   ${conv.id.padEnd(10)} ${hitRate.padStart(5)}%  ${String(total).padStart(8)}`)
+    } else {
+      const mcHits = conv.questions.filter(r => r.mcCorrect).length
+      const mcTotal = conv.questions.length
+      const mcRate = mcTotal > 0 ? (mcHits / mcTotal * 100).toFixed(1) : '-'
+      print(`  ${String(conv.memCount).padStart(7)}   ${conv.id.padEnd(10)} ${hitRate.padStart(5)}%  ${mcRate.padStart(5)}%  ${String(total).padStart(8)}`)
+    }
+  }
+
   print()
   print(`  Random baseline: 10.0%`)
   print(`  Time: ${elapsed.toFixed(1)}s (${(questions.length / elapsed).toFixed(0)} q/s)`)
+  print(`  Isolation: per-conv (AAM + fact-store reset between conversations)`)
   print()
 }
 
