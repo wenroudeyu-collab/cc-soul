@@ -533,58 +533,29 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
     if (/^[a-zA-Z]{2,}$/.test(w)) memWords.add(porterStem(wl))
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // NAM-25: Neural Activation Matching（替代 BM25）
-  //
-  // score = Σ cue(t, Ψ) × encoding(t, mem)
-  //
-  // cue = IDF × AWDF × expansion_weight  （检索线索强度）
-  // encoding = position × density          （编码强度）
-  // gate 由外层 7 信号协同实现（不在此处重复）
-  //
-  // 与 BM25 的结构性差异：
-  // - 无 tf 饱和（记忆中同一词很少出现两次，tf 无意义）
-  // - 无 k1/b 参数（用 position + density 替代）
-  // - 位置感知（主题词在前面 → 编码更强）
-  // - 密度感知（短记忆匹配 = 高密度 = 主题匹配）
-  // ═══════════════════════════════════════════════════════════════
-
-  // ── 维度 2: encoding — 信息密度（替代 BM25 length norm）──
-  // 用内容实际词数（CJK 完整词段 + 英文词 + 数字），不�� 2-char 滑动窗口碎片
-  // memWords.size 被碎片膨胀不适合做密度分母
-  const contentTokenCount = (content.match(/[\u4e00-\u9fff]+|[a-zA-Z]{2,}|\d+/gi) || []).length
-  const density = 1 / Math.sqrt(Math.max(contentTokenCount, 1))
-  // fact-store 记忆编码更深（结构化存储 = 确认过的知识）
-  const factBonus = mem.scope === 'fact' ? 1.2 : 1.0
-
-  // ── Rocchio-style 双层计分（保留）──
+  // ── BM25 + AWDF（激活场感知 IDF）──
+  const adaptiveParams = getAdaptiveParams(_currentQueryType, query)
+  const BM25_DELTA = adaptiveParams.k1
+  const _bm25Denom = _currentAvgDocLen >= 10 ? _currentAvgDocLen : Math.max(expandedWords.size, 10)
+  const lengthNorm = 1 - adaptiveParams.b + adaptiveParams.b * (memWords.size / _bm25Denom)
+  // ── Rocchio-style 双层计分：expansion hits 是 BONUS，不稀释分母 ──
   let originalHits = 0, originalDenom = 0
   let expansionHits = 0, expansionTotal = 0
   let tier2Hits = 0, tier2Total = 0
   for (const [word, weight] of expandedWords) {
-    // ── 维度 1: cue(t, Ψ) — 检索线索强度 ──
     const idfWeight = _idfCache?.get(word) ?? 1.0
+    // AWDF: 激活场感知 IDF — 活跃记忆中的词更有区分力（NAM 独有信号）
     const AWDF_ALPHA = 0.5
     const totalAct = _wordActivationSum?.get(word) ?? 0
     const awdf = (memBaseActivation !== undefined && totalAct > 0)
       ? memBaseActivation / totalAct : 0
-    const cue = weight * idfWeight * (1 + AWDF_ALPHA * awdf)
-
-    // ── 维度 2: encoding(t, mem) — 位置 + 密度 ──
+    const effectiveWeight = weight * idfWeight * (1 + AWDF_ALPHA * awdf)
+    const saturation = (adaptiveParams.k1 + 1) / (lengthNorm + adaptiveParams.k1)
+    const hitValue = effectiveWeight * saturation + BM25_DELTA
+    const maxValue = effectiveWeight * ((adaptiveParams.k1 + 1) / (1 + adaptiveParams.k1)) + BM25_DELTA
+    const isOriginal = weight >= 0.9
     const stemmed = /^[a-zA-Z]{2,}$/.test(word) ? porterStem(word) : null
     const matched = memWords.has(word) || (stemmed !== null && memWords.has(stemmed))
-    // 位置信号：词在记忆前部 → 更可能是主题词（编码特异性原则）
-    // 句首 → 1.0，句尾 → 0.7（温和衰减 -30%）
-    let posScore = 1.0
-    if (matched) {
-      const idx = contentLower.indexOf(word)
-      if (idx >= 0) posScore = 1.0 - 0.3 * (idx / Math.max(contentLower.length, 1))
-    }
-
-    const hitValue = cue * posScore * density * factBonus
-    const maxValue = cue * density * factBonus  // posScore=1.0 时的理论上限
-    const isOriginal = weight >= 0.9
-
     if (isOriginal) {
       originalDenom += maxValue
       if (matched) originalHits += hitValue
@@ -602,7 +573,6 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   const expansionBonus = expansionHits * 0.3 / safeExpDenom
   const tier1Score = baseScore + expansionBonus
   const tier2Score = tier2Total > 0 ? tier2Hits / tier2Total : 0
-  // Tier 1 命中直接用，Tier 2 打 7 折（碎片词匹配不应得高分）
   const rawWordScore = Math.max(tier1Score, tier2Score * 0.7)
   // 最低门槛：中文用固定低阈值（CJK 滑动窗口产生大量扩展词，动态阈值会过严）
   // 英文用动态阈值（扩展词更有意义，不存在滑动窗口碎片）
