@@ -475,7 +475,6 @@ async function handleFeedback(body: any): Promise<any> {
                     const aamMod = require('./aam.ts')
                     const bodyMod = require('./body.ts')
                     aamMod.learnAssociation?.(`${phrase} ${m.scope}`, Math.abs(bodyMod?.body?.mood ?? 0))
-                    aamMod.learnTemporalLink?.(phrase)  // PAM 有向时序共现学习
                   } catch {}
                 }
               }
@@ -512,6 +511,11 @@ async function handleFeedback(body: any): Promise<any> {
     if (qualityScore >= 0) feedbackDistillQuality(qualityScore)
     // P1a: 记忆级 engagement 反馈
     feedbackMemoryEngagement(userMessage)
+    // PAM 时序共现：喂用户原话（双语），而不是 LLM 碎片
+    try {
+      const aamMod = await import('./aam.ts')
+      aamMod.learnTemporalLink?.(userMessage)
+    } catch {}
   } catch {}
 
   // ── 主动记忆重构（Letta 启发，零 LLM）：从 AI 回复中检测修正信号 ──

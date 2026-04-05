@@ -30,6 +30,7 @@
   "quality.code_bonus": 0.5,
   "quality.ai_exposure_penalty": 2,
   "quality.relevance_weight": 1.5,
+  "recall.aggregation_dropoff": 0.3,
   "flow.frustration_shortening_rate": 0.2,
   "flow.frustration_terse": 0.15,
   "flow.frustration_keyword_rate": 0.3,
@@ -56,9 +57,6 @@
   "evolution.hypothesis_match_min_sim": 0.2,
   "evolution.reflexion_sim_threshold": 0.3,
   "body.contagion_max_shift": 0.15,
-  "fingerprint.length_upper_multiplier": 3,
-  "fingerprint.length_lower_multiplier": 0.15,
-  "fingerprint.hedge_word_limit": 5,
   "graph.stale_days": 90,
   "persona.blend_gap_threshold": 0.3,
   "persona.attention_trigger_bonus": 0.2,
@@ -130,6 +128,9 @@
   "quality.repetition_sim_threshold": 0.7,
   "metacognition.conflict_threshold": 0.3,
   "metacognition.min_samples": 5,
+  "fingerprint.length_upper_multiplier": 3,
+  "fingerprint.length_lower_multiplier": 0.15,
+  "fingerprint.hedge_word_limit": 5,
   "inner.dream_idle_min": 60,
   "inner.dream_cooldown_hours": 2
 }

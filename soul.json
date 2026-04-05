@@ -12,5 +12,12 @@
     "identity": "IDENTITY.md",
     "style": "STYLE.md",
     "heartbeat": "HEARTBEAT.md"
+  },
+
+  "_llm_doc": "Optional: Configure LLM for enhanced memory recall. Remove or leave empty to use pure NAM (no LLM required). WARNING: Do NOT commit api_key to git.",
+  "llm": {
+    "base_url": "",
+    "api_key": "",
+    "model": ""
   }
 }

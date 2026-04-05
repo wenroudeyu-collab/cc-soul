@@ -23,7 +23,7 @@
 
 import type { Memory } from './types.ts'
 import { trigrams, trigramSimilarity, tokenize as _utilTokenize, WORD_PATTERN, TRIGRAM_THRESHOLD } from './memory-utils.ts'
-import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken } from './aam.ts'
+import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken, learnTemporalLink as _aamLearnTemporalLink } from './aam.ts'
 // 顶层 import 替代运行时 require（修复 benchmark ESM 环境下 require is not defined）
 import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef } from './memory-recall.ts'
 import { extractTagsLocal as _extractTagsLocal } from './memory.ts'
@@ -37,6 +37,32 @@ import { extractAnchors as _extractAnchors, inferTimeRange as _inferTemporalRang
 import { getTopicRecallModifier as _getDriftModifier } from './semantic-drift.ts'
 import { confidenceRecallModifier as _getConfModifier } from './confidence-cascade.ts'
 import { getParam as _getAutoTuneParam } from './auto-tune.ts'
+
+// ── Lightweight English Porter Stemmer (suffix-stripping, English only) ──
+function porterStem(word: string): string {
+  if (word.length < 4) return word
+  let w = word.toLowerCase()
+  // Step 1: plurals + past tense
+  if (w.endsWith('ies') && w.length > 4) w = w.slice(0, -3) + 'i'
+  else if (w.endsWith('sses')) w = w.slice(0, -2)
+  else if (w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us')) w = w.slice(0, -1)
+  // Step 2: past tense + gerund
+  if (w.endsWith('eed')) { /* keep */ }
+  else if (w.endsWith('ed') && w.length > 4) w = w.slice(0, -2)
+  else if (w.endsWith('ing') && w.length > 5) w = w.slice(0, -3)
+  // Step 3: common suffixes
+  if (w.endsWith('tion')) w = w.slice(0, -4) + 't'
+  else if (w.endsWith('ness') && w.length > 5) w = w.slice(0, -4)
+  else if (w.endsWith('ment') && w.length > 5) w = w.slice(0, -4)
+  else if (w.endsWith('ful') && w.length > 5) w = w.slice(0, -3)
+  else if (w.endsWith('ous') && w.length > 5) w = w.slice(0, -3)
+  else if (w.endsWith('ive') && w.length > 5) w = w.slice(0, -3)
+  else if (w.endsWith('able') && w.length > 6) w = w.slice(0, -4)
+  else if (w.endsWith('ible') && w.length > 6) w = w.slice(0, -4)
+  else if (w.endsWith('ally') && w.length > 6) w = w.slice(0, -4) + 'al'
+  else if (w.endsWith('ly') && w.length > 4) w = w.slice(0, -2)
+  return w
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ActivationTrace — 召回路径溯源（服务于 AAM 正负反馈、decision-log、A/B 归因、MAGMA 验证）
@@ -64,6 +90,9 @@ export interface RejectionRecord {
 
 // 内存缓存：最近 3 轮的 trace，用 Date.now() 作 key
 const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: RejectionRecord[] }>()
+
+// ── BM25 标准分母：文档平均长度（在 computeActivationField 内预计算）──
+let _currentAvgDocLen = 20
 
 // ── Recall Thermostat: learn which signals correlate with engaged memories ──
 const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; interference: number; temporal: number; pam: number } }[] = []
@@ -287,49 +316,45 @@ const CATEGORY_HIGH_IMPORTANCE = 8    // 高重要性记忆无条件保留
  * 按领域预筛记忆：只保留与查询同 category 的 + 高重要性的
  * 返回剪枝后的 memories 子集（如果不值得剪枝，返回原数组）
  */
+// Category soft-weighting: 不再硬删记忆，改为类别不匹配时降权 0.5
+// 存储在 _categoryPenalty Map 中，供 computeActivationField 读取
+const _categoryPenalty = new Map<string, number>()
+
 function categoryPrePrune(memories: Memory[], query: string): Memory[] {
+  _categoryPenalty.clear()
+
   if (memories.length <= CATEGORY_PRUNE_THRESHOLD) return memories
 
   const queryCats = detectCategories(query)
-  if (queryCats.length === 0) return memories  // 查询无明确领域，不剪
+  if (queryCats.length === 0) return memories  // 查询无明确领域，不调
 
   const queryCatSet = new Set(queryCats)
 
-  // 多类别查询自适应：跨领域保留更多候选
-  // 小池子由 dynamicMinPool 兜底，大池子由 maxPruneRatio 控制
-  const dynamicMinPool = CATEGORY_PRUNE_MIN_POOL + (queryCats.length - 1) * 15
-  const maxPruneRatio = 0.6 - (queryCats.length - 1) * 0.1  // 1类60%, 2类50%, 3类40%
-  const minAfterPrune = Math.max(dynamicMinPool, Math.floor(memories.length * (1 - maxPruneRatio)))
-
-  const pruned: Memory[] = []
   for (const mem of memories) {
-    // 高重要性无条件保留
-    if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE) {
-      pruned.push(mem)
-      continue
-    }
-    // 记忆的 category 与查询有交集 → 保留
+    // 高重要性无条件满权重
+    if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE) continue
+    // 无 category 标签 → 满权重（不冤枉）
     const memCats = getMemCategories(mem)
-    if (memCats.length === 0) {
-      // 无 category 标签的记忆（太短/太泛）→ 保留（不冤枉）
-      pruned.push(mem)
-      continue
-    }
+    if (memCats.length === 0) continue
+    // 有交集 → 满权重
+    let matched = false
     for (const mc of memCats) {
-      if (queryCatSet.has(mc)) {
-        pruned.push(mem)
-        break
-      }
+      if (queryCatSet.has(mc)) { matched = true; break }
+    }
+    // 无交集 → 降权 0.5（不删除）
+    if (!matched) {
+      _categoryPenalty.set(memKey(mem), 0.5)
     }
   }
 
-  // 安全阈值：剪枝后低于自适应下限 → 回退全集
-  if (pruned.length < minAfterPrune) return memories
-
-  if (pruned.length < memories.length) {
-    console.log(`[activation-field] category pre-prune: ${memories.length} → ${pruned.length} (query cats: ${queryCats.join(',')}, minPool: ${minAfterPrune})`)
+  if (_categoryPenalty.size > 0) {
+    console.log(`[activation-field] category soft-weight: ${_categoryPenalty.size}/${memories.length} memories penalized (query cats: ${queryCats.join(',')})`)
   }
-  return pruned
+  return memories  // 永远返回全集，不删除
+}
+
+function getCategoryWeight(mem: Memory): number {
+  return _categoryPenalty.get(memKey(mem)) ?? 1.0
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -383,18 +408,23 @@ function baseActivation(mem: Memory, now: number): number {
 // SIGNAL 2: 上下文匹配（AAM 词扩展 + 关键词重叠 + trigram）
 // ═══════════════════════════════════════════════════════════════
 
-// ── 动态 IDF 缓存（版本化：只在 memory 增删改时重建，O(1) 命中）──
+// ── 动态 IDF + AWDF 缓存（版本化：只在 memory 增删改时重建，O(1) 命中）──
 let _idfCache: Map<string, number> | null = null
 let _idfVersion = 0
 let _currentIdfVersion = -1
+// AWDF: 每个词在所有包含它的记忆中的 baseActivation 总和
+// 供 contextMatch 计算 awdf(w, mem) = ba(mem) / _wordActivationSum(w)
+let _wordActivationSum: Map<string, number> | null = null
 
 /** 通知 IDF 缓存失效（memory 增/删/改时调用） */
 export function invalidateFieldIDF(): void { _idfVersion++ }
 
-/** 从 memory pool 计算动态 IDF：出现在越多记忆中的词权重越低 */
+/** 从 memory pool 计算动态 IDF + AWDF 激活度加权表 */
 function buildIdfCache(memories: Memory[]): Map<string, number> {
   const docFreq = new Map<string, number>()
+  const activationSum = new Map<string, number>()
   const N = memories.length
+  const now = Date.now()
   for (const mem of memories) {
     const content = mem.content || ''
     const seen = new Set<string>()
@@ -407,14 +437,23 @@ function buildIdfCache(memories: Memory[]): Map<string, number> {
       if (seg.length >= 2 && seg.length <= 4) seen.add(seg)
       for (let i = 0; i <= seg.length - 2; i++) seen.add(seg.slice(i, i + 2))
     }
-    for (const w of seen) docFreq.set(w, (docFreq.get(w) || 0) + 1)
+    // AWDF: 累加每个词所在记忆的 baseActivation
+    const ba = baseActivation(mem, now)
+    for (const w of seen) {
+      docFreq.set(w, (docFreq.get(w) || 0) + 1)
+      activationSum.set(w, (activationSum.get(w) || 0) + ba)
+    }
   }
+  _wordActivationSum = activationSum
+
   const idf = new Map<string, number>()
   for (const [word, df] of docFreq) {
-    // IDF = log(N / df)，归一化到 [0.1, 1.0]
+    // IDF = log(N / df)，归一化到 [floor, 1.0]
+    // 小池守卫：N<20 时保持 0.1（词太少，IDF 区分度本身已足够）
+    const floor = N < 20 ? 0.1 : 0.02
     const raw = Math.log(N / Math.max(1, df))
     const maxIdf = Math.log(N)  // 只出现 1 次的词
-    idf.set(word, maxIdf > 0 ? Math.max(0.1, raw / maxIdf) : 1.0)
+    idf.set(word, maxIdf > 0 ? Math.max(floor, raw / maxIdf) : 1.0)
   }
   return idf
 }
@@ -435,7 +474,7 @@ const QUERY_TYPE_MULTIPLIERS: Record<QueryType, { k1Mult: number; bMult: number;
 }
 
 const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|when|how\s*many/i
-const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|last|before|ago/i
+const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|last|before|ago|when\s+did|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
 
 let _currentQueryType: QueryType = 'broad'
 
@@ -445,19 +484,25 @@ function detectQueryType(query: string): QueryType {
   return 'broad'
 }
 
-/** Get adaptive k1/b — reads base from auto-tune, applies query-type multipliers */
-function getAdaptiveParams(queryType: QueryType): QueryTypeParams {
+/** Get adaptive k1/b — reads base from auto-tune, applies query-type + language multipliers */
+function getAdaptiveParams(queryType: QueryType, query?: string): QueryTypeParams {
   const baseK1 = _getAutoTuneParam('memory.bm25_k1')
   const baseB = _getAutoTuneParam('memory.bm25_b')
   const mult = QUERY_TYPE_MULTIPLIERS[queryType]
+
+  // 语言自适应：英文记忆天然更长，降低长度惩罚（b↓），提高词频饱和度（k1↑）
+  const isChinese = query ? /[\u4e00-\u9fff]/.test(query) : true
+  const langK1 = isChinese ? 1.0 : 1.25   // 英文 k1 +25%
+  const langB = isChinese ? 1.0 : 0.67    // 英文 b -33%（降低长度惩罚）
+
   return {
-    k1: baseK1 * mult.k1Mult,
-    b: baseB * mult.bMult,
+    k1: baseK1 * mult.k1Mult * langK1,
+    b: baseB * mult.bMult * langB,
     temporalBoost: mult.temporalBoost,
   }
 }
 
-function contextMatch(query: string, mem: Memory, expandedWords: Map<string, number>): number {
+function contextMatch(query: string, mem: Memory, expandedWords: Map<string, number>, memBaseActivation?: number): number {
   const content = mem.content || ''
   const contentLower = content.toLowerCase()
 
@@ -480,43 +525,71 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
     }
   }
   const enWords = content.match(/[a-zA-Z]{2,}|\d+/gi) || []
-  for (const w of enWords) memWords.add(w.toLowerCase())
+  for (const w of enWords) {
+    const wl = w.toLowerCase()
+    memWords.add(wl)
+    // Stemmed form for English words (allows "phobias" ↔ "phobia" matching)
+    if (/^[a-zA-Z]{2,}$/.test(w)) memWords.add(porterStem(wl))
+  }
 
   // IDF 加权匹配 + BM25+ delta：高频词权重降低，长文档不被过度惩罚
   // k1 controls term saturation: higher = exact match matters more (precise queries)
   // b controls length normalization: higher = penalize long docs more
-  const adaptiveParams = getAdaptiveParams(_currentQueryType)
+  const adaptiveParams = getAdaptiveParams(_currentQueryType, query)
   const BM25_DELTA = adaptiveParams.k1  // BM25+ lower-bound: precise→2.0, broad→0.8
-  const lengthNorm = 1 - adaptiveParams.b + adaptiveParams.b * (memWords.size / Math.max(expandedWords.size, 1))
-  // ── 双层计分：防止滑动窗口碎片词稀释分母 ──
-  // Tier 1: AAM 扩展的质量词（同义词/概念词/3+字词）
-  // Tier 2: 全部词（含 2-char 滑动窗口碎片）
-  let tier1Hits = 0, tier1Total = 0
+  // BM25 长度归一化：avgDocLen 作分母（标准 BM25），但中文短记忆池 avgDocLen 可能过小
+  // 兜底：avgDocLen < 10 时用 expandedWords.size（原始行为）
+  const _bm25Denom = _currentAvgDocLen >= 10 ? _currentAvgDocLen : Math.max(expandedWords.size, 10)
+  const lengthNorm = 1 - adaptiveParams.b + adaptiveParams.b * (memWords.size / _bm25Denom)
+  // ── Rocchio-style 双层计分：expansion hits 是 BONUS，不稀释分母 ──
+  // Original words (weight >= 0.9): 构成分母，命中计入分子
+  // Expansion words (weight < 0.9): 命中只加 bonus，不进分母
+  let originalHits = 0, originalDenom = 0
+  let expansionHits = 0, expansionTotal = 0
   let tier2Hits = 0, tier2Total = 0
-  let tier1Count = 0, tier2Count = 0
   for (const [word, weight] of expandedWords) {
     const idfWeight = _idfCache?.get(word) ?? 1.0
-    const effectiveWeight = weight * idfWeight
-    // Tier 1: AAM 扩展词（weight >= 0.7）或 3+ 字且 weight >= 0.5
-    const isTier1 = weight >= 0.7 || (weight >= 0.5 && word.length >= 3)
+    // AWDF: 激活场感知 IDF — 当前记忆的激活度占该词所有记忆激活度总和的比例
+    // 高激活记忆中的词权重更高（NAM 独有信号，传统 IR 无此维度）
+    const AWDF_ALPHA = 0.5
+    const totalAct = _wordActivationSum?.get(word) ?? 0
+    const awdf = (memBaseActivation !== undefined && totalAct > 0)
+      ? memBaseActivation / totalAct : 0
+    const effectiveWeight = weight * idfWeight * (1 + AWDF_ALPHA * awdf)
     const saturation = (adaptiveParams.k1 + 1) / (lengthNorm + adaptiveParams.k1)
     const hitValue = effectiveWeight * saturation + BM25_DELTA
     const maxValue = effectiveWeight * ((adaptiveParams.k1 + 1) / (1 + adaptiveParams.k1)) + BM25_DELTA
-    if (isTier1) {
-      tier1Total += maxValue
-      tier1Count++
-      if (memWords.has(word)) tier1Hits += hitValue
+    const isOriginal = weight >= 0.9
+    // Stem English words for matching
+    const stemmed = /^[a-zA-Z]{2,}$/.test(word) ? porterStem(word) : null
+    const matched = memWords.has(word) || (stemmed !== null && memWords.has(stemmed))
+    if (isOriginal) {
+      originalDenom += maxValue
+      if (matched) originalHits += hitValue
+    } else {
+      expansionTotal += maxValue
+      if (matched) expansionHits += hitValue
     }
+    // Tier 2 fallback (全部词，含碎片)
     tier2Total += maxValue
-    tier2Count++
-    if (memWords.has(word)) tier2Hits += hitValue
+    if (matched) tier2Hits += hitValue
   }
-  const tier1Score = tier1Total > 0 ? tier1Hits / tier1Total : 0
+  // Rocchio: base = originalHits / denom, bonus = expansionHits * 0.3 / expansionDenom
+  const safeDenom = Math.max(originalDenom, 0.01)
+  const safeExpDenom = Math.max(expansionTotal, 0.01)
+  const baseScore = originalHits / safeDenom
+  const expansionBonus = expansionHits * 0.3 / safeExpDenom
+  const tier1Score = baseScore + expansionBonus
   const tier2Score = tier2Total > 0 ? tier2Hits / tier2Total : 0
   // Tier 1 命中直接用，Tier 2 打 7 折（碎片词匹配不应得高分）
   const rawWordScore = Math.max(tier1Score, tier2Score * 0.7)
-  // 最低门槛：覆盖率门槛随 query type 调整（broad 更宽松）
-  const minCoverage = _currentQueryType === 'broad' ? 0.01 : 0.03
+  // 最低门槛：中文用固定低阈值（CJK 滑动窗口产生大量扩展词，动态阈值会过严）
+  // 英文用动态阈值（扩展词更有意义，不存在滑动窗口碎片）
+  const _hasCJK = /[\u4e00-\u9fff]/.test(query)
+  const _expandedCount = Math.max(1, expandedWords.size)
+  const minCoverage = _hasCJK
+    ? (_currentQueryType === 'broad' ? 0.01 : 0.03)  // 中文：保持原始阈值
+    : Math.max(0.005, 1.0 / _expandedCount)           // 英文：动态阈值
   const wordScore = rawWordScore < minCoverage ? 0 : rawWordScore
 
   // ── 方式 B：n-gram 短语匹配（连续词序列比独立词匹配更强）──
@@ -547,7 +620,10 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   const triScore = trigramSimilarity(trigrams(query), trigrams(content))
 
   // BM25F 字段加权移到 rerank 阶段（只对 top-50），此处只算内容基础分
-  return Math.max(wordScore, phraseScore * 1.2, triScore * 0.8)
+  // 英文 trigram 权重提升：拼写变体/缩写/词形变化更依赖 trigram
+  const _enRatio = ((query.match(/[a-zA-Z]+/g) || []).join('').length) / Math.max(query.length, 1)
+  const _triWeight = _enRatio > 0.5 ? 1.0 : 0.8
+  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -835,6 +911,9 @@ export function computeActivationField(
 ): ActivationResult[] {
   const now = Date.now()
 
+  // 预计算记忆平均文档长度（BM25 标准分母，替代 expandedWords.size）
+  _currentAvgDocLen = memories.reduce((s, m) => s + ((m.content || '').match(/[\u4e00-\u9fff]|[a-zA-Z]+/g) || []).length, 0) / Math.max(memories.length, 1)
+
   // 构建动态 IDF 缓存（版本化：只在 invalidateFieldIDF 被调用后才重建）
   if (!_idfCache || _currentIdfVersion !== _idfVersion) {
     _idfCache = buildIdfCache(memories)
@@ -889,6 +968,14 @@ export function computeActivationField(
     }
   } catch {}
 
+  // 冷启动检测：如果 _activations 几乎为空（< 10 条），说明没有历史交互
+  // Signal 4 (spread) 和 Signal 7 (PAM) 不会贡献分数，context 应该主导
+  const isColdStart = _activations.size < 10
+  if (isColdStart) {
+    _baseWeight = 0.15
+    _contextWeight = 0.85
+  }
+
   // 第一遍：计算原始激活值（不含干扰抑制）
   const rawResults: { mem: Memory; raw: number; signals: any; path: TraceStep[] }[] = []
 
@@ -897,9 +984,10 @@ export function computeActivationField(
     if (!mem.content || mem.content.length < 3) continue
 
     const s1 = baseActivation(mem, now)
-    const s2 = contextMatch(query, mem, expandedWords)
-    // 下限保护：完全无关的记忆不该靠 base 底分混进 top N
-    if (s2 < 0.005) continue
+    const s2 = contextMatch(query, mem, expandedWords, s1)
+    // 下限保护：s2 极低的记忆跳过（恢复硬过滤，但阈值从 0.005 降到 0.002）
+    // 原因：s2=0.0005 的底分 + 高 base activation 会挤掉真正相关的弱匹配记忆
+    if (s2 < 0.002) continue
     const s3 = emotionResonance(mem, mood, alertness)
     const s4 = spreadingActivation(mem, memories, query)
     const s6 = temporalContext(mem, timeRange, queryWordSet)
@@ -944,7 +1032,8 @@ export function computeActivationField(
     // 对话惯性加成（momentum boost，由 _momentumCoeff 调制）
     const momentum = getMomentumBoost(mem.content || '')
 
-    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7)
+    const catWeight = getCategoryWeight(mem)
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight
 
     // 构建 trace path
     const path: TraceStep[] = [
@@ -969,6 +1058,25 @@ export function computeActivationField(
   }
 
   // 排序
+  rawResults.sort((a, b) => b.raw - a.raw)
+
+  // ── 存入时序 PAM：同批存入的记忆互相 boost ──
+  // 同一次 feedback 存入的记忆 ts 差距 < 5s，天然具有语义关联
+  // top-3 候选的同批记忆获得 20% boost（零冷启动，不依赖学习数据）
+  const PAM_TS_WINDOW = 5000  // 5 秒窗口
+  const PAM_BATCH_BOOST = 1.2
+  const topK = Math.min(3, rawResults.length)
+  for (let i = topK; i < rawResults.length; i++) {
+    const cTs = rawResults[i].mem.ts || 0
+    for (let j = 0; j < topK; j++) {
+      const tTs = rawResults[j].mem.ts || 0
+      if (Math.abs(cTs - tTs) < PAM_TS_WINDOW && rawResults[i].mem.content !== rawResults[j].mem.content) {
+        rawResults[i].raw *= PAM_BATCH_BOOST
+        break  // 只 boost 一次
+      }
+    }
+  }
+  // boost 后重排
   rawResults.sort((a, b) => b.raw - a.raw)
 
   // 第二遍：MMR 干扰抑制（已选的会压制后续的相似记忆）
@@ -1124,11 +1232,18 @@ export function expandQueryForField(query: string): Map<string, number> {
     // 完整 3-4 字词也加入（如 "减肥期"）
     if (seg.length >= 3 && seg.length <= 4) expanded.set(seg, 1.0)
   }
-  // English: 2+ letter words + numbers, 停用词降权
+  // English: 2+ letter words + numbers, 停用词降权 + Porter stemming
+  const _QUERY_SIGNAL_WORDS = new Set(['what','where','when','how','which','did','does','who','whom'])
   const enWords = query.match(/[a-zA-Z]{2,}|\d+/gi) || []
   for (const w of enWords) {
     const wl = w.toLowerCase()
-    expanded.set(wl, EN_STOP_WORDS.has(wl) ? 0.1 : 1.0)
+    const weight = _QUERY_SIGNAL_WORDS.has(wl) ? 0.5 : EN_STOP_WORDS.has(wl) ? 0.1 : 1.0
+    expanded.set(wl, weight)
+    // Also add stemmed form for English words (e.g. "phobias" → "phobia")
+    if (/^[a-zA-Z]{2,}$/.test(w)) {
+      const stemmed = porterStem(wl)
+      if (stemmed !== wl && !expanded.has(stemmed)) expanded.set(stemmed, weight)
+    }
   }
 
   // 短查询：单字 CJK 也加入（在 AAM 扩展之前，确保"车"等单字能参与扩展）
@@ -1223,6 +1338,11 @@ export function activationRecall(
 
   // 查询类型检测（adaptive k1/b）
   _currentQueryType = detectQueryType(query)
+
+  // temporal 查询需要更多候选做时间排序比较
+  if (_currentQueryType === 'temporal') {
+    topN = Math.max(topN, 10)
+  }
 
   // 查询扩展
   const expanded = expandQueryForField(query)
@@ -1348,7 +1468,7 @@ export function activationRecall(
     for (const sf of scoredFacts) {
       const pred = sf.mem.content.match(/\[事实\]\s*([^:]+)/)?.[1] || ''
       const count = predCount.get(pred) || 0
-      if (count < 2) { _parallelFactMems.push(sf.mem); predCount.set(pred, count + 1) }
+      if (count < 2) { (sf.mem as any)._matchScore = sf.matchScore; _parallelFactMems.push(sf.mem); predCount.set(pred, count + 1) }
     }
     if (_parallelFactMems.length > 0) {
       console.log(`[activation-field] fact-store parallel: ${_parallelFactMems.length} facts scored from ${allFacts.length} total`)
@@ -1373,7 +1493,9 @@ export function activationRecall(
   } catch {}
 
   // Step 2: 激活场计算（用扩展后的查询，候选集更完整）
-  let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * 2, timeRange)
+  // 过采样倍数随候选池大小动态调整（大池子需要更大漏斗）
+  const _oversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : 4
+  let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * _oversample, timeRange)
 
   // ── 分数平坦度检测 → 聚合查询自适应 topN ──
   // 无明显赢家 = 查询需要综合多条记忆（"我是怎样的人"/"描述我的一天"）
@@ -1509,34 +1631,49 @@ export function activationRecall(
       if (m.scope === 'correction') bonus += 2.0
       if (m.emotion === 'painful') bonus += 2.0
     }
+    // Summary/蒸馏记忆优先（浓缩了关键事实，天然高质量）
+    if (m.tags?.includes('summary') || m.scope === 'fact') bonus += 2.5
+    // Speaker 标签匹配：查询指定了 speaker 时优先匹配
+    if (m.tags?.length) {
+      const speakerMatch = /speaker\s*1|speaker\s*2|user|assistant/i.exec(queryLower)
+      if (speakerMatch) {
+        const targetRole = /speaker\s*1|user/i.test(speakerMatch[0]) ? 'user' : 'assistant'
+        if (m.tags.some((t: string) => t === `speaker:${targetRole}`)) bonus += 2.0
+      }
+    }
     results[i].activation *= (1 + Math.min(0.3, bonus / 6.5))
   }
   results.sort((a, b) => b.activation - a.activation)
 
 
-  // ── Fact-Store Parallel Fusion：将 fact-store 结果融合到 NAM 结果中 ──
-  // 策略：facts 插入到 NAM 结果前部（高优先级），content 去重防止重复
+  // ── Fact-Store Parallel Fusion：facts 按 matchScore 混入 NAM 结果排序 ──
+  // 不再强制置顶（activation=1.0 在大候选池里会把低相关 facts 推到 top，污染结果）
+  // 改为：facts 的 activation = NAM top-1 的 activation × matchScore 归一化比例
   if (_parallelFactMems.length > 0) {
     const seenContent = new Set(results.map(r => r.memory.content))
     const factResults: ActivationResult[] = []
+    const namTopActivation = results.length > 0 ? results[0].activation : 0.5
     for (const fm of _parallelFactMems) {
-      // 内容去重：NAM 中已有相同内容的跳过
       if (seenContent.has(fm.content)) continue
-      // 语义去重：NAM 结果中已有同一 fact object 的跳过（避免 "[事实] name: 小明" 和 "记住了，你叫小明" 重复）
       const factObj = fm.content.replace(/^\[事实\]\s*\S+:\s*/, '')
       const hasSimilar = results.some(r => r.memory.content.includes(factObj) && factObj.length >= 2)
       if (hasSimilar) continue
+      // matchScore 存在 fm 的临时字段（在上面 fact-store 评分时存入）
+      const ms = (fm as any)._matchScore || 3
+      // facts activation = NAM top × matchScore 归一化（matchScore 通常 2-10）
+      const factActivation = namTopActivation * Math.min(1.0, ms / 6)
       factResults.push({
         memory: fm,
-        activation: 1.0,  // facts 给最高激活值，保证排在前面
+        activation: factActivation,
         signals: { base: 0, context: 1, emotion: 0, spread: 0, interference: 1, temporal: 0 },
       })
       seenContent.add(fm.content)
     }
     if (factResults.length > 0) {
-      // facts 置顶，NAM 结果跟在后面
-      results = [...factResults, ...results]
-      console.log(`[activation-field] fusion: ${factResults.length} facts merged with ${results.length - factResults.length} NAM results`)
+      // 混入排序（不置顶），让高 matchScore 的 facts 自然竞争
+      results = [...results, ...factResults]
+      results.sort((a, b) => b.activation - a.activation)
+      console.log(`[activation-field] fusion: ${factResults.length} facts merged into ${results.length} total results`)
     }
   }
 
@@ -1590,9 +1727,7 @@ export function activationRecall(
   try {
     _aamLearn(query, Math.abs(mood))
     // PAM 有向时序共现：用户说 A 后说 B → A→B 链接
-    // PAM 时序学习已在 aam.ts import 中，但 learnTemporalLink 没有顶层 import
-    // 保留 require 兜底（非核心路径，失败不影响召回）
-    try { require('./aam.ts').learnTemporalLink?.(query) } catch {}
+    _aamLearnTemporalLink(query)
   } catch {}
 
   // ── System 1→2：零 LLM 召回质量低时，LLM 兜底 ──

@@ -39,12 +39,28 @@ export async function initSoulEngine() {
   try { (await import('./features.ts')).loadFeatures() } catch {}
   try { (await import('./user-profiles.ts')).loadProfiles() } catch {}
 
-  const envBase = process.env.LLM_API_BASE
-  const envKey = process.env.LLM_API_KEY
-  if (envBase && envKey) {
-    configureLLM({ api_base: envBase, api_key: envKey, model: process.env.LLM_MODEL || 'gpt-4o' })
-  } else {
-    try { (await import('./cli.ts')).loadAIConfig(); console.log('[cc-soul] LLM auto-detected') } catch {}
+  // LLM 自动检测（三级优先：soul.json → OpenClaw 宿主 → 纯 NAM）
+  let llmConfigured = false
+
+  // 1. 读 soul.json 的 llm 字段（非 OpenClaw 用户在这里配）
+  try {
+    const { resolve } = await import('path')
+    const { DATA_DIR } = await import('./persistence.ts')
+    const { readFileSync, existsSync } = await import('fs')
+    const soulJsonPath = resolve(DATA_DIR, '..', 'soul.json')
+    if (existsSync(soulJsonPath)) {
+      const soulJson = JSON.parse(readFileSync(soulJsonPath, 'utf-8'))
+      if (soulJson.llm?.base_url && soulJson.llm?.api_key) {
+        configureLLM({ api_base: soulJson.llm.base_url, api_key: soulJson.llm.api_key, model: soulJson.llm.model || 'gpt-4o-mini' })
+        llmConfigured = true
+        console.log(`[cc-soul] LLM configured from soul.json: ${soulJson.llm.model || 'gpt-4o-mini'}`)
+      }
+    }
+  } catch {}
+
+  // 2. OpenClaw 宿主自动检测（插件模式，零配置）
+  if (!llmConfigured) {
+    try { (await import('./cli.ts')).loadAIConfig(); console.log('[cc-soul] LLM auto-detected from host') } catch {}
   }
 
   if (!heartbeatTimer) {
@@ -233,18 +249,94 @@ export function startSoulApi() {
         try {
           const { recall, ensureMemoriesLoaded } = await import('./memory.ts')
           ensureMemoriesLoaded()
-          const query = body.query || body.message || ''
+          let query = body.query || body.message || ''
           const userId = body.user_id || body.userId || 'default'
           const topN = body.top_n || body.limit || 5
-          const results = recall(query, topN, userId)
-          // 同时返回 facts（始终注入的核心记忆）
+
+          const { hasLLM, spawnCLI } = await import('./cli.ts')
+          const llmAvailable = hasLLM()
+
+          // ── 增强 2: LLM Query Rewrite（抽象查询时扩展关键词）──
+          // 只在有 LLM 且查询含抽象词时触发，在 NAM 召回之前执行
+          if (llmAvailable) {
+            const _abstractWords = /方式|习惯|品味|爱好|特点|性格|规划|想法|压力|活动|偏好|style|habit|taste|hobby|trait|plan|routine|preference/i
+            if (_abstractWords.test(query)) {
+              try {
+                const keywords = await Promise.race([
+                  new Promise<string>((resolve) => {
+                    spawnCLI(
+                      `用户问"${query.slice(0, 100)}"，请列出5个最可能相关的具体关键词，每行一个，只输出关键词不要解释`,
+                      (output: string) => resolve(output || ''),
+                      8000, 'query-rewrite'
+                    )
+                  }),
+                  new Promise<string>((resolve) => setTimeout(() => resolve(''), 10000)),
+                ])
+                if (keywords) {
+                  const kws = keywords.split('\n').map(l => l.trim().replace(/^[\d.、\-*]+/, '').trim()).filter(l => l.length >= 2 && l.length <= 20)
+                  if (kws.length > 0) {
+                    query = query + ' ' + kws.join(' ')
+                    console.log(`[cc-soul][search] query rewrite: +${kws.length} keywords → "${query.slice(0, 80)}"`)
+                  }
+                }
+              } catch {}  // rewrite 失败不影响召回
+            }
+          }
+
+          // NAM 召回（有 LLM 时宽召回供精排，没 LLM 时只召回 topN）
+          const recallN = llmAvailable ? Math.max(topN * 4, 20) : topN
+          let results = recall(query, recallN, userId)
+
+          // ── 增强 1: LLM Rerank（从宽召回里精选 topN）──
+          if (llmAvailable && results.length > topN) {
+            try {
+              const candidates = results.map((m: any, i: number) => `[${i}] <<<${(m.content || '').replace(/\n/g, ' ').slice(0, 200)}>>>`).join('\n')
+              const rerankPrompt = `Given the question: "${query.slice(0, 200)}"
+
+Here are ${results.length} memory candidates:
+${candidates}
+
+Select the ${topN} most relevant memories for answering the question. Reply with ONLY the numbers separated by commas (e.g. "3,7,1"). Nothing else.`
+
+              const reranked = await Promise.race([
+                new Promise<typeof results>((resolve) => {
+                  spawnCLI(rerankPrompt, (output: string) => {
+                    try {
+                      const indices = (output || '').match(/\d+/g)?.map(Number).filter(i => i >= 0 && i < results.length) || []
+                      // 去重
+                      const unique = [...new Set(indices)]
+                      if (unique.length > 0) {
+                        const picked = unique.slice(0, topN).map(i => results[i]).filter(Boolean)
+                        resolve(picked.length > 0 ? picked : results.slice(0, topN))
+                      } else {
+                        resolve(results.slice(0, topN))
+                      }
+                    } catch {
+                      resolve(results.slice(0, topN))
+                    }
+                  }, 10000, 'rerank')
+                }),
+                // 超时兜底：比 spawnCLI 的 10s 多 2s
+                new Promise<typeof results>((resolve) => setTimeout(() => resolve(results.slice(0, topN)), 12000)),
+              ])
+              results = reranked
+              console.log(`[cc-soul][search] LLM rerank: ${recallN} → ${results.length} results`)
+            } catch {
+              results = results.slice(0, topN)  // LLM 失败 → 纯 NAM 降级
+            }
+          } else {
+            results = results.slice(0, topN)
+          }
+
+          // 返回结果 + facts
           const { getFactSummary, queryFacts } = await import('./fact-store.ts')
-          const facts = queryFacts({ subject: 'user' })
+          const facts = queryFacts({ subject: userId })
           res.writeHead(200)
           res.end(JSON.stringify({
-            memories: results.map(m => ({ content: m.content, scope: m.scope, ts: m.ts, confidence: m.confidence })),
-            facts: facts.map(f => ({ predicate: f.predicate, object: f.object, confidence: f.confidence })),
-            fact_summary: getFactSummary('user'),
+            memories: results.map((m: any) => ({ content: m.content, scope: m.scope, ts: m.ts, confidence: m.confidence })),
+            facts: facts.map((f: any) => ({ predicate: f.predicate, object: f.object, confidence: f.confidence })),
+            fact_summary: getFactSummary(userId),
+            _meta: { reranked: llmAvailable && recallN > topN, query_rewritten: query !== (body.query || body.message || '') },
           }))
         } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })) }
         return
@@ -283,51 +375,7 @@ export function startSoulApi() {
         return
       }
 
-      // ── Special endpoints (non-standard patterns) ──
-
-      // A2A
-      if (url === '/.well-known/agent.json') {
-        try {
-          const { getAgentCard } = await import('./a2a.ts')
-          res.writeHead(200); res.end(JSON.stringify(getAgentCard())); return
-        } catch { res.writeHead(404); res.end(JSON.stringify({ error: 'not available' })); return }
-      }
-      if (url === '/a2a' && req.method === 'POST') {
-        try {
-          const { handleA2ARequest } = await import('./a2a.ts')
-          res.writeHead(200); res.end(JSON.stringify(await handleA2ARequest(body))); return
-        } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); return }
-      }
-
-      // MCP
-      if (url === '/mcp/tools') {
-        try {
-          const { getMCPTools } = await import('./mcp-provider.ts')
-          res.writeHead(200); res.end(JSON.stringify(getMCPTools().map(t => ({ name: t.name, description: t.description })))); return
-        } catch { res.writeHead(404); res.end(JSON.stringify({ error: 'not available' })); return }
-      }
-      if (url === '/mcp/call' && req.method === 'POST') {
-        try {
-          const { getMCPTools } = await import('./mcp-provider.ts')
-          const tool = getMCPTools().find(t => t.name === (body.tool || body.name))
-          if (!tool) { res.writeHead(400); res.end(JSON.stringify({ error: 'unknown tool' })); return }
-          res.writeHead(200); res.end(JSON.stringify({ tool: tool.name, result: tool.handler(body.args || {}) })); return
-        } catch (e: any) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); return }
-      }
-
-      // Soul spec
-      if (url === '/soul-spec') {
-        const { existsSync, readFileSync } = await import('fs')
-        const { resolve } = await import('path')
-        const { DATA_DIR } = await import('./persistence.ts')
-        const read = (p: string) => { try { return existsSync(p) ? readFileSync(p, 'utf-8') : null } catch { return null } }
-        const rootDir = resolve(DATA_DIR, '..')
-        res.writeHead(200); res.end(JSON.stringify({
-          soul_json: JSON.parse(read(resolve(rootDir, 'soul.json')) || '{}'),
-          style: read(resolve(rootDir, 'STYLE.md')),
-          identity: read(resolve(rootDir, 'IDENTITY.md')),
-        })); return
-      }
+      // A2A / MCP / soul-spec 已移除
 
       // 404
       res.writeHead(404); res.end(JSON.stringify({

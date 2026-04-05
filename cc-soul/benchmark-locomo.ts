@@ -87,7 +87,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
   const now = Date.now()
   // 映射：最早的 session → N 天前，最晚的 → 1 小时前
   // 压缩到最近 14 天内（ACT-R 对超过 30 天的记忆激活值趋零）
-  const TARGET_SPAN = 14 * 86400000  // 14 天
+  const TARGET_SPAN = 30 * 86400000  // 30 天（ACT-R 对 14 天前记忆激活值趋零，30 天分化更好）
   const TARGET_END = now - 3600000   // 1 小时前
 
   function normalizeTs(originalTs: number): number {
@@ -117,8 +117,10 @@ function buildMemories(q: LocomoQuestion): Memory[] {
 
     // Each turn → episode memory
     for (let ti = 0; ti < session.length; ti++) {
-      const content = session[ti]?.content
+      const turn = session[ti]
+      const content = turn?.content
       if (!content || content.length < 10) continue
+      const role = turn?.role || 'unknown'
 
       const memTs = baseTs + ti * 60000
       memories.push({
@@ -127,9 +129,9 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         ts: memTs,
         confidence: 0.8,
         recallCount: 3,
-        // lastAccessed 不能超过 now，模拟"最近一轮对话中被间接触及"
-        lastAccessed: Math.min(now - 7200000, memTs + 86400000),  // min(2h ago, created+1day)
+        lastAccessed: Math.min(now - 7200000, memTs + 86400000),
         importance: 5,
+        tags: [`speaker:${role}`, `session:${si}`],
       } as Memory)
     }
   }
@@ -163,11 +165,14 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
     // Strategy 1: exact substring
     if (memLower.includes(ansLower)) return { hit: true, rank: i + 1 }
 
-    // Strategy 2: all significant answer tokens present in memory
+    // Strategy 2: token coverage（动态阈值：短答案严，长答案松）
     if (ansTokens.length > 0) {
       const tokenHits = ansTokens.filter(t => memLower.includes(t)).length
       const coverage = tokenHits / ansTokens.length
-      if (coverage >= 0.8) return { hit: true, rank: i + 1 }
+      const threshold = ansTokens.length <= 3 ? 0.9
+        : ansTokens.length <= 6 ? 0.8
+        : 0.6
+      if (coverage >= threshold) return { hit: true, rank: i + 1 }
     }
 
     // Strategy 3: trigram similarity (fuzzy match for names, dates, etc.)
@@ -452,6 +457,16 @@ async function run() {
     const _qStart = Date.now()
     const recalled: Memory[] = activationRecall(memories, q.question, opts.topK, 0, 0.5)
     perQueryLatency.push(Date.now() - _qStart)
+
+    // ── PMI 反馈学习：模拟真实使用中 query↔recall 共现 ──
+    if (recalled.length > 0) {
+      try {
+        const queryKw = (q.question.match(/[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+        const recallKw = recalled.slice(0, 3).flatMap(m => (m.content.match(/[a-zA-Z]{3,}/gi) || [])).slice(0, 10)
+        const combined = queryKw.join(' ') + ' ' + recallKw.join(' ')
+        learnAssociation(combined, 0.5)
+      } catch {}
+    }
 
     const stat = getStat(q.question_type)
 

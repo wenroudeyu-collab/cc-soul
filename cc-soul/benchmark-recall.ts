@@ -16,7 +16,7 @@ const { activationRecall } = require('./activation-field.ts')
 const { expandQuery, learnAssociation } = require('./aam.ts')
 
 // ═══════════════════════════════════════════════════════════════
-// TEST DATA: 80 memories (index 0-79)
+// TEST DATA: 200 memories (index 0-199)
 // ═══════════════════════════════════════════════════════════════
 
 const TEST_MEMORIES: Memory[] = [
@@ -124,16 +124,148 @@ const TEST_MEMORIES: Memory[] = [
   { content: '最近一直在关注 AI 大模型的发展', scope: 'fact', ts: Date.now() - 86400000 * 10, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 1 },
   { content: '不看娱乐八卦，觉得浪费时间', scope: 'preference', ts: Date.now() - 86400000 * 90, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 12 },
   { content: '喜欢看 B 站的科普视频，关注了半佛仙人', scope: 'preference', ts: Date.now() - 86400000 * 55, confidence: 0.84, recallCount: 3, lastAccessed: Date.now() - 86400000 * 4 },
+
+  // ── 80-99: Work details (项目/技术栈/同事/评价) ──
+  { content: '我负责字节内部的风控系统，日均处理 2 亿条请求', scope: 'fact', ts: Date.now() - 86400000 * 20, confidence: 0.9, recallCount: 4, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '我们组用的技术栈是 Go + gRPC + Kafka + ClickHouse', scope: 'fact', ts: Date.now() - 86400000 * 25, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '我的直属 leader 叫王磊，人很 nice 但要求很高', scope: 'fact', ts: Date.now() - 86400000 * 40, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '上个季度绩效评 B+，差一点拿 A', scope: 'fact', ts: Date.now() - 86400000 * 15, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '同事李晨跟我关系最好，经常一起吃午饭', scope: 'fact', ts: Date.now() - 86400000 * 35, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '公司给配了两块 4K 显示器，办公体验很好', scope: 'fact', ts: Date.now() - 86400000 * 50, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '我之前在美团干了两年，做外卖配送算法', scope: 'fact', ts: Date.now() - 86400000 * 200, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '入职字节的时候年薪涨了 40%', scope: 'fact', ts: Date.now() - 86400000 * 180, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '我们每两周一次 sprint review，组会用飞书文档写周报', scope: 'fact', ts: Date.now() - 86400000 * 30, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 4 },
+  { content: '最近在做一个反欺诈模型的 POC，用的 Python + XGBoost', scope: 'fact', ts: Date.now() - 86400000 * 5, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '实习的时候在百度做过搜索推荐', scope: 'fact', ts: Date.now() - 86400000 * 300, confidence: 0.83, recallCount: 1, lastAccessed: Date.now() - 86400000 * 40 },
+  { content: '公司楼下有个星巴克，我每天下午都去买一杯', scope: 'fact', ts: Date.now() - 86400000 * 20, confidence: 0.8, recallCount: 3, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '字节的工位是开放式的，噪音很大戴降噪耳机', scope: 'fact', ts: Date.now() - 86400000 * 45, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '上个月提了一个架构优化方案被 CTO 表扬了', scope: 'episode', ts: Date.now() - 86400000 * 28, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 7 },
+  { content: '同事小陈刚离职去了快手，我有点动摇', scope: 'episode', ts: Date.now() - 86400000 * 8, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '年底可能会有一次晋升评审，我在准备述职 PPT', scope: 'fact', ts: Date.now() - 86400000 * 3, confidence: 0.82, recallCount: 1, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '我有 3 年 Go 经验、2 年 Python 经验、1 年 Rust 经验', scope: 'fact', ts: Date.now() - 86400000 * 10, confidence: 0.9, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '字节的福利包括免费三餐、健身房、每年体检', scope: 'fact', ts: Date.now() - 86400000 * 60, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '我的 GitHub 有 1200 个 star 的开源项目', scope: 'fact', ts: Date.now() - 86400000 * 80, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '公司年会抽奖抽到了一台 iPad Pro', scope: 'episode', ts: Date.now() - 86400000 * 120, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 30 },
+
+  // ── 100-119: Family details (父母/兄弟姐妹/家庭事件) ──
+  { content: '我爸是中学数学老师，教了三十年书', scope: 'fact', ts: Date.now() - 86400000 * 300, confidence: 0.92, recallCount: 3, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '我妈在超市当收银员，快退休了', scope: 'fact', ts: Date.now() - 86400000 * 280, confidence: 0.9, recallCount: 2, lastAccessed: Date.now() - 86400000 * 25 },
+  { content: '我有个妹妹叫小敏，比我小四岁，在深圳做设计', scope: 'fact', ts: Date.now() - 86400000 * 250, confidence: 0.9, recallCount: 3, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '妹妹去年结婚了，嫁给了她大学同学', scope: 'episode', ts: Date.now() - 86400000 * 150, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 30 },
+  { content: '爷爷去年过世了，享年 85 岁', scope: 'episode', ts: Date.now() - 86400000 * 200, confidence: 0.9, recallCount: 2, lastAccessed: Date.now() - 86400000 * 40 },
+  { content: '奶奶身体还好，自己一个人住在老家', scope: 'fact', ts: Date.now() - 86400000 * 180, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 30 },
+  { content: '过年全家人都回长沙老家团聚，一般初三才散', scope: 'fact', ts: Date.now() - 86400000 * 100, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 60 },
+  { content: '我爸高血压吃了十几年药了', scope: 'fact', ts: Date.now() - 86400000 * 150, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '小雨的父母在杭州，每次去杭州都住她家', scope: 'fact', ts: Date.now() - 86400000 * 90, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '家里的房子是 2020 年买的，在北京昌平回龙观', scope: 'fact', ts: Date.now() - 86400000 * 160, confidence: 0.9, recallCount: 3, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '我叔叔在长沙开了一家湘菜馆，生意不错', scope: 'fact', ts: Date.now() - 86400000 * 200, confidence: 0.82, recallCount: 1, lastAccessed: Date.now() - 86400000 * 35 },
+  { content: '我表哥在部队当兵，是个连长', scope: 'fact', ts: Date.now() - 86400000 * 220, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 50 },
+  { content: '我妈经常催我赶紧结婚，每次打电话都提', scope: 'fact', ts: Date.now() - 86400000 * 30, confidence: 0.85, recallCount: 4, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '小雨和我妈关系不错，过年给她买了条金项链', scope: 'fact', ts: Date.now() - 86400000 * 70, confidence: 0.83, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '我弟（表弟）今年高考，目标是 985', scope: 'fact', ts: Date.now() - 86400000 * 10, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '每年清明节回老家给爷爷扫墓', scope: 'fact', ts: Date.now() - 86400000 * 50, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '家里养了一条金鱼和一盆绿萝，都是小雨在打理', scope: 'fact', ts: Date.now() - 86400000 * 40, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '我爸退休后迷上了钓鱼，每周去三次', scope: 'fact', ts: Date.now() - 86400000 * 15, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '妹妹刚怀孕两个月，我爸妈高兴坏了', scope: 'episode', ts: Date.now() - 86400000 * 5, confidence: 0.85, recallCount: 1, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '我和小雨打算明年领证，婚礼从简', scope: 'fact', ts: Date.now() - 86400000 * 8, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+
+  // ── 120-139: Health / Finance / Education ──
+  { content: '我有慢性胃炎，不能喝酒不能吃辣（但还是偷偷吃）', scope: 'fact', ts: Date.now() - 86400000 * 100, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '每半年去医院做一次胃镜检查', scope: 'fact', ts: Date.now() - 86400000 * 60, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '医生给开了奥美拉唑和莫沙必利，每天饭前吃', scope: 'fact', ts: Date.now() - 86400000 * 50, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '去年体检发现甲状腺结节，医生说定期复查就行', scope: 'fact', ts: Date.now() - 86400000 * 120, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '我有腰椎间盘突出，坐久了就疼', scope: 'fact', ts: Date.now() - 86400000 * 80, confidence: 0.87, recallCount: 3, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '买了一把 Herman Miller 人体工学椅，花了八千多', scope: 'fact', ts: Date.now() - 86400000 * 70, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '在蚂蚁财富上买了 10 万的货币基金', scope: 'fact', ts: Date.now() - 86400000 * 90, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 12 },
+  { content: '每月定投沪深 300 指数基金 3000 块', scope: 'fact', ts: Date.now() - 86400000 * 75, confidence: 0.83, recallCount: 2, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '买了百万医疗险和重疾险，每年交 6000', scope: 'fact', ts: Date.now() - 86400000 * 110, confidence: 0.85, recallCount: 1, lastAccessed: Date.now() - 86400000 * 25 },
+  { content: '去年退税退了 4800 块', scope: 'episode', ts: Date.now() - 86400000 * 130, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 30 },
+  { content: '公积金每个月交 3200，打算以后提取出来还房贷', scope: 'fact', ts: Date.now() - 86400000 * 55, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '武汉大学计算机学院，大三拿过国家奖学金', scope: 'fact', ts: Date.now() - 86400000 * 280, confidence: 0.9, recallCount: 2, lastAccessed: Date.now() - 86400000 * 35 },
+  { content: '毕业设计做的是基于深度学习的人脸识别系统', scope: 'fact', ts: Date.now() - 86400000 * 260, confidence: 0.85, recallCount: 1, lastAccessed: Date.now() - 86400000 * 40 },
+  { content: '大学的数据结构老师姓周，讲课特别好', scope: 'fact', ts: Date.now() - 86400000 * 270, confidence: 0.82, recallCount: 1, lastAccessed: Date.now() - 86400000 * 45 },
+  { content: '考研考了两次，第一次差 3 分没过线', scope: 'fact', ts: Date.now() - 86400000 * 240, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 50 },
+  { content: '后来放弃考研直接工作了，现在想想也不后悔', scope: 'fact', ts: Date.now() - 86400000 * 230, confidence: 0.82, recallCount: 1, lastAccessed: Date.now() - 86400000 * 45 },
+  { content: '高中在长沙一中读的，班主任姓刘，对我影响很大', scope: 'fact', ts: Date.now() - 86400000 * 350, confidence: 0.88, recallCount: 2, lastAccessed: Date.now() - 86400000 * 55 },
+  { content: '信用卡额度 5 万，一般用到一半左右', scope: 'fact', ts: Date.now() - 86400000 * 65, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 12 },
+  { content: '在腾讯理财通还有 5 万定期存款', scope: 'fact', ts: Date.now() - 86400000 * 85, confidence: 0.83, recallCount: 1, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '每个月到手工资大概 2.8 万', scope: 'fact', ts: Date.now() - 86400000 * 30, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 5 },
+
+  // ── 140-159: Social / Hobbies / Daily routine details ──
+  { content: '高中同学群里最活跃的是老赵，每天发段子', scope: 'fact', ts: Date.now() - 86400000 * 100, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '大学好哥们刘毅在深圳创业做 SaaS，经常找我聊技术', scope: 'fact', ts: Date.now() - 86400000 * 80, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '每个月和大学同学线上打一次狼人杀', scope: 'fact', ts: Date.now() - 86400000 * 40, confidence: 0.82, recallCount: 3, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '我的邻居是一对退休夫妇，经常送我们自己种的菜', scope: 'fact', ts: Date.now() - 86400000 * 60, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '去年参加了公司的黑客马拉松，拿了二等奖', scope: 'episode', ts: Date.now() - 86400000 * 140, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '我在 LeetCode 上刷了 600 多道题', scope: 'fact', ts: Date.now() - 86400000 * 90, confidence: 0.88, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '最近迷上了机械键盘，已经买了三把了', scope: 'fact', ts: Date.now() - 86400000 * 12, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '喜欢玩原神，雷电将军满命了', scope: 'fact', ts: Date.now() - 86400000 * 50, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 4 },
+  { content: '每周日下午去楼下咖啡馆看书两小时', scope: 'fact', ts: Date.now() - 86400000 * 25, confidence: 0.82, recallCount: 3, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '早上 6:50 闹钟响，赖床十分钟', scope: 'fact', ts: Date.now() - 86400000 * 18, confidence: 0.85, recallCount: 4, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '从家走到地铁站要 15 分钟', scope: 'fact', ts: Date.now() - 86400000 * 35, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '午休一般趴在桌上睡半小时', scope: 'fact', ts: Date.now() - 86400000 * 28, confidence: 0.8, recallCount: 3, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '每天下午三点喝杯咖啡续命', scope: 'fact', ts: Date.now() - 86400000 * 22, confidence: 0.82, recallCount: 3, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '晚饭经常点外卖，最常点的是黄焖鸡', scope: 'fact', ts: Date.now() - 86400000 * 15, confidence: 0.8, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '洗完澡习惯用吹风机把头发完全吹干', scope: 'fact', ts: Date.now() - 86400000 * 20, confidence: 0.75, recallCount: 1, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '每天晚上十点半开始洗漱', scope: 'fact', ts: Date.now() - 86400000 * 16, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '健身房办了年卡但只去了五次', scope: 'fact', ts: Date.now() - 86400000 * 70, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '我喜欢拍照，手机里有 2 万多张照片', scope: 'fact', ts: Date.now() - 86400000 * 55, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '最近在用 Notion 做个人知识管理', scope: 'fact', ts: Date.now() - 86400000 * 8, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '每周三晚上和小雨一起看综艺', scope: 'fact', ts: Date.now() - 86400000 * 20, confidence: 0.82, recallCount: 3, lastAccessed: Date.now() - 86400000 * 3 },
+
+  // ── 160-179: Personality / Life events / Travel ──
+  { content: '我脾气比较急，说话直来直去容易得罪人', scope: 'fact', ts: Date.now() - 86400000 * 150, confidence: 0.88, recallCount: 3, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '遇到不公平的事情会当面说出来，不会憋着', scope: 'fact', ts: Date.now() - 86400000 * 130, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 12 },
+  { content: '决定买什么东西之前会做大量功课，看测评对比', scope: 'fact', ts: Date.now() - 86400000 * 80, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '不太喜欢社交场合，聚会超过十个人就不自在', scope: 'preference', ts: Date.now() - 86400000 * 120, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 15 },
+  { content: '做事喜欢列清单，每天用滴答清单管理任务', scope: 'fact', ts: Date.now() - 86400000 * 45, confidence: 0.83, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '压力大的时候喜欢一个人去江边走走', scope: 'fact', ts: Date.now() - 86400000 * 60, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '2022 年从上海搬到了北京，因为字节的 offer', scope: 'episode', ts: Date.now() - 86400000 * 250, confidence: 0.9, recallCount: 3, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '在上海的时候住在浦东张江，离公司很近', scope: 'fact', ts: Date.now() - 86400000 * 280, confidence: 0.83, recallCount: 1, lastAccessed: Date.now() - 86400000 * 30 },
+  { content: '去年国庆去了西安，看了兵马俑和大唐不夜城', scope: 'episode', ts: Date.now() - 86400000 * 160, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 25 },
+  { content: '蜜月计划去马尔代夫，已经在看攻略了', scope: 'fact', ts: Date.now() - 86400000 * 6, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '大学的时候一个人背包去了云南，住了半个月', scope: 'episode', ts: Date.now() - 86400000 * 300, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 40 },
+  { content: '出差去过深圳、广州、成都，最喜欢成都', scope: 'fact', ts: Date.now() - 86400000 * 100, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '有选择困难症，点外卖能纠结十分钟', scope: 'fact', ts: Date.now() - 86400000 * 50, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '我习惯把手机调成静音，经常漏接电话', scope: 'fact', ts: Date.now() - 86400000 * 35, confidence: 0.78, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '不喜欢麻烦别人，能自己搞定的绝不求人', scope: 'preference', ts: Date.now() - 86400000 * 110, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '情绪不好的时候会暴饮暴食', scope: 'fact', ts: Date.now() - 86400000 * 70, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '前年学了潜水，考了 PADI OW 证', scope: 'fact', ts: Date.now() - 86400000 * 200, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 25 },
+  { content: '今年生日收到了一块小雨送的 Apple Watch', scope: 'episode', ts: Date.now() - 86400000 * 40, confidence: 0.83, recallCount: 2, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '和前女友分手是因为异地恋撑不下去了', scope: 'fact', ts: Date.now() - 86400000 * 350, confidence: 0.82, recallCount: 1, lastAccessed: Date.now() - 86400000 * 50 },
+  { content: '第一份工作是在美团实习转正的', scope: 'fact', ts: Date.now() - 86400000 * 290, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 35 },
+
+  // ── 180-199: More specific details ──
+  { content: '手机用的是 iPhone 15 Pro Max，之前一直用安卓', scope: 'fact', ts: Date.now() - 86400000 * 30, confidence: 0.85, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '最讨厌被问"你什么时候结婚"', scope: 'preference', ts: Date.now() - 86400000 * 40, confidence: 0.82, recallCount: 3, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '我用 Spotify 听歌，不用网易云因为版权少', scope: 'preference', ts: Date.now() - 86400000 * 25, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '喜欢喝美式咖啡，不加糖不加奶', scope: 'preference', ts: Date.now() - 86400000 * 50, confidence: 0.88, recallCount: 4, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '有一副 AirPods Pro，通勤时戴着听播客', scope: 'fact', ts: Date.now() - 86400000 * 35, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '最近在听一个叫《硬地骇客》的技术播客', scope: 'fact', ts: Date.now() - 86400000 * 10, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '每年 618 和双十一会屯一批书', scope: 'fact', ts: Date.now() - 86400000 * 45, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 10 },
+  { content: '最近想学摄影，看中了一台富士 X-T5', scope: 'fact', ts: Date.now() - 86400000 * 4, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '上次搬家扔了十几箱旧书和衣服', scope: 'episode', ts: Date.now() - 86400000 * 250, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 30 },
+  { content: '我有一双 Nike 跑鞋和一双 Adidas 篮球鞋', scope: 'fact', ts: Date.now() - 86400000 * 55, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 8 },
+  { content: '睡觉必须开空调，不管冬天夏天', scope: 'fact', ts: Date.now() - 86400000 * 60, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 3 },
+  { content: '用 Chrome 浏览器，装了十几个扩展', scope: 'fact', ts: Date.now() - 86400000 * 40, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '有强迫症倾向，出门总是反复确认锁没锁门', scope: 'fact', ts: Date.now() - 86400000 * 75, confidence: 0.83, recallCount: 2, lastAccessed: Date.now() - 86400000 * 6 },
+  { content: '做菜喜欢放很多蒜，小雨嫌味道大', scope: 'fact', ts: Date.now() - 86400000 * 30, confidence: 0.8, recallCount: 2, lastAccessed: Date.now() - 86400000 * 4 },
+  { content: '每周和爸妈视频通话两次，一般周三和周日', scope: 'fact', ts: Date.now() - 86400000 * 20, confidence: 0.85, recallCount: 3, lastAccessed: Date.now() - 86400000 * 2 },
+  { content: '公司有个读书会，我推荐了《黑客与画家》', scope: 'fact', ts: Date.now() - 86400000 * 18, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 5 },
+  { content: '夏天喜欢穿拖鞋短裤，冬天全靠羽绒服', scope: 'fact', ts: Date.now() - 86400000 * 100, confidence: 0.78, recallCount: 1, lastAccessed: Date.now() - 86400000 * 20 },
+  { content: '口腔溃疡反复发作，医生说缺维生素 B', scope: 'fact', ts: Date.now() - 86400000 * 15, confidence: 0.82, recallCount: 2, lastAccessed: Date.now() - 86400000 * 4 },
+  { content: '最近在研究 Home Assistant 搞智能家居', scope: 'fact', ts: Date.now() - 86400000 * 7, confidence: 0.8, recallCount: 1, lastAccessed: Date.now() - 86400000 * 1 },
+  { content: '周末偶尔和小雨一起去宜家逛街', scope: 'fact', ts: Date.now() - 86400000 * 22, confidence: 0.78, recallCount: 2, lastAccessed: Date.now() - 86400000 * 4 },
 ] as Memory[]
 
 // ═══════════════════════════════════════════════════════════════
-// TEST QUERIES: 200 queries (100 direct + 100 semantic)
+// TEST QUERIES: 520 queries (220 direct + 200 semantic + 100 hard)
 // ═══════════════════════════════════════════════════════════════
 
 interface TestCase {
   query: string
   expectedIndex: number | number[]  // single index or array (multi-match: pass if ANY hit)
-  type: 'direct' | 'semantic'
+  type: 'direct' | 'semantic' | 'hard'
   description: string
 }
 
@@ -410,6 +542,388 @@ const TEST_CASES: TestCase[] = [
   { query: '我对什么食物反感', expectedIndex: 51, type: 'semantic', description: '食物反感→香菜' },
   { query: '我有什么内容创作经历', expectedIndex: 41, type: 'semantic', description: '内容创作→技术博客' },
   { query: '我的理财经历', expectedIndex: [32, 62], type: 'semantic', description: '理财→炒股亏钱+攒钱目标' },
+
+  // ════════════════════════════════════════════════════════════
+  // NEW DIRECT QUERIES (100 more, for memories 80-199)
+  // ════════════════════════════════════════════════════════════
+
+  // Memory 80-99: Work details direct
+  { query: '我负责什么系统', expectedIndex: 80, type: 'direct', description: '系统→风控' },
+  { query: '我们组用什么技术栈', expectedIndex: 81, type: 'direct', description: '技术栈→Go+gRPC+Kafka' },
+  { query: '我的 leader 叫什么', expectedIndex: 82, type: 'direct', description: 'leader→王磊' },
+  { query: '我上个季度绩效怎么样', expectedIndex: 83, type: 'direct', description: '绩效→B+' },
+  { query: '李晨是谁', expectedIndex: 84, type: 'direct', description: '李晨→同事好友' },
+  { query: '公司给我配了什么设备', expectedIndex: 85, type: 'direct', description: '设备→两块4K显示器' },
+  { query: '我之前在哪家公司', expectedIndex: 86, type: 'direct', description: '之前公司→美团' },
+  { query: '入职字节涨了多少薪水', expectedIndex: 87, type: 'direct', description: '涨薪→40%' },
+  { query: '我们多久开一次 sprint review', expectedIndex: 88, type: 'direct', description: 'sprint→两周一次' },
+  { query: '我最近在做什么 POC', expectedIndex: 89, type: 'direct', description: 'POC→反欺诈模型' },
+  { query: '我实习在哪家公司', expectedIndex: 90, type: 'direct', description: '实习→百度' },
+  { query: '公司楼下有什么店', expectedIndex: 91, type: 'direct', description: '楼下→星巴克' },
+  { query: '你在公司戴什么耳机', expectedIndex: 92, type: 'direct', description: '耳机→降噪' },
+  { query: '被 CTO 表扬是因为什么', expectedIndex: 93, type: 'direct', description: 'CTO表扬→架构优化' },
+  { query: '小陈去了哪家公司', expectedIndex: 94, type: 'direct', description: '小陈→快手' },
+  { query: '你在准备什么述职', expectedIndex: 95, type: 'direct', description: '述职→晋升评审' },
+  { query: '你有几年 Go 经验', expectedIndex: 96, type: 'direct', description: 'Go经验→3年' },
+  { query: '字节有什么福利', expectedIndex: 97, type: 'direct', description: '福利→三餐健身房体检' },
+  { query: '你 GitHub 有多少 star', expectedIndex: 98, type: 'direct', description: 'GitHub→1200 star' },
+  { query: '年会你抽到了什么', expectedIndex: 99, type: 'direct', description: '年会→iPad Pro' },
+
+  // Memory 100-119: Family direct
+  { query: '你爸是做什么的', expectedIndex: 100, type: 'direct', description: '爸爸→数学老师' },
+  { query: '你妈在哪工作', expectedIndex: 101, type: 'direct', description: '妈妈→超市收银员' },
+  { query: '你有兄弟姐妹吗', expectedIndex: 102, type: 'direct', description: '兄妹→妹妹小敏' },
+  { query: '你妹妹结婚了吗', expectedIndex: 103, type: 'direct', description: '妹妹婚事→去年结婚' },
+  { query: '你爷爷还在吗', expectedIndex: 104, type: 'direct', description: '爷爷→去年过世' },
+  { query: '你奶奶身体怎么样', expectedIndex: 105, type: 'direct', description: '奶奶→还好独居' },
+  { query: '你们过年在哪过', expectedIndex: 106, type: 'direct', description: '过年→长沙老家' },
+  { query: '你爸有什么病', expectedIndex: 107, type: 'direct', description: '爸爸病→高血压' },
+  { query: '小雨的父母在哪', expectedIndex: 108, type: 'direct', description: '小雨父母→杭州' },
+  { query: '你的房子在哪', expectedIndex: 109, type: 'direct', description: '房子→昌平回龙观' },
+  { query: '你叔叔做什么生意', expectedIndex: 110, type: 'direct', description: '叔叔→湘菜馆' },
+  { query: '你表哥在干嘛', expectedIndex: 111, type: 'direct', description: '表哥→部队连长' },
+  { query: '你妈催你什么', expectedIndex: 112, type: 'direct', description: '催婚→结婚' },
+  { query: '小雨给你妈买了什么', expectedIndex: 113, type: 'direct', description: '小雨送礼→金项链' },
+  { query: '你表弟今年干嘛', expectedIndex: 114, type: 'direct', description: '表弟→高考' },
+  { query: '你清明节做什么', expectedIndex: 115, type: 'direct', description: '清明→扫墓' },
+  { query: '家里养了什么植物', expectedIndex: 116, type: 'direct', description: '植物→绿萝金鱼' },
+  { query: '你爸退休后干嘛', expectedIndex: 117, type: 'direct', description: '爸退休→钓鱼' },
+  { query: '你妹妹怀孕了吗', expectedIndex: 118, type: 'direct', description: '妹妹怀孕→两个月' },
+  { query: '你和小雨什么时候领证', expectedIndex: 119, type: 'direct', description: '领证→明年' },
+
+  // Memory 120-139: Health/Finance/Education direct
+  { query: '你有胃病吗', expectedIndex: 120, type: 'direct', description: '胃病→慢性胃炎' },
+  { query: '你多久做一次胃镜', expectedIndex: 121, type: 'direct', description: '胃镜→半年' },
+  { query: '你吃什么药', expectedIndex: 122, type: 'direct', description: '药→奥美拉唑莫沙必利' },
+  { query: '你甲状腺有问题吗', expectedIndex: 123, type: 'direct', description: '甲状腺→结节' },
+  { query: '你腰有什么问题', expectedIndex: 124, type: 'direct', description: '腰→椎间盘突出' },
+  { query: '你的椅子多少钱', expectedIndex: 125, type: 'direct', description: '椅子→Herman Miller 8000' },
+  { query: '你买了什么基金', expectedIndex: 126, type: 'direct', description: '基金→货币基金10万' },
+  { query: '你每月定投多少', expectedIndex: 127, type: 'direct', description: '定投→沪深300 3000' },
+  { query: '你买了什么保险', expectedIndex: 128, type: 'direct', description: '保险→百万医疗+重疾' },
+  { query: '你退税退了多少', expectedIndex: 129, type: 'direct', description: '退税→4800' },
+  { query: '你公积金多少', expectedIndex: 130, type: 'direct', description: '公积金→3200' },
+  { query: '你在哪个大学', expectedIndex: 131, type: 'direct', description: '大学→武汉大学' },
+  { query: '你毕业设计做了什么', expectedIndex: 132, type: 'direct', description: '毕设→人脸识别' },
+  { query: '你大学老师谁讲课好', expectedIndex: 133, type: 'direct', description: '老师→周老师数据结构' },
+  { query: '你考研考了几次', expectedIndex: 134, type: 'direct', description: '考研→两次差3分' },
+  { query: '你为什么没读研', expectedIndex: 135, type: 'direct', description: '没读研→放弃工作了' },
+  { query: '你高中在哪读的', expectedIndex: 136, type: 'direct', description: '高中→长沙一中' },
+  { query: '你信用卡额度多少', expectedIndex: 137, type: 'direct', description: '信用卡→5万' },
+  { query: '你在理财通有多少存款', expectedIndex: 138, type: 'direct', description: '理财通→5万定期' },
+  { query: '你到手工资多少', expectedIndex: 139, type: 'direct', description: '到手→2.8万' },
+
+  // Memory 140-159: Social/Hobby/Routine direct
+  { query: '高中同学群谁最活跃', expectedIndex: 140, type: 'direct', description: '群活跃→老赵' },
+  { query: '刘毅在做什么', expectedIndex: 141, type: 'direct', description: '刘毅→深圳SaaS创业' },
+  { query: '你和同学玩什么游戏', expectedIndex: 142, type: 'direct', description: '同学游戏→狼人杀' },
+  { query: '你邻居是什么人', expectedIndex: 143, type: 'direct', description: '邻居→退休夫妇' },
+  { query: '黑客马拉松拿了什么奖', expectedIndex: 144, type: 'direct', description: '黑客马拉松→二等奖' },
+  { query: '你在 LeetCode 刷了多少题', expectedIndex: 145, type: 'direct', description: 'LeetCode→600题' },
+  { query: '你买了几把机械键盘', expectedIndex: 146, type: 'direct', description: '机械键盘→三把' },
+  { query: '你原神什么角色满命', expectedIndex: 147, type: 'direct', description: '原神→雷电将军' },
+  { query: '你周日下午一般干嘛', expectedIndex: 148, type: 'direct', description: '周日→咖啡馆看书' },
+  { query: '你闹钟几点响', expectedIndex: 149, type: 'direct', description: '闹钟→6:50' },
+  { query: '走到地铁站要多久', expectedIndex: 150, type: 'direct', description: '走路→15分钟' },
+  { query: '你午休怎么休息', expectedIndex: 151, type: 'direct', description: '午休→趴桌上半小时' },
+  { query: '你下午喝什么', expectedIndex: 152, type: 'direct', description: '下午→三点咖啡' },
+  { query: '你晚饭常点什么外卖', expectedIndex: 153, type: 'direct', description: '外卖→黄焖鸡' },
+  { query: '你洗完头用吹风机吗', expectedIndex: 154, type: 'direct', description: '吹风机→完全吹干' },
+  { query: '你几点开始洗漱', expectedIndex: 155, type: 'direct', description: '洗漱→十点半' },
+  { query: '你健身房的年卡用了吗', expectedIndex: 156, type: 'direct', description: '健身房→去了五次' },
+  { query: '你手机有多少照片', expectedIndex: 157, type: 'direct', description: '照片→2万多张' },
+  { query: '你用什么做知识管理', expectedIndex: 158, type: 'direct', description: '知识管理→Notion' },
+  { query: '你周三晚上和小雨干嘛', expectedIndex: 159, type: 'direct', description: '周三→看综艺' },
+
+  // Memory 160-179: Personality/Life events direct
+  { query: '你脾气怎么样', expectedIndex: 160, type: 'direct', description: '脾气→急躁直接' },
+  { query: '遇到不公平的事你怎么办', expectedIndex: 161, type: 'direct', description: '不公平→当面说' },
+  { query: '你买东西前做什么', expectedIndex: 162, type: 'direct', description: '买东西→看测评对比' },
+  { query: '你喜欢大型聚会吗', expectedIndex: 163, type: 'direct', description: '聚会→超十人不自在' },
+  { query: '你用什么管理待办事项', expectedIndex: 164, type: 'direct', description: '待办→滴答清单' },
+  { query: '你压力大的时候怎么办', expectedIndex: 165, type: 'direct', description: '压力→去江边走' },
+  { query: '你什么时候搬到北京的', expectedIndex: 166, type: 'direct', description: '搬北京→2022年' },
+  { query: '你在上海住哪', expectedIndex: 167, type: 'direct', description: '上海→浦东张江' },
+  { query: '你去年国庆去了哪', expectedIndex: 168, type: 'direct', description: '国庆→西安' },
+  { query: '你蜜月打算去哪', expectedIndex: 169, type: 'direct', description: '蜜月→马尔代夫' },
+  { query: '你大学时候去过云南吗', expectedIndex: 170, type: 'direct', description: '云南→背包半个月' },
+  { query: '你出差去过哪些城市', expectedIndex: 171, type: 'direct', description: '出差→深圳广州成都' },
+  { query: '你有选择困难症吗', expectedIndex: 172, type: 'direct', description: '选择困难→点外卖纠结' },
+  { query: '你手机是静音的吗', expectedIndex: 173, type: 'direct', description: '手机→静音漏接' },
+  { query: '你会主动求人帮忙吗', expectedIndex: 174, type: 'direct', description: '求人→不喜欢麻烦别人' },
+  { query: '你情绪不好会怎样', expectedIndex: 175, type: 'direct', description: '情绪差→暴饮暴食' },
+  { query: '你有潜水证吗', expectedIndex: 176, type: 'direct', description: '潜水→PADI OW' },
+  { query: '你生日收到了什么礼物', expectedIndex: 177, type: 'direct', description: '生日→Apple Watch' },
+  { query: '你和前女友为什么分手', expectedIndex: 178, type: 'direct', description: '前女友→异地恋' },
+  { query: '你第一份工作在哪', expectedIndex: 179, type: 'direct', description: '第一份→美团实习转正' },
+
+  // Memory 180-199: Specific details direct
+  { query: '你用什么手机', expectedIndex: 180, type: 'direct', description: '手机→iPhone 15 Pro Max' },
+  { query: '你最讨厌被问什么', expectedIndex: 181, type: 'direct', description: '讨厌问→什么时候结婚' },
+  { query: '你用什么 App 听歌', expectedIndex: 182, type: 'direct', description: '听歌→Spotify' },
+  { query: '你咖啡怎么喝', expectedIndex: 183, type: 'direct', description: '咖啡→美式不加糖奶' },
+  { query: '你通勤时听什么', expectedIndex: 184, type: 'direct', description: '通勤听→播客' },
+  { query: '你最近听什么播客', expectedIndex: 185, type: 'direct', description: '播客→硬地骇客' },
+  { query: '你什么时候买书', expectedIndex: 186, type: 'direct', description: '买书→618双十一' },
+  { query: '你想买什么相机', expectedIndex: 187, type: 'direct', description: '相机→富士X-T5' },
+  { query: '你搬家时扔了什么', expectedIndex: 188, type: 'direct', description: '搬家→旧书衣服' },
+  { query: '你有什么运动鞋', expectedIndex: 189, type: 'direct', description: '运动鞋→Nike+Adidas' },
+  { query: '你睡觉开空调吗', expectedIndex: 190, type: 'direct', description: '空调→必须开' },
+  { query: '你用什么浏览器', expectedIndex: 191, type: 'direct', description: '浏览器→Chrome' },
+  { query: '你有强迫症吗', expectedIndex: 192, type: 'direct', description: '强迫→反复确认锁门' },
+  { query: '你做菜放蒜多吗', expectedIndex: 193, type: 'direct', description: '蒜→放很多' },
+  { query: '你多久和爸妈通一次电话', expectedIndex: 194, type: 'direct', description: '通话→每周两次' },
+  { query: '读书会你推荐了什么书', expectedIndex: 195, type: 'direct', description: '推荐→黑客与画家' },
+  { query: '你冬天穿什么', expectedIndex: 196, type: 'direct', description: '冬天穿→羽绒服' },
+  { query: '你经常口腔溃疡吗', expectedIndex: 197, type: 'direct', description: '口腔溃疡→缺维B' },
+  { query: '你在搞什么智能家居', expectedIndex: 198, type: 'direct', description: '智能家居→Home Assistant' },
+  { query: '你和小雨周末去哪逛', expectedIndex: 199, type: 'direct', description: '逛街→宜家' },
+
+  // ════════════════════════════════════════════════════════════
+  // NEW SEMANTIC QUERIES (100 more, for memories 80-199)
+  // ════════════════════════════════════════════════════════════
+
+  // Work semantic
+  { query: '你每天处理多少流量', expectedIndex: 80, type: 'semantic', description: '流量→2亿请求' },
+  { query: '你在公司用什么消息队列', expectedIndex: 81, type: 'semantic', description: '消息队列→Kafka' },
+  { query: '你和上级关系怎么样', expectedIndex: 82, type: 'semantic', description: '上级关系→leader nice' },
+  { query: '你上次绩效考核通过了吗', expectedIndex: 83, type: 'semantic', description: '绩效考核→B+' },
+  { query: '你在公司有没有好朋友', expectedIndex: 84, type: 'semantic', description: '公司朋友→李晨' },
+  { query: '你做外卖相关的工作吗', expectedIndex: 86, type: 'semantic', description: '外卖→美团配送算法' },
+  { query: '你跳槽涨了多少', expectedIndex: 87, type: 'semantic', description: '跳槽→涨40%' },
+  { query: '你在搞机器学习吗', expectedIndex: 89, type: 'semantic', description: '机器学习→XGBoost POC' },
+  { query: '你有做搜索引擎的经验吗', expectedIndex: 90, type: 'semantic', description: '搜索→百度搜索推荐' },
+  { query: '你在开源社区活跃吗', expectedIndex: 98, type: 'semantic', description: '开源→GitHub 1200 star' },
+
+  // Family semantic
+  { query: '你爸是什么职业', expectedIndex: 100, type: 'semantic', description: '爸职业→数学老师' },
+  { query: '你妈快退休了吗', expectedIndex: 101, type: 'semantic', description: '退休→妈妈收银员' },
+  { query: '你家里有几个孩子', expectedIndex: 102, type: 'semantic', description: '几个孩子→有妹妹' },
+  { query: '你家最近有喜事吗', expectedIndex: [103, 118], type: 'semantic', description: '喜事→妹妹结婚/怀孕' },
+  { query: '家里有老人去世吗', expectedIndex: 104, type: 'semantic', description: '去世→爷爷' },
+  { query: '你过年怎么安排', expectedIndex: 106, type: 'semantic', description: '过年→回长沙' },
+  { query: '你爸妈有慢性病吗', expectedIndex: 107, type: 'semantic', description: '慢性病→爸高血压' },
+  { query: '你的婚房在哪', expectedIndex: 109, type: 'semantic', description: '婚房→回龙观' },
+  { query: '你亲戚做餐饮的吗', expectedIndex: 110, type: 'semantic', description: '餐饮→叔叔湘菜馆' },
+  { query: '你和未来丈母娘关系怎样', expectedIndex: 108, type: 'semantic', description: '丈母娘→杭州' },
+
+  // Health/Finance semantic
+  { query: '你有什么消化系统的问题', expectedIndex: 120, type: 'semantic', description: '消化→慢性胃炎' },
+  { query: '你定期做什么体检', expectedIndex: [121, 123], type: 'semantic', description: '定期体检→胃镜/甲状腺' },
+  { query: '你每天要吃药吗', expectedIndex: 122, type: 'semantic', description: '每天吃药→奥美拉唑' },
+  { query: '你久坐有什么毛病', expectedIndex: 124, type: 'semantic', description: '久坐→腰椎间盘突出' },
+  { query: '你花大钱买过什么办公设备', expectedIndex: 125, type: 'semantic', description: '办公设备→Herman Miller' },
+  { query: '你的存款放在哪', expectedIndex: [126, 138], type: 'semantic', description: '存款→蚂蚁财富/理财通' },
+  { query: '你有定期投资习惯吗', expectedIndex: 127, type: 'semantic', description: '定期投资→定投' },
+  { query: '你的风险保障', expectedIndex: 128, type: 'semantic', description: '风险保障→百万医疗+重疾' },
+  { query: '你税务方面有什么经历', expectedIndex: 129, type: 'semantic', description: '税务→退税4800' },
+  { query: '你的住房公积金', expectedIndex: 130, type: 'semantic', description: '住房公积金→3200' },
+
+  // Education semantic
+  { query: '你拿过什么学业荣誉', expectedIndex: 131, type: 'semantic', description: '学业荣誉→国奖' },
+  { query: '你本科的毕业项目', expectedIndex: 132, type: 'semantic', description: '毕业项目→人脸识别' },
+  { query: '你印象最深的老师', expectedIndex: [133, 136], type: 'semantic', description: '印象深老师→周老师/刘老师' },
+  { query: '你考研失败了吗', expectedIndex: 134, type: 'semantic', description: '考研失败→差3分' },
+  { query: '你读了几年学', expectedIndex: [131, 136], type: 'semantic', description: '读书→武大+长沙一中' },
+
+  // Social/Hobby semantic
+  { query: '你的创业朋友', expectedIndex: 141, type: 'semantic', description: '创业朋友→刘毅SaaS' },
+  { query: '你和同学怎么保持联系', expectedIndex: [140, 142], type: 'semantic', description: '保持联系→群聊+狼人杀' },
+  { query: '你和邻居关系好吗', expectedIndex: 143, type: 'semantic', description: '邻居→退休夫妇送菜' },
+  { query: '你有什么编程比赛经历', expectedIndex: 144, type: 'semantic', description: '编程比赛→黑客马拉松' },
+  { query: '你的算法能力怎么样', expectedIndex: 145, type: 'semantic', description: '算法→LeetCode 600题' },
+  { query: '你有什么外设爱好', expectedIndex: 146, type: 'semantic', description: '外设→机械键盘' },
+  { query: '你玩什么手游', expectedIndex: 147, type: 'semantic', description: '手游→原神' },
+  { query: '你周末有什么固定安排', expectedIndex: [148, 30], type: 'semantic', description: '周末固定→看书/陪孩子' },
+  { query: '你赖床吗', expectedIndex: 149, type: 'semantic', description: '赖床→十分钟' },
+  { query: '你中午怎么恢复精力', expectedIndex: 151, type: 'semantic', description: '恢复精力→午休趴桌上' },
+
+  // Personality/Life semantic
+  { query: '你说话会得罪人吗', expectedIndex: 160, type: 'semantic', description: '得罪人→直来直去' },
+  { query: '你是理性消费者吗', expectedIndex: 162, type: 'semantic', description: '理性消费→做功课看测评' },
+  { query: '你是内向还是外向', expectedIndex: 163, type: 'semantic', description: '内向外向→不喜欢大场合' },
+  { query: '你有什么减压方式', expectedIndex: 165, type: 'semantic', description: '减压→江边散步' },
+  { query: '你为什么来北京', expectedIndex: 166, type: 'semantic', description: '来北京→字节offer' },
+  { query: '你去西安看了什么', expectedIndex: 168, type: 'semantic', description: '西安→兵马俑大唐不夜城' },
+  { query: '你独自旅行过吗', expectedIndex: 170, type: 'semantic', description: '独自旅行→云南半个月' },
+  { query: '你有什么坏习惯', expectedIndex: [172, 173, 175], type: 'semantic', description: '坏习惯→选择困难/静音/暴食' },
+  { query: '你的恋爱经历', expectedIndex: [1, 178, 119], type: 'semantic', description: '恋爱→小雨/前女友/领证' },
+  { query: '你的职业路径', expectedIndex: [179, 86, 0], type: 'semantic', description: '职业路径→美团→字节' },
+
+  // Specific details semantic
+  { query: '你是苹果生态的用户吗', expectedIndex: [180, 35, 184], type: 'semantic', description: '苹果→iPhone/MacBook/AirPods' },
+  { query: '你听什么类型的音频内容', expectedIndex: [184, 185], type: 'semantic', description: '音频→播客' },
+  { query: '你的睡眠习惯', expectedIndex: [190, 155, 10], type: 'semantic', description: '睡眠习惯→空调/洗漱/失眠' },
+  { query: '你做饭有什么特点', expectedIndex: [193, 48], type: 'semantic', description: '做饭特点→放蒜多/糖醋排骨' },
+  { query: '你和家人怎么沟通', expectedIndex: [194, 112], type: 'semantic', description: '家人沟通→视频通话/催婚' },
+  { query: '你对摄影感兴趣吗', expectedIndex: [187, 157], type: 'semantic', description: '摄影→富士相机/2万张照片' },
+  { query: '你有什么口腔问题', expectedIndex: 197, type: 'semantic', description: '口腔→溃疡缺维B' },
+  { query: '你在折腾什么技术项目', expectedIndex: 198, type: 'semantic', description: '技术项目→Home Assistant' },
+  { query: '你周末怎么过', expectedIndex: [199, 148, 30], type: 'semantic', description: '周末→宜家/看书/公园' },
+  { query: '你穿衣有什么习惯', expectedIndex: [196, 70], type: 'semantic', description: '穿衣→羽绒服/优衣库Zara' },
+
+  // ════════════════════════════════════════════════════════════
+  // HARD QUERIES (100 total — 否定/聚合/跨领域/时间推理/抽象)
+  // ════════════════════════════════════════════════════════════
+
+  // Negation queries (否定推理)
+  { query: '你有什么做不到的事', expectedIndex: [75, 47, 172], type: 'hard', description: '做不到→开车/小提琴/选择' },
+  { query: '你的弱点是什么', expectedIndex: [160, 172, 175], type: 'hard', description: '弱点→急躁/选择困难/暴食' },
+  { query: '你不看什么内容', expectedIndex: 78, type: 'hard', description: '不看→娱乐八卦' },
+  { query: '你有什么不能吃的', expectedIndex: [51, 120], type: 'hard', description: '不能吃→香菜/不能喝酒吃辣' },
+  { query: '你有什么不敢做的事', expectedIndex: [75, 26, 58], type: 'hard', description: '不敢→开车/蛇/打针' },
+  { query: '你放弃过什么', expectedIndex: [47, 135, 156], type: 'hard', description: '放弃→小提琴/考研/健身房' },
+  { query: '你后悔过什么决定吗', expectedIndex: [135, 32], type: 'hard', description: '后悔→考研/炒股' },
+  { query: '你有什么社交障碍', expectedIndex: [163, 160], type: 'hard', description: '社交障碍→不喜欢大聚会/得罪人' },
+  { query: '你讨厌什么', expectedIndex: [51, 78, 181], type: 'hard', description: '讨厌→香菜/八卦/被问结婚' },
+  { query: '你失败过吗', expectedIndex: [9, 134, 32], type: 'hard', description: '失败→面试被刷/考研/炒股' },
+
+  // Aggregation queries (聚合推理)
+  { query: '你每个月的收支是什么样的', expectedIndex: [139, 11, 68, 127, 128], type: 'hard', description: '收支→工资/房贷/网购/定投/保险' },
+  { query: '你身上有多少慢性病', expectedIndex: [120, 124, 123, 2, 197], type: 'hard', description: '慢性病→胃炎/腰椎/甲状腺/血压/溃疡' },
+  { query: '你的所有社交媒体账号', expectedIndex: [40, 41, 42, 43], type: 'hard', description: '社交媒体→抖音/博客/微信/小红书' },
+  { query: '你都在哪些城市生活过', expectedIndex: [17, 4, 167, 166, 109], type: 'hard', description: '城市→长沙/武汉/上海/北京' },
+  { query: '列举你的所有数码设备', expectedIndex: [35, 180, 184, 177], type: 'hard', description: '数码→MacBook/iPhone/AirPods/Watch' },
+  { query: '你家有哪些人', expectedIndex: [100, 101, 102, 1, 12], type: 'hard', description: '家人→爸/妈/妹妹/女朋友/孩子' },
+  { query: '你有哪些运动习惯', expectedIndex: [6, 20, 14, 36, 176], type: 'hard', description: '运动→跑步/篮球/羽毛球/潜水' },
+  { query: '你在多少个公司工作过', expectedIndex: [90, 86, 0, 39], type: 'hard', description: '公司→百度/美团/字节' },
+  { query: '你学过多少门语言', expectedIndex: [96, 7, 33], type: 'hard', description: '语言→Go/Python/Rust/日语' },
+  { query: '你的全部保险和理财', expectedIndex: [126, 127, 128, 138], type: 'hard', description: '保险理财→货基/定投/医疗/定期' },
+
+  // Cross-domain queries (跨领域推理)
+  { query: '工作压力对你健康有影响吗', expectedIndex: [19, 124, 10, 55], type: 'hard', description: '工作→健康→加班/腰椎/失眠/中暑' },
+  { query: '你的经济状况和生活质量', expectedIndex: [139, 11, 109, 68], type: 'hard', description: '经济生活→工资/房贷/房子/消费' },
+  { query: '你的家庭责任', expectedIndex: [63, 12, 112, 194], type: 'hard', description: '家庭责任→盖房/怀孕/催婚/通话' },
+  { query: '技术能力如何影响你的职业', expectedIndex: [96, 98, 145, 93], type: 'hard', description: '技术→职业→经验/GitHub/LeetCode/CTO表扬' },
+  { query: '你的消费观和收入匹配吗', expectedIndex: [139, 68, 71, 125], type: 'hard', description: '消费收入→工资/网购/盲盒/椅子' },
+  { query: '你的通勤影响了生活质量吗', expectedIndex: [72, 73, 150, 19], type: 'hard', description: '通勤影响→地铁/时间/步行/加班' },
+  { query: '你的饮食习惯和健康有关系吗', expectedIndex: [120, 17, 51, 183], type: 'hard', description: '饮食健康→胃炎/吃辣/香菜/咖啡' },
+  { query: '你的社交圈都是什么类型的人', expectedIndex: [84, 28, 141, 143], type: 'hard', description: '社交圈→同事/室友/创业/邻居' },
+  { query: '你的文化生活', expectedIndex: [37, 44, 79, 195], type: 'hard', description: '文化→三体/周杰伦/B站/黑客与画家' },
+  { query: '你的线上和线下社交', expectedIndex: [42, 142, 14, 36], type: 'hard', description: '线上线下→微信/狼人杀/篮球/羽毛球' },
+
+  // Temporal reasoning (时间推理)
+  { query: '你最近换了什么', expectedIndex: [166, 180, 94], type: 'hard', description: '最近换→搬北京/换手机/同事离职' },
+  { query: '你去年发生了什么大事', expectedIndex: [104, 38, 103, 168], type: 'hard', description: '去年→爷爷过世/近视手术/妹妹结婚/西安' },
+  { query: '你这个月要做什么', expectedIndex: [95, 18, 89], type: 'hard', description: '这个月→述职/婚礼/POC' },
+  { query: '你明年有什么计划', expectedIndex: [61, 119, 169], type: 'hard', description: '明年→PMP/领证/蜜月' },
+  { query: '你小时候和现在有什么变化', expectedIndex: [56, 57, 166, 0], type: 'hard', description: '变化→农村→北京→字节' },
+  { query: '你最近三个月做了什么', expectedIndex: [89, 93, 94, 146], type: 'hard', description: '三个月→POC/CTO/同事离职/键盘' },
+  { query: '你的职业时间线', expectedIndex: [90, 179, 86, 166, 0], type: 'hard', description: '时间线→百度→美团→字节' },
+  { query: '你什么时候开始坚持的习惯', expectedIndex: [6, 25, 127], type: 'hard', description: '坚持→跑步三个月/戒烟47天/定投' },
+  { query: '你过去一年的旅行', expectedIndex: [168, 5, 27], type: 'hard', description: '旅行→西安/成都/日本计划' },
+  { query: '你最近的情感变化', expectedIndex: [12, 119, 118], type: 'hard', description: '情感→怀孕/领证/妹妹怀孕' },
+
+  // Abstract / philosophical queries (抽象推理)
+  { query: '你的人生优先级', expectedIndex: [12, 63, 60, 62], type: 'hard', description: '优先级→家庭/父母/梦想/财务' },
+  { query: '什么定义了你', expectedIndex: [0, 17, 56, 160], type: 'hard', description: '定义→工作/家乡/童年/性格' },
+  { query: '你最骄傲的事', expectedIndex: [93, 57, 98, 131], type: 'hard', description: '骄傲→CTO表扬/竞赛/GitHub/国奖' },
+  { query: '你最大的遗憾', expectedIndex: [134, 47, 59], type: 'hard', description: '遗憾→考研/小提琴/旺财' },
+  { query: '你的安全感来自哪里', expectedIndex: [1, 128, 109, 139], type: 'hard', description: '安全感→小雨/保险/房子/工资' },
+  { query: '你对自己满意吗', expectedIndex: [83, 93, 32, 156], type: 'hard', description: '满意→绩效B+/被表扬/亏钱/健身放弃' },
+  { query: '你在逃避什么', expectedIndex: [112, 163, 75], type: 'hard', description: '逃避→催婚/社交/开车' },
+  { query: '你的精神世界', expectedIndex: [37, 44, 79, 60], type: 'hard', description: '精神→三体/周杰伦/B站/咖啡店梦' },
+  { query: '你的焦虑来源', expectedIndex: [19, 11, 31, 95], type: 'hard', description: '焦虑→加班/房贷/换工作/晋升' },
+  { query: '你的幸福时刻', expectedIndex: [12, 8, 5, 177], type: 'hard', description: '幸福→怀孕/妈妈红烧肉/成都/生日礼物' },
+
+  // Paraphrase / synonym queries (同义改写)
+  { query: '你的代步工具', expectedIndex: [22, 72, 74], type: 'hard', description: '代步→特斯拉/地铁/单车' },
+  { query: '你吃什么保健品', expectedIndex: 122, type: 'hard', description: '保健品→药（模糊边界）' },
+  { query: '你有什么证书', expectedIndex: [75, 176, 61], type: 'hard', description: '证书→驾照/PADI OW/PMP计划' },
+  { query: '你写过多少代码', expectedIndex: [41, 98, 145], type: 'hard', description: '代码→博客/GitHub/LeetCode' },
+  { query: '你的居住环境', expectedIndex: [109, 143, 116], type: 'hard', description: '居住→回龙观/邻居/金鱼绿萝' },
+  { query: '你的娱乐开支', expectedIndex: [71, 147, 146], type: 'hard', description: '娱乐开支→盲盒/原神/键盘' },
+  { query: '你的屏幕时间', expectedIndex: [40, 66, 67], type: 'hard', description: '屏幕时间→抖音/B站/微博' },
+  { query: '你的上下班路线', expectedIndex: [72, 150, 74], type: 'hard', description: '路线→地铁/走路15分/单车' },
+  { query: '你的学历背景', expectedIndex: [4, 131, 136], type: 'hard', description: '学历→武汉/武大/长沙一中' },
+  { query: '你的副业', expectedIndex: [41, 98], type: 'hard', description: '副业→技术博客/开源项目' },
+
+  // Complex scenario queries (复杂场景)
+  { query: '如果你生病了谁照顾你', expectedIndex: [1, 101, 102], type: 'hard', description: '照顾→小雨/妈妈/妹妹' },
+  { query: '你退休后会做什么', expectedIndex: [60, 117, 187], type: 'hard', description: '退休→咖啡店/像爸钓鱼/摄影' },
+  { query: '你的孩子出生后生活会怎么变', expectedIndex: [12, 109, 139, 19], type: 'hard', description: '孩子出生→预产期/房子/工资/加班' },
+  { query: '搬到北京后你失去了什么', expectedIndex: [167, 106, 100], type: 'hard', description: '失去→上海生活/离家远/离父母远' },
+  { query: '你觉得自己健康吗', expectedIndex: [120, 124, 10, 2, 197], type: 'hard', description: '健康→胃炎/腰椎/失眠/血压/溃疡' },
+  { query: '你最花钱的是什么', expectedIndex: [11, 125, 109], type: 'hard', description: '花钱→房贷/椅子/房子' },
+  { query: '你的社会关系网', expectedIndex: [84, 28, 82, 141, 143], type: 'hard', description: '关系网→李晨/张磊/leader/刘毅/邻居' },
+  { query: '你的信息获取渠道', expectedIndex: [76, 79, 185, 43], type: 'hard', description: '信息→36kr/B站/播客/小红书' },
+  { query: '你人生的转折点', expectedIndex: [166, 134, 178, 0], type: 'hard', description: '转折→搬北京/考研失败/分手/字节offer' },
+  { query: '你从父母身上继承了什么', expectedIndex: [100, 17, 107, 2], type: 'hard', description: '继承→数学/湖南/高血压遗传' },
+
+  // ════════════════════════════════════════════════════════════
+  // ADDITIONAL SEMANTIC QUERIES (filling to 200 semantic)
+  // ════════════════════════════════════════════════════════════
+
+  { query: '你下午犯困怎么办', expectedIndex: 152, type: 'semantic', description: '犯困→咖啡续命' },
+  { query: '你最常吃的外卖是什么', expectedIndex: 153, type: 'semantic', description: '常吃→黄焖鸡' },
+  { query: '你有洁癖吗', expectedIndex: [154, 192], type: 'semantic', description: '洁癖→吹干头发/确认锁门' },
+  { query: '你几点上床', expectedIndex: 155, type: 'semantic', description: '上床→十点半洗漱' },
+  { query: '你办了什么会员卡', expectedIndex: 156, type: 'semantic', description: '会员卡→健身房年卡' },
+  { query: '你用什么记录生活', expectedIndex: [157, 158], type: 'semantic', description: '记录→拍照/Notion' },
+  { query: '你和女朋友的约会活动', expectedIndex: [159, 199], type: 'semantic', description: '约会→看综艺/逛宜家' },
+  { query: '你性格上容易吃亏吗', expectedIndex: [160, 174], type: 'semantic', description: '吃亏→直来直去/不求人' },
+  { query: '你是完美主义者吗', expectedIndex: [162, 164, 192], type: 'semantic', description: '完美主义→测评/清单/强迫症' },
+  { query: '你的散步习惯', expectedIndex: [165, 150], type: 'semantic', description: '散步→江边/走路去地铁' },
+  { query: '你住过几个城市', expectedIndex: [17, 4, 167, 109], type: 'semantic', description: '住过→长沙/武汉/上海/北京' },
+  { query: '你国庆一般怎么安排', expectedIndex: [168, 5], type: 'semantic', description: '国庆→西安/成都' },
+  { query: '你有什么极限运动经历', expectedIndex: 176, type: 'semantic', description: '极限运动→潜水' },
+  { query: '你收到过什么印象深刻的礼物', expectedIndex: [177, 99], type: 'semantic', description: '礼物→Apple Watch/iPad Pro' },
+  { query: '你之前的感情经历', expectedIndex: 178, type: 'semantic', description: '之前感情→前女友异地' },
+  { query: '你从实习到现在多久了', expectedIndex: [90, 179], type: 'semantic', description: '实习至今→百度实习/美团转正' },
+  { query: '你以前用安卓吗', expectedIndex: 180, type: 'semantic', description: '安卓→之前一直用' },
+  { query: '你为什么不用网易云', expectedIndex: 182, type: 'semantic', description: '不用网易云→版权少' },
+  { query: '你喝咖啡加糖吗', expectedIndex: 183, type: 'semantic', description: '加糖→不加糖不加奶' },
+  { query: '你通勤路上做什么', expectedIndex: [184, 185], type: 'semantic', description: '通勤路上→听播客' },
+  { query: '你有阅读习惯吗', expectedIndex: [186, 148, 37], type: 'semantic', description: '阅读→买书/咖啡馆看书/三体' },
+  { query: '你有什么想入手的新装备', expectedIndex: [187, 16], type: 'semantic', description: '新装备→富士相机/特斯拉' },
+  { query: '你搬过家吗', expectedIndex: [188, 166], type: 'semantic', description: '搬家→扔东西/上海到北京' },
+  { query: '你睡觉有什么讲究', expectedIndex: [190, 10], type: 'semantic', description: '睡觉讲究→空调/失眠' },
+  { query: '你出门前有什么仪式', expectedIndex: 192, type: 'semantic', description: '出门仪式→确认锁门' },
+  { query: '你做饭口味重吗', expectedIndex: [193, 17], type: 'semantic', description: '口味重→放蒜多/能吃辣' },
+  { query: '你和父母感情好吗', expectedIndex: [194, 63, 112], type: 'semantic', description: '父母感情→通话/盖房/催婚' },
+  { query: '你有什么阅读推荐', expectedIndex: [195, 37], type: 'semantic', description: '推荐→黑客与画家/三体' },
+  { query: '你怕热还是怕冷', expectedIndex: [52, 55], type: 'semantic', description: '怕热冷→怕冷/中暑' },
+  { query: '你牙齿有什么问题', expectedIndex: 197, type: 'semantic', description: '牙齿→口腔溃疡' },
+  { query: '你家有什么智能设备', expectedIndex: 198, type: 'semantic', description: '智能设备→Home Assistant' },
+  { query: '你逛街一般去哪', expectedIndex: [199, 70], type: 'semantic', description: '逛街→宜家/优衣库Zara' },
+  { query: '你的咖啡因摄入', expectedIndex: [64, 152, 91, 183], type: 'semantic', description: '咖啡因→早上咖啡/下午咖啡/星巴克/美式' },
+  { query: '你的工作环境怎么样', expectedIndex: [92, 85, 91], type: 'semantic', description: '工作环境→降噪/显示器/星巴克' },
+  { query: '你有什么竞赛经历', expectedIndex: [57, 144], type: 'semantic', description: '竞赛→数学竞赛/黑客马拉松' },
+
+  // ════════════════════════════════════════════════════════════
+  // ADDITIONAL HARD QUERIES (filling to 100 hard)
+  // ════════════════════════════════════════════════════════════
+
+  { query: '你同时在学几样东西', expectedIndex: [7, 33, 89, 198], type: 'hard', description: '同时学→Rust/日语/XGBoost/HA' },
+  { query: '你的开销比收入大吗', expectedIndex: [139, 11, 68, 71], type: 'hard', description: '开销收入→工资vs房贷/网购/盲盒' },
+  { query: '你身边谁最近有变动', expectedIndex: [94, 118, 114], type: 'hard', description: '变动→小陈离职/妹妹怀孕/表弟高考' },
+  { query: '描述你的早晨', expectedIndex: [149, 20, 64, 150, 72], type: 'hard', description: '早晨→闹钟/跑步/咖啡/走路/地铁' },
+  { query: '你的人际关系有什么冲突', expectedIndex: [160, 82, 112], type: 'hard', description: '冲突→脾气/leader要求高/催婚' },
+  { query: '你花在屏幕上的总时间', expectedIndex: [40, 66, 67, 147], type: 'hard', description: '屏幕总时间→抖音/B站/微博/原神' },
+  { query: '你的房子相关开支', expectedIndex: [11, 130, 109], type: 'hard', description: '房子开支→房贷/公积金/买房' },
+  { query: '你在不同城市的经历', expectedIndex: [17, 4, 167, 166, 171], type: 'hard', description: '城市经历→长沙/武汉/上海/北京/出差' },
+  { query: '你的所有恐惧和焦虑', expectedIndex: [26, 58, 52, 19, 95], type: 'hard', description: '恐惧焦虑→蛇/打针/冷/加班/晋升' },
+  { query: '影响你人生轨迹的人', expectedIndex: [100, 136, 82, 1], type: 'hard', description: '影响人→爸/班主任刘/leader/小雨' },
+  { query: '你的长期投资有哪些', expectedIndex: [127, 126, 138, 128], type: 'hard', description: '长期投资→定投/货基/定期/保险' },
+  { query: '你的所有不良习惯', expectedIndex: [40, 175, 172, 156, 10], type: 'hard', description: '不良→抖音/暴食/选择困难/不健身/失眠' },
+  { query: '你拥有的所有证书和资质', expectedIndex: [75, 176], type: 'hard', description: '证书资质→驾照/PADI OW' },
+  { query: '你最亲近的五个人', expectedIndex: [1, 100, 101, 102, 84], type: 'hard', description: '亲近→小雨/爸/妈/妹妹/李晨' },
+  { query: '你这辈子搬了几次家', expectedIndex: [56, 4, 167, 166, 188], type: 'hard', description: '搬家→农村/武汉/上海/北京/扔东西' },
+  { query: '你一天喝几杯咖啡', expectedIndex: [64, 152, 91], type: 'hard', description: '咖啡次数→早上/下午/星巴克' },
+  { query: '你对字节的整体评价', expectedIndex: [97, 92, 93, 19], type: 'hard', description: '字节评价→福利/噪音/被表扬/加班' },
+  { query: '你这几年错过了什么', expectedIndex: [134, 47, 156, 32], type: 'hard', description: '错过→考研/小提琴/健身/炒股' },
+  { query: '你现在最担心什么', expectedIndex: [12, 95, 120, 19], type: 'hard', description: '担心→怀孕/晋升/胃炎/加班' },
+  { query: '你和小雨的未来规划', expectedIndex: [119, 169, 12, 109], type: 'hard', description: '未来→领证/蜜月/孩子/房子' },
+  { query: '你减轻工作疲劳的方式', expectedIndex: [45, 152, 91, 165], type: 'hard', description: '减疲劳→lo-fi/咖啡/星巴克/散步' },
+  { query: '你生活中的仪式感', expectedIndex: [64, 192, 155, 194], type: 'hard', description: '仪式→咖啡/锁门/洗漱/视频通话' },
+  { query: '你的知识体系', expectedIndex: [96, 145, 41, 158], type: 'hard', description: '知识→技术栈/LeetCode/博客/Notion' },
+  { query: '你和家人的距离', expectedIndex: [17, 109, 166, 194], type: 'hard', description: '距离→长沙/北京/搬家/通话' },
+  { query: '你生活中的矛盾', expectedIndex: [120, 17, 19, 156], type: 'hard', description: '矛盾→胃炎但吃辣/加班累/不健身' },
+  { query: '你的碎片时间都在做什么', expectedIndex: [40, 67, 66, 184], type: 'hard', description: '碎片→抖音/微博/B站/播客' },
+  { query: '你有哪些定期要做的事', expectedIndex: [121, 127, 194, 36], type: 'hard', description: '定期→胃镜/定投/通话/羽毛球' },
+  { query: '你的食物地图', expectedIndex: [17, 5, 48, 153, 51], type: 'hard', description: '食物→辣/火锅/糖醋排骨/黄焖鸡/香菜' },
+  { query: '你的苹果全家桶', expectedIndex: [180, 35, 184, 177], type: 'hard', description: '苹果→iPhone/MacBook/AirPods/Watch' },
+  { query: '总结你的性格', expectedIndex: [160, 161, 163, 174, 172], type: 'hard', description: '性格→急躁/正义/内向/独立/纠结' },
 ]
 
 // ═══════════════════════════════════════════════════════════════
@@ -437,6 +951,7 @@ function runBenchmark() {
 
   let directHits = 0, directTotal = 0
   let semanticHits = 0, semanticTotal = 0
+  let hardHits = 0, hardTotal = 0
   let top1Hits = 0
   const failures: { query: string; type: string; desc: string; got: string[] }[] = []
 
@@ -451,9 +966,12 @@ function runBenchmark() {
     if (tc.type === 'direct') {
       directTotal++
       if (hit) directHits++
-    } else {
+    } else if (tc.type === 'semantic') {
       semanticTotal++
       if (hit) semanticHits++
+    } else {
+      hardTotal++
+      if (hit) hardHits++
     }
     if (isTop1) top1Hits++
 
@@ -470,6 +988,9 @@ function runBenchmark() {
     console.log(`${mark} [${tc.type.padEnd(8)}] ${tc.description.padEnd(20)} | ${tc.query}`)
   }
 
+  const allHits = directHits + semanticHits + hardHits
+  const allTotal = directTotal + semanticTotal + hardTotal
+
   console.log()
   console.log('═══════════════════════════════════════════════════════════')
   console.log('  结果汇总')
@@ -477,13 +998,15 @@ function runBenchmark() {
   console.log()
   const directRate = (directHits / directTotal * 100).toFixed(0)
   const semanticRate = (semanticHits / semanticTotal * 100).toFixed(0)
-  const totalRate = ((directHits + semanticHits) / (directTotal + semanticTotal) * 100).toFixed(0)
-  const top1Rate = (top1Hits / (directTotal + semanticTotal) * 100).toFixed(0)
+  const hardRate = (hardHits / hardTotal * 100).toFixed(0)
+  const totalRate = (allHits / allTotal * 100).toFixed(0)
+  const top1Rate = (top1Hits / allTotal * 100).toFixed(0)
 
   console.log(`  直接召回 (top-3):  ${directHits}/${directTotal} = ${directRate}%`)
   console.log(`  语义召回 (top-3):  ${semanticHits}/${semanticTotal} = ${semanticRate}%`)
-  console.log(`  总体 (top-3):      ${(directHits + semanticHits)}/${(directTotal + semanticTotal)} = ${totalRate}%`)
-  console.log(`  Top-1 准确率:      ${top1Hits}/${(directTotal + semanticTotal)} = ${top1Rate}%`)
+  console.log(`  困难召回 (top-3):  ${hardHits}/${hardTotal} = ${hardRate}%`)
+  console.log(`  总体 (top-3):      ${allHits}/${allTotal} = ${totalRate}%`)
+  console.log(`  Top-1 准确率:      ${top1Hits}/${allTotal} = ${top1Rate}%`)
   console.log()
 
   if (failures.length > 0) {

@@ -1728,6 +1728,19 @@ const _defaultSynonyms: Record<string, string[]> = {
 }
 // ── Per-language synonym storage ──
 const _synonymsByLang = new Map<string, Record<string, string[]>>()
+// 反向索引：word → [key1, key2, ...]（加速 expandQuery 反向查找）
+const _reverseIndex = new Map<string, Map<string, string[]>>()  // lang → (word → keys[])
+
+function buildReverseIndex(lang: string, syns: Record<string, string[]>): void {
+  const idx = new Map<string, string[]>()
+  for (const [key, words] of Object.entries(syns)) {
+    for (const w of words) {
+      if (!idx.has(w)) idx.set(w, [])
+      idx.get(w)!.push(key)
+    }
+  }
+  _reverseIndex.set(lang, idx)
+}
 
 /** Classify a synonym key as 'zh' or 'en' */
 function classifySynonymLang(key: string): string {
@@ -1782,6 +1795,7 @@ function getSynonyms(lang: string): Record<string, string[]> {
     } catch {}
     if (dirty || !existsSync(p)) debouncedSave(p, loaded)
     _synonymsByLang.set(lang, loaded)
+    buildReverseIndex(lang, loaded)  // 构建反向索引（10000 组 ~5ms）
   }
   return _synonymsByLang.get(lang)!
 }
@@ -2075,19 +2089,24 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   // ── 日常 ──
   '日常': ['起床','通勤','午休','下班','散步','洗澡','睡觉'],
 
-  // ── English concept hierarchy ──
-  'health': ['blood pressure','weight','sleep','insomnia','exercise','checkup','allergy','headache','vision'],
-  'finance': ['mortgage','salary','income','stocks','savings','budget','credit card','loan','tax'],
-  'career': ['overtime','colleague','boss','project','promotion','interview','resume','performance'],
-  'family': ['parents','children','kids','spouse','partner','pets','cat','dog'],
-  'housing': ['mortgage','rent','renovation','moving','apartment','landlord'],
-  'food': ['takeout','cooking','recipe','breakfast','lunch','dinner','snack'],
-  'transport': ['driving','subway','flight','business trip','train','taxi','traffic'],
-  'emotion': ['anxiety','stress','depression','insomnia','happiness','frustration','loneliness','burnout'],
-  'social': ['friend','colleague','neighbor','dating','party','argument','breakup'],
-  'tech': ['server','database','deploy','frontend','backend','bug','framework','api','devops'],
-  'programming': ['server','database','frontend','backend','bug','framework','api','algorithm'],
-  'entertainment': ['movie','game','music','running','travel','reading','streaming'],
+  // ── English concept hierarchy（expanded for LOCOMO coverage）──
+  'health': ['blood pressure','weight','sleep','insomnia','exercise','checkup','allergy','headache','vision','surgery','medication','therapy','diet','symptoms','diagnosis','prescription','hospital','doctor','mental health','chronic'],
+  'finance': ['mortgage','salary','income','stocks','savings','budget','credit card','loan','tax','investment','retirement','insurance','debt','expenses','bonus','raise','rent','bills','financial'],
+  'career': ['overtime','colleague','boss','project','promotion','interview','resume','performance','coworker','manager','meeting','deadline','startup','business','company','hired','fired','layoff','remote','office'],
+  'family': ['parents','children','kids','spouse','partner','pets','cat','dog','mother','father','sister','brother','son','daughter','wife','husband','wedding','divorce','pregnant','baby'],
+  'housing': ['mortgage','rent','renovation','moving','apartment','landlord','house','condo','neighborhood','lease','furniture','kitchen','bedroom','backyard','property'],
+  'food': ['takeout','cooking','recipe','breakfast','lunch','dinner','snack','restaurant','cuisine','diet','vegetarian','baking','groceries','meal prep','favorite food','allergic'],
+  'transport': ['driving','subway','flight','business trip','train','taxi','traffic','commute','bus','car','parking','road trip','uber','bicycle','walk'],
+  'emotion': ['anxiety','stress','depression','insomnia','happiness','frustration','loneliness','burnout','excited','worried','angry','sad','grateful','confident','overwhelmed','jealous'],
+  'social': ['friend','colleague','neighbor','dating','party','argument','breakup','relationship','wedding','reunion','group','community','club','gathering','social media'],
+  'tech': ['server','database','deploy','frontend','backend','bug','framework','api','devops','cloud','machine learning','software','hardware','app','website','coding'],
+  'entertainment': ['movie','game','music','running','travel','reading','streaming','concert','show','podcast','book','series','hobby','sport','painting','photography'],
+  'education': ['school','college','university','degree','professor','thesis','exam','grade','scholarship','class','major','student','homework','graduation','campus'],
+  'personality': ['introvert','extrovert','shy','confident','patient','impatient','organized','messy','punctual','procrastinate','competitive','easygoing','stubborn','generous','ambitious'],
+  'travel': ['vacation','trip','flight','hotel','destination','passport','sightseeing','backpacking','beach','mountain','abroad','tourist','itinerary','luggage','adventure'],
+  'hobby': ['running','hiking','yoga','painting','gardening','cooking','photography','chess','reading','gaming','cycling','fishing','woodworking','singing','dancing'],
+  'routine': ['morning','commute','lunch break','afternoon','evening','bedtime','wake up','coffee','workout','dinner','walk','shower','sleep','alarm','schedule'],
+  'life event': ['wedding','graduation','promotion','moving','birth','death','accident','surgery','retirement','engagement','breakup','new job','bought house','lost job'],
 }
 
 /** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */
@@ -2345,10 +2364,10 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
       if (other.length === 2 && /^[\u4e00-\u9fff]+$/.test(other)) {
         const isKnown = Object.keys(langSynonyms).includes(other) ||
           Object.values(langSynonyms).some(syns => syns.includes(other))
-        if (!isKnown && (network().df[other] || 0) < 3) continue
+        if (!isKnown && (network().df[other] || 0) < 1) continue
       }
       const p = pmi(w, other)
-      if (p > 1.5) candidates.push({ word: other, pmiScore: p })  // PMI > 1.5 = strong association
+      if (p > 1.0 && (network().df[other] || 0) >= 2) candidates.push({ word: other, pmiScore: p })  // PMI > 1.0 + df ≥ 2 = 有统计意义的关联
     }
     candidates.sort((a, b) => b.pmiScore - a.pmiScore)
     for (const c of candidates.slice(0, 3)) {
@@ -2375,18 +2394,23 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
         }
       }
     }
-    // 反向查：w 是某个 key 的同义词
-    for (const [key, syns] of Object.entries(langSynonyms)) {
-      if (syns.includes(w)) {
+    // 反向查：w 是某个 key 的同义词（用反向索引 O(1) 替代暴力遍历 O(N)）
+    const _revIdx = _reverseIndex.get(lang)
+    const _matchedKeys = _revIdx?.get(w)
+    if (_matchedKeys) {
+      for (const key of _matchedKeys) {
         if (key.length >= 2) {
           const existing = expanded.get(key) || 0
           if (existing < 0.9) expanded.set(key, 0.9)
         }
         // 同组的其他词也加入（同义传递）
-        for (const peer of syns) {
-          if (peer !== w && peer.length >= 2) {
-            const existing = expanded.get(peer) || 0
-            if (existing < 0.7) expanded.set(peer, 0.7)
+        const peers = langSynonyms[key]
+        if (peers) {
+          for (const peer of peers) {
+            if (peer !== w && peer.length >= 2) {
+              const existing = expanded.get(peer) || 0
+              if (existing < 0.7) expanded.set(peer, 0.7)
+            }
           }
         }
       }

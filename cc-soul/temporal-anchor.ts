@@ -49,8 +49,21 @@ export function extractAnchors(memories: Memory[]): TemporalAnchor[] {
       continue
     }
 
-    // 含明确时间词的记忆 = 中等锚点
-    const timeMatch = mem.content.match(/(\d{4})年|(\d{1,2})月(\d{1,2})[日号]|去年|今年|上个月|上周/)
+    // 高重要性记忆 = 中强锚点（summary/核心事实，时间可靠）
+    if ((mem.importance || 0) >= 8) {
+      anchors.push({
+        description: mem.content.slice(0, 50),
+        timestamp: mem.ts,
+        confidence: 0.75,
+        source: 'explicit',
+      })
+      continue
+    }
+
+    // 含明确时间词的记忆 = 中等锚点（中英文时间表达）
+    const timeMatch = mem.content.match(
+      /(\d{4})年|(\d{1,2})月(\d{1,2})[日号]|去年|今年|上个月|上周|前天|昨天|当时|那时候|那年|january|february|march|april|may|june|july|august|september|october|november|december|\d{1,2}\s+\w+\s+\d{4}|last\s+(week|month|year|time|night|summer|winter|spring|fall)|a\s+(few|couple)\s+(days|weeks|months|years)\s+ago|back\s+(in|when)|recently|the\s+other\s+day|earlier\s+this|years?\s+ago|months?\s+ago|weeks?\s+ago/i
+    )
     if (timeMatch) {
       anchors.push({
         description: mem.content.slice(0, 50),
