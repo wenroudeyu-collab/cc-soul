@@ -161,6 +161,27 @@ function buildMemories(q: LocomoQuestion): Memory[] {
     }
   }
 
+  // ── Document Expansion: 给记忆追加概念上位词标签 ──
+  // IR 经典技术：在索引时扩展文档，让查询更容易匹配
+  // "I played ukulele" → "I played ukulele [instrument music]"
+  // 查询 "instruments" 直接命中 "instrument" 标签
+  try {
+    const { getConceptParents } = require('./aam.ts')
+    for (const mem of memories) {
+      const words = (mem.content || '').match(/[a-zA-Z]{3,}/gi) || []
+      const parents = new Set<string>()
+      for (const w of words) {
+        const ps = getConceptParents(w.toLowerCase())
+        for (const p of ps) {
+          if (p.length >= 3 && !/[\u4e00-\u9fff]/.test(p)) parents.add(p)  // 只加英文概念
+        }
+      }
+      if (parents.size > 0) {
+        mem.content += ' [' + [...parents].slice(0, 8).join(' ') + ']'
+      }
+    }
+  } catch {}
+
   return memories
 }
 
@@ -679,6 +700,34 @@ async function run() {
         // G1: 从记忆内容构建图谱实体关系（让 Signal 4 + graph fusion 在 benchmark 里生效）
         try {
           const graph = require('./graph.ts')
+
+          // G1-pre: 从 speaker 标签和 summary 预注册实体（解决 findMentionedEntities 只认 Title Case 的问题）
+          const _preRegistered = new Set<string>()
+          for (const mem of memories) {
+            // Speaker 名（全大写格式 [MELANIE]:）
+            const speakerMatch = mem.content.match(/^\[([A-Z]{2,})\]:/)
+            if (speakerMatch) {
+              const name = speakerMatch[1].charAt(0) + speakerMatch[1].slice(1).toLowerCase() // MELANIE → Melanie
+              if (!_preRegistered.has(name)) {
+                graph.findMentionedEntities(name) // 触发自动注册
+                _preRegistered.add(name)
+              }
+            }
+            // Summary 中 "X and Y caught up" / "X shared with Y" 格式的人名
+            if (mem.tags?.includes('summary')) {
+              const summaryNames = mem.content.match(/\b([A-Z][a-z]{2,})\b/g) || []
+              for (const n of summaryNames) {
+                if (!/^(The|This|That|What|When|Where|How|Who|Which|Why|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|Since|During|After|Before|Caroline|She|Her|His|They)$/.test(n)) {
+                  // 不排除 Caroline 等人名（上面的排除列表只排非名词）
+                }
+                if (!_preRegistered.has(n) && !/^(The|This|That|Since|During|After|Before)$/.test(n)) {
+                  graph.findMentionedEntities(n)
+                  _preRegistered.add(n)
+                }
+              }
+            }
+          }
+
           // 两遍：先从 summary（信息密度高，多人名共现），再从 episode
           const summaries = memories.filter(m => m.tags?.includes('summary'))
           const episodes = memories.filter(m => !m.tags?.includes('summary'))
