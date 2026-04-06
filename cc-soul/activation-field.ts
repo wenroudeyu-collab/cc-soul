@@ -477,14 +477,14 @@ const QUERY_TYPE_MULTIPLIERS: Record<QueryType, { k1Mult: number; bMult: number;
   broad:    { k1Mult: 0.67, bMult: 0.4,  temporalBoost: 1.0 },
 }
 
-const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|when|how\s*many/i
-const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|last|before|ago|when\s+did|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
+const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|how\s*many/i
+const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|when|last|before|after|ago|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
 
 let _currentQueryType: QueryType = 'broad'
 
 function detectQueryType(query: string): QueryType {
+  if (TEMPORAL_RE.test(query)) return 'temporal'  // temporal 优先（when 是时间查询不是精确查询）
   if (PRECISE_RE.test(query)) return 'precise'
-  if (TEMPORAL_RE.test(query)) return 'temporal'
   return 'broad'
 }
 
@@ -1128,8 +1128,22 @@ export function computeActivationField(
     // 对话惯性加成（momentum boost，由 _momentumCoeff 调制）
     const momentum = getMomentumBoost(mem.content || '')
 
+    // Signal 8: Prospective Tag Match（前瞻性标签命中——零 LLM doc2query）
+    let s8 = 0
+    if ((mem as any).prospectiveTags?.length > 0) {
+      let ptHits = 0
+      for (const tag of (mem as any).prospectiveTags) {
+        const tl = tag.toLowerCase()
+        if (expandedWords.has(tl) || queryLower.includes(tl)) ptHits++
+      }
+      if (ptHits > 0) s8 = Math.min(1.0, ptHits / (mem as any).prospectiveTags.length * 2)
+    }
+
+    // MemRL utility modulation
+    const utilityMod = 1 + ((mem as any).utility ?? 0) * 0.1
+
     const catWeight = getCategoryWeight(mem)
-    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * (1 + s8 * 0.5) * utilityMod * catWeight
 
     // 构建 trace path
     const path: TraceStep[] = [

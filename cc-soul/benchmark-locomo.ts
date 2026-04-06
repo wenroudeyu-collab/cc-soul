@@ -117,7 +117,8 @@ function buildMemories(q: LocomoQuestion): Memory[] {
       } as Memory)
     }
 
-    // Each turn → episode memory
+    // Each turn → episode memory（带精确日期前缀 + 原始事件时间）
+    const _epDatePrefix = `[${new Date(originalTimestamps[si]).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}]`
     for (let ti = 0; ti < session.length; ti++) {
       const turn = session[ti]
       const content = turn?.content
@@ -126,7 +127,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
 
       const memTs = baseTs + ti * 60000
       memories.push({
-        content,
+        content: `${_epDatePrefix} ${content}`,
         scope: 'episode',
         ts: memTs,
         confidence: 0.8,
@@ -135,6 +136,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         importance: 5,
         tags: [`speaker:${role}`, `session:${si}`],
         _segmentId: si,
+        _eventDate: originalTimestamps[si] + ti * 60000,
       } as Memory)
     }
 
@@ -146,7 +148,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         if (merged.length > 30 && merged.length < 500) {
           const memTs = baseTs + ti * 60000 + 30000
           memories.push({
-            content: merged,
+            content: `${_epDatePrefix} ${merged}`,
             scope: 'episode',
             ts: memTs,
             confidence: 0.75,
@@ -155,6 +157,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
             importance: 3,
             tags: [`merged:${ti}`, `session:${si}`],
             _segmentId: si,
+            _eventDate: originalTimestamps[si] + ti * 60000 + 30000,
           } as Memory)
         }
       }
@@ -750,6 +753,25 @@ async function run() {
             print(`  [graph] built ${entCount} entities, ${relCount} relations`)
             suppressLogs = true
           }
+        } catch {}
+        // ── 前瞻性标签：AAM 学习完后，为每条记忆预测未来查询词（零 LLM doc2query）──
+        try {
+          const { expandQuery } = require('./aam.ts')
+          let tagged = 0
+          for (const mem of memories) {
+            if ((mem as any).prospectiveTags) continue
+            const words = (mem.content || '').match(/[a-zA-Z]{3,}/gi)
+            if (!words || words.length < 2) continue
+            const contentLower = (mem.content || '').toLowerCase()
+            const expanded = expandQuery(words.slice(0, 5).map((w: string) => w.toLowerCase()), 10)
+            const threshold = expanded.length < 3 ? 0.3 : 0.5
+            const tags = expanded
+              .filter((e: any) => e.weight >= threshold && !contentLower.includes(e.word) && e.word.length >= 2)
+              .map((e: any) => e.word)
+              .slice(0, 8)
+            if (tags.length > 0) { (mem as any).prospectiveTags = tags; tagged++ }
+          }
+          if (tagged > 0) { suppressLogs = false; print(`  [prospective-tags] ${tagged}/${memories.length} memories tagged`); suppressLogs = true }
         } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
