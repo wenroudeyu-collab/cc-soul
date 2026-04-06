@@ -1464,6 +1464,23 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
         }
 
         syncToSQLite(original, { confidence: original.confidence, recallCount: original.recallCount, lastAccessed: original.lastAccessed, lastRecalled: original.lastRecalled })
+
+        // ── microLinks 写入（activationRecall 路径）：积累激活链结晶 ──
+        try {
+          const queryWords = new Set((_expandedMsg.match(WORD_PATTERN.CJK24_EN3) || []).map((w: string) => w.toLowerCase()))
+          const memWords = (original.content.match(WORD_PATTERN.CJK24_EN3) || []).map((w: string) => w.toLowerCase())
+          const shared = memWords.filter((w: string) => queryWords.has(w))
+          if (shared.length >= 1) {
+            if (!original.microLinks) original.microLinks = []
+            original.microLinks.push({
+              query: _expandedMsg.slice(0, 40),
+              memoryRef: original.content.slice(0, 40),
+              sharedKeywords: shared.slice(0, 5),
+              ts: Date.now(),
+            })
+            if (original.microLinks.length > 10) original.microLinks.shift()
+          }
+        } catch {}
       }
     }
     // ── 检索诱发遗忘（Retrieval-Induced Forgetting）──

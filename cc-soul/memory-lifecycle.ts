@@ -1401,6 +1401,12 @@ export function processMemoryDecay() {
         compressed++
       }
     }
+    // MemRL utility decay: 0.99/cycle, half-life ~3 days
+    if (mem.utility && Math.abs(mem.utility) > 0.01) {
+      mem.utility *= 0.99
+      if (Math.abs(mem.utility) < 0.01) mem.utility = 0
+    }
+
     // long_term memories stay as-is (already compressed, permanent storage)
   }
 

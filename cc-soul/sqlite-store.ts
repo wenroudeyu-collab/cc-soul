@@ -129,6 +129,7 @@ export function initSQLite(): boolean {
     ['lastRecalled', 'INTEGER'],
     ['validFrom', 'INTEGER'],
     ['validUntil', 'INTEGER'],
+    ['prospectiveTags', "TEXT DEFAULT '[]'"],
   ]
   for (const [col, def] of ccSoulColumns) {
     try { db.exec(`ALTER TABLE memories ADD COLUMN ${col} ${def}`) } catch { /* already exists */ }
@@ -207,6 +208,9 @@ export function initSQLite(): boolean {
   for (const [col, def] of p1aColumns) {
     try { db.exec(`ALTER TABLE memories ADD COLUMN ${col} ${def}`) } catch {}
   }
+
+  // MemRL: utility score column
+  try { db.exec(`ALTER TABLE memories ADD COLUMN utility REAL DEFAULT 0`) } catch {}
 
   // P0a: Graveyard 元数据列
   const p0aColumns: [string, string][] = [
@@ -347,8 +351,8 @@ export function migrateFromJSON() {
     console.log(`[cc-soul][sqlite] migrating ${memories.length} memories from JSON...`)
 
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, lastRecalled, validFrom, validUntil)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, lastRecalled, validFrom, validUntil, prospectiveTags)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     db.exec('BEGIN')
@@ -375,6 +379,7 @@ export function migrateFromJSON() {
           m.lastRecalled || null,
           m.validFrom || null,
           m.validUntil || null,
+          JSON.stringify(m.prospectiveTags || []),
         )
       }
       db.exec('COMMIT')
@@ -433,8 +438,8 @@ export function sqliteAddMemory(mem: Omit<Memory, 'relevance'>): number {
   const now = Date.now()
   const tsVal = mem.ts || now
   const result = db.prepare(`
-    INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, validFrom, validUntil)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, validFrom, validUntil, prospectiveTags)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     mem.content,
     mem.scope,
@@ -453,6 +458,7 @@ export function sqliteAddMemory(mem: Omit<Memory, 'relevance'>): number {
     mem.recallCount || 0,
     mem.validFrom || null,
     mem.validUntil || null,
+    JSON.stringify(mem.prospectiveTags || []),
   )
   const id = Number(result.lastInsertRowid)
 
@@ -473,6 +479,7 @@ export function sqliteUpdateMemory(id: number, updates: Partial<Memory>) {
   if (updates.recallCount !== undefined) { sets.push('recallCount = ?'); values.push(updates.recallCount) }
   if (updates.lastRecalled !== undefined) { sets.push('lastRecalled = ?'); values.push(updates.lastRecalled) }
   if (updates.validUntil !== undefined) { sets.push('validUntil = ?'); values.push(updates.validUntil) }
+  if (updates.utility !== undefined) { sets.push('utility = ?'); values.push(updates.utility) }
   if (sets.length === 0) return
   values.push(id)
   db.prepare(`UPDATE memories SET ${sets.join(', ')} WHERE id = ?`).run(...values)
@@ -817,6 +824,7 @@ function rowToMemory(row: any): Memory {
     lastRecalled: row.lastRecalled || undefined,
     validFrom: row.validFrom || undefined,
     validUntil: row.validUntil || undefined,
+    prospectiveTags: row.prospectiveTags ? (() => { try { const p = JSON.parse(row.prospectiveTags); return p.length > 0 ? p : undefined } catch { return undefined } })() : undefined,
   }
 }
 

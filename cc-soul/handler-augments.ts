@@ -128,6 +128,26 @@ export function feedbackMemoryEngagement(userReply: string): void {
       mem.injectionMiss = (mem.injectionMiss ?? 0) + 1
     }
     // 0.1~0.3：不确定，不计
+
+    // MemRL: utility score — "did this memory help?"
+    const isCorrection = (() => {
+      try {
+        const { CORRECTION_WORDS, CORRECTION_EXCLUDE } = require('./signals.ts')
+        const m = userReply.toLowerCase()
+        const hits = CORRECTION_WORDS.filter((w: string) => m.includes(w)).length
+        const exclude = CORRECTION_EXCLUDE.some((w: string) => m.includes(w))
+        return hits > 0 && !exclude
+      } catch { return false }
+    })()
+
+    if (isCorrection) {
+      const corrOverlap = trigramSimilarity(trigrams(userReply), trigrams(mem.content || ''))
+      if (corrOverlap > 0.15) {
+        mem.utility = Math.max(-5, (mem.utility ?? 0) - 0.8)
+      }
+    } else if (overlap > 0.3) {
+      mem.utility = Math.min(5, (mem.utility ?? 0) + 0.3)
+    }
   }
 
   // AAM 正负反馈：利用 ActivationTrace 强化/抑制扩展路径
@@ -259,6 +279,8 @@ function presentMemory(mem: Memory, query: string, mood: number, trace?: any): s
   // 2. 情绪重构（当前心情影响记忆呈现角度）
   let suffix = ''
   if (mood > 0.3 && mem.emotion === 'painful') suffix = '（但后来好起来了/but got better）'
+  // 事实版本链：标注被取代的旧值
+  if ((mem as any).supersedes) suffix += `（之前是 ${(mem as any).supersedes}）`
 
   // 3. 时间语境（复用已有的 annotateMemoryFreshness）
   const content = annotateMemoryFreshness(mem.content, mem, query)

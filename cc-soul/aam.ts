@@ -2512,7 +2512,11 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
         if (!isKnown && (network().df[other] || 0) < 1) continue
       }
       const p = pmi(w, other)
-      if (p > 1.0 && (network().df[other] || 0) >= 2) candidates.push({ word: other, pmiScore: p })  // PMI > 1.0 + df ≥ 2 = 有统计意义的关联
+      // 动态 PMI 阈值：小语料更宽松（冷启动），大语料保持不变
+      const _totalDocs = network().totalDocs || 100
+      const _pmiThr = _totalDocs < 100 ? 0.7 : 1.0
+      const _dfThr = _totalDocs < 100 ? 1 : 2
+      if (p > _pmiThr && (network().df[other] || 0) >= _dfThr) candidates.push({ word: other, pmiScore: p })
     }
     candidates.sort((a, b) => b.pmiScore - a.pmiScore)
     for (const c of candidates.slice(0, 3)) {

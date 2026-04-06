@@ -1085,7 +1085,20 @@ export function computeActivationField(
     // 原因：s2=0.0005 的底分 + 高 base activation 会挤掉真正相关的弱匹配记忆
     if (s2 < 0.002) continue
     const s3 = emotionResonance(mem, mood, alertness)
-    const s4 = spreadingActivation(mem, memories, query)
+    let s4 = spreadingActivation(mem, memories, query)
+    // ── microLinks 消费：激活链结晶加成 ──
+    // 如果记忆有 microLinks 且其 sharedKeywords 命中当前查询扩展词，增强扩散信号
+    if (mem.microLinks && mem.microLinks.length > 0) {
+      let mlBoost = 0
+      for (const link of mem.microLinks) {
+        let hits = 0
+        for (const kw of link.sharedKeywords) {
+          if (expandedWords.has(kw.toLowerCase())) hits++
+        }
+        if (hits > 0) mlBoost += 0.15 * hits
+      }
+      s4 += Math.min(0.6, mlBoost)  // microLinks 最多贡献 +0.6
+    }
     const s6 = temporalContext(mem, timeRange, queryWordSet)
 
     // ── 加法融合（base + context）× 乘法调制（emotion × spread × temporal）──
@@ -1097,7 +1110,7 @@ export function computeActivationField(
     const baseContextScore = wBase * _imaf.s1 * s1 + wCtx * _imaf.s2 * s2
 
     // IMAF 意图调制 + Thermostat 自适应
-    const raw = baseContextScore * (0.5 + _emotionCoeff * _imaf.s3 * s3) * (1 + _spreadCoeff * _imaf.s4 * s4) * (0.8 + _temporalCoeff * _imaf.s6 * s6)
+    const raw = baseContextScore * (0.5 + _emotionCoeff * _imaf.s3 * s3) * (1 + Math.min(0.5, _spreadCoeff * _imaf.s4 * s4)) * (0.8 + _temporalCoeff * _imaf.s6 * s6)
 
     // confidence 软缩放（不是乘法杀死，是 0.6-1.0 区间）
     const conf = mem.confidence ?? 0.7
@@ -1125,11 +1138,24 @@ export function computeActivationField(
       s7 = Math.min(0.3, hits * 0.1)  // 提升：each hit +0.1, max +0.3（对话惯性是 NAM 独有优势）
     }
 
+    // Signal 8: Prospective Tag Match（前瞻性标签命中——零 LLM doc2query）
+    // 写入时 AAM 预测的未来查询词，查询时匹配则 boost
+    let s8 = 0
+    if (mem.prospectiveTags && mem.prospectiveTags.length > 0) {
+      let ptHits = 0
+      for (const tag of mem.prospectiveTags) {
+        const tl = tag.toLowerCase()
+        if (expandedWords.has(tl) || queryLower.includes(tl)) ptHits++
+      }
+      if (ptHits > 0) s8 = Math.min(1.0, ptHits / mem.prospectiveTags.length * 2)
+    }
+
     // 对话惯性加成（momentum boost，由 _momentumCoeff 调制）
     const momentum = getMomentumBoost(mem.content || '')
 
     const catWeight = getCategoryWeight(mem)
-    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight
+    const utilityMod = 1 + (mem.utility ?? 0) * 0.1  // MemRL: utility=5 → 1.5x, -5 → 0.5x
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * (1 + s8 * 0.5) * catWeight * utilityMod
 
     // 构建 trace path
     const path: TraceStep[] = [
@@ -1143,6 +1169,7 @@ export function computeActivationField(
     if (impBoost > 1.0) path.push({ stage: 'signal_boost', via: 'importance', rawScore: impBoost })
     if (momentum > 0.05) path.push({ stage: 'signal_boost', via: 'momentum', rawScore: momentum })
     if (s7 > 0.01) path.push({ stage: 'signal_boost', via: 'temporal_cooccur', rawScore: s7 })
+    if (s8 > 0.01) path.push({ stage: 'signal_boost', via: 'prospective_tag', rawScore: s8 })
 
     if (finalRaw > 0.001) {  // 候选门槛极低，靠排序筛选而非硬阈值
       rawResults.push({
@@ -1519,12 +1546,29 @@ export function activationRecall(
   // 在 computeActivationField 之前执行，同时加速 IDF 缓存构建
   memories = categoryPrePrune(memories, query)
 
+  // ── Segment 预筛选：回指查询（"那次/上次讨论"）时聚焦到前一段 ──
+  const _segRefPattern = /那次|上次讨论|上次聊|那个session|last time we discussed/
+  if (_segRefPattern.test(query) && memories.length >= 5) {
+    let maxSeg = 0
+    for (const m of memories) {
+      if (m._segmentId && m._segmentId > maxSeg) maxSeg = m._segmentId
+    }
+    if (maxSeg >= 2) {
+      const targetSeg = maxSeg - 1
+      const segFiltered = memories.filter(m => m._segmentId === targetSeg)
+      if (segFiltered.length >= 3) {
+        memories = segFiltered
+        console.log(`[activation-field] segment pre-filter: query references previous session, narrowed to seg=${targetSeg} (${segFiltered.length} memories)`)
+      }
+    }
+  }
+
   // ── Parallel Channel: fact-store 关键词召回（与 NAM 并行，最终融合）──
   // 遍历所有已存三元组，用查询词+AAM扩展词评分，不短路，结果在 NAM 之后融合
   let _parallelFactMems: Memory[] = []
   try {
     const factStore = _factStoreMod
-    const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number }[]
+    const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number; supersedes?: string }[]
     const queryLowerS1 = query.toLowerCase()
     // 提取查询关键词（CJK 2-gram + 英文 2+ 字母 + 数字）
     const queryTokensS1 = new Set((queryLowerS1.match(WORD_PATTERN.CJK24_EN2_NUM) || []).map(w => w.toLowerCase()))
@@ -1555,10 +1599,10 @@ export function activationRecall(
       // 3. confidence 加权
       matchScore *= (fact.confidence || 0.7)
 
-      if (matchScore > 0) {
+      if (matchScore >= 3) {  // 至少要有 object 直接命中（score=2）+ 1 个额外信号，防低质量 facts 挤占排名
         scoredFacts.push({
           mem: {
-            content: `[事实] ${fact.predicate}: ${fact.object}`,
+            content: `[事实] ${fact.predicate}: ${fact.object}${fact.supersedes ? '（之前是 ' + fact.supersedes + '）' : ''}`,
             scope: 'fact', ts: fact.ts || Date.now(), confidence: fact.confidence || 0.9,
             source: 'fact_store_parallel',
             recallCount: 10, lastAccessed: Date.now(), importance: 9,
@@ -1631,6 +1675,32 @@ export function activationRecall(
     } catch {}
   }
 
+  // ── Multi-Entity Query Decomposition：多实体查询拆分 ──
+  // "What have both Caroline and Melanie painted?" → 分别搜 Caroline+painted 和 Melanie+painted
+  // 论文 PRISM (2025): 查询拆解对 multi-hop 提升 +5%
+  if (_queryNames && _queryNames.length >= 2 && results.length > 0) {
+    try {
+      const seenContent = new Set(results.map(r => r.memory.content))
+      // 对每个实体名生成子查询（实体名 + 查询动词/关键词）
+      const queryContentWords = (lexicalQuery.match(/[a-zA-Z]{4,}/gi) || [])
+        .filter(w => !_queryNames.includes(w.toLowerCase()) && !EN_STOP_WORDS.has(w.toLowerCase()))
+        .slice(0, 4)
+      if (queryContentWords.length >= 1) {
+        for (const name of _queryNames.slice(0, 2)) {  // 最多 2 个实体
+          const subQuery = name + ' ' + queryContentWords.join(' ')
+          const subResults = computeActivationField(memories, subQuery, mood, alertness, expanded, topN, timeRange, cogHints)
+          for (const r of subResults.slice(0, 5)) {  // 每个子查询取 top-5
+            if (!seenContent.has(r.memory.content)) {
+              results.push(r)
+              seenContent.add(r.memory.content)
+            }
+          }
+        }
+        results.sort((a, b) => b.activation - a.activation)
+      }
+    } catch {}
+  }
+
   // ── 分数平坦度检测 → 聚合查询自适应 topN ──
   // 无明显赢家 = 查询需要综合多条记忆（"我是怎样的人"/"描述我的一天"）
   if (results.length >= 5) {
@@ -1668,7 +1738,7 @@ export function activationRecall(
 
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
   // 仅在首轮几乎无结果时触发（阈值 0.03），避免大量计算
-  if (results.length > 0 && results[0].activation < 0.03) {
+  if (results.length > 0 && results[0].activation < 0.15) {
     const prfTopN = Math.min(3, results.length)
     const prfKeywords = new Map<string, number>()  // word → IDF weight
 

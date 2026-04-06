@@ -289,6 +289,7 @@ export function addFacts(newFacts: StructuredFact[]) {
         if (old.subject === nf.subject && old.predicate === nf.predicate &&
             old.object !== nf.object && old.validUntil === 0) {
           old.validUntil = Date.now()
+          nf.supersedes = old.object  // 事实版本链：记录被取代的旧值
           console.log(`[cc-soul][facts] superseded: ${old.subject}.${old.predicate}="${old.object}" → "${nf.object}"`)
         }
       }

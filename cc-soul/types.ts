@@ -134,6 +134,8 @@ export interface Memory {
   fsrs?: { stability: number; difficulty: number; reps: number; lapses: number }
   // ── Living Memory Network: micro-links accumulated from recall co-occurrences ──
   microLinks?: { query: string; memoryRef: string; sharedKeywords: string[]; ts: number }[]
+  // ── Prospective Tags: AAM 预测的未来查询词（写入时生成，零 LLM doc2query）──
+  prospectiveTags?: string[]
   // ── P1a: Memory-level injection competition ──
   injectionEngagement?: number  // 被注入后用户 engaged 的次数（trigram overlap > 0.3）
   injectionMiss?: number        // 被注入后用户 ignored 的次数（trigram overlap < 0.1）
@@ -171,6 +173,7 @@ export interface Memory {
   _complementOf?: string[]  // 互补候选的 memoryId 列表（写入时标记，heartbeat 消费）
   _preheated?: boolean  // 预测性预热标记（heartbeat 设置，recall 后清除）
   _segmentId?: number   // 话题河流：同一段对话中的记忆共享 segmentId
+  utility?: number  // -5 to +5, default 0. MemRL: "did this memory help?"
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -188,6 +191,7 @@ export interface StructuredFact {
   validUntil: number    // 0 = still valid, >0 = expired at this time
   memoryRef?: string    // link to original Memory content (first 60 chars)
   segmentId?: number    // 话题河流：关联到对应的对话段（P1 fix）
+  supersedes?: string   // 事实版本链：本事实取代的旧 object 值
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

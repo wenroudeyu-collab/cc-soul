@@ -1598,6 +1598,21 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     ...(_corefHistory ? { history: _corefHistory } : {}),
     _segmentId: getCurrentSegmentId(),
   }
+  // ── 前瞻性标签（Prospective Tags）：AAM 预测未来查询词（零 LLM doc2query）──
+  try {
+    const { expandQuery } = require('./aam.ts')
+    const _ptWords = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+    if (_ptWords.length >= 2) {
+      const _ptLower = content.toLowerCase()
+      const _ptExpanded = expandQuery(_ptWords.map((w: string) => w.toLowerCase()), 10)
+      const _ptThreshold = _ptExpanded.length < 3 ? 0.3 : 0.5
+      const _ptTags = _ptExpanded
+        .filter((e: any) => e.weight >= _ptThreshold && !_ptLower.includes(e.word) && e.word.length >= 2)
+        .map((e: any) => e.word).slice(0, 8)
+      if (_ptTags.length > 0) newMem.prospectiveTags = _ptTags
+    }
+  } catch {}
+
   // ── 闪光灯记忆（Flashbulb Memory）：高情绪事件深度编码 ──
   // 人脑原理：极端情绪事件形成超详细记忆（911 你记得你在做什么）
   // cc-soul 原创：emotionIntensity ≥ 0.7 自动触发，零 LLM，存当时完整上下文
