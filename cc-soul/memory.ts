@@ -150,9 +150,11 @@ export function bayesCorrect(mem: Memory, delta = 2) {
  * Sync memory confidence/scope changes to SQLite.
  * Call this whenever you modify mem.confidence or mem.scope in-memory.
  */
-export function syncToSQLite(mem: Memory, updates: { confidence?: number; scope?: string; tier?: string; recallCount?: number; lastAccessed?: number; lastRecalled?: number }) {
+export function syncToSQLite(mem: Memory, updates: { confidence?: number; scope?: string; tier?: string; recallCount?: number; lastAccessed?: number; lastRecalled?: number }, findByContent?: string) {
   if (!useSQLite) return
-  const found = sqliteFindByContent(mem.content)
+  // 优先用 findByContent（旧内容），fallback 到 mem.content（当前内容）
+  // 防止 content 被修改后 SQLite 找不到记录
+  const found = sqliteFindByContent(findByContent || mem.content)
   if (found) {
     sqliteUpdateMemory(found.id, updates)
   }
@@ -1721,6 +1723,23 @@ export function addMemory(content: string, scope: string, userId?: string, visib
       import('./aam.ts').then(m => m.learnAssociation(content, autoEmotionIntensity)).catch(() => {})
     } catch {}
 
+    // ── N1: 质量分反向训练——correction 和触发查询配对学习 ──
+    // 用户纠正时，把纠正内容和当初的查询词建立关联
+    // 下次同样的查询 → AAM 直接扩展到正确内容
+    if (scope === 'correction') {
+      try {
+        const { getRecentTrace } = require('./activation-field.ts')
+        const trace = getRecentTrace?.()
+        if (trace?.traces?.[0]?.query) {
+          const queryKw = (trace.traces[0].query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+          const correctKw = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+          if (queryKw.length > 0 && correctKw.length > 0) {
+            import('./aam.ts').then(m => m.learnAssociation(queryKw.join(' ') + ' ' + correctKw.join(' '), 1.0)).catch(() => {})
+          }
+        }
+      } catch {}
+    }
+
     // ── 即时冲突感知：检测新记忆是否和已有特征矛盾 ──
     // 例："用户不运动了" vs 已有"运动型" → 冲突 → 更新旧记忆
     try {
@@ -1853,6 +1872,9 @@ export function addMemoryWithEmotion(content: string, scope: string, userId?: st
     const validEmotions = ['neutral', 'warm', 'important', 'painful', 'funny']
     const matched = validEmotions.find(e => emotion.includes(e)) || 'neutral'
     target.emotion = matched
+    // 粗粒度 mood 映射：warm→正面，painful→负面，其余中性
+    if (!target.situationCtx) target.situationCtx = {}
+    target.situationCtx.mood = matched === 'warm' ? 0.5 : matched === 'painful' ? -0.5 : 0
     saveMemories()
   } else if (content.length > 20) {
     // Use rule-based emotion detection (no LLM call needed)
@@ -1863,6 +1885,15 @@ export function addMemoryWithEmotion(content: string, scope: string, userId?: st
         target.emotion = emotionLabelToLegacy(detected.label)
         // Store fine-grained label as well
         ;(target as any).emotionLabel = detected.label
+        // 写入 situationCtx.mood 供 S3 emotionResonance 状态门控使用
+        // emotionLabelToPADCN 的 pleasure 值 [-0.7, 0.6] 作为 mood
+        const emotionLabelToPADCN = sigMod?.emotionLabelToPADCN
+        if (emotionLabelToPADCN) {
+          const padcn = emotionLabelToPADCN(detected.label)
+          if (!target.situationCtx) target.situationCtx = {}
+          target.situationCtx.mood = padcn.pleasure
+          target.situationCtx.energy = (padcn.arousal + 1) / 2  // arousal [-1,1] → energy [0,1]
+        }
         saveMemories()
       }
     } catch {}

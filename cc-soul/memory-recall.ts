@@ -27,7 +27,7 @@ import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
   SYNONYM_MAP, onCacheEvent, tokenize as unifiedTokenize, WORD_PATTERN,
 } from './memory-utils.ts'
-import { aamRecall, buildAAMContext, learnAssociation } from './aam.ts'
+import { learnAssociation } from './aam.ts'
 import { positiveEvidence as _posEvidence, negativeEvidence as _negEvidence, confidenceRecallModifier as _confModifier } from './confidence-cascade.ts'
 
 // Event-Driven Cache Coherence：注册缓存失效

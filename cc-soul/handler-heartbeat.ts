@@ -93,8 +93,18 @@ export function runHeartbeat() {
   setHeartbeatStartedAt(Date.now())
   metrics.lastHeartbeat = Date.now()
     try {
-      const safe = (name: string, fn: () => void) => {
-        try { fn(); recordModuleActivity(name) } catch (e: any) { recordModuleError(name, e.message); console.error(`[cc-soul][heartbeat][${name}] ${e.message}`) }
+      const safe = (name: string, fn: () => void | Promise<void>) => {
+        try {
+          const result = fn()
+          if (result && typeof (result as any).then === 'function') {
+            // async 函数：await 其 Promise，捕获异步异常
+            ;(result as Promise<void>).then(() => recordModuleActivity(name)).catch((e: any) => {
+              recordModuleError(name, e.message); console.error(`[cc-soul][heartbeat][${name}] async: ${e.message}`)
+            })
+          } else {
+            recordModuleActivity(name)
+          }
+        } catch (e: any) { recordModuleError(name, e.message); console.error(`[cc-soul][heartbeat][${name}] ${e.message}`) }
       }
 
       // ── 三档心跳：awake / light_sleep / deep_sleep ──
@@ -158,7 +168,7 @@ export function runHeartbeat() {
             }
           } catch {}
         })
-        safe('smartForgetSweep', () => { try { const { smartForgetSweep } = require('./smart-forget.ts'); const { memoryState } = require('./memory.ts'); smartForgetSweep(memoryState.memories) } catch {} })
+        safe('smartForgetSweep', () => { try { const { smartForgetModule } = require('./smart-forget.ts'); smartForgetModule.onHeartbeat() } catch {} })
         safe('memoryDecay', () => processMemoryDecay())
         safe('bayesDecay', () => { try { require('./confidence-cascade.ts').batchTimeDecay(require('./memory.ts').memoryState.memories) } catch {} })
         safe('aamDecay', () => { try { require('./aam.ts').decayCooccurrence() } catch {} })

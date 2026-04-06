@@ -2158,6 +2158,47 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   'outdoor': ['garden','backyard','grill','fire pit','patio','deck','lawn','hiking','camping','picnic','BBQ'],
   'green energy': ['Tesla','solar panels','EV','electric car','hybrid','recycling','compost','carbon footprint'],
   'sleep': ['insomnia','white noise','melatonin','nightmare','snore','nap','bedtime','alarm','sleep schedule','mattress'],
+  // ── T2 补充：具体→抽象上位概念（填补 vocabulary gap）──
+  'instrument': ['guitar','piano','violin','drums','ukulele','bass','flute','saxophone','cello','trumpet','harmonica','keyboard','banjo','harp','clarinet','trombone','accordion','oboe'],
+  'pet': ['dog','cat','fish','hamster','rabbit','bird','turtle','parrot','guinea pig','snake','lizard','ferret','goldfish','kitten','puppy'],
+  'vehicle': ['car','truck','motorcycle','bicycle','scooter','van','suv','sedan','convertible','pickup','minivan','jeep','tesla'],
+  'sport': ['basketball','football','soccer','baseball','tennis','golf','swimming','running','hiking','yoga','boxing','volleyball','cricket','surfing','skiing','badminton','wrestling'],
+  'language': ['english','spanish','french','german','chinese','japanese','korean','portuguese','italian','arabic','hindi','russian','dutch','swedish','polish'],
+  'cuisine type': ['italian','mexican','chinese','japanese','thai','indian','french','korean','mediterranean','american','vietnamese','greek','turkish','brazilian'],
+  'color': ['red','blue','green','yellow','purple','orange','pink','black','white','brown','gray','gold','silver','turquoise','maroon'],
+  'furniture': ['table','chair','sofa','bed','desk','shelf','cabinet','dresser','couch','bookcase','nightstand','recliner','ottoman'],
+  'clothing': ['shirt','pants','dress','jacket','coat','sweater','jeans','skirt','shoes','boots','hat','scarf','gloves','socks','hoodie'],
+  'fruit': ['apple','banana','orange','grape','strawberry','mango','pineapple','watermelon','peach','blueberry','cherry','kiwi','pear','plum'],
+  'illness': ['cold','flu','fever','headache','stomachache','allergy','asthma','diabetes','arthritis','migraine','infection','pneumonia','bronchitis','anemia'],
+  'weather condition': ['rain','snow','sunshine','wind','storm','fog','hail','thunder','lightning','drizzle','hurricane','tornado','heat wave','frost'],
+  'room': ['bedroom','kitchen','bathroom','living room','dining room','garage','attic','basement','office','hallway','closet','nursery','den'],
+  'tree': ['oak','maple','pine','birch','willow','cedar','palm','cherry blossom','redwood','elm','cypress','spruce'],
+  'flower': ['rose','tulip','daisy','sunflower','lily','orchid','lavender','chrysanthemum','peony','violet','jasmine','hibiscus'],
+  'board game': ['chess','checkers','monopoly','scrabble','risk','settlers','catan','ticket to ride','clue','trivial pursuit'],
+  'dance': ['ballet','salsa','tango','waltz','hip hop','contemporary','jazz','swing','breakdance','tap','ballroom','flamenco'],
+  'art form': ['painting','sculpture','photography','pottery','drawing','calligraphy','ceramics','mosaic','watercolor','oil painting','sketching'],
+  'gemstone': ['diamond','ruby','emerald','sapphire','amethyst','topaz','opal','jade','pearl','turquoise','garnet'],
+}
+
+// ── T2: CONCEPT_HIERARCHY 反向索引（child → parent keys）──
+const _conceptReverseIndex = new Map<string, string[]>()
+function buildConceptReverseIndex(): void {
+  _conceptReverseIndex.clear()
+  for (const [parent, children] of Object.entries(CONCEPT_HIERARCHY)) {
+    const pl = parent.toLowerCase()
+    for (const child of children) {
+      const cl = child.toLowerCase()
+      if (!_conceptReverseIndex.has(cl)) _conceptReverseIndex.set(cl, [])
+      const arr = _conceptReverseIndex.get(cl)!
+      if (!arr.includes(pl)) arr.push(pl)
+    }
+  }
+}
+buildConceptReverseIndex()
+
+/** 查询一个词的上位概念（从 CONCEPT_HIERARCHY 反向查找）*/
+export function getConceptParents(word: string): string[] {
+  return _conceptReverseIndex.get(word.toLowerCase()) || []
 }
 
 /** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */
@@ -2617,210 +2658,11 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     .slice(0, queryWords.length + maxExpansion)
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// LAYER 2: MULTI-KEY NOISY-OR RETRIEVAL
-// 每条记忆有多把钥匙，任何一把匹配有概率召回，多把同时匹配概率跳升
-// ═══════════════════════════════════════════════════════════════════════════════
+// LAYER 2 (旧 Noisy-OR 多钥匙召回) 已删除 — 被 activation-field.ts 的 7 信号激活场完全替代
 
-interface RecallKey {
-  type: 'lexical' | 'temporal' | 'emotional' | 'entity' | 'behavioral' | 'factual' | 'causal' | 'sequence'
-  match: (query: string, mem: Memory, ctx: AAMContext) => number  // 0-1 probability
-}
-
-export interface AAMContext {
-  query: string
-  expandedWords: { word: string; weight: number }[]
-  mood: number
-  timeSlot: string
-  topicDomain: string
-  recentTopics: string[]
-  isCausalQuery: boolean
-  userId?: string
-}
-
-// The 7 keys (stayable types of access)
-const RECALL_KEYS: RecallKey[] = [
-  // K1: Lexical — expanded word overlap (PMI-enhanced)
-  {
-    type: 'lexical',
-    match: (query, mem, ctx) => {
-      const memWords = new Set(filterStopWords(tokenize(mem.content)))
-      let weightedHits = 0
-      let totalWeight = 0
-      for (const { word, weight } of ctx.expandedWords) {
-        totalWeight += weight
-        if (memWords.has(word)) weightedHits += weight
-      }
-      return totalWeight > 0 ? Math.min(1, weightedHits / totalWeight * 1.5) : 0
-    },
-  },
-
-  // K2: Temporal — time proximity / recency
-  {
-    type: 'temporal',
-    match: (_query, mem, _ctx) => {
-      const ageDays = (Date.now() - (mem.lastAccessed || mem.ts)) / 86400000
-      // Power law decay with gentle slope
-      return 1 / (1 + ageDays / 30)
-    },
-  },
-
-  // K3: Emotional — mood congruence
-  {
-    type: 'emotional',
-    match: (_query, mem, ctx) => {
-      if (mem.situationCtx?.mood === undefined) return 0.3
-      const delta = Math.abs(ctx.mood - mem.situationCtx.mood)
-      const congruence = Math.max(0, 1 - delta)
-      // Flashbulb effect: high emotion intensity always boosts
-      const flashbulb = (mem.emotionIntensity || 0) >= 0.7 ? 0.3 : 0
-      return Math.min(1, congruence * 0.7 + flashbulb)
-    },
-  },
-
-  // K4: Entity — shared named entities
-  {
-    type: 'entity',
-    match: (query, mem, _ctx) => {
-      // Extract capitalized words, CJK names (2-4 chars)
-      const qEntities = new Set((query.match(/[\u4e00-\u9fff]{2,4}|[A-Z][a-z]+/g) || []).map(e => e.toLowerCase()))
-      const mEntities = new Set((mem.content.match(/[\u4e00-\u9fff]{2,4}|[A-Z][a-z]+/g) || []).map(e => e.toLowerCase()))
-      if (qEntities.size === 0) return 0.2
-      let hits = 0
-      for (const e of qEntities) if (mEntities.has(e)) hits++
-      return Math.min(1, hits / qEntities.size)
-    },
-  },
-
-  // K5: Behavioral — situational pattern match
-  {
-    type: 'behavioral',
-    match: (_query, mem, ctx) => {
-      let score = 0.2
-      // Same topic domain
-      const memContent = mem.content.toLowerCase()
-      if (ctx.topicDomain && memContent.includes(ctx.topicDomain)) score += 0.3
-      // Same time context as when memory was created
-      if (mem.situationCtx?.attention && ctx.topicDomain) {
-        if (mem.situationCtx.attention === 'technical' && /tech|code|python|docker|sql|api/i.test(ctx.topicDomain)) score += 0.2
-      }
-      // Recent topic continuity
-      if (ctx.recentTopics.length > 0) {
-        for (const topic of ctx.recentTopics) {
-          if (memContent.includes(topic)) { score += 0.15; break }
-        }
-      }
-      return Math.min(1, score)
-    },
-  },
-
-  // K6: Factual — structured fact relevance
-  {
-    type: 'factual',
-    match: (query, mem, _ctx) => {
-      // User-stated facts are more trustworthy
-      const sourceBoost = mem.source === 'user_said' ? 0.2 : 0
-      // Memory has reasoning/because that matches query
-      if (mem.because) {
-        const qWords = new Set(filterStopWords(tokenize(query)))
-        const bWords = filterStopWords(tokenize(mem.because))
-        const hits = bWords.filter(w => qWords.has(w)).length
-        if (hits > 0) return Math.min(1, 0.5 + hits * 0.15 + sourceBoost)
-      }
-      // Scope bonus: facts and preferences are inherently more relevant
-      if (mem.scope === 'fact' || mem.scope === 'preference') return 0.4 + sourceBoost
-      if (mem.scope === 'correction') return 0.45 + sourceBoost
-      return 0.2 + sourceBoost
-    },
-  },
-
-  // K7: Causal — reasoning chain match
-  {
-    type: 'causal',
-    match: (query, mem, ctx) => {
-      if (!ctx.isCausalQuery) return 0.15
-      // "为什么" queries → memories with reasoning are gold
-      if (mem.reasoning) {
-        const rText = (mem.reasoning.context || '') + ' ' + (mem.reasoning.conclusion || '')
-        const qWords = new Set(filterStopWords(tokenize(query)))
-        const rWords = filterStopWords(tokenize(rText))
-        const hits = rWords.filter(w => qWords.has(w)).length
-        return Math.min(1, 0.3 + hits * 0.2 + mem.reasoning.confidence * 0.3)
-      }
-      if (mem.because) return 0.5
-      return 0.15
-    },
-  },
-
-  // K8: Sequence — conversation flow continuity (from MSAR S5)
-  {
-    type: 'sequence',
-    match: (_query, mem, ctx) => {
-      if (ctx.recentTopics.length === 0) return 0.3
-      const memLower = mem.content.toLowerCase()
-      // 检测记忆内容的领域
-      let memDomain = ''
-      const domainPatterns: [string, RegExp][] = [
-        ['python', /python|\.py|pip|django|flask/],
-        ['javascript', /javascript|node|react|vue|typescript/],
-        ['go', /\bgo\b|golang|goroutine/],
-        ['devops', /docker|k8s|nginx|deploy|容器/],
-        ['database', /sql|数据库|mysql|redis|postgres/],
-        ['career', /面试|简历|工作|职场|薪资/],
-        ['health', /健康|减肥|睡眠|运动/],
-        ['tech', /代码|函数|编程|bug|算法/],
-      ]
-      for (const [domain, re] of domainPatterns) {
-        if (re.test(memLower)) { memDomain = domain; break }
-      }
-      if (!memDomain) return 0.2
-
-      // 当前话题延续 → 高分
-      if (memDomain === ctx.topicDomain) return 0.8
-      // 最近话题中出现过 → 中分
-      if (ctx.recentTopics.includes(memDomain)) return 0.6
-      return 0.2
-    },
-  },
-
-]
-
-/**
- * Noisy-OR combination: P(recall) = 1 - Π(1 - Pi)
- * Unlike weighted sum, this has non-linear amplification:
- * - 1 key at 0.5 → P=0.5
- * - 2 keys at 0.5 → P=0.75 (not 0.5!)
- * - 3 keys at 0.5 → P=0.875
- * Multiple weak signals combine into a strong signal.
- */
-/** AAM 自适应门槛：PMI 方差高=查询词关联弱=降低门槛；PMI 方差低=强关联=提高门槛 */
-function computeAdaptiveThreshold(expandedWords: { word: string; weight: number }[]): number {
-  if (expandedWords.length < 2) return 0.4  // 默认偏宽松
-  const weights = expandedWords.map(e => e.weight)
-  const mean = weights.reduce((s, w) => s + w, 0) / weights.length
-  const variance = weights.reduce((s, w) => s + (w - mean) ** 2, 0) / weights.length
-  // 高方差 → 宽松门槛（0.35，防遗漏），低方差 → 严格门槛（0.60，防假阳性）
-  return 0.35 + 0.25 * (1 - Math.min(1, variance * 4))  // 范围 0.35-0.60
-}
-
-function noisyOR(probabilities: number[], activeThreshold: number = 0.5): number {
-  // 门槛：至少 1 个 key > activeThreshold 才认为有效召回
-  const activeKeys = probabilities.filter(p => p > activeThreshold).length
-  if (activeKeys === 0) {
-    // 没有强信号，用衰减的 Noisy-OR（防止多个弱信号叠加成假阳性）
-    let product = 1
-    for (const p of probabilities) {
-      product *= (1 - Math.max(0, Math.min(1, p)) * 0.5)  // 衰减 50%
-    }
-    return 1 - product
-  }
-  // 正常 Noisy-OR
-  let product = 1
-  for (const p of probabilities) {
-    product *= (1 - Math.max(0, Math.min(1, p)))
-  }
-  return 1 - product
-}
+// [DELETED] RECALL_KEYS / noisyOR / computeAdaptiveThreshold (旧 Noisy-OR 召回键)
+// 被 activation-field.ts 的 7 信号激活场完全替代，零外部调用
+// 删除时间：2026-04-06
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LAYER 3: HEBBIAN LEARNING
@@ -2915,118 +2757,9 @@ export function antiHebbianDecay() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AAM RECALL — the main entry point
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export interface AAMResult {
-  memory: Memory
-  score: number
-  keyScores: Record<string, number>
-  expansions: string[]  // which expanded words contributed
-}
-
-/**
- * AAM Recall: Adaptive Associative Memory retrieval.
- *
- * 1. Expand query words using learned associations + cold-start synonyms
- * 2. Score each memory using 7 keys (Noisy-OR combination)
- * 3. Apply Hebbian key weights
- * 4. Return top N results
- */
-export function aamRecall(
-  memories: Memory[],
-  ctx: AAMContext,
-  topN = 10,
-): AAMResult[] {
-  // Filter candidates
-  let candidates = memories.filter(m =>
-    m.scope !== 'expired' && m.scope !== 'decayed' && m.content.length > 5
-  )
-
-  // 热集合优化：大量记忆时先粗筛，只取最近激活的 top 500 做全量 Noisy-OR
-  if (candidates.length > 5000) {
-    candidates.sort((a, b) => ((b as any).lastAccessed || b.ts) - ((a as any).lastAccessed || a.ts))
-    candidates = candidates.slice(0, 500)
-  }
-
-  if (candidates.length === 0) return []
-
-  // Expand query
-  const queryWords = filterStopWords(tokenize(ctx.query))
-  const expanded = expandQuery(queryWords)
-  ctx.expandedWords = expanded
-  const expansionWords = expanded.filter(e => !queryWords.includes(e.word)).map(e => e.word)
-
-  // Score each memory
-  const scored: AAMResult[] = []
-
-  for (const mem of candidates) {
-    // Compute each key's match probability
-    const keyScores: Record<string, number> = {}
-    const probabilities: number[] = []
-
-    for (const key of RECALL_KEYS) {
-      const rawScore = key.match(ctx.query, mem, ctx)
-      // Apply Hebbian weight
-      const hebbianWeight = keyWeights.weights[key.type] || 1.0
-      const adjustedScore = Math.min(1, rawScore * hebbianWeight)
-      keyScores[key.type] = adjustedScore
-      probabilities.push(adjustedScore)
-    }
-
-    // Noisy-OR combination with adaptive threshold
-    const adaptiveThreshold = computeAdaptiveThreshold(expanded)
-    const noisyOrScore = noisyOR(probabilities, adaptiveThreshold)
-
-    // Skip very low scores early
-    if (noisyOrScore < 0.15) continue
-
-    // Confidence scaling (soft, not multiplicative kill)
-    const conf = mem.confidence ?? 0.7
-    const finalScore = noisyOrScore * (0.6 + conf * 0.4)
-
-    scored.push({
-      memory: mem,
-      score: finalScore,
-      keyScores,
-      expansions: expansionWords,
-    })
-  }
-
-  // Sort by score descending
-  scored.sort((a, b) => b.score - a.score)
-
-  return scored.slice(0, topN)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// INTEGRATION HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Build AAMContext from available information.
- */
-export function buildAAMContext(
-  query: string,
-  mood = 0,
-  timeSlot = 'afternoon',
-  topicDomain = 'general',
-  recentTopics: string[] = [],
-  userId?: string,
-): AAMContext {
-  return {
-    query,
-    expandedWords: [],  // filled during aamRecall
-    mood,
-    timeSlot,
-    topicDomain,
-    recentTopics,
-    isCausalQuery: /为什么|因为|原因|why|because|怎么回事|咋回事/.test(query),
-    userId,
-  }
-}
-
+// [DELETED] AAM RECALL / aamRecall / buildAAMContext / AAMResult
+// 被 activation-field.ts 的 7 信号激活场完全替代，零外部调用
+// 删除时间：2026-04-06
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STATS

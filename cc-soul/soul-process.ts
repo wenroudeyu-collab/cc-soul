@@ -14,6 +14,7 @@ const _lastPenalizeTs = new Map<string, number>()
 
 // ── In-memory dedup cache (replaces file-based recent_replies.json) ──
 const _dedupCache = new Map<string, { reply: string; ts: number }>()
+let _crossTurnLastMsg: Record<string, string> = {}  // T3: 跨轮配对学习（按 userId 隔离）
 const DEDUP_TTL = 3600000 // 1 hour (matches original expiry)
 function cleanDedup() {
   const now = Date.now()
@@ -125,6 +126,21 @@ async function handleProcess(body: any): Promise<any> {
 
   // ── 交叉学习：每条用户消息喂 AAM（不只是查询时）──
   try { (await import('./aam.ts')).learnAssociation(message) } catch {}
+
+  // ── T3: 跨轮配对学习——相邻消息建立语义桥梁（按 userId 隔离）──
+  try {
+    const _uid = senderId || 'default'
+    if (!_crossTurnLastMsg) _crossTurnLastMsg = {}
+    const lastMsg = _crossTurnLastMsg[_uid] || ''
+    if (lastMsg.length > 10 && message.length > 10) {
+      const prev = (lastMsg.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 8)
+      const curr = (message.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 8)
+      if (prev.length > 0 && curr.length > 0) {
+        (await import('./aam.ts')).learnAssociation(prev.join(' ') + ' ' + curr.join(' '), 0.3)
+      }
+    }
+    _crossTurnLastMsg[_uid] = message
+  } catch {}
 
   // ── 语义漂移追踪：每条用户消息喂滑动窗口 ──
   try { (await import('./semantic-drift.ts')).trackMessage(message) } catch {}

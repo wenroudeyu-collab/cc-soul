@@ -319,6 +319,22 @@ Select the ${topN} most relevant memories for answering the question. Reply with
                 // 超时兜底：比 spawnCLI 的 10s 多 2s
                 new Promise<typeof results>((resolve) => setTimeout(() => resolve(results.slice(0, topN)), 12000)),
               ])
+              // ── CR: Consensus Recall — LLM 选了但 NAM 排低的 → 喂回 AAM 学习 ──
+              // "LLM 当教练，AAM 当学生，学会后教练退场"
+              try {
+                const { learnAssociation: _crLearn } = await import('./aam.ts')
+                const _namTopContents = new Set(results.slice(0, topN).map((r: any) => r.content))
+                const queryKw = (query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+                for (const mem of reranked) {
+                  if (!_namTopContents.has((mem as any).content)) {
+                    // LLM 选了但 NAM 没选 → NAM 漏了这条 → 学习关联
+                    const memKw = (((mem as any).content || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+                    if (queryKw.length > 0 && memKw.length > 0) {
+                      _crLearn(queryKw.join(' ') + ' ' + memKw.join(' '), 0.8)
+                    }
+                  }
+                }
+              } catch {}
               results = reranked
               console.log(`[cc-soul][search] LLM rerank: ${recallN} → ${results.length} results`)
             } catch {

@@ -537,8 +537,21 @@ async function run() {
       const memories = buildMemories(q)
       memoryCache.set(convId, memories)
       if (!learnedConvs.has(convId)) {
-        // 普通记忆学习（低权重）
-        for (const mem of memories) learnAssociation(mem.content, 0.2)
+        // ── T1: 跨轮关联学习——Q-A 对的词自动共现，建立语义桥梁 ──
+        for (let mi = 0; mi < memories.length; mi++) {
+          learnAssociation(memories[mi].content, 0.2)
+          // 相邻消息配对：Q 里的 "instruments" 和 A 里的 "ukulele" 产生共现
+          if (mi + 1 < memories.length) {
+            const timeDiff = Math.abs((memories[mi + 1].ts || 0) - (memories[mi].ts || 0))
+            if (timeDiff < 120000) {
+              const w1 = (memories[mi].content || '').match(/[a-zA-Z]{3,}/gi) || []
+              const w2 = (memories[mi + 1].content || '').match(/[a-zA-Z]{3,}/gi) || []
+              if (w1.length > 0 && w2.length > 0) {
+                learnAssociation(w1.slice(0, 8).join(' ') + ' ' + w2.slice(0, 8).join(' '), 0.4)
+              }
+            }
+          }
+        }
         // Summary 强化学习（高权重 + 二次拆分）——summary 信息密度高，实体关联更重要
         for (const mem of memories) {
           if (mem.tags?.includes('summary')) {
@@ -548,8 +561,7 @@ async function run() {
             for (const sent of sentences) learnAssociation(sent, 0.5)
           }
         }
-        // S2: 从 episode 记忆提取英文事实到 fact-store（用 dynamic-extractor 增强后的模式）
-        // 不灌 summary（之前证明会干扰 NAM），只灌 episode 中能精确提取的事实
+        // S2: 从 episode 记忆提取英文事实到 fact-store
         try {
           const { extractFacts, addFacts } = require('./fact-store.ts')
           let factCount = 0

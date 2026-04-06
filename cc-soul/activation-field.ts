@@ -93,6 +93,8 @@ const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: Re
 
 // ── BM25 标准分母：文档平均长度（在 computeActivationField 内预计算）──
 let _currentAvgDocLen = 20
+// ── T2: Memory-Side Concept Tags（在 computeActivationField 内预计算）──
+let _memConceptTagsCache = new Map<string, Set<string>>()
 
 // ── Recall Thermostat: learn which signals correlate with engaged memories ──
 const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; interference: number; temporal: number; pam: number; momentum: number } }[] = []
@@ -386,16 +388,18 @@ function baseActivation(mem: Memory, now: number): number {
   const createdAgo = Math.max((now - (mem.ts || now)) / 1000, 1)
   const lastAgo = Math.max((now - (mem.lastAccessed || mem.ts || now)) / 1000, 1)
 
-  // ACT-R: B = ln(Σ t_i^(-d)), d=0.5
+  // ACT-R: B = ln(Σ t_i^(-d))
+  // 闪光灯记忆：importance >= 8 时衰减率减半（重大事件记一辈子）
+  const d = (mem.importance ?? 5) >= 8 ? 0.25 : 0.5
   let sum = 0
   const cap = Math.min(n, 50)
   if (cap === 1) {
-    sum = Math.pow(lastAgo, -0.5)
+    sum = Math.pow(lastAgo, -d)
   } else {
     for (let i = 0; i < cap; i++) {
       const fraction = i / (cap - 1)
       const accessAgo = createdAgo - fraction * (createdAgo - lastAgo)
-      sum += Math.pow(Math.max(accessAgo, 1), -0.5)
+      sum += Math.pow(Math.max(accessAgo, 1), -d)
     }
   }
   const rawB = sum > 0 ? Math.log(sum) : -5
@@ -542,9 +546,9 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   let originalHits = 0, originalDenom = 0
   let expansionHits = 0, expansionTotal = 0
   let tier2Hits = 0, tier2Total = 0
+  let cjkT1Hits = 0, cjkT1Total = 0
   for (const [word, weight] of expandedWords) {
     const idfWeight = _idfCache?.get(word) ?? 1.0
-    // AWDF: 激活场感知 IDF — 活跃记忆中的词更有区分力（NAM 独有信号）
     const AWDF_ALPHA = 0.5
     const totalAct = _wordActivationSum?.get(word) ?? 0
     const awdf = (memBaseActivation !== undefined && totalAct > 0)
@@ -565,15 +569,30 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
     }
     tier2Total += maxValue
     if (matched) tier2Hits += hitValue
+    // 中文 tier1：旧判定（weight>=0.7 或 3+字且 weight>=0.5）
+    const isCjkTier1 = weight >= 0.7 || (weight >= 0.5 && word.length >= 3)
+    if (isCjkTier1) {
+      cjkT1Total += maxValue
+      if (matched) cjkT1Hits += hitValue
+    }
   }
-  // Rocchio: base = originalHits / denom, bonus = expansionHits * 0.3 / expansionDenom
-  const safeDenom = Math.max(originalDenom, 0.01)
-  const safeExpDenom = Math.max(expansionTotal, 0.01)
-  const baseScore = originalHits / safeDenom
-  const expansionBonus = expansionHits * 0.3 / safeExpDenom
-  const tier1Score = baseScore + expansionBonus
-  const tier2Score = tier2Total > 0 ? tier2Hits / tier2Total : 0
-  const rawWordScore = Math.max(tier1Score, tier2Score * 0.7)
+  // 中英文分路评分
+  let rawWordScore: number
+  if (/[\u4e00-\u9fff]/.test(query)) {
+    // 中文：旧 tier1（weight>=0.7 含 AAM 扩展词）和 tier2 取 max
+    const t1 = cjkT1Total > 0 ? cjkT1Hits / cjkT1Total : 0
+    const t2 = tier2Total > 0 ? tier2Hits / tier2Total : 0
+    rawWordScore = Math.max(t1, t2 * 0.7)
+  } else {
+    // 英文：Rocchio，original 全额 + expansion 30% bonus
+    const safeDenom = Math.max(originalDenom, 0.01)
+    const safeExpDenom = Math.max(expansionTotal, 0.01)
+    const baseScore = originalHits / safeDenom
+    const expansionBonus = expansionHits * 0.3 / safeExpDenom
+    const tier1Score = baseScore + expansionBonus
+    const tier2Score = tier2Total > 0 ? tier2Hits / tier2Total : 0
+    rawWordScore = Math.max(tier1Score, tier2Score * 0.7)
+  }
   // 最低门槛：中文用固定低阈值（CJK 滑动窗口产生大量扩展词，动态阈值会过严）
   // 英文用动态阈值（扩展词更有意义，不存在滑动窗口碎片）
   const _hasCJK = /[\u4e00-\u9fff]/.test(query)
@@ -614,7 +633,28 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // 英文 trigram 权重提升：拼写变体/缩写/词形变化更依赖 trigram
   const _enRatio = ((query.match(/[a-zA-Z]+/g) || []).join('').length) / Math.max(query.length, 1)
   const _triWeight = _enRatio > 0.5 ? 1.0 : 0.8
-  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight)
+
+  // ── T2: Memory-Side Concept Match（第四路评分）──
+  // 记忆的具体词上推到抽象概念标签，查询的抽象词直接命中
+  let conceptScore = 0
+  const memTags = _memConceptTagsCache.get(contentLower)
+  if (memTags && memTags.size > 0) {
+    let conceptHits = 0
+    for (const [word, weight] of expandedWords) {
+      if ((weight as number) >= 0.5) {
+        if (memTags.has(word)) conceptHits++
+        else if (/^[a-zA-Z]+$/.test(word)) {
+          const stemmed = porterStem(word)
+          if (stemmed && memTags.has(stemmed)) conceptHits++
+        }
+      }
+    }
+    if (conceptHits > 0) {
+      conceptScore = conceptHits / Math.max(memTags.size, 1) * 0.6
+    }
+  }
+
+  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight, conceptScore)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -690,6 +730,7 @@ function getAAMNeighborsFn(): typeof _aamGetNeighbors {
 let _erfCache: Map<string, number> | null = null
 let _entityFanCount: Map<string, number> = new Map()  // ACT-R fan effect: entity → mention count
 let _aamNeighborCache: Map<string, number> | null = null  // 查询级 AAM 邻居缓存
+let _currentExpandedWords: Map<string, number> | null = null  // 当前查询的扩展词（供 S4 Path D 使用）
 
 /**
  * 构建实体共振场：从查询中提取实体，通过图谱边扩散
@@ -799,7 +840,19 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
     if (erfBoost > 0) totalSpread += erfBoost
   }
 
-  return Math.min(0.6, totalSpread)  // cap 从 0.5 提到 0.6（ERF 贡献空间）
+  // ── Path D: CONCEPT_HIERARCHY 静态扩散（AAM 冷启动 fallback）──
+  if (count < 3 && totalSpread < 0.1 && _currentExpandedWords && _currentExpandedWords.size > 0) {
+    const memLower = (mem.content || '').toLowerCase()
+    let conceptBoost = 0
+    for (const [word, weight] of _currentExpandedWords) {
+      if (weight >= 0.3 && weight < 0.9 && memLower.includes(word)) {
+        conceptBoost += weight * 0.15
+      }
+    }
+    totalSpread += Math.min(0.2, conceptBoost)
+  }
+
+  return Math.min(0.6, totalSpread)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -942,6 +995,24 @@ export function computeActivationField(
   // 构建实体共振场（ERF）— 一次性，供 spreadingActivation Path C 使用
   _erfCache = buildEntityResonanceField(query, memories)
 
+  // ── T2: Memory-Side Concept Expansion 预计算 ──
+  _memConceptTagsCache = new Map()
+  try {
+    const { getConceptParents: _getCP } = require('./aam.ts')
+    if (_getCP) {
+      for (const mem of memories) {
+        const cl = (mem.content || '').toLowerCase()
+        const ws = cl.match(/[a-zA-Z]{3,}|[\u4e00-\u9fff]{2,4}/gi) || []
+        const tags = new Set<string>()
+        for (const w of ws.slice(0, 15)) {
+          const parents = _getCP(w.toLowerCase())
+          for (const p of parents) tags.add(p)
+        }
+        if (tags.size > 0) _memConceptTagsCache.set(cl, tags)
+      }
+    }
+  } catch {}
+
   // ACT-R Fan Effect：统计每个 ERF 实体在多少条记忆中被提及
   // fan 越大，每条记忆分到的扩散激活越少（S - ln(fan)）
   _entityFanCount = new Map()
@@ -955,6 +1026,9 @@ export function computeActivationField(
       }
     }
   }
+
+  // 缓存当前查询的扩展词（供 S4 Path D 静态扩散使用）
+  _currentExpandedWords = expandedWords
 
   // 预建 AAM neighbor 缓存 — 把查询词的 1-hop AAM 邻居预计算好
   // 供 spreadingActivation Path B 用，避免每条记忆重复 PMI 计算（O(N²) → O(N)）
@@ -1003,11 +1077,10 @@ export function computeActivationField(
 
   // 冷启动检测：如果 _activations 几乎为空（< 10 条），说明没有历史交互
   // Signal 4 (spread) 和 Signal 7 (PAM) 不会贡献分数，context 应该主导
+  // 冷启动：用局部变量覆盖，不修改全局 Thermostat 学习权重
   const isColdStart = _activations.size < 10
-  if (isColdStart) {
-    _baseWeight = 0.15
-    _contextWeight = 0.85
-  }
+  const wBase = isColdStart ? 0.15 : _baseWeight
+  const wCtx = isColdStart ? 0.85 : _contextWeight
 
   // 第一遍：计算原始激活值（不含干扰抑制）
   const rawResults: { mem: Memory; raw: number; signals: any; path: TraceStep[] }[] = []
@@ -1029,16 +1102,16 @@ export function computeActivationField(
     // 核心改变：base 和 context 从乘法改为加法
     // 原因：乘法下 base 的 365x 动态范围碾压 context 的 20x，旧但相关的记忆永远输给新但无关的
     // 加法下：score = 0.3×base + 0.7×context，context 有独立贡献，不被 base 乘没
-    // 权重由 Recall Thermostat 动态调节（默认 0.3/0.7）
-    const { base: wBase, context: wCtx } = getSignalWeights()
+    // 权重由 Recall Thermostat 动态调节（冷启动时 0.15/0.85，否则用学习值）
     const baseContextScore = wBase * s1 + wCtx * s2
 
     // 其余信号保持乘法调制（系数由 Recall Thermostat 自适应学习）
     const raw = baseContextScore * (0.5 + _emotionCoeff * s3) * (1 + _spreadCoeff * s4) * (0.8 + _temporalCoeff * s6)
 
-    // confidence 软缩放（不是乘法杀死，是 0.6-1.0 区间）
-    const conf = mem.confidence ?? 0.7
-    const confScale = 0.6 + conf * 0.4
+    // confidence 动态缩放：用 Bayes beta 分布（confidence-cascade），范围 0.3-1.3
+    // 既能降权低置信，也能 boost 高置信（比静态 confScale 0.6-1.0 更精确）
+    let confScale = 1.0
+    try { confScale = _getConfModifier(mem) } catch { confScale = 0.6 + (mem.confidence ?? 0.7) * 0.4 }
 
     // importance 加成（surprise 编码的结果）
     // importance 线性插值替代二值跳跃（imp=5→1.0, imp=8→1.15, imp=10→1.25）
@@ -1125,7 +1198,7 @@ export function computeActivationField(
   // boost 后重排
   rawResults.sort((a, b) => b.raw - a.raw)
 
-  // ── NRR Signal R2 (Topic Position) 已内化到 NAM-25 的 encoding(position × density) 中 ──
+  // ── NRR Signal R2 (Topic Position) 已移除（NAM-25 回滚后 position/density 不再适用于短记忆）──
 
   // ── NRR Signal R1: Personal Term Importance (PTI) — 用户高频词加权 ──
   // 用户经常主动提及的词对这个用户重要，即使全局 IDF 低
@@ -1154,17 +1227,8 @@ export function computeActivationField(
     }
   }
 
-  // ── NRR Signal R3: Recall Affinity — 被成功召回过的记忆更易再次唤醒 ──
-  // recallCount > 1 说明这条记忆曾被验证有用，对数饱和防止极端值
-  // benchmark 里 recallCount=初始值，R3 不影响；真实用户场景下提供正反馈环
-  const NRR_R3_GAMMA = 0.4
-  for (let i = 0; i < nrrLimit; i++) {
-    const rc = rawResults[i].mem.recallCount || 0
-    if (rc > 1) {
-      const recallBoost = Math.min(1.0, Math.log2(rc) / 4)  // rc=2→0.25, rc=16→1.0
-      rawResults[i].raw *= (1 + NRR_R3_GAMMA * recallBoost)
-    }
-  }
+  // NRR R3 (Recall Affinity) 已移除——recallCount 已在 S1 (ACT-R) 中计入，
+  // 保留 R3 会导致高 recallCount 记忆被双重加权
 
   // NRR 后重排
   rawResults.sort((a, b) => b.raw - a.raw)
@@ -1199,10 +1263,7 @@ export function computeActivationField(
       activation *= driftMod
     } catch {}
 
-    // ── Confidence cascade modifier：高置信 boost，低置信 penalize ──
-    try {
-      activation *= _getConfModifier(r.mem)
-    } catch {}
+    // Confidence 已由 _getConfModifier (confidence-cascade) 在 finalRaw 中处理
 
     r.signals.interference = s5
 
@@ -1472,7 +1533,41 @@ export function activationRecall(
       const kw = (reminder.keyword || reminder).toString().toLowerCase()
       if (kw.length >= 2) {
         const existing = expanded.get(kw) || 0
-        expanded.set(kw, Math.max(existing, existing * 1.3 || 0.4))
+        expanded.set(kw, Math.max(existing * 1.3, 0.4))
+      }
+    }
+  } catch {}
+
+  // ── N2: 用户词汇适配——avatar decoder 的个人简写注入扩展词 ──
+  try {
+    const { getAvatarProfile } = require('./avatar.ts')
+    const _avProfile = getAvatarProfile?.()
+    if (_avProfile?.vocabulary?.decoder) {
+      const queryWords = new Set((query.match(/[\u4e00-\u9fff]|[a-zA-Z0-9]+/g) || []).map((w: string) => w.toLowerCase()))
+      for (const [shorthand, meaning] of Object.entries(_avProfile.vocabulary.decoder)) {
+        if (queryWords.has(shorthand.toLowerCase()) || expanded.has(shorthand.toLowerCase())) {
+          const meaningWords = ((meaning as string) || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []
+          for (const w of meaningWords) {
+            if (!expanded.has(w.toLowerCase())) expanded.set(w.toLowerCase(), 0.7)
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // ── N3: 话题切换预测预热——预测下一话题，低权重预热相关词 ──
+  try {
+    const { predictNextTopic } = require('./behavioral-phase-space.ts')
+    const { getPersonModelState } = require('./person-model.ts')
+    const tom = getPersonModelState?.()
+    if (tom?.recentTopics?.length >= 3) {
+      const topics = tom.recentTopics.slice(-3).map((t: any) => t.topic || t)
+      const prediction = predictNextTopic?.(topics, mood)
+      if (prediction?.topic && prediction.confidence > 0.5) {
+        const topicKw = CATEGORY_KEYWORDS[prediction.topic] || []
+        for (const tw of topicKw.slice(0, 5)) {
+          if (!expanded.has(tw)) expanded.set(tw, 0.15)
+        }
       }
     }
   } catch {}
@@ -1873,10 +1968,9 @@ export function activationRecall(
       const causalTargets = new Set<string>()
       for (const e of topEntities) {
         try {
-          const chain = graph.traceCausalChain([e], 2)
-          if (chain) for (const node of chain) {
-            const target = node.entity || node.target || node.name || ''
-            if (target) causalTargets.add(target.toLowerCase())
+          const chain = graph.traceCausalChain([e], 2) as string[]
+          if (chain) for (const target of chain) {
+            if (target && typeof target === 'string') causalTargets.add(target.toLowerCase())
           }
         } catch {}
       }
