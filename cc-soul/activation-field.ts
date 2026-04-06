@@ -477,43 +477,15 @@ const QUERY_TYPE_MULTIPLIERS: Record<QueryType, { k1Mult: number; bMult: number;
   broad:    { k1Mult: 0.67, bMult: 0.4,  temporalBoost: 1.0 },
 }
 
-// 路由修复：when 从 PRECISE 移到 TEMPORAL（"When did X happen?" 是时间查询不是精确查询）
-const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|how\s*many/i
-const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|when|last|before|after|ago|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
+const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|when|how\s*many/i
+const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|last|before|ago|when\s+did|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
 
 let _currentQueryType: QueryType = 'broad'
 
 function detectQueryType(query: string): QueryType {
-  // temporal 先检测（更具体的优先，避免 when 被 precise 抢走）
-  if (TEMPORAL_RE.test(query)) return 'temporal'
   if (PRECISE_RE.test(query)) return 'precise'
+  if (TEMPORAL_RE.test(query)) return 'temporal'
   return 'broad'
-}
-
-// ── Slot-Aware Query State（暂停：全局乘法 boost 伤分 -5.9%，需要改成 tie-break 模式再启用）──
-// 保留类型定义和检测函数供后续 tie-break 版使用
-interface QuerySlot {
-  slotType: 'person' | 'place' | 'time' | 'count' | 'object' | 'boolean' | 'general'
-  temporalMode: 'point' | 'range' | 'order' | 'none'
-  exactness: number
-}
-let _currentSlot: QuerySlot = { slotType: 'general', temporalMode: 'none', exactness: 0.3 }
-
-function detectQuerySlot(query: string): QuerySlot {
-  const q = query.toLowerCase()
-  let slotType: QuerySlot['slotType'] = 'general'
-  if (/\bwho\b|\bwhose\b/i.test(q) || /谁|哪个人/.test(q)) slotType = 'person'
-  else if (/\bwhere\b/i.test(q) || /哪里|哪儿|什么地方/.test(q)) slotType = 'place'
-  else if (/\bwhen\b|\bwhat time\b/i.test(q) || /几点|什么时候|哪天|哪年/.test(q)) slotType = 'time'
-  else if (/\bhow many\b|\bhow much\b/i.test(q) || /几个|多少|几岁/.test(q)) slotType = 'count'
-  else if (/\b(is|are|was|were|did|does|do)\b/.test(q) && q.length < 60) slotType = 'boolean'
-  else if (/\bwhat\b|\bwhich\b/i.test(q) || /什么|哪个/.test(q)) slotType = 'object'
-  let temporalMode: QuerySlot['temporalMode'] = 'none'
-  if (/\bwhen\b|\bwhat time\b/i.test(q) || /几点|什么时候/.test(q)) temporalMode = 'point'
-  else if (/\b(before|after|first|last|latest|earliest|most recent)\b/i.test(q) || /之前|之后|先|后|最早|最先|最近|最后|最新|开始/.test(q)) temporalMode = 'order'
-  else if (/\b(between|during)\b/i.test(q) || /从.*到|期间/.test(q)) temporalMode = 'range'
-  const exactness = slotType !== 'general' ? Math.min(1, 0.5 + (slotType === 'boolean' ? 0.3 : 0.2) + (q.length < 40 ? 0.2 : 0)) : 0.3
-  return { slotType, temporalMode, exactness }
 }
 
 /** Get adaptive k1/b — reads base from auto-tune, applies query-type + language multipliers */
@@ -1113,20 +1085,7 @@ export function computeActivationField(
     // 原因：s2=0.0005 的底分 + 高 base activation 会挤掉真正相关的弱匹配记忆
     if (s2 < 0.002) continue
     const s3 = emotionResonance(mem, mood, alertness)
-    let s4 = spreadingActivation(mem, memories, query)
-    // ── microLinks 消费：激活链结晶加成 ──
-    // 如果记忆有 microLinks 且其 sharedKeywords 命中当前查询扩展词，增强扩散信号
-    if (mem.microLinks && mem.microLinks.length > 0) {
-      let mlBoost = 0
-      for (const link of mem.microLinks) {
-        let hits = 0
-        for (const kw of link.sharedKeywords) {
-          if (expandedWords.has(kw.toLowerCase())) hits++
-        }
-        if (hits > 0) mlBoost += 0.15 * hits
-      }
-      s4 += Math.min(0.6, mlBoost)  // microLinks 最多贡献 +0.6
-    }
+    const s4 = spreadingActivation(mem, memories, query)
     const s6 = temporalContext(mem, timeRange, queryWordSet)
 
     // ── 加法融合（base + context）× 乘法调制（emotion × spread × temporal）──
@@ -1138,7 +1097,7 @@ export function computeActivationField(
     const baseContextScore = wBase * _imaf.s1 * s1 + wCtx * _imaf.s2 * s2
 
     // IMAF 意图调制 + Thermostat 自适应
-    const raw = baseContextScore * (0.5 + _emotionCoeff * _imaf.s3 * s3) * (1 + Math.min(0.5, _spreadCoeff * _imaf.s4 * s4)) * (0.8 + _temporalCoeff * _imaf.s6 * s6)
+    const raw = baseContextScore * (0.5 + _emotionCoeff * _imaf.s3 * s3) * (1 + _spreadCoeff * _imaf.s4 * s4) * (0.8 + _temporalCoeff * _imaf.s6 * s6)
 
     // confidence 软缩放（不是乘法杀死，是 0.6-1.0 区间）
     const conf = mem.confidence ?? 0.7
@@ -1166,24 +1125,11 @@ export function computeActivationField(
       s7 = Math.min(0.3, hits * 0.1)  // 提升：each hit +0.1, max +0.3（对话惯性是 NAM 独有优势）
     }
 
-    // Signal 8: Prospective Tag Match（前瞻性标签命中——零 LLM doc2query）
-    // 写入时 AAM 预测的未来查询词，查询时匹配则 boost
-    let s8 = 0
-    if (mem.prospectiveTags && mem.prospectiveTags.length > 0) {
-      let ptHits = 0
-      for (const tag of mem.prospectiveTags) {
-        const tl = tag.toLowerCase()
-        if (expandedWords.has(tl) || queryLower.includes(tl)) ptHits++
-      }
-      if (ptHits > 0) s8 = Math.min(1.0, ptHits / mem.prospectiveTags.length * 2)
-    }
-
     // 对话惯性加成（momentum boost，由 _momentumCoeff 调制）
     const momentum = getMomentumBoost(mem.content || '')
 
     const catWeight = getCategoryWeight(mem)
-    const utilityMod = 1 + (mem.utility ?? 0) * 0.1  // MemRL: utility=5 → 1.5x, -5 → 0.5x
-    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * (1 + s8 * 0.5) * catWeight * utilityMod
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight
 
     // 构建 trace path
     const path: TraceStep[] = [
@@ -1197,7 +1143,6 @@ export function computeActivationField(
     if (impBoost > 1.0) path.push({ stage: 'signal_boost', via: 'importance', rawScore: impBoost })
     if (momentum > 0.05) path.push({ stage: 'signal_boost', via: 'momentum', rawScore: momentum })
     if (s7 > 0.01) path.push({ stage: 'signal_boost', via: 'temporal_cooccur', rawScore: s7 })
-    if (s8 > 0.01) path.push({ stage: 'signal_boost', via: 'prospective_tag', rawScore: s8 })
 
     if (finalRaw > 0.001) {  // 候选门槛极低，靠排序筛选而非硬阈值
       rawResults.push({
@@ -1498,13 +1443,6 @@ export function activationRecall(
 
   // 查询类型检测（adaptive k1/b）
   _currentQueryType = detectQueryType(query)
-  _currentSlot = detectQuerySlot(query)
-
-  // ── Exact-Mode Gating：single-hop 精确查询保护（不压缩 query、不扩展、不漂宽）──
-  // 前置门：只用此时已确定的变量（_isAggregation 要等首轮结果才有，不能放这里）
-  const _isExactMode = _currentSlot.exactness >= 0.65
-    && _currentQueryType === 'precise'
-    && (_queryNames?.length ?? 0) <= 1
 
   // temporal 查询需要更多候选做时间排序比较
   if (_currentQueryType === 'temporal') {
@@ -1546,9 +1484,8 @@ export function activationRecall(
   }
 
   // 2. 关键词通道：去停用词后的 BM25 关键词（更精准的词法匹配）
-  // Exact-Mode：保留原始 query 不压缩（what/does/how 等问法信号不丢）
   let lexicalQuery = query
-  if (!_isExactMode) try {
+  try {
     const keywords: string[] = _extractTagsLocal(query)  // 顶层 import，ESM 安全
     if (keywords.length > 0) lexicalQuery = keywords.join(' ')
   } catch {}
@@ -1582,29 +1519,12 @@ export function activationRecall(
   // 在 computeActivationField 之前执行，同时加速 IDF 缓存构建
   memories = categoryPrePrune(memories, query)
 
-  // ── Segment 预筛选：回指查询（"那次/上次讨论"）时聚焦到前一段 ──
-  const _segRefPattern = /那次|上次讨论|上次聊|那个session|last time we discussed/
-  if (_segRefPattern.test(query) && memories.length >= 5) {
-    let maxSeg = 0
-    for (const m of memories) {
-      if (m._segmentId && m._segmentId > maxSeg) maxSeg = m._segmentId
-    }
-    if (maxSeg >= 2) {
-      const targetSeg = maxSeg - 1
-      const segFiltered = memories.filter(m => m._segmentId === targetSeg)
-      if (segFiltered.length >= 3) {
-        memories = segFiltered
-        console.log(`[activation-field] segment pre-filter: query references previous session, narrowed to seg=${targetSeg} (${segFiltered.length} memories)`)
-      }
-    }
-  }
-
   // ── Parallel Channel: fact-store 关键词召回（与 NAM 并行，最终融合）──
   // 遍历所有已存三元组，用查询词+AAM扩展词评分，不短路，结果在 NAM 之后融合
   let _parallelFactMems: Memory[] = []
   try {
     const factStore = _factStoreMod
-    const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number; supersedes?: string }[]
+    const allFacts = factStore.getAllFacts() as { subject: string; predicate: string; object: string; ts?: number; confidence?: number; validUntil?: number }[]
     const queryLowerS1 = query.toLowerCase()
     // 提取查询关键词（CJK 2-gram + 英文 2+ 字母 + 数字）
     const queryTokensS1 = new Set((queryLowerS1.match(WORD_PATTERN.CJK24_EN2_NUM) || []).map(w => w.toLowerCase()))
@@ -1635,10 +1555,10 @@ export function activationRecall(
       // 3. confidence 加权
       matchScore *= (fact.confidence || 0.7)
 
-      if (matchScore >= 3) {  // 至少要有 object 直接命中（score=2）+ 1 个额外信号，防低质量 facts 挤占排名
+      if (matchScore > 0) {
         scoredFacts.push({
           mem: {
-            content: `[事实] ${fact.predicate}: ${fact.object}${fact.supersedes ? '（之前是 ' + fact.supersedes + '）' : ''}`,
+            content: `[事实] ${fact.predicate}: ${fact.object}`,
             scope: 'fact', ts: fact.ts || Date.now(), confidence: fact.confidence || 0.9,
             source: 'fact_store_parallel',
             recallCount: 10, lastAccessed: Date.now(), importance: 9,
@@ -1685,8 +1605,8 @@ export function activationRecall(
 
   // ── DQR: Dual-Query Recall（双查询召回）——用扩展词重组第二个查询再搜一次 ──
   // 原创：论文证明 dual-query 能提升 6.7%，我们用 AAM 扩展词自动生成第二查询（零 LLM）
-  if (results.length > 0 && results[0].activation < 0.5 && expanded.size > 5 && !_isExactMode) {
-    // 只在首轮结果不够好时触发；Exact-Mode 不扩展（防止精确查询被漂宽）
+  if (results.length > 0 && results[0].activation < 0.5 && expanded.size > 5) {
+    // 只在首轮结果不够好时触发（top-1 分数 < 0.3 = 不太确定）
     try {
       // 取 expanded 里权重最高的 5 个非原始词作为第二查询
       const altWords = [...expanded.entries()]
@@ -1704,32 +1624,6 @@ export function activationRecall(
           if (!seenContent.has(r.memory.content)) {
             results.push(r)
             seenContent.add(r.memory.content)
-          }
-        }
-        results.sort((a, b) => b.activation - a.activation)
-      }
-    } catch {}
-  }
-
-  // ── Multi-Entity Query Decomposition：多实体查询拆分 ──
-  // "What have both Caroline and Melanie painted?" → 分别搜 Caroline+painted 和 Melanie+painted
-  // 论文 PRISM (2025): 查询拆解对 multi-hop 提升 +5%
-  if (_queryNames && _queryNames.length >= 2 && results.length > 0) {
-    try {
-      const seenContent = new Set(results.map(r => r.memory.content))
-      // 对每个实体名生成子查询（实体名 + 查询动词/关键词）
-      const queryContentWords = (lexicalQuery.match(/[a-zA-Z]{4,}/gi) || [])
-        .filter(w => !_queryNames.includes(w.toLowerCase()) && !EN_STOP_WORDS.has(w.toLowerCase()))
-        .slice(0, 4)
-      if (queryContentWords.length >= 1) {
-        for (const name of _queryNames.slice(0, 2)) {  // 最多 2 个实体
-          const subQuery = name + ' ' + queryContentWords.join(' ')
-          const subResults = computeActivationField(memories, subQuery, mood, alertness, expanded, topN, timeRange, cogHints)
-          for (const r of subResults.slice(0, 5)) {  // 每个子查询取 top-5
-            if (!seenContent.has(r.memory.content)) {
-              results.push(r)
-              seenContent.add(r.memory.content)
-            }
           }
         }
         results.sort((a, b) => b.activation - a.activation)
@@ -1773,8 +1667,8 @@ export function activationRecall(
   // 过采样 2x，给 Step 3 的 rerank 留空间
 
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
-  // 仅在首轮几乎无结果时触发；Exact-Mode 不扩展
-  if (results.length > 0 && results[0].activation < 0.15 && !_isExactMode) {
+  // 仅在首轮几乎无结果时触发（阈值 0.03），避免大量计算
+  if (results.length > 0 && results[0].activation < 0.03) {
     const prfTopN = Math.min(3, results.length)
     const prfKeywords = new Map<string, number>()  // word → IDF weight
 
@@ -1892,9 +1786,7 @@ export function activationRecall(
       if (m.emotion === 'painful') bonus += 2.0
     }
     // Summary/蒸馏记忆优先（浓缩了关键事实，天然高质量）
-    // summary/fact 拆开——exact 模式下 summary 降权（主题广不精确），fact 轻降保留
-    if (m.tags?.includes('summary')) bonus += (_isExactMode ? 1.0 : 2.5)
-    else if (m.scope === 'fact') bonus += (_isExactMode ? 2.0 : 2.5)
+    if (m.tags?.includes('summary') || m.scope === 'fact') bonus += 2.5
     // Speaker 标签匹配：查询指定了 speaker 时优先匹配
     if (m.tags?.length) {
       const speakerMatch = /speaker\s*1|speaker\s*2|user|assistant/i.exec(queryLower)
@@ -2047,147 +1939,6 @@ export function activationRecall(
     if (boosted > 0) {
       results.sort((a, b) => b.activation - a.activation)
       console.log(`[activation-field] segment-cohesion: boosted ${boosted} memories across ${[...segCounts.values()].filter(v => v >= 2).length} segments`)
-    }
-  }
-
-  // ── Coverage Rerank：多约束覆盖最大化（multi-hop / 跨实体查询）──
-  // 目标：从"单条最相关"变成"组合覆盖最多约束"
-  // 只在多实体查询时触发，避免对单约束查询引入噪声
-  if (_queryNames && _queryNames.length >= 2 && results.length > topN) {
-    const constraints = new Set<string>()
-    for (const n of _queryNames) constraints.add('entity:' + n)
-    const contentWords = (lexicalQuery.match(/[a-z]{4,}/gi) || [])
-      .filter(w => !EN_STOP_WORDS.has(w.toLowerCase()))
-      .slice(0, 6)
-    for (const w of contentWords) constraints.add('kw:' + w.toLowerCase())
-
-    const pool = results.slice(0, topN * 2)
-    const selected: typeof results = []
-    const uncovered = new Set(constraints)
-
-    while (selected.length < topN && pool.length > 0) {
-      let bestIdx = 0, bestScore = -1
-      for (let i = 0; i < pool.length; i++) {
-        const ml = pool[i].memory.content.toLowerCase()
-        let gain = 0
-        for (const c of uncovered) {
-          if (ml.includes(c.split(':')[1])) gain++
-        }
-        const rankScore = 1 / (1 + i)
-        const combined = 0.6 * rankScore + 0.4 * (gain / Math.max(constraints.size, 1))
-        if (combined > bestScore) { bestScore = combined; bestIdx = i }
-      }
-      const picked = pool.splice(bestIdx, 1)[0]
-      selected.push(picked)
-      const ml = picked.memory.content.toLowerCase()
-      for (const c of [...uncovered]) {
-        if (ml.includes(c.split(':')[1])) uncovered.delete(c)
-      }
-    }
-    results = selected
-  }
-
-  // ── Slot Tie-Break：single-hop 精确查询时，在分数接近的候选间按槽位命中微调 ──
-  // 约束：_isExactMode + !_isAggregation + 15% gap 带 + ±3% + 不改主排序只做 tie-break
-  if (_isExactMode && !_isAggregation && _currentSlot.slotType !== 'general' && _currentSlot.slotType !== 'time' && results.length >= 3) {
-    const topAct = results[0].activation
-    let adjusted = 0
-
-    const queryEntNames = new Set((_graphMod.findMentionedEntities(query) || []).map((e: string) => e.toLowerCase()))
-
-    for (let i = 0; i < Math.min(10, results.length); i++) {
-      if (results[i].activation < topAct * 0.85) break  // 15% 带外不碰
-
-      const c = results[i].memory.content || ''
-      const memEntities = (results[i].memory as any)._entityIds || _graphMod.findMentionedEntities(c) || []
-
-      switch (_currentSlot.slotType) {
-        case 'person': {
-          const newEntities = memEntities.filter((e: string) => !queryEntNames.has(e.toLowerCase()))
-          if (newEntities.length > 0) { results[i].activation *= 1.03; adjusted++ }
-          else if (memEntities.length === 0) { results[i].activation *= 0.97; adjusted++ }  // 无实体 penalty
-          break
-        }
-        case 'place': {
-          // place-like OR org-like 特征（works at Google/Meta 也算）
-          const hasPlace = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/.test(c) && /city|town|hospital|school|university|park|street|avenue|road/i.test(c)
-          const hasPlaceZh = /在.{2,8}(?:市|区|路|医院|学校|公司|大学)/.test(c)
-          const hasOrg = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/.test(c) && /\b(at|for|in|from)\s+[A-Z]/i.test(c)
-          if (hasPlace || hasPlaceZh || hasOrg) { results[i].activation *= 1.03; adjusted++ }
-          else if (memEntities.length === 0) { results[i].activation *= 0.97; adjusted++ }  // 无实体也无地名
-          break
-        }
-        case 'count': {
-          if (/\b\d+\b/.test(c) && !/^\[.*\d{4}/.test(c)) { results[i].activation *= 1.03; adjusted++ }
-          else if (!/\d/.test(c)) { results[i].activation *= 0.97; adjusted++ }  // 完全无数字
-          break
-        }
-        case 'object': {
-          // 只做正向 boost，不做 penalty（等 relation-aware resolver）
-          const entitySet = new Set(memEntities.map((e: string) => e.toLowerCase()))
-          const contentWords = (c.match(/[a-zA-Z]{3,}/gi) || [])
-            .filter(w => !EN_STOP_WORDS.has(w.toLowerCase()) && !entitySet.has(w.toLowerCase()) && !queryEntNames.has(w.toLowerCase()))
-          if (contentWords.length >= 3) { results[i].activation *= 1.03; adjusted++ }
-          break
-        }
-        case 'boolean': {
-          if (/\b(yes|no|never|always|does|doesn't|isn't|is)\b/i.test(c) || /是|不是|没有|有|从不|一直/.test(c)) {
-            results[i].activation *= 1.02; adjusted++
-          }
-          break
-        }
-      }
-    }
-
-    if (adjusted > 0) {
-      results.sort((a, b) => b.activation - a.activation)
-      console.log(`[activation-field] slot-tiebreak: type=${_currentSlot.slotType}, ${adjusted} adjustments (±3% max)`)
-    }
-  }
-
-  // ── Temporal Tie-Break：只在 temporal 查询 + 分数接近时用时间信号打破平局 ──
-  // 原则：max ±5%，15% 带，不改主排序，只做 tie-break
-  if (_currentQueryType === 'temporal' && results.length >= 5) {
-    const q = query.toLowerCase()
-    const wantEarlier = /\b(first|earliest)\b/i.test(q) || /最早|最先|开始/.test(q)
-    const wantLater = /\b(last|latest|most recent)\b/i.test(q) || /最近|最后|最新/.test(q)
-
-    if (wantEarlier || wantLater) {
-      const topAct = results[0].activation
-      const EARLY_RE = /\b(first|earliest|initially|originally|began|started)\b|最早|最先|一开始|最初/i
-      const LATE_RE = /\b(last|latest|recent|finally|eventually|ended)\b|最近|最后|最新|后来/i
-      let adjusted = 0
-
-      for (let i = 0; i < Math.min(20, results.length); i++) {
-        if (results[i].activation < topAct * 0.85) break  // 超出 15% 带，停止
-
-        const c = results[i].memory.content || ''
-        const hasEarly = EARLY_RE.test(c)
-        const hasLate = LATE_RE.test(c)
-
-        // Order tie-break：时间方向匹配的微调 +3%
-        if (wantEarlier && hasEarly) { results[i].activation *= 1.03; adjusted++ }
-        if (wantLater && hasLate) { results[i].activation *= 1.03; adjusted++ }
-
-        // _eventDate tie-break：有原始事件时间时用时间顺序 +2%
-        const eventDate = (results[i].memory as any)._eventDate
-        if (eventDate && i > 0) {
-          const prevDate = (results[i - 1].memory as any)._eventDate
-          if (prevDate) {
-            if (wantEarlier && eventDate < prevDate) { results[i].activation *= 1.02; adjusted++ }
-            if (wantLater && eventDate > prevDate) { results[i].activation *= 1.02; adjusted++ }
-          }
-        }
-
-        // Conflict penalty：纯矛盾才扣（有矛盾词但没有匹配词）
-        if (wantEarlier && hasLate && !hasEarly) { results[i].activation *= 0.95; adjusted++ }
-        if (wantLater && hasEarly && !hasLate) { results[i].activation *= 0.95; adjusted++ }
-      }
-
-      if (adjusted > 0) {
-        results.sort((a, b) => b.activation - a.activation)
-        console.log(`[activation-field] temporal-tiebreak: ${wantEarlier ? 'earlier' : 'later'} bias, ${adjusted} adjustments`)
-      }
     }
   }
 

@@ -32,7 +32,7 @@ const print = _origLog  // always prints
 
 // Lazy-load modules
 const { activationRecall } = require('./activation-field.ts')
-const { learnAssociation, expandQuery } = require('./aam.ts')
+const { learnAssociation } = require('./aam.ts')
 const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
 const { toCogHints } = require('./cognition.ts')
 
@@ -100,16 +100,12 @@ function buildMemories(q: LocomoQuestion): Memory[] {
     const session = q.haystack_sessions[si]
     const baseTs = normalizeTs(originalTimestamps[si])
 
-    // ── Temporal Anchor：动态时间前缀（Intl 自动适配语言，零硬编码）──
-    const _sessionDate = new Date(originalTimestamps[si])
-    const _lang = /[\u4e00-\u9fff]/.test(q.haystack_session_summaries[si] || '') ? 'zh-CN' : 'en-US'
-    const _timePrefix = `[${_sessionDate.toLocaleDateString(_lang, { year: 'numeric', month: 'long' })}]`
-
-    // Session summary → high-level distilled memory（注入时间前缀）
+    // Session summary → high-level distilled memory
+    // Summary 代表蒸馏知识，在真实系统中会被持续访问（每次 recall 都可能触及）
     const summary = q.haystack_session_summaries[si]
     if (summary) {
       memories.push({
-        content: `${_timePrefix} ${summary}`,
+        content: summary,
         scope: 'fact',
         ts: baseTs,
         confidence: 0.95,
@@ -118,15 +114,10 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         importance: 8,
         tags: ['summary'],
         _segmentId: si,
-        _eventDate: originalTimestamps[si],  // 原始时间戳，保留年月日语义
       } as Memory)
-
-      // Sentence splitting 暂关（multi_hop +4.4% 但 open_domain -3.3%，净损失 14 题）
-      // 保留代码供产品路径参考，benchmark 不启用
     }
 
-    // Each turn → episode memory（带精确日期前缀）
-    const _epDatePrefix = `[${_sessionDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}]`
+    // Each turn → episode memory
     for (let ti = 0; ti < session.length; ti++) {
       const turn = session[ti]
       const content = turn?.content
@@ -135,7 +126,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
 
       const memTs = baseTs + ti * 60000
       memories.push({
-        content: `${_epDatePrefix} ${content}`,
+        content,
         scope: 'episode',
         ts: memTs,
         confidence: 0.8,
@@ -144,7 +135,6 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         importance: 5,
         tags: [`speaker:${role}`, `session:${si}`],
         _segmentId: si,
-        _eventDate: originalTimestamps[si] + ti * 60000,  // 原始时间 + turn 偏移
       } as Memory)
     }
 
@@ -156,7 +146,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         if (merged.length > 30 && merged.length < 500) {
           const memTs = baseTs + ti * 60000 + 30000
           memories.push({
-            content: `${_epDatePrefix} ${merged}`,
+            content: merged,
             scope: 'episode',
             ts: memTs,
             confidence: 0.75,
@@ -165,13 +155,32 @@ function buildMemories(q: LocomoQuestion): Memory[] {
             importance: 3,
             tags: [`merged:${ti}`, `session:${si}`],
             _segmentId: si,
-            _eventDate: originalTimestamps[si] + ti * 60000 + 30000,  // 原始时间
           } as Memory)
         }
       }
     }
   }
 
+  // ── Document Expansion: 给记忆追加概念上位词标签 ──
+  // IR 经典技术：在索引时扩展文档，让查询更容易匹配
+  // "I played ukulele" → "I played ukulele [instrument music]"
+  // 查询 "instruments" 直接命中 "instrument" 标签
+  try {
+    const { getConceptParents } = require('./aam.ts')
+    for (const mem of memories) {
+      const words = (mem.content || '').match(/[a-zA-Z]{3,}/gi) || []
+      const parents = new Set<string>()
+      for (const w of words) {
+        const ps = getConceptParents(w.toLowerCase())
+        for (const p of ps) {
+          if (p.length >= 3 && !/[\u4e00-\u9fff]/.test(p)) parents.add(p)  // 只加英文概念
+        }
+      }
+      if (parents.size > 0) {
+        mem.content += ' [' + [...parents].slice(0, 8).join(' ') + ']'
+      }
+    }
+  } catch {}
 
   return memories
 }
@@ -355,7 +364,7 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
 // LAYER 2: ANSWER SELECTION (10-choice)
 // ═══════════════════════════════════════════════════════════════
 
-function selectAnswer(recalled: Memory[], choices: string[], question?: string): { choiceIndex: number; confidence: number } {
+function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: number; confidence: number } {
   if (recalled.length === 0) {
     const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
     return { choiceIndex: naIdx >= 0 ? naIdx : 0, confidence: 0 }
@@ -432,35 +441,10 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
 
   scores.sort((a, b) => b.score - a.score)
 
-  // ── Dynamic Abstain：三维 answerability 评估 ──
-  // evidence coverage × top1-top2 margin × entity coverage
-  const _ABSTAIN_STOPS = new Set(['what','when','where','how','who','which','why','the','this','that','does','did','has','have','was','were','can','could','would','should','not','are','its','his','her','she','they','been','being','had','with','from','for','and','but','the','about','after','before','into','over','than','then','some','any','all','both','each','more','most','many','much','very','also','just','only','still'])
-  const qKeywords = ((question || '').toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !_ABSTAIN_STOPS.has(w))
-  const recalledText = recalled.map(m => m.content).join(' ').toLowerCase()
-  const evidenceCoverage = qKeywords.length > 0
-    ? qKeywords.filter(w => recalledText.includes(w)).length / qKeywords.length
-    : 0
-
-  const margin = scores[0].score > 0 && scores.length >= 2
-    ? (scores[0].score - scores[1].score) / Math.max(scores[0].score, 0.01)
-    : 0
-
-  const qEntities = ((question || '').match(/\b[A-Z][a-z]{2,}\b/g) || [])
-    .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
-  const entityCoverage = qEntities.length > 0
-    ? qEntities.filter(n => recalledText.includes(n.toLowerCase())).length / qEntities.length
-    : 1
-
-  const answerability = evidenceCoverage * (0.3 + 0.7 * margin) * entityCoverage
-
-  const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
-  if (answerability < 0.15 && naIdx >= 0) {
-    return { choiceIndex: naIdx, confidence: answerability }
-  }
-
-  // Original low-confidence fallback
-  if (scores[0].score < 0.15 && naIdx >= 0) {
-    return { choiceIndex: naIdx, confidence: scores[0].score }
+  // Low confidence + "Not answerable" available → dynamic fallback
+  if (scores[0].score < 0.15) {
+    const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
+    if (naIdx >= 0) return { choiceIndex: naIdx, confidence: scores[0].score }
   }
 
   return { choiceIndex: scores[0].idx, confidence: scores[0].score }
@@ -503,7 +487,7 @@ async function selectAnswerWithLLM(
   const letters = 'ABCDEFGHIJ'
   const choiceBlock = choices.map((c, i) => `${letters[i]}. ${c}`).join('\n')
 
-  // 结构化 context
+  // 结构化 context + 置信度信号
   const structuredContext = recalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
 
   // 检测是否有 "Not answerable" 选项
@@ -515,33 +499,18 @@ async function selectAnswerWithLLM(
   for (const w of qWords) if (mWords.has(w)) overlap++
   const relevanceHint = qWords.size > 0 ? (overlap / qWords.size) : 0
 
-  // ── 动态 multi_hop 检测：用 entity graph 实体数 + 召回 session 分散度 ──
-  const _graph = require('./graph.ts')
-  const _qEntities = _graph.findMentionedEntities(question)
-  const _sessionSet = new Set(
-    recalled.map((m: any) => m._segmentId ?? m.tags?.find((t: string) => t.startsWith('session:')) ?? '').filter(Boolean)
-  )
-  const _isMultiHop = _qEntities.length >= 2 || _sessionSet.size >= 3
-  const _multiHopGuide = _isMultiHop
-    ? `\n5. This question requires combining information from multiple memories. First identify which memories are relevant to EACH entity or part of the question, then combine them to answer.`
-    : ''
-
   const systemPrompt = `You are answering a multiple-choice question about a person's life based on conversation memories.
 
 Rules:
 1. If a choice matches specific details (names, numbers, dates, activities) mentioned in the memories, prefer it.
 2. Pay attention to WHO said what — the question asks about a specific person.
-3. If the question asks about a date/time and you can estimate from context, pick the closest date rather than "Not answerable".
+3. If the question asks about a date/time and you can estimate from context clues, pick the closest date.
 ${hasNA ? `4. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
    - If the question asks about a topic/person/event that is never mentioned in any memory → "Not answerable"
    - If the memories mention the topic but don't contain enough detail to pick a specific answer → still pick the best match, NOT "Not answerable"
-   - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question` : '4. Pick the best matching answer based on the memories.'}${_multiHopGuide}`
+   - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question` : '4. Pick the best matching answer based on the memories.'}`
 
-  const lowRelevanceWarning = hasNA && relevanceHint < 0.15
-    ? '\n⚠️ Warning: These memories have very low relevance to the question. Consider "Not answerable".\n'
-    : ''
-
-  const userPrompt = `Memories (relevance: ${(relevanceHint * 100).toFixed(0)}%):${lowRelevanceWarning}
+  const userPrompt = `Memories (relevance score: ${(relevanceHint * 100).toFixed(0)}%):
 ${structuredContext}
 
 Question: ${question}
@@ -577,20 +546,7 @@ Answer with ONLY one letter (A-J).`
   const msg = json.choices?.[0]?.message || {}
   let raw = (msg.content || '').trim()
 
-  // 从 reasoner 输出中提取答案字母（可能在推理过程之后）
-  // 尝试多种模式：直接字母、"answer is X"、"选 X"、末尾字母
-  let letter = ''
-  const directMatch = raw.match(/^([A-J])\b/)
-  if (directMatch) {
-    letter = directMatch[1]
-  } else {
-    const answerMatch = raw.match(/(?:answer|choice|select|pick|choose)[:\s]+\*?\*?([A-J])\b/i)
-      || raw.match(/\b([A-J])\.\s/)  // "B. something"
-      || raw.match(/\*\*([A-J])\*\*/)  // **B**
-      || raw.match(/\b([A-J])$/m)  // 行末单独字母
-    if (answerMatch) letter = answerMatch[1]
-    else letter = raw.charAt(0).toUpperCase()  // fallback
-  }
+  const letter = raw.charAt(0).toUpperCase()
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
 }
@@ -725,8 +681,22 @@ async function run() {
             for (const sent of sentences) learnAssociation(sent, 0.5)
           }
         }
-        // S2: fact-store 暂关（summary 提取 30-70 facts/conv 仍干扰排名，-1.4% open_domain）
-        if (false) try { extractFactsFromSummaries(memories) } catch {}
+        // S2: fact-store 暂关（A/B 测试发现它拉低 Hit@10）
+        if (false) try {
+          const { extractFacts, addFacts } = require('./fact-store.ts')
+          let factCount = 0
+          for (const mem of memories) {
+            if (mem.scope === 'episode' && mem.content && mem.content.length > 20) {
+              const facts = extractFacts(mem.content, 'user_said')
+              if (facts.length > 0) { addFacts(facts); factCount += facts.length }
+            }
+          }
+          if (factCount > 0) {
+            suppressLogs = false
+            print(`  [fact-store] extracted ${factCount} facts from episodes`)
+            suppressLogs = true
+          }
+        } catch {}
         // G1: 从记忆内容构建图谱实体关系（让 Signal 4 + graph fusion 在 benchmark 里生效）
         try {
           const graph = require('./graph.ts')
@@ -781,36 +751,6 @@ async function run() {
             suppressLogs = true
           }
         } catch {}
-        // ── 前瞻性标签：AAM 学习完后，为每条记忆预测未来查询词（零 LLM doc2query）──
-        try {
-          let tagged = 0
-          for (const mem of memories) {
-            if (mem.prospectiveTags) continue
-            const words = (mem.content || '').match(/[a-zA-Z]{3,}/gi)
-            if (!words || words.length < 2) continue
-            const contentLower = (mem.content || '').toLowerCase()
-            const expanded = expandQuery(words.slice(0, 5).map((w: string) => w.toLowerCase()), 10)
-            // 冷启动自适应：expandQuery 返回少 = AAM 数据不足，降阈值
-            const threshold = expanded.length < 3 ? 0.3 : 0.5
-            const tags = expanded
-              .filter((e: any) => e.weight >= threshold && !contentLower.includes(e.word) && e.word.length >= 2)
-              .map((e: any) => e.word)
-              .slice(0, 8)
-            if (tags.length > 0) { mem.prospectiveTags = tags; tagged++ }
-          }
-          if (tagged > 0) { suppressLogs = false; print(`  [prospective-tags] ${tagged}/${memories.length} memories tagged`); suppressLogs = true }
-        } catch {}
-        // ── Write-time entityIds 补填（graph 注册后才能提取，所以放这里）──
-        try {
-          const graph = require('./graph.ts')
-          let entTagged = 0
-          for (const mem of memories) {
-            if (mem._entityIds) continue
-            const ents = graph.findMentionedEntities(mem.content || '')
-            if (ents.length > 0) { mem._entityIds = ents.slice(0, 10); entTagged++ }
-          }
-          if (entTagged > 0) { suppressLogs = false; print(`  [entityIds] ${entTagged}/${memories.length} memories tagged`); suppressLogs = true }
-        } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
@@ -860,7 +800,7 @@ async function run() {
     if (!opts.recallOnly) {
       // String-match answer selection (always run)
       stat.mcTotal++
-      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices, q.question)
+      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices)
       _qMCCorrect = choiceIndex === q.correct_choice_index
       if (_qMCCorrect) stat.mcCorrect++
 
