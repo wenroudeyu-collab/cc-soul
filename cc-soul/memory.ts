@@ -1731,10 +1731,13 @@ export function addMemory(content: string, scope: string, userId?: string, visib
       try { autoExtractFromMemory(content, scope, autoSource) } catch {}
     }
 
-    // AAM: feed into word association network (learns semantic relationships from user data)
-    try {
-      import('./aam.ts').then(m => m.learnAssociation(content, autoEmotionIntensity)).catch(() => {})
-    } catch {}
+    // AAM: 只从用户内容和事实学习，反思/分析/系统文本不进 AAM（避免风格污染）
+    const _AAM_LEARN_SCOPES = new Set(['preference', 'fact', 'event', 'correction', 'topic', 'episode', 'opinion'])
+    if (_AAM_LEARN_SCOPES.has(scope)) {
+      try {
+        import('./aam.ts').then(m => m.learnAssociation(content, autoEmotionIntensity)).catch(() => {})
+      } catch {}
+    }
 
     // ── N1: 质量分反向训练——correction 和触发查询配对学习 ──
     // 用户纠正时，把纠正内容和当初的查询词建立关联

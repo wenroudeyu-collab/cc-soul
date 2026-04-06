@@ -120,52 +120,12 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         _segmentId: si,
       } as Memory)
 
-      // ── Summary Sentence Splitting：句级拆分提升 BM25 精度 ──
-      // 原理：single_hop 问单个事实，句级记忆是天然匹配粒度
-      // 不加新信息只改粒度，避免 Document Expansion 的噪音问题
-      const _graph = require('./graph.ts')
-      const _sentences = summary.split(/(?<=[.!?。！？])\s*/).filter((s: string) => s.trim().length > 20)
-
-      // 从 session 提取 speaker 名字（用于实体上下文注入）
-      const _speakers: string[] = []
-      for (const turn of session) {
-        const nm = turn?.content?.match(/^\[([A-Z]{2,})\]:/)?.[1]
-        if (nm) {
-          const proper = nm.charAt(0) + nm.slice(1).toLowerCase()
-          if (!_speakers.includes(proper)) _speakers.push(proper)
-        }
-      }
-
-      for (const sent of _sentences) {
-        // 检查句子是否有实体名
-        const sentEntities = _graph.findMentionedEntities(sent)
-        // 动态停用句过滤：无实体 + 词少 = 无事实性内容
-        const wordCount = sent.split(/\s+/).length
-        if (sentEntities.length === 0 && wordCount < 5) continue
-
-        // 如果句子没有实体名且 session 有 speakers → 注入实体上下文
-        // 不做代词替换（容易出错），改为加上下文让 BM25 能匹配人名
-        let sentContent = sent
-        if (sentEntities.length === 0 && _speakers.length > 0) {
-          sentContent = `[About: ${_speakers.join(', ')}] ${sent}`
-        }
-
-        // 每条 sentence 都带时间前缀（temporal 查询全覆盖）
-        memories.push({
-          content: `${_timePrefix} ${sentContent}`,
-          scope: 'fact',
-          ts: baseTs + 30000,
-          confidence: 0.9,
-          recallCount: 8,
-          lastAccessed: now - 3600000,
-          importance: 9,
-          tags: ['summary_sentence', `session:${si}`],
-          _segmentId: si,
-        } as Memory)
-      }
+      // Sentence splitting 暂关（multi_hop +4.4% 但 open_domain -3.3%，净损失 14 题）
+      // 保留代码供产品路径参考，benchmark 不启用
     }
 
-    // Each turn → episode memory
+    // Each turn → episode memory（带精确日期前缀）
+    const _epDatePrefix = `[${_sessionDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}]`
     for (let ti = 0; ti < session.length; ti++) {
       const turn = session[ti]
       const content = turn?.content
@@ -174,7 +134,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
 
       const memTs = baseTs + ti * 60000
       memories.push({
-        content,
+        content: `${_epDatePrefix} ${content}`,
         scope: 'episode',
         ts: memTs,
         confidence: 0.8,
@@ -194,7 +154,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         if (merged.length > 30 && merged.length < 500) {
           const memTs = baseTs + ti * 60000 + 30000
           memories.push({
-            content: merged,
+            content: `${_epDatePrefix} ${merged}`,
             scope: 'episode',
             ts: memTs,
             confidence: 0.75,
@@ -469,10 +429,35 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
 
   scores.sort((a, b) => b.score - a.score)
 
-  // Low confidence + "Not answerable" available → dynamic fallback
-  if (scores[0].score < 0.15) {
-    const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
-    if (naIdx >= 0) return { choiceIndex: naIdx, confidence: scores[0].score }
+  // ── Dynamic Abstain：三维 answerability 评估 ──
+  // evidence coverage × top1-top2 margin × entity coverage
+  const _ABSTAIN_STOPS = new Set(['what','when','where','how','who','which','why','the','this','that','does','did','has','have','was','were','can','could','would','should','not','are','its','his','her','she','they','been','being','had','with','from','for','and','but','the','about','after','before','into','over','than','then','some','any','all','both','each','more','most','many','much','very','also','just','only','still'])
+  const qKeywords = (question.toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !_ABSTAIN_STOPS.has(w))
+  const recalledText = recalled.map(m => m.content).join(' ').toLowerCase()
+  const evidenceCoverage = qKeywords.length > 0
+    ? qKeywords.filter(w => recalledText.includes(w)).length / qKeywords.length
+    : 0
+
+  const margin = scores[0].score > 0 && scores.length >= 2
+    ? (scores[0].score - scores[1].score) / Math.max(scores[0].score, 0.01)
+    : 0
+
+  const qEntities = (question.match(/\b[A-Z][a-z]{2,}\b/g) || [])
+    .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
+  const entityCoverage = qEntities.length > 0
+    ? qEntities.filter(n => recalledText.includes(n.toLowerCase())).length / qEntities.length
+    : 1
+
+  const answerability = evidenceCoverage * (0.3 + 0.7 * margin) * entityCoverage
+
+  const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
+  if (answerability < 0.15 && naIdx >= 0) {
+    return { choiceIndex: naIdx, confidence: answerability }
+  }
+
+  // Original low-confidence fallback
+  if (scores[0].score < 0.15 && naIdx >= 0) {
+    return { choiceIndex: naIdx, confidence: scores[0].score }
   }
 
   return { choiceIndex: scores[0].idx, confidence: scores[0].score }

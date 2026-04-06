@@ -2012,6 +2012,43 @@ export function activationRecall(
     }
   }
 
+  // ── Coverage Rerank：多约束覆盖最大化（multi-hop / 跨实体查询）──
+  // 目标：从"单条最相关"变成"组合覆盖最多约束"
+  // 只在多实体查询时触发，避免对单约束查询引入噪声
+  if (_queryNames && _queryNames.length >= 2 && results.length > topN) {
+    const constraints = new Set<string>()
+    for (const n of _queryNames) constraints.add('entity:' + n)
+    const contentWords = (lexicalQuery.match(/[a-z]{4,}/gi) || [])
+      .filter(w => !EN_STOP_WORDS.has(w.toLowerCase()))
+      .slice(0, 6)
+    for (const w of contentWords) constraints.add('kw:' + w.toLowerCase())
+
+    const pool = results.slice(0, topN * 2)
+    const selected: typeof results = []
+    const uncovered = new Set(constraints)
+
+    while (selected.length < topN && pool.length > 0) {
+      let bestIdx = 0, bestScore = -1
+      for (let i = 0; i < pool.length; i++) {
+        const ml = pool[i].memory.content.toLowerCase()
+        let gain = 0
+        for (const c of uncovered) {
+          if (ml.includes(c.split(':')[1])) gain++
+        }
+        const rankScore = 1 / (1 + i)
+        const combined = 0.6 * rankScore + 0.4 * (gain / Math.max(constraints.size, 1))
+        if (combined > bestScore) { bestScore = combined; bestIdx = i }
+      }
+      const picked = pool.splice(bestIdx, 1)[0]
+      selected.push(picked)
+      const ml = picked.memory.content.toLowerCase()
+      for (const c of [...uncovered]) {
+        if (ml.includes(c.split(':')[1])) uncovered.delete(c)
+      }
+    }
+    results = selected
+  }
+
   // 截断到 topN
   const topResults = results.slice(0, topN)
 

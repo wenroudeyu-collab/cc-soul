@@ -60,6 +60,9 @@ const _usedTopicNodes = new Set<string>()
 // ── P1a: 记忆级注入竞争 — 追踪本轮注入的记忆内容 ──
 let _lastInjectedMemoryContents: string[] = []
 
+// ── AAM 闭环修复：缓存最近 5 条查询词（按消息 hash 存，避免快速连发串线）──
+const _queryWordsCache = new Map<string, string[]>()
+
 // P5e: retention 信号已统一到 buildAndSelectAugments 内部的 isFirstAfterGap 分支（L806）
 // 避免同一批记忆被 double-boost（原 L77 +1 与 L807 +0.05 冲突）
 export function checkRetentionSignal(_userId: string): void {
@@ -162,14 +165,17 @@ export function feedbackMemoryEngagement(userReply: string): void {
           trace.memory?.content && ic.includes(trace.memory.content.slice(0, 30))
         )
         if (isEngaged && engagedTotal > 0) {
-          reinforceTrace(trace)  // 正反馈：强化路径
-          const queryPattern = userReply.slice(0, 20).toLowerCase()
-          restoreExpansion(queryPattern)  // 恢复跳数
+          // 正反馈：传入缓存的查询词（不再依赖空的 step.word）
+          const _cachedQW = _queryWordsCache.get(userReply.slice(0, 50)) || []
+          reinforceTrace(trace, _cachedQW)
+          const queryPattern = _cachedQW.slice(0, 3).join(' ') || userReply.slice(0, 20).toLowerCase()
+          restoreExpansion(queryPattern)
         }
       }
       // 负反馈：如果大部分记忆被 miss
       if (matchedTotal > 0 && engagedTotal === 0) {
-        const queryPattern = userReply.slice(0, 20).toLowerCase()
+        const _cachedQW2 = _queryWordsCache.get(userReply.slice(0, 50)) || []
+        const queryPattern = _cachedQW2.slice(0, 3).join(' ') || userReply.slice(0, 20).toLowerCase()
         const missedVia = recent.traces[0]?.path?.find((p: any) => p.stage === 'candidate_selection')?.via || 'aam_hop1'
         suppressExpansion(queryPattern, missedVia)
       }
@@ -1250,6 +1256,12 @@ export async function buildAndSelectAugments(params: {
       }
     }
   }
+
+  // ── AAM 闭环：缓存查询词（feedbackMemoryEngagement 用于 reinforceTrace/suppress）──
+  const _qwKey = userMsg.slice(0, 50)
+  const _qwWords = (userMsg.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).map((w: string) => w.toLowerCase()).slice(0, 10)
+  _queryWordsCache.set(_qwKey, _qwWords)
+  if (_queryWordsCache.size > 5) _queryWordsCache.delete(_queryWordsCache.keys().next().value!)
 
   // Memory recall — text-based (sync) first, then try vector search with timeout
   // Increased topN from 5→12 to improve cross-session memory continuity

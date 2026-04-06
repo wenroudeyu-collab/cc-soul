@@ -118,9 +118,20 @@ let _prevMessageWords: string[] = []
  * 学习有向时序共现：上一条消息的词 → 当前消息的词
  * 由外部在每条用户消息时调用（与 learnAssociation 并行）
  */
+// 英文停用词（temporal 专用，不从 activation-field.ts 导入避免循环依赖）
+const _TEMPORAL_EN_STOPS = new Set([
+  'the','is','are','was','were','be','been','being','have','has','had',
+  'do','does','did','will','would','could','should','can','may','might',
+  'what','when','where','which','who','whom','how','why',
+  'that','this','these','those','it','its',
+  'and','but','or','not','no','yes',
+  'to','of','in','on','at','by','for','with','from','about',
+  'very','just','also','too','so','then','than','now',
+])
+
 export function learnTemporalLink(currentContent: string): void {
   const words = filterStopWords(tokenize(currentContent))
-  const unique = [...new Set(words)].filter(w => !isJunkToken(w))
+  const unique = [...new Set(words)].filter(w => !isJunkToken(w) && !_TEMPORAL_EN_STOPS.has(w.toLowerCase()))
 
   // 如果有上一轮消息，建立 prev → current 有向链接
   if (_prevMessageWords.length > 0 && unique.length > 0) {
@@ -2249,11 +2260,15 @@ export function isKnownWord(word: string): boolean {
  * 清空：cooccur（共现）、totalDocs、temporal network
  */
 export function resetLearnedData(): void {
-  for (const [, net] of _networks) {
+  // fix: _networks → networks（typo bug，导致 per-conv 隔离完全失效）
+  for (const [, net] of networks) {
     net.cooccur = {}
     net.totalDocs = 0
     // 保留 net.df（seeds 注入的 df 不清，否则 IDF 废掉）
   }
+  // 清 temporal 网络（原实现遗漏：注释说要清但没清）
+  _temporalNet.directed = {}
+  _prevMessageWords = []
   // 重新注入 seeds 共现对（lite injection）
   try { injectSeedsLite('zh') } catch {}
   try { injectSeedsLite('en') } catch {}
@@ -2338,10 +2353,17 @@ function graduateStrongAssociations() {
     if (w1.length < 2) continue
     if (isJunkToken(w1)) continue
     for (const [w2, count] of Object.entries(related)) {
-      if (w2.length < 2 || count < 3) continue
+      if (w2.length < 2 || count < 5) continue  // 提高：count>=3 → count>=5
       if (isJunkToken(w2)) continue
       const p = pmi(w1, w2)
-      if (p > 2.5) {
+      if (p > 3.0) {  // 提高：PMI>2.5 → PMI>3.0
+        // dfRatio 护栏：高频词间的关联大概率是噪音
+        const totalDocs = Math.max(1, network().totalDocs)
+        if ((network().df[w1] || 0) / totalDocs > 0.3 || (network().df[w2] || 0) / totalDocs > 0.3) continue
+        // 双向 fanOut 护栏：两个都是 hub 才拒绝（单 hub+低频词的 PMI 仍有意义）
+        const fanOut1 = Object.keys(network().cooccur[w1] || {}).length
+        const fanOut2 = Object.keys(network().cooccur[w2] || {}).length
+        if (fanOut1 > 50 && fanOut2 > 50) continue
         const existing = syns[w1]
         if (existing && existing.includes(w2)) continue
         if (!syns[w1]) syns[w1] = []

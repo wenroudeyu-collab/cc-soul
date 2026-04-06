@@ -299,10 +299,13 @@ export function addFacts(newFacts: StructuredFact[]) {
     // 非排他性谓语不 supersede 但仍然追加（likes/learning/habit 可以有多个值）
     facts.push(nf)
 
-    // 交叉学习：高质量三元组注入 AAM（weight=1.5，比普通消息强但不过激）
+    // 交叉学习：只学 object，不学元词（subject 通常是 "user"，predicate 是 "likes/uses"）
+    // 元词进 AAM 会成为高频锚点污染 PMI
     try {
-      const { learnAssociation } = require('./aam.ts')
-      learnAssociation(`${nf.subject} ${nf.predicate} ${nf.object}`, 0, 1.5)
+      if (nf.object && nf.object.length >= 2) {
+        const { learnAssociation } = require('./aam.ts')
+        learnAssociation(nf.object, 0, 0.8)
+      }
     } catch {}
 
     // Dual-write to SQLite (indexed queries)
