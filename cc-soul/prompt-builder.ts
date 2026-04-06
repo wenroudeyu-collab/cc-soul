@@ -441,6 +441,24 @@ export function buildSoulPrompt(
 
   let soulPrompt = sections.join('\n')
 
+  // PAVE: personality-adaptive prompt hints
+  try {
+    const { inferPersonality } = require('./person-model.ts')
+    const personality = inferPersonality()
+    if (personality?.dataReady) {
+      const traits: string[] = []
+      if (personality.emotionalSensitivity > 0.65) traits.push('情感细腻，回复注意共情')
+      if (personality.emotionalSensitivity < 0.35) traits.push('偏理性，少煽情多分析')
+      if (personality.complexityPreference > 0.65) traits.push('喜欢深度讨论，可以展开')
+      if (personality.complexityPreference < 0.35) traits.push('喜欢简洁，别长篇大论')
+      if (personality.patienceLevel < 0.35) traits.push('注意简洁直接，别绕弯')
+      if (personality.patienceLevel > 0.65) traits.push('可以循序渐进解释')
+      if (traits.length > 0) {
+        soulPrompt += `\n[用户特质] ${traits.join('；')}`
+      }
+    }
+  } catch {}
+
   // Truncate to stay under OpenClaw's 20K workspace file injection limit (bytes, not chars)
   // Chinese chars = 3 bytes each in UTF-8, so we measure in bytes
   const MAX_SOUL_BYTES = 19000 // 1K headroom under 20K

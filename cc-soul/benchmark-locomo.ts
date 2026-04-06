@@ -561,8 +561,8 @@ async function run() {
             for (const sent of sentences) learnAssociation(sent, 0.5)
           }
         }
-        // S2: 从 episode 记忆提取英文事实到 fact-store
-        try {
+        // S2: fact-store 暂关（A/B 测试发现它拉低 Hit@10）
+        if (false) try {
           const { extractFacts, addFacts } = require('./fact-store.ts')
           let factCount = 0
           for (const mem of memories) {
@@ -574,6 +574,29 @@ async function run() {
           if (factCount > 0) {
             suppressLogs = false
             print(`  [fact-store] extracted ${factCount} facts from episodes`)
+            suppressLogs = true
+          }
+        } catch {}
+        // G1: 从记忆内容构建图谱实体关系（让 Signal 4 在 benchmark 里生效）
+        try {
+          const graph = require('./graph.ts')
+          for (const mem of memories) {
+            const entities = graph.findMentionedEntities(mem.content)
+            if (entities.length >= 2) {
+              for (let ei = 0; ei < entities.length; ei++) {
+                for (let ej = ei + 1; ej < entities.length; ej++) {
+                  try {
+                    graph.addRelation?.({ source: entities[ei], target: entities[ej], type: 'co_mentioned', ts: mem.ts || Date.now(), weight: 0.5 })
+                  } catch {}
+                }
+              }
+            }
+          }
+          const entCount = graph.graphState?.entities?.length || 0
+          const relCount = graph.graphState?.relations?.length || 0
+          if (entCount > 0) {
+            suppressLogs = false
+            print(`  [graph] built ${entCount} entities, ${relCount} relations`)
             suppressLogs = true
           }
         } catch {}

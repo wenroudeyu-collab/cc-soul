@@ -224,6 +224,25 @@ export function findMentionedEntities(msg: string): string[] {
     .sort((a, b) => b.mentions - a.mentions)
     .slice(0, 5)
 
+  // ── G4: 英文专有名词检测（图谱为空时也能发现新实体）──
+  const _COMMON_CAPS = new Set(['The','This','That','What','When','Where','How','Who','Which','Why','Yes','No','And','But','For','Not','Are','Was','Were','Has','Have','Had','Does','Did','Will','Can','May','She','Her','His','They','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','January','February','March','April','May','June','July','August','September','October','November','December'])
+  const enNames = msg.match(/\b([A-Z][a-z]{2,})\b/g) || []
+  const mentionedNames = new Set(mentioned.map(e => e.name.toLowerCase()))
+  for (const name of enNames) {
+    if (!_COMMON_CAPS.has(name) && !mentionedNames.has(name.toLowerCase())) {
+      const existing = graphState.entities.find(e => e.name.toLowerCase() === name.toLowerCase())
+      if (existing) {
+        existing.mentions++
+        mentioned.push(existing)
+      } else {
+        const newEntity = { name, type: 'person' as const, mentions: 1, activation: 0.3, created_at: Date.now(), lastMentionedAt: Date.now(), lastActivatedAt: Date.now(), invalid_at: null as number | null, attrs: {} as Record<string, string> }
+        graphState.entities.push(newEntity as any)
+        mentioned.push(newEntity as any)
+      }
+      mentionedNames.add(name.toLowerCase())
+    }
+  }
+
   // ── Spreading activation: boost mentioned entities + propagate to neighbors ──
   for (const e of mentioned) {
     e.activation = Math.min(1.0, (e.activation ?? 0) + 0.3)

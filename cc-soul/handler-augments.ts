@@ -942,14 +942,80 @@ export async function buildAndSelectAugments(params: {
   // New user onboarding — removed. Users install cc-soul on top of OpenClaw,
   // so they already have conversation history. autoImportHistory + mental model handles cold start.
 
-  // Predictive memory — also serves as fallback for short/generic messages
+  // ── 统一主动记忆引擎（合并 FSRS回顾 + 话题预测 + 周期提醒 + FORG mood门控）──
+  // 原创 FORG: mood < 0.2 时不主动提起（Bjork 必要难度需要正向情绪）
   {
-    const predicted = predictiveRecall(senderId, channelId)
-    if (predicted.length > 0) {
-      // Boost priority when user message is short (likely greeting/generic → recall miss)
-      const isShortMsg = userMsg.length <= 6
-      const content = '[预测性上下文] 基于最近话题预加载: ' + predicted.map(p => p.slice(0, 60)).join('; ')
-      augments.push({ content, priority: isShortMsg ? 9 : 6, tokens: estimateTokens(content) })
+    const _proactiveMood = body?.mood ?? 0
+    if (_proactiveMood >= 0.2) {
+      const _proactiveCandidates = new Map<string, { content: string; score: number; source: string }>()
+
+      // 来源 1：话题预测（最近话题的相关记忆预加载）
+      try {
+        const predicted = predictiveRecall(senderId, channelId)
+        for (const content of predicted) {
+          _proactiveCandidates.set(content, { content, score: 0.5, source: 'predictive' })
+        }
+      } catch {}
+
+      // 来源 2：FSRS 快忘的记忆（retrievability [0.3-0.6]）
+      try {
+        const { getRecallRecommendations } = await import('./smart-forget.ts')
+        const recs = getRecallRecommendations(memoryState.memories, 3)
+        for (const r of recs) {
+          if (_proactiveCandidates.has(r.content)) {
+            _proactiveCandidates.get(r.content)!.score += 0.3  // 两个来源都推荐 → 加分
+          } else {
+            _proactiveCandidates.set(r.content, { content: r.content, score: r.urgency, source: 'fsrs' })
+          }
+        }
+      } catch {}
+
+      // 来源 3：周期性话题（FFT 学到的用户周期行为）
+      try {
+        const { getCyclicReminders } = await import('./prospective-memory.ts')
+        const cyclicKeywords = getCyclicReminders?.() || []
+        for (const kw of cyclicKeywords) {
+          const kwLower = (kw || '').toString().toLowerCase()
+          if (kwLower.length < 2) continue
+          const match = memoryState.memories.find(m =>
+            m.scope !== 'expired' && m.scope !== 'decayed' &&
+            (m.content || '').toLowerCase().includes(kwLower)
+          )
+          if (match && !_proactiveCandidates.has(match.content)) {
+            _proactiveCandidates.set(match.content, { content: match.content, score: 0.4, source: 'cyclic' })
+          }
+        }
+      } catch {}
+
+      // FORG drift boost：semantic drift 上升的话题里的记忆加权
+      try {
+        const { getDriftSignal } = await import('./semantic-drift.ts')
+        const drift = getDriftSignal?.()
+        if (drift?.rising) {
+          const rising = new Set(drift.rising as string[])
+          for (const [, c] of _proactiveCandidates) {
+            const words = c.content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []
+            if (words.some(w => rising.has(w.toLowerCase()))) {
+              c.score *= 1.4  // 上升话题 +40%
+            }
+          }
+        }
+      } catch {}
+
+      // 融合结果注入 augment
+      const _proactiveResults = [..._proactiveCandidates.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+
+      if (_proactiveResults.length > 0) {
+        const isShortMsg = userMsg.length <= 6
+        const proactiveContent = _proactiveResults.map(r => r.content.slice(0, 50)).join(' | ')
+        augments.push({
+          content: `[主动回顾] ${proactiveContent}`,
+          priority: isShortMsg ? 9 : 4,
+          tokens: estimateTokens(proactiveContent),
+        })
+      }
     }
   }
 
@@ -1867,21 +1933,7 @@ export async function buildAndSelectAugments(params: {
   }
 
   // Associative recall 已移除 — 被 activation-field + AAM 扩展查询替代
-
-  // ── FSRS 主动回顾推荐 ──
-  try {
-    const { getRecallRecommendations } = await import('./smart-forget.ts')
-    const { memoryState } = await import('./memory.ts')
-    const recommendations = getRecallRecommendations(memoryState.memories, 2)
-    if (recommendations.length > 0) {
-      const recList = recommendations.map(r => `"${r.content}"`).join('、')
-      augments.push({
-        content: `[主动回顾] 以下记忆即将遗忘但可能很重要，如果话题相关可以自然提起：${recList}`,
-        priority: 4,  // 低优先级，只在 budget 充裕时注入
-        tokens: 30,
-      })
-    }
-  } catch {}
+  // FSRS 主动回顾已合入统一主动记忆引擎（上方 getProactiveMemories 块）
 
   // ── Unified emotion awareness (contagion + arc + anchor) ──
   {

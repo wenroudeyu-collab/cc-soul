@@ -97,6 +97,10 @@ let _currentAvgDocLen = 20
 let _memConceptTagsCache = new Map<string, Set<string>>()
 let _entityFanCount = new Map<string, number>()
 let _moduleRouteScopes: Set<string> | null = null
+// SSH: Seed-Based Semantic Hashing（模块级缓存，contextMatch 需要访问）
+let _sshMemDims = new Map<string, Set<string>>()
+let _sshDimFreqMap = new Map<string, number>()
+let _sshQueryDims = new Set<string>()
 
 // ── Recall Thermostat: learn which signals correlate with engaged memories ──
 const _signalBuffer: { engaged: boolean; signals: { base: number; context: number; emotion: number; spread: number; interference: number; temporal: number; pam: number } }[] = []
@@ -627,7 +631,24 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // 英文 trigram 权重提升：拼写变体/缩写/词形变化更依赖 trigram
   const _enRatio = ((query.match(/[a-zA-Z]+/g) || []).join('').length) / Math.max(query.length, 1)
   const _triWeight = _enRatio > 0.5 ? 1.0 : 0.8
-  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight)
+
+  // ── SSH: 语义维度匹配（第五路）——IDF 加权 Jaccard ──
+  let sshScore = 0
+  if (_sshQueryDims.size > 0) {
+    const memDims = _sshMemDims.get(contentLower)
+    if (memDims && memDims.size > 0) {
+      let weightedOverlap = 0, totalWeight = 0
+      for (const d of _sshQueryDims) {
+        const dimFreq = _sshDimFreqMap.get(d) || 1
+        const dimIdf = 1 / Math.max(1, dimFreq)  // 稀有维度权重高
+        totalWeight += dimIdf
+        if (memDims.has(d)) weightedOverlap += dimIdf
+      }
+      sshScore = totalWeight > 0 ? weightedOverlap / totalWeight : 0
+    }
+  }
+
+  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight, sshScore * 0.8)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -747,9 +768,10 @@ function getEntityResonance(mem: Memory, erf: Map<string, number>): number {
     }
   }
 
-  // 归一化：多个实体命中比单个更强，但有收益递减
+  // G2: 分层 cap——精确命中越多越可信
   if (entityCount === 0) return 0
-  return Math.min(0.5, totalResonance * 0.15 * Math.sqrt(entityCount))
+  const capBase = entityCount >= 2 ? 0.65 : entityCount === 1 ? 0.5 : 0.4
+  return Math.min(capBase, totalResonance * 0.15 * Math.sqrt(entityCount))
 }
 
 function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string): number {
@@ -918,6 +940,23 @@ export function computeActivationField(
 ): ActivationResult[] {
   const now = Date.now()
 
+  // ── IMAF: Intent-Modulated Activation Field（意图调制激活场）──
+  // 原创算法：7 信号权重随查询意图连续调制，不是离散路由切换
+  // ── IMAF: Intent-Modulated Activation Field（加法 bonus 模式）──
+  // 意图调制独立于 Thermostat 系数，不会互相放大
+  // bonus=0 时公式退化为原始行为（默认档位）
+  const _imaf = (() => {
+    if (/为什么|原因|导致|怎么回事|why|because|cause|led to|reason|how come/i.test(query))
+      return { s1: 0, s2: 0, s3: 0, s4: 0.3, s6: 0.15 }  // 因果：扩散+时间 bonus
+    if (/什么时候|上次|上周|最近发生|when did|last time|recently|what happened|ago/i.test(query))
+      return { s1: 0.1, s2: 0, s3: 0, s4: 0, s6: 0.4 }  // 时间：新近性+时间 bonus
+    if (query.match(/\b[A-Z][a-z]{2,}\b/g)?.filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That)$/.test(n)).length)
+      return { s1: 0, s2: 0.1, s3: 0, s4: 0.3, s6: 0 }  // 实体：扩散+内容 bonus
+    if (/感觉|心情|开心|难过|焦虑|feel|happy|sad|anxious|stressed|mood/i.test(query))
+      return { s1: 0, s2: 0, s3: 0.3, s4: 0, s6: 0 }  // 情感：情绪 bonus
+    return { s1: 0, s2: 0, s3: 0, s4: 0, s6: 0 }  // 默认：无 bonus
+  })()
+
   // 预计算记忆平均文档长度（BM25 标准分母，替代 expandedWords.size）
   _currentAvgDocLen = memories.reduce((s, m) => s + ((m.content || '').match(/[\u4e00-\u9fff]|[a-zA-Z]+/g) || []).length, 0) / Math.max(memories.length, 1)
 
@@ -957,6 +996,43 @@ export function computeActivationField(
           for (const p of parents) tags.add(p)
         }
         if (tags.size > 0) _memConceptTagsCache.set(cl, tags)
+      }
+    }
+  } catch {}
+
+  // ── SSH: Seed-Based Semantic Hashing 预计算 ──
+  // 把 20000 seeds + 100 concept 作为语义维度基向量，记忆映射到离散语义空间
+  _sshMemDims = new Map()
+  _sshDimFreqMap = new Map()  // 每个维度出现在多少条记忆里（IDF 用）
+  try {
+    const { getSemanticDimensions: _getSSD } = require('./aam.ts')
+    if (_getSSD) {
+      for (const mem of memories) {
+        const cl = (mem.content || '').toLowerCase()
+        const ws = cl.match(/[a-zA-Z]{3,}|[\u4e00-\u9fff]{2,4}/gi) || []
+        const dims = new Set<string>()
+        for (const w of ws.slice(0, 20)) {
+          const wd = _getSSD(w.toLowerCase())
+          for (const d of wd) dims.add(d)
+        }
+        if (dims.size > 0) {
+          _sshMemDims.set(cl, dims)
+          for (const d of dims) _sshDimFreqMap.set(d, (_sshDimFreqMap.get(d) || 0) + 1)
+        }
+      }
+    }
+  } catch {}
+
+  // SSH: 查询的语义维度
+  _sshQueryDims = new Set()
+  try {
+    const { getSemanticDimensions: _getSSD } = require('./aam.ts')
+    if (_getSSD) {
+      for (const [w, wt] of expandedWords) {
+        if ((wt as number) >= 0.5) {
+          const wd = _getSSD(w)
+          for (const d of wd) _querySemanticDims.add(d)
+        }
       }
     }
   } catch {}
@@ -1036,10 +1112,15 @@ export function computeActivationField(
     // 加法下：score = 0.3×base + 0.7×context，context 有独立贡献，不被 base 乘没
     // 权重由 Recall Thermostat 动态调节（默认 0.3/0.7）
     const { base: wBase, context: wCtx } = getSignalWeights()
-    const baseContextScore = wBase * s1 + wCtx * s2
+    // IMAF 加法 bonus：意图调制独立于 Thermostat 系数，不会互相放大
+    // bonus=0（默认档位）时公式退化为原始行为
+    const baseContextScore = wBase * s1 + wCtx * s2 + _imaf.s1 * s1 + _imaf.s2 * s2
 
-    // 其余信号保持乘法调制（系数由 Recall Thermostat 自适应学习）
-    const raw = baseContextScore * (0.5 + _emotionCoeff * s3) * (1 + _spreadCoeff * s4) * (0.8 + _temporalCoeff * s6)
+    // 乘法调制（Thermostat 系数）+ 加法 bonus（IMAF 意图调制）
+    const raw = baseContextScore
+      * (0.5 + _emotionCoeff * s3 + _imaf.s3 * s3)
+      * (1 + _spreadCoeff * s4 + _imaf.s4 * s4)
+      * (0.8 + _temporalCoeff * s6 + _imaf.s6 * s6)
 
     // confidence 软缩放（不是乘法杀死，是 0.6-1.0 区间）
     const conf = mem.confidence ?? 0.7
@@ -1642,6 +1723,78 @@ export function activationRecall(
   // 过采样倍数随候选池大小动态调整（大池子需要更大漏斗）
   const _oversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : 4
   let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * _oversample, timeRange)
+
+  // ── M1: 因果链注入（"为什么"类查询）──
+  if (/为什么|原因|导致|怎么回事|why|because|cause|reason/i.test(query)) {
+    try {
+      const graph = _graphMod
+      const entities = graph?.findMentionedEntities?.(query) as string[] || []
+      if (entities.length > 0 && graph?.graphState?.relations) {
+        const causalEntities = new Set<string>()
+        for (const entity of entities) {
+          for (const r of graph.graphState.relations) {
+            if (r.invalid_at !== null) continue
+            if (r.source === entity || r.target === entity) {
+              causalEntities.add(r.source)
+              causalEntities.add(r.target)
+            }
+          }
+        }
+        if (causalEntities.size > 0) {
+          for (const r of results) {
+            const cl = (r.memory.content || '').toLowerCase()
+            for (const ce of causalEntities) {
+              if (ce.length >= 2 && cl.includes(ce.toLowerCase())) { r.activation *= 1.3; break }
+            }
+          }
+          results.sort((a, b) => b.activation - a.activation)
+        }
+      }
+    } catch {}
+  }
+
+  // ── M2: 时间链邻居扩展（temporal 查询拉入上下文）──
+  if (_currentQueryType === 'temporal' && results.length > 0) {
+    const seenContent = new Set(results.map(r => r.memory.content))
+    const neighbors: typeof results = []
+    for (const r of results.slice(0, 3)) {
+      const memTs = r.memory.ts || 0
+      for (const mem of memories) {
+        if (seenContent.has(mem.content)) continue
+        const diff = Math.abs((mem.ts || 0) - memTs)
+        if (diff > 0 && diff < 3600000) {
+          neighbors.push({ memory: mem, activation: r.activation * 0.6, signals: { base: 0, context: 0, emotion: 0, spread: 0, interference: 1, temporal: 0.8 } })
+          seenContent.add(mem.content)
+        }
+      }
+    }
+    if (neighbors.length > 0) {
+      results = [...results, ...neighbors.slice(0, 5)]
+      results.sort((a, b) => b.activation - a.activation)
+    }
+  }
+
+  // ── M3: 实体图遍历注入（ERF 高激活实体的记忆补充）──
+  if (_queryNames.length >= 1 && _erfCache.size > 0) {
+    const seenContent = new Set(results.map(r => r.memory.content))
+    const graphMems: typeof results = []
+    for (const [entity, activation] of _erfCache) {
+      if (activation < 0.2) continue
+      for (const mem of memories) {
+        if (seenContent.has(mem.content)) continue
+        if ((mem.content || '').toLowerCase().includes(entity.toLowerCase())) {
+          graphMems.push({ memory: mem, activation: activation * 0.5, signals: { base: 0, context: 0, emotion: 0, spread: activation, interference: 1, temporal: 0 } })
+          seenContent.add(mem.content)
+          if (graphMems.length >= 5) break
+        }
+      }
+      if (graphMems.length >= 5) break
+    }
+    if (graphMems.length > 0) {
+      results = [...results, ...graphMems]
+      results.sort((a, b) => b.activation - a.activation)
+    }
+  }
 
   // ── 分数平坦度检测 → 聚合查询自适应 topN ──
   // 无明显赢家 = 查询需要综合多条记忆（"我是怎样的人"/"描述我的一天"）

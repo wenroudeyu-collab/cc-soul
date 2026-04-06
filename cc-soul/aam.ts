@@ -2201,6 +2201,18 @@ export function getConceptParents(word: string): string[] {
   return _conceptReverseIndex.get(word.toLowerCase()) || []
 }
 
+/** SSH: 查询一个词属于哪些语义维度（seeds 组 + concept parent）*/
+export function getSemanticDimensions(word: string): string[] {
+  const dims: string[] = []
+  const wl = word.toLowerCase()
+  const lang = detectLanguage(word)
+  const seedKeys = _reverseIndex.get(lang)?.get(wl) || []
+  for (const k of seedKeys) dims.push('s:' + k)
+  const conceptKeys = _conceptReverseIndex.get(wl) || []
+  for (const k of conceptKeys) dims.push('c:' + k)
+  return dims
+}
+
 /** 判断一个 CJK 2-gram 是否是"已知词"（在同义词表或概念层级中出现过） */
 let _knownWordCache = new Set<string>()
 // 每次进程启动时重建

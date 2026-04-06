@@ -955,3 +955,104 @@ export function getToMContext(): string {
   }
   return parts.join('\n')
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAVE: Personality Attribute Variance-based Extraction
+// cc-soul 原创算法 — 从系统学到的参数反推用户性格
+//
+// 5 数据源：CIN认知场 + mood历史方差 + correction频率 + 消息长度 + auto-tune参数
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface PersonalityProfile {
+  emotionalSensitivity: number   // 0-1
+  complexityPreference: number   // 0-1
+  patienceLevel: number          // 0-1
+  consistencyNeed: number        // 0-1
+  socialOrientation: number      // 0-1
+  dataReady: boolean
+}
+
+export function inferPersonality(): PersonalityProfile | null {
+  // Data threshold: at least 50 interactions
+  let totalMessages = 0
+  try {
+    const { stats } = require('./handler-state.ts')
+    totalMessages = stats.totalMessages || 0
+  } catch {}
+  if (totalMessages < 50) return null
+
+  let emotionalSensitivity = 0.5
+  let complexityPreference = 0.5
+  let patienceLevel = 0.5
+  let consistencyNeed = 0.5
+  let socialOrientation = 0.5
+  let dataReady = false
+
+  // Source 1: CIN cognitive field (most direct personality signal)
+  try {
+    const cin = require('./cin.ts')
+    const field = cin.getCurrentField?.()
+    if (field && field.sampleCount >= 20) {
+      dataReady = true
+      complexityPreference = 0.5 + (field.strength[0] || 0) * 0.3
+      socialOrientation = 0.5 + (field.strength[1] || 0) * 0.3
+      patienceLevel = 0.5 - (field.strength[3] || 0) * 0.3
+      emotionalSensitivity = 0.5 + (field.strength[4] || 0) * 0.3
+    }
+  } catch {}
+
+  // Source 2: mood history variance → consistencyNeed
+  try {
+    const { getMoodHistory } = require('./body.ts')
+    const history = getMoodHistory?.() || []
+    if (history.length >= 20) {
+      const moods = history.slice(-50).map((h: any) => h.mood || 0)
+      const avg = moods.reduce((s: number, m: number) => s + m, 0) / moods.length
+      const stddev = Math.sqrt(moods.reduce((s: number, m: number) => s + (m - avg) ** 2, 0) / moods.length)
+      consistencyNeed = Math.max(0, Math.min(1, 1 - stddev * 3))
+      dataReady = true
+    }
+  } catch {}
+
+  // Source 3: correction frequency → perfectionism/tolerance
+  try {
+    const { stats } = require('./handler-state.ts')
+    if (stats.totalMessages > 0) {
+      const correctionRate = (stats.corrections || 0) / stats.totalMessages
+      if (correctionRate > 0.1) complexityPreference = Math.min(1, complexityPreference + 0.2)
+      if (correctionRate > 0.15) patienceLevel = Math.max(0, patienceLevel - 0.2)
+    }
+  } catch {}
+
+  // Source 4: average message length → expression style
+  try {
+    const { getProfile } = require('./user-profiles.ts')
+    const profile = getProfile?.('_default')
+    if (profile?.languageDna?.avgLength) {
+      const avgLen = profile.languageDna.avgLength
+      if (avgLen > 80) complexityPreference = Math.min(1, complexityPreference + 0.15)
+      if (avgLen < 20) patienceLevel = Math.max(0, patienceLevel - 0.15)
+    }
+  } catch {}
+
+  // Source 5: auto-tune bandit parameters
+  try {
+    const { getParam } = require('./auto-tune.ts')
+    const frustrationDecay = getParam('flow.frustration_shortening_rate')
+    if (frustrationDecay && frustrationDecay !== 0.2) {
+      patienceLevel = Math.max(0, Math.min(1, 1 - frustrationDecay / 0.3))
+      dataReady = true
+    }
+  } catch {}
+
+  const clamp = (v: number) => Math.max(0, Math.min(1, v))
+
+  return {
+    emotionalSensitivity: clamp(emotionalSensitivity),
+    complexityPreference: clamp(complexityPreference),
+    patienceLevel: clamp(patienceLevel),
+    consistencyNeed: clamp(consistencyNeed),
+    socialOrientation: clamp(socialOrientation),
+    dataReady,
+  }
+}

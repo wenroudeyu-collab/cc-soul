@@ -13,7 +13,7 @@ import { dbGetDueReminders, dbMarkReminderFired } from './sqlite-store.ts'
 import { bodyTick } from './body.ts'
 import {
   consolidateMemories, scanForContradictions,
-  autoPromoteToCoreMemory, cleanupWorkingMemory, processMemoryDecay,
+  evaluateAndPromoteMemories, autoPromoteToCoreMemory, cleanupWorkingMemory, processMemoryDecay,
   batchTagUntaggedMemories, auditMemoryHealth,
   sqliteMaintenance,
   pruneExpiredMemories, reviveDecayedMemories,
@@ -139,35 +139,7 @@ export function runHeartbeat() {
         // ── 记忆维护（核心，不调 LLM）──
         safeCLI('consolidate', () => consolidateMemories(), safe)
         safeCLI('contradiction', () => scanForContradictions(), safe)
-        safe('coreMemory', () => autoPromoteToCoreMemory())
-        // Letta 热度分层：engagement 驱动 core 晋升/降级
-        safe('heatPromotion', () => {
-          try {
-            const { memoryState } = require('./memory.ts')
-            for (const m of memoryState.memories) {
-              if (!m || m.scope === 'expired') continue
-              const eng = m.injectionEngagement ?? 0
-              const miss = m.injectionMiss ?? 0
-              const rate = eng / Math.max(1, eng + miss)
-
-              // 高 engagement + 高频 → 自动晋升 core
-              if (rate > 0.6 && eng >= 5 && m.scope !== 'core_memory') {
-                m.scope = 'core_memory'
-                try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_promote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}`) } catch {}
-                try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'promoted', ts: Date.now(), delta: `→core_memory, rate=${rate.toFixed(2)}` }) } catch {}
-              }
-
-              // core 但长期无 engagement → 降级（engagement 减半防震荡）
-              if (m.scope === 'core_memory' && eng > 0 && rate < 0.2) {
-                m.scope = 'fact'
-                m.injectionEngagement = Math.floor(eng / 2)
-                m.injectionMiss = Math.floor(miss / 2)
-                try { const { logDecision } = require('./decision-log.ts'); logDecision('heat_demote', (m.content||'').slice(0,30), `rate=${rate.toFixed(2)},eng=${eng}→${m.injectionEngagement}`) } catch {}
-                try { const { appendLineage } = require('./memory-utils.ts'); appendLineage(m, { action: 'demoted', ts: Date.now(), delta: `→fact, rate=${rate.toFixed(2)}` }) } catch {}
-              }
-            }
-          } catch {}
-        })
+        safe('memoryPromotion', () => evaluateAndPromoteMemories())
         safe('smartForgetSweep', () => { try { const { smartForgetModule } = require('./smart-forget.ts'); smartForgetModule.onHeartbeat() } catch {} })
         safe('memoryDecay', () => processMemoryDecay())
         safe('bayesDecay', () => { try { require('./confidence-cascade.ts').batchTimeDecay(require('./memory.ts').memoryState.memories) } catch {} })

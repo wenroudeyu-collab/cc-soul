@@ -421,62 +421,60 @@ export function buildCoreMemoryContext(): string {
 }
 
 /**
- * Auto-promote: scan regular memories for candidates worthy of core status.
- * Called periodically from heartbeat.
- * Criteria: high emotion weight, high recall count (tags>8), or correction-derived rules.
+ * 统一记忆晋升/降级评估（合并 autoPromoteToCoreMemory + heatPromotion + STAC）
+ * 三个信号源加权决策，避免独立系统震荡
  */
-export function autoPromoteToCoreMemory() {
+export function evaluateAndPromoteMemories() {
   if (coreMemories.length >= MAX_CORE_MEMORIES) return
 
   for (const mem of memoryState.memories) {
-    if (mem.scope === 'expired') continue
-    if (coreMemories.some(c => c.content === mem.content)) continue
+    if (!mem || mem.scope === 'expired' || mem.scope === 'decayed') continue
 
-    let shouldPromote = false
-    let category: CoreMemory['category'] = 'user_fact'
+    // Signal 1: engagement rate (from heatPromotion)
+    const eng = mem.injectionEngagement ?? 0
+    const miss = mem.injectionMiss ?? 0
+    const engRate = eng / Math.max(1, eng + miss)
+    const engSignal = (engRate > 0.6 && eng >= 5) ? 1.0 : 0
 
-    // High emotional importance
-    if (mem.emotion === 'important' || mem.emotion === 'warm') {
-      shouldPromote = true
-      category = mem.scope === 'preference' ? 'preference' : 'user_fact'
-    }
+    // Signal 2: intrinsic value (from autoPromoteToCoreMemory)
+    let valueSignal = 0
+    if (mem.emotion === 'important' || mem.emotion === 'warm') valueSignal += 0.5
+    if ((mem.recallCount ?? 0) >= 3) valueSignal += 0.5
+    if (mem.scope === 'preference' || mem.scope === 'fact') valueSignal += 0.3
+    valueSignal = Math.min(1.0, valueSignal)
 
-    // Frequently recalled (lowered from 10 → 3 to fix starvation)
-    if (mem.tags && mem.tags.length >= 3) {
-      shouldPromote = true
-      category = 'user_fact'
-    }
+    // Signal 3: FSRS stability trend (STAC original)
+    let stacSignal = 0
+    const rc = mem.recallCount ?? 0
+    const ageDays = Math.max(1, (Date.now() - (mem.ts || Date.now())) / 86400000)
+    const recallRate = rc / ageDays
+    if (recallRate > 0.5 && (mem.fsrs?.stability ?? 0) > 10) stacSignal = 1.0
 
-    // Recalled multiple times (recallCount tracks actual usage)
-    if ((mem.recallCount ?? 0) >= 3) {
-      shouldPromote = true
-      category = mem.scope === 'preference' ? 'preference' : 'user_fact'
-    }
+    // Weighted decision
+    const promoteScore = engSignal * 0.4 + valueSignal * 0.3 + stacSignal * 0.3
 
-    // Preference/fact scope — user's stated preferences are always important
-    if (mem.scope === 'preference' || mem.scope === 'fact') {
-      shouldPromote = true
-      category = mem.scope === 'preference' ? 'preference' : 'user_fact'
-    }
-
-    // Consolidated memories (already distilled from many)
-    if (mem.scope === 'consolidated') {
-      shouldPromote = true
-      category = 'user_fact'
-    }
-
-    // Correction-derived (learned rules)
-    if (mem.scope === 'correction' && mem.content.startsWith('[纠正归因]')) {
-      shouldPromote = true
-      category = 'rule'
-    }
-
-    if (shouldPromote) {
-      promoteToCore(mem.content, category, 'auto')
+    // Promote: score > 0.5 and not already core
+    if (promoteScore > 0.5 && mem.scope !== 'core_memory') {
       if (coreMemories.length >= MAX_CORE_MEMORIES) break
+      mem.scope = 'core_memory'
+      coreMemories.push({ content: mem.content, category: mem.scope === 'preference' ? 'preference' : 'user_fact', addedAt: Date.now(), source: 'auto' })
+      try { require('./decision-log.ts').logDecision('unified_promote', (mem.content || '').slice(0, 30), `eng=${engSignal.toFixed(1)} val=${valueSignal.toFixed(1)} stac=${stacSignal.toFixed(1)} total=${promoteScore.toFixed(2)}`) } catch {}
+      try { require('./memory-utils.ts').appendLineage(mem, { action: 'promoted', ts: Date.now(), delta: `→core_memory, score=${promoteScore.toFixed(2)}` }) } catch {}
+    }
+
+    // Demote: core but engagement persistently low
+    if (mem.scope === 'core_memory' && eng > 0 && engRate < 0.2) {
+      mem.scope = 'fact'
+      mem.injectionEngagement = Math.floor(eng / 2)
+      mem.injectionMiss = Math.floor(miss / 2)
+      coreMemories = coreMemories.filter(c => c.content !== mem.content)
+      try { require('./decision-log.ts').logDecision('unified_demote', (mem.content || '').slice(0, 30), `engRate=${engRate.toFixed(2)}`) } catch {}
     }
   }
 }
+
+/** @deprecated Use evaluateAndPromoteMemories() — kept for backward compatibility */
+export function autoPromoteToCoreMemory() { evaluateAndPromoteMemories() }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Chat History

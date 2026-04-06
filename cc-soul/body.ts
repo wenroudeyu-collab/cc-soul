@@ -442,6 +442,8 @@ interface MoodSnapshot {
 let moodHistory: MoodSnapshot[] = []
 let lastMoodSnapshot = 0
 
+export function getMoodHistory(): MoodSnapshot[] { return moodHistory }
+
 export function loadMoodHistory() {
   moodHistory = loadJson<MoodSnapshot[]>(MOOD_HISTORY_PATH, [])
 }
