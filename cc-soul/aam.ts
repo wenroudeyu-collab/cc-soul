@@ -2972,32 +2972,31 @@ export function getMaxHop(queryPattern: string): number {
  * 正反馈：用户 engaged 的记忆，强化其扩展路径上的 AAM 边
  * 由 feedbackMemoryEngagement 调用
  */
-export function reinforceTrace(trace: { path: { stage: string; via: string; word?: string }[] }): void {
-  for (const step of trace.path) {
-    if (step.stage !== 'candidate_selection') continue
-    if (!step.word) continue
-
-    if (step.via === 'aam_hop1' || step.via === 'aam_context') {
-      // hop1 路径：强化 +0.5
-      const words = step.word.split(/\s+/).filter(w => w.length >= 2)
-      for (let i = 0; i < words.length - 1; i++) {
-        if (!network().cooccur[words[i]]) network().cooccur[words[i]] = {}
-        network().cooccur[words[i]][words[i + 1]] = (network().cooccur[words[i]][words[i + 1]] || 0) + 0.5
-        if (!network().cooccur[words[i + 1]]) network().cooccur[words[i + 1]] = {}
-        network().cooccur[words[i + 1]][words[i]] = (network().cooccur[words[i + 1]][words[i]] || 0) + 0.5
-      }
-    } else if (step.via === 'aam_hop2') {
-      // hop2 路径：弱强化 +0.3
-      const words = step.word.split(/\s+/).filter(w => w.length >= 2)
-      for (let i = 0; i < words.length - 1; i++) {
-        if (!network().cooccur[words[i]]) network().cooccur[words[i]] = {}
-        network().cooccur[words[i]][words[i + 1]] = (network().cooccur[words[i]][words[i + 1]] || 0) + 0.3
-        if (!network().cooccur[words[i + 1]]) network().cooccur[words[i + 1]] = {}
-        network().cooccur[words[i + 1]][words[i]] = (network().cooccur[words[i + 1]][words[i]] || 0) + 0.3
-      }
+/**
+ * 正反馈：强化查询词 ↔ 被 engaged 记忆内容词的关联
+ * 不依赖 step.word（trace 构建时未写入该字段，导致旧版空转）
+ * 改为直接从 memory content + 调用方传入的 queryWords 建立关联
+ */
+export function reinforceTrace(trace: { memory?: { content?: string }; path?: any[] }, queryWords?: string[]): void {
+  if (!queryWords || queryWords.length === 0 || !trace.memory?.content) return
+  const lang = detectLanguage(trace.memory.content)
+  _currentLang = lang
+  const memWords = filterStopWords(tokenize(trace.memory.content))
+    .filter(w => !isJunkToken(w) && w.length >= 2).slice(0, 10)
+  if (memWords.length === 0) return
+  let reinforced = 0
+  for (const qw of queryWords) {
+    if (qw.length < 2 || isJunkToken(qw)) continue
+    for (const mw of memWords) {
+      if (qw === mw) continue
+      if (!network().cooccur[qw]) network().cooccur[qw] = {}
+      network().cooccur[qw][mw] = Math.min(50, (network().cooccur[qw][mw] || 0) + 0.3)
+      if (!network().cooccur[mw]) network().cooccur[mw] = {}
+      network().cooccur[mw][qw] = Math.min(50, (network().cooccur[mw][qw] || 0) + 0.3)
+      reinforced++
     }
   }
-  console.log(`[cc-soul][aam] positive feedback: reinforced ${trace.path.length} trace steps`)
+  if (reinforced > 0) console.log(`[cc-soul][aam] reinforced ${reinforced} pairs from ${queryWords.length} qw × ${memWords.length} mw`)
 }
 
 /**

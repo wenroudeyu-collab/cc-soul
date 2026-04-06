@@ -1739,18 +1739,19 @@ export function addMemory(content: string, scope: string, userId?: string, visib
       } catch {}
     }
 
-    // ── N1: 质量分反向训练——correction 和触发查询配对学习 ──
-    // 用户纠正时，把纠正内容和当初的查询词建立关联
-    // 下次同样的查询 → AAM 直接扩展到正确内容
+    // ── N1: 质量分反向训练——correction 和最近召回记忆配对学习 ──
+    // 用户纠正时，把纠正内容和最近被召回的记忆关键词建立关联
+    // 注：ActivationTrace 没有 query 字段，用最近召回记忆的 content 近似
     if (scope === 'correction') {
       try {
         const { getRecentTrace } = require('./activation-field.ts')
         const trace = getRecentTrace?.()
-        if (trace?.traces?.[0]?.query) {
-          const queryKw = (trace.traces[0].query.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
+        const recentMem = trace?.traces?.[0]?.memory?.content
+        if (recentMem) {
+          const recalledKw = (recentMem.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
           const correctKw = (content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []).slice(0, 5)
-          if (queryKw.length > 0 && correctKw.length > 0) {
-            import('./aam.ts').then(m => m.learnAssociation(queryKw.join(' ') + ' ' + correctKw.join(' '), 1.0)).catch(() => {})
+          if (recalledKw.length > 0 && correctKw.length > 0) {
+            import('./aam.ts').then(m => m.learnAssociation(recalledKw.join(' ') + ' ' + correctKw.join(' '), 1.0)).catch(() => {})
           }
         }
       } catch {}
