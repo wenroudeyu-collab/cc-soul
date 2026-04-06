@@ -118,6 +118,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         importance: 8,
         tags: ['summary'],
         _segmentId: si,
+        _eventDate: originalTimestamps[si],  // 原始时间戳，保留年月日语义
       } as Memory)
 
       // Sentence splitting 暂关（multi_hop +4.4% 但 open_domain -3.3%，净损失 14 题）
@@ -143,6 +144,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         importance: 5,
         tags: [`speaker:${role}`, `session:${si}`],
         _segmentId: si,
+        _eventDate: originalTimestamps[si] + ti * 60000,  // 原始时间 + turn 偏移
       } as Memory)
     }
 
@@ -163,6 +165,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
             importance: 3,
             tags: [`merged:${ti}`, `session:${si}`],
             _segmentId: si,
+            _eventDate: originalTimestamps[si] + ti * 60000 + 30000,  // 原始时间
           } as Memory)
         }
       }

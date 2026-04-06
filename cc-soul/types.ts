@@ -174,6 +174,7 @@ export interface Memory {
   _preheated?: boolean  // 预测性预热标记（heartbeat 设置，recall 后清除）
   _segmentId?: number   // 话题河流：同一段对话中的记忆共享 segmentId
   _entityIds?: string[] // 写入时由 findMentionedEntities 提取的实体名列表（slotization 用）
+  _eventDate?: number   // 事件发生的原始时间戳（区别于 ts 的归一化时间）
   utility?: number  // -5 to +5, default 0. MemRL: "did this memory help?"
 }
 
