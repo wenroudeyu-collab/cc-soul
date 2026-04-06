@@ -93,11 +93,7 @@ const _traceBuffer = new Map<number, { traces: ActivationTrace[]; rejections: Re
 
 // ── BM25 标准分母：文档平均长度（在 computeActivationField 内预计算）──
 let _currentAvgDocLen = 20
-
-let _memConceptTagsCache = new Map<string, Set<string>>()
-let _entityFanCount = new Map<string, number>()
-let _moduleRouteScopes: Set<string> | null = null
-// SSH: Seed-Based Semantic Hashing（模块级缓存，contextMatch 需要访问）
+// SSH 模块级缓存
 let _sshMemDims = new Map<string, Set<string>>()
 let _sshDimFreqMap = new Map<string, number>()
 let _sshQueryDims = new Set<string>()
@@ -631,23 +627,20 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   // 英文 trigram 权重提升：拼写变体/缩写/词形变化更依赖 trigram
   const _enRatio = ((query.match(/[a-zA-Z]+/g) || []).join('').length) / Math.max(query.length, 1)
   const _triWeight = _enRatio > 0.5 ? 1.0 : 0.8
-
-  // ── SSH: 语义维度匹配（第五路）——IDF 加权 Jaccard ──
   let sshScore = 0
   if (_sshQueryDims.size > 0) {
     const memDims = _sshMemDims.get(contentLower)
     if (memDims && memDims.size > 0) {
-      let weightedOverlap = 0, totalWeight = 0
+      let wo = 0, tw = 0
       for (const d of _sshQueryDims) {
-        const dimFreq = _sshDimFreqMap.get(d) || 1
-        const dimIdf = 1 / Math.max(1, dimFreq)  // 稀有维度权重高
-        totalWeight += dimIdf
-        if (memDims.has(d)) weightedOverlap += dimIdf
+        const df = _sshDimFreqMap.get(d) || 1
+        const idf = 1 / Math.max(1, df)
+        tw += idf
+        if (memDims.has(d)) wo += idf
       }
-      sshScore = totalWeight > 0 ? weightedOverlap / totalWeight : 0
+      sshScore = tw > 0 ? wo / tw : 0
     }
   }
-
   return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight, sshScore * 0.8)
 }
 
@@ -761,9 +754,7 @@ function getEntityResonance(mem: Memory, erf: Map<string, number>): number {
 
   for (const [entity, activation] of erf) {
     if (content.includes(entity)) {
-      const fan = _entityFanCount?.get(entity) || 1
-      const fanDamping = 1 / Math.log2(1 + fan)
-      totalResonance += activation * fanDamping
+      totalResonance += activation
       entityCount++
     }
   }
@@ -842,9 +833,8 @@ function interferenceMMR(memTri: Set<string>, selectedTris: Set<string>[], isSum
     if (maxSim > TRIGRAM_THRESHOLD.DEDUP_MERGE) return 0.5
     if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.8
   } else {
-    if (maxSim < 0.3) return 1.0
-    if (maxSim < 0.6) return 1.0 - (maxSim - 0.3) * 2.3
-    return 0.3 + (maxSim - 0.6) * 1.75
+    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.3
+    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_LIGHT) return 0.7
   }
   return 1.0
 }
@@ -859,7 +849,11 @@ function temporalContext(mem: Memory, timeRange?: TimeRange | null, queryWords?:
   // Triple Query Decomposition: 如果有明确时间范围，用范围过滤代替新近性衰减
   if (timeRange) {
     const ts = mem.ts || 0
-    return (ts >= timeRange.fromMs && ts <= timeRange.toMs) ? 1.0 : 0
+    // 范围内 = 1.0，范围外 = 按距离软衰减（不是 0，给邻近记忆机会）
+    if (ts >= timeRange.fromMs && ts <= timeRange.toMs) return 1.0
+    const span = timeRange.toMs - timeRange.fromMs || 86400000
+    const dist = Math.min(Math.abs(ts - timeRange.fromMs), Math.abs(ts - timeRange.toMs))
+    return Math.max(0, 1.0 - dist / span)  // 距范围 1 个 span 宽度内线性衰减
   }
 
   const now = new Date()
@@ -940,21 +934,17 @@ export function computeActivationField(
 ): ActivationResult[] {
   const now = Date.now()
 
-  // ── IMAF: Intent-Modulated Activation Field（意图调制激活场）──
-  // 原创算法：7 信号权重随查询意图连续调制，不是离散路由切换
-  // ── IMAF: Intent-Modulated Activation Field（加法 bonus 模式）──
-  // 意图调制独立于 Thermostat 系数，不会互相放大
-  // bonus=0 时公式退化为原始行为（默认档位）
+  // ── IMAF: Intent-Modulated Activation Field ──
   const _imaf = (() => {
-    if (/为什么|原因|导致|怎么回事|why|because|cause|led to|reason|how come/i.test(query))
-      return { s1: 0, s2: 0, s3: 0, s4: 0.3, s6: 0.15 }  // 因果：扩散+时间 bonus
-    if (/什么时候|上次|上周|最近发生|when did|last time|recently|what happened|ago/i.test(query))
-      return { s1: 0.1, s2: 0, s3: 0, s4: 0, s6: 0.4 }  // 时间：新近性+时间 bonus
-    if (query.match(/\b[A-Z][a-z]{2,}\b/g)?.filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That)$/.test(n)).length)
-      return { s1: 0, s2: 0.1, s3: 0, s4: 0.3, s6: 0 }  // 实体：扩散+内容 bonus
+    if (/为什么|原因|导致|why|because|cause|reason|how come/i.test(query))
+      return { s1: 1.0, s2: 1.0, s3: 0.5, s4: 2.0, s6: 1.5 }
+    if (/什么时候|上次|上周|when did|last time|recently|what happened|ago/i.test(query))
+      return { s1: 2.0, s2: 0.8, s3: 0.3, s4: 0.5, s6: 3.0 }
+    if (query.match(/\b[A-Z][a-z]{2,}\b/g)?.filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could)$/.test(n)).length)
+      return { s1: 0.8, s2: 1.5, s3: 0.5, s4: 2.0, s6: 0.8 }
     if (/感觉|心情|开心|难过|焦虑|feel|happy|sad|anxious|stressed|mood/i.test(query))
-      return { s1: 0, s2: 0, s3: 0.3, s4: 0, s6: 0 }  // 情感：情绪 bonus
-    return { s1: 0, s2: 0, s3: 0, s4: 0, s6: 0 }  // 默认：无 bonus
+      return { s1: 0.8, s2: 1.0, s3: 2.0, s4: 0.5, s6: 0.5 }
+    return { s1: 1.0, s2: 1.0, s3: 1.0, s4: 1.0, s6: 1.0 }
   })()
 
   // 预计算记忆平均文档长度（BM25 标准分母，替代 expandedWords.size）
@@ -969,73 +959,38 @@ export function computeActivationField(
   // 构建实体共振场（ERF）— 一次性，供 spreadingActivation Path C 使用
   _erfCache = buildEntityResonanceField(query, memories)
 
-  // ACT-R Fan Effect entity counting
-  _entityFanCount = new Map()
-  if (_erfCache.size > 0) {
-    for (const mem of memories) {
-      const c = (mem.content || '').toLowerCase()
-      for (const entity of _erfCache.keys()) {
-        if (c.includes(entity.toLowerCase())) {
-          _entityFanCount.set(entity, (_entityFanCount.get(entity) || 0) + 1)
-        }
-      }
-    }
-  }
 
-  // T2 concept tags
-  _memConceptTagsCache = new Map()
-  try {
-    const { getConceptParents: _getCP } = require('./aam.ts')
-    if (_getCP) {
-      for (const mem of memories) {
-        const cl = (mem.content || '').toLowerCase()
-        const ws = cl.match(/[a-zA-Z]{3,}|[\u4e00-\u9fff]{2,4}/gi) || []
-        const tags = new Set<string>()
-        for (const w of ws.slice(0, 15)) {
-          const parents = _getCP(w.toLowerCase())
-          for (const p of parents) tags.add(p)
-        }
-        if (tags.size > 0) _memConceptTagsCache.set(cl, tags)
-      }
-    }
-  } catch {}
 
-  // ── SSH: Seed-Based Semantic Hashing 预计算 ──
-  // 把 20000 seeds + 100 concept 作为语义维度基向量，记忆映射到离散语义空间
+  // SSH: Seed-Based Semantic Hashing（英文 only，中文 seeds 维度太广会误匹配）
   _sshMemDims = new Map()
-  _sshDimFreqMap = new Map()  // 每个维度出现在多少条记忆里（IDF 用）
-  try {
-    const { getSemanticDimensions: _getSSD } = require('./aam.ts')
-    if (_getSSD) {
-      for (const mem of memories) {
-        const cl = (mem.content || '').toLowerCase()
-        const ws = cl.match(/[a-zA-Z]{3,}|[\u4e00-\u9fff]{2,4}/gi) || []
-        const dims = new Set<string>()
-        for (const w of ws.slice(0, 20)) {
-          const wd = _getSSD(w.toLowerCase())
-          for (const d of wd) dims.add(d)
-        }
-        if (dims.size > 0) {
-          _sshMemDims.set(cl, dims)
-          for (const d of dims) _sshDimFreqMap.set(d, (_sshDimFreqMap.get(d) || 0) + 1)
-        }
-      }
-    }
-  } catch {}
-
-  // SSH: 查询的语义维度
+  _sshDimFreqMap = new Map()
   _sshQueryDims = new Set()
-  try {
-    const { getSemanticDimensions: _getSSD } = require('./aam.ts')
-    if (_getSSD) {
-      for (const [w, wt] of expandedWords) {
-        if ((wt as number) >= 0.5) {
-          const wd = _getSSD(w)
-          for (const d of wd) _querySemanticDims.add(d)
+  if (!/[\u4e00-\u9fff]/.test(query)) {
+    try {
+      const { getSemanticDimensions: _getSSD } = require('./aam.ts')
+      if (_getSSD) {
+        for (const mem of memories) {
+          const cl = (mem.content || '').toLowerCase()
+          const ws = cl.match(/[a-zA-Z]{3,}/gi) || []
+          const dims = new Set<string>()
+          for (const w of ws.slice(0, 20)) {
+            const wd = _getSSD(w.toLowerCase())
+            for (const d of wd) dims.add(d)
+          }
+          if (dims.size > 0) {
+            _sshMemDims.set(cl, dims)
+            for (const d of dims) _sshDimFreqMap.set(d, (_sshDimFreqMap.get(d) || 0) + 1)
+          }
+        }
+        for (const [w, wt] of expandedWords) {
+          if ((wt as number) >= 0.5) {
+            const wd = _getSSD(w)
+            for (const d of wd) _sshQueryDims.add(d)
+          }
         }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   // 预建 AAM neighbor 缓存 — 把查询词的 1-hop AAM 邻居预计算好
   // 供 spreadingActivation Path B 用，避免每条记忆重复 PMI 计算（O(N²) → O(N)）
@@ -1112,15 +1067,10 @@ export function computeActivationField(
     // 加法下：score = 0.3×base + 0.7×context，context 有独立贡献，不被 base 乘没
     // 权重由 Recall Thermostat 动态调节（默认 0.3/0.7）
     const { base: wBase, context: wCtx } = getSignalWeights()
-    // IMAF 加法 bonus：意图调制独立于 Thermostat 系数，不会互相放大
-    // bonus=0（默认档位）时公式退化为原始行为
-    const baseContextScore = wBase * s1 + wCtx * s2 + _imaf.s1 * s1 + _imaf.s2 * s2
+    const baseContextScore = wBase * _imaf.s1 * s1 + wCtx * _imaf.s2 * s2
 
-    // 乘法调制（Thermostat 系数）+ 加法 bonus（IMAF 意图调制）
-    const raw = baseContextScore
-      * (0.5 + _emotionCoeff * s3 + _imaf.s3 * s3)
-      * (1 + _spreadCoeff * s4 + _imaf.s4 * s4)
-      * (0.8 + _temporalCoeff * s6 + _imaf.s6 * s6)
+    // IMAF 意图调制 + Thermostat 自适应
+    const raw = baseContextScore * (0.5 + _emotionCoeff * _imaf.s3 * s3) * (1 + _spreadCoeff * _imaf.s4 * s4) * (0.8 + _temporalCoeff * _imaf.s6 * s6)
 
     // confidence 软缩放（不是乘法杀死，是 0.6-1.0 区间）
     const conf = mem.confidence ?? 0.7
@@ -1152,11 +1102,7 @@ export function computeActivationField(
     const momentum = getMomentumBoost(mem.content || '')
 
     const catWeight = getCategoryWeight(mem)
-    const truthPenalty = (mem.bayesAlpha && mem.bayesBeta && mem.bayesBeta > mem.bayesAlpha * 2) ? 0.5 : 1.0
-    const ageDays = (now - (mem.ts || now)) / 86400000
-    const explorationBonus = (ageDays < 7 && (mem.recallCount || 0) === 0) ? 1.3 : 1.0
-    const routePenalty = (_moduleRouteScopes && !_moduleRouteScopes.has(mem.scope || '')) ? 0.5 : 1.0
-    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight * truthPenalty * explorationBonus * routePenalty
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * catWeight
 
     // 构建 trace path
     const path: TraceStep[] = [
@@ -1455,6 +1401,14 @@ export function activationRecall(
 ): Memory[] {
   if (!query || memories.length === 0) return []
 
+  // 提取查询中的人名（英文大写开头 + 中文姓氏）
+  const _queryNames: string[] = []
+  const _enNameCandidates = query.match(/\b([A-Z][a-z]{2,})\b/g) || []
+  const _NON_NAMES = new Set(['What','When','Where','Which','Who','How','Why','The','This','That','Does','Did','Has','Have','Was','Were','Can','Could','Would','Should','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'])
+  for (const n of _enNameCandidates) {
+    if (!_NON_NAMES.has(n)) _queryNames.push(n.toLowerCase())
+  }
+
   // ── 聚合查询自适应：分数平坦度判定（完全动态，零硬编码正则）──
   let _isAggregation = false
   const _originalTopN = topN
@@ -1467,80 +1421,8 @@ export function activationRecall(
     topN = Math.max(topN, 10)
   }
 
-  // S1 typed routing: scope-aware topN adjustment
-  _moduleRouteScopes = null
-  if (/谁是|叫什么|在哪|什么是|多少|几个|几岁|what is|who is|where does|how many|how old|what kind/i.test(query)) {
-    _moduleRouteScopes = new Set(['fact', 'correction', 'topic'])
-    topN = Math.max(2, Math.round(topN * 0.7))
-  } else if (/最近|上次|什么时候|发生了|那年|when did|last time|recently|how long|ago|first time/i.test(query)) {
-    _moduleRouteScopes = new Set(['event', 'episode'])
-    topN = Math.round(topN * 1.5)
-  } else if (/喜欢|偏好|建议|怎么看|看法|觉得|prefer|like|recommend|opinion|favorite/i.test(query)) {
-    _moduleRouteScopes = new Set(['preference', 'opinion', 'reflection'])
-  } else if (/说说|描述|介绍|怎样的|总结|所有|summarize|describe|tell me about/i.test(query)) {
-    topN = Math.round(topN * 2.0)
-  }
-
-  // Frustration signal: reduce topN when user is about to abandon
-  let _frustrationUrgency = 0
-  try {
-    const { getFlowState } = require('./flow.ts')
-    const flow = getFlowState?.()
-    if (flow?.turnsToAbandon != null && flow.turnsToAbandon <= 3) {
-      _frustrationUrgency = (3 - flow.turnsToAbandon) / 3
-      topN = Math.max(2, Math.round(topN * (1 - _frustrationUrgency * 0.4)))
-    }
-  } catch {}
-
   // 查询扩展
   const expanded = expandQueryForField(query)
-
-  // Signal B: cyclic topics
-  try {
-    const { getCyclicReminders } = require('./prospective-memory.ts')
-    const cyclicTopics = getCyclicReminders?.() || []
-    for (const reminder of cyclicTopics) {
-      const kw = (reminder.keyword || reminder).toString().toLowerCase()
-      if (kw.length >= 2) {
-        const existing = expanded.get(kw) || 0
-        expanded.set(kw, Math.max(existing, existing * 1.3 || 0.4))
-      }
-    }
-  } catch {}
-
-  // N2: avatar vocabulary
-  try {
-    const { getAvatarProfile } = require('./avatar.ts')
-    const _avProfile = getAvatarProfile?.()
-    if (_avProfile?.vocabulary?.decoder) {
-      const queryWords = new Set((query.match(/[\u4e00-\u9fff]|[a-zA-Z0-9]+/g) || []).map((w: string) => w.toLowerCase()))
-      for (const [shorthand, meaning] of Object.entries(_avProfile.vocabulary.decoder)) {
-        if (queryWords.has(shorthand.toLowerCase()) || expanded.has(shorthand.toLowerCase())) {
-          const meaningWords = ((meaning as string) || '').match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/gi) || []
-          for (const w of meaningWords) {
-            if (!expanded.has(w.toLowerCase())) expanded.set(w.toLowerCase(), 0.7)
-          }
-        }
-      }
-    }
-  } catch {}
-
-  // N3: topic switch prediction
-  try {
-    const { predictNextTopic } = require('./behavioral-phase-space.ts')
-    const { getPersonModelState } = require('./person-model.ts')
-    const tom = getPersonModelState?.()
-    if (tom?.recentTopics?.length >= 3) {
-      const topics = tom.recentTopics.slice(-3).map((t: any) => t.topic || t)
-      const prediction = predictNextTopic?.(topics, mood)
-      if (prediction?.topic && prediction.confidence > 0.5) {
-        const topicKw = CATEGORY_KEYWORDS[prediction.topic] || []
-        for (const tw of topicKw.slice(0, 5)) {
-          if (!expanded.has(tw)) expanded.set(tw, 0.15)
-        }
-      }
-    }
-  } catch {}
 
   // 更新对话惯性 momentum
   updateMomentum(query)
@@ -1603,38 +1485,6 @@ export function activationRecall(
       }
     } catch {}
     console.log(`[activation-field] negation query detected, expanded +${_negSeedWords.length} neg seeds`)
-  }
-
-  // ── Entity name detection + pre-filter ──
-  const _queryNames: string[] = []
-  try {
-    const graph = _graphMod
-    if (graph.findMentionedEntities) {
-      const entities = graph.findMentionedEntities(query) as string[]
-      for (const e of entities) {
-        if (e.length >= 2) _queryNames.push(e.toLowerCase())
-      }
-    }
-  } catch {}
-  // Entity pre-filter: if query mentions specific names, prioritize memories containing them
-  if (_queryNames.length > 0 && memories.length > 100) {
-    const entityMatched: Memory[] = []
-    const entityUnmatched: Memory[] = []
-    for (const mem of memories) {
-      const cl = (mem.content || '').toLowerCase()
-      let found = false
-      for (const name of _queryNames) {
-        if (cl.includes(name)) { found = true; break }
-      }
-      if (found || (mem.importance || 0) >= 8) entityMatched.push(mem)
-      else entityUnmatched.push(mem)
-    }
-    // Keep all matched + enough unmatched for diversity
-    if (entityMatched.length >= 3) {
-      const keepUnmatched = Math.max(50, memories.length - entityMatched.length)
-      memories = [...entityMatched, ...entityUnmatched.slice(0, keepUnmatched)]
-      console.log(`[activation-field] entity pre-filter: ${entityMatched.length} matched, ${memories.length} total (names: ${_queryNames.join(',')})`)
-    }
   }
 
   // ── Category Pre-Pruning：按领域预筛，减少候选池 ──
@@ -1721,79 +1571,35 @@ export function activationRecall(
 
   // Step 2: 激活场计算（用扩展后的查询，候选集更完整）
   // 过采样倍数随候选池大小动态调整（大池子需要更大漏斗）
-  const _oversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : 4
+  const _oversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : memories.length <= 500 ? 4 : 6
   let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * _oversample, timeRange)
 
-  // ── M1: 因果链注入（"为什么"类查询）──
-  if (/为什么|原因|导致|怎么回事|why|because|cause|reason/i.test(query)) {
+  // ── DQR: Dual-Query Recall（双查询召回）——用扩展词重组第二个查询再搜一次 ──
+  // 原创：论文证明 dual-query 能提升 6.7%，我们用 AAM 扩展词自动生成第二查询（零 LLM）
+  if (results.length > 0 && results[0].activation < 0.5 && expanded.size > 5) {
+    // 只在首轮结果不够好时触发（top-1 分数 < 0.3 = 不太确定）
     try {
-      const graph = _graphMod
-      const entities = graph?.findMentionedEntities?.(query) as string[] || []
-      if (entities.length > 0 && graph?.graphState?.relations) {
-        const causalEntities = new Set<string>()
-        for (const entity of entities) {
-          for (const r of graph.graphState.relations) {
-            if (r.invalid_at !== null) continue
-            if (r.source === entity || r.target === entity) {
-              causalEntities.add(r.source)
-              causalEntities.add(r.target)
-            }
+      // 取 expanded 里权重最高的 5 个非原始词作为第二查询
+      const altWords = [...expanded.entries()]
+        .filter(([w, wt]) => (wt as number) < 0.95 && (wt as number) >= 0.5 && w.length >= 3)  // 排除原始词
+        .sort((a, b) => (b[1] as number) - (a[1] as number))
+        .slice(0, 5)
+        .map(([w]) => w)
+      if (altWords.length >= 2) {
+        const altQuery = altWords.join(' ')
+        const altExpanded = new Map(expanded)  // 复用已有扩展
+        const altResults = computeActivationField(memories, altQuery, mood, alertness, altExpanded, topN * 2, timeRange)
+        // 合并去重
+        const seenContent = new Set(results.map(r => r.memory.content))
+        for (const r of altResults) {
+          if (!seenContent.has(r.memory.content)) {
+            results.push(r)
+            seenContent.add(r.memory.content)
           }
         }
-        if (causalEntities.size > 0) {
-          for (const r of results) {
-            const cl = (r.memory.content || '').toLowerCase()
-            for (const ce of causalEntities) {
-              if (ce.length >= 2 && cl.includes(ce.toLowerCase())) { r.activation *= 1.3; break }
-            }
-          }
-          results.sort((a, b) => b.activation - a.activation)
-        }
+        results.sort((a, b) => b.activation - a.activation)
       }
     } catch {}
-  }
-
-  // ── M2: 时间链邻居扩展（temporal 查询拉入上下文）──
-  if (_currentQueryType === 'temporal' && results.length > 0) {
-    const seenContent = new Set(results.map(r => r.memory.content))
-    const neighbors: typeof results = []
-    for (const r of results.slice(0, 3)) {
-      const memTs = r.memory.ts || 0
-      for (const mem of memories) {
-        if (seenContent.has(mem.content)) continue
-        const diff = Math.abs((mem.ts || 0) - memTs)
-        if (diff > 0 && diff < 3600000) {
-          neighbors.push({ memory: mem, activation: r.activation * 0.6, signals: { base: 0, context: 0, emotion: 0, spread: 0, interference: 1, temporal: 0.8 } })
-          seenContent.add(mem.content)
-        }
-      }
-    }
-    if (neighbors.length > 0) {
-      results = [...results, ...neighbors.slice(0, 5)]
-      results.sort((a, b) => b.activation - a.activation)
-    }
-  }
-
-  // ── M3: 实体图遍历注入（ERF 高激活实体的记忆补充）──
-  if (_queryNames.length >= 1 && _erfCache.size > 0) {
-    const seenContent = new Set(results.map(r => r.memory.content))
-    const graphMems: typeof results = []
-    for (const [entity, activation] of _erfCache) {
-      if (activation < 0.2) continue
-      for (const mem of memories) {
-        if (seenContent.has(mem.content)) continue
-        if ((mem.content || '').toLowerCase().includes(entity.toLowerCase())) {
-          graphMems.push({ memory: mem, activation: activation * 0.5, signals: { base: 0, context: 0, emotion: 0, spread: activation, interference: 1, temporal: 0 } })
-          seenContent.add(mem.content)
-          if (graphMems.length >= 5) break
-        }
-      }
-      if (graphMems.length >= 5) break
-    }
-    if (graphMems.length > 0) {
-      results = [...results, ...graphMems]
-      results.sort((a, b) => b.activation - a.activation)
-    }
   }
 
   // ── 分数平坦度检测 → 聚合查询自适应 topN ──
@@ -1940,48 +1746,12 @@ export function activationRecall(
         if (m.tags.some((t: string) => t === `speaker:${targetRole}`)) bonus += 2.0
       }
     }
-    // Entity name boost
-    if (_queryNames.length > 0) {
-      const memLower = (m.content || '').toLowerCase()
+    // Entity name boost：查询含人名时，包含该名字的记忆加权
+    if (_queryNames && _queryNames.length > 0) {
+      const ml = (m.content || '').toLowerCase()
       for (const name of _queryNames) {
-        if (memLower.includes(name)) { bonus += 3.0; break }
+        if (ml.includes(name)) { bonus += 2.5; break }
       }
-    }
-    // Persona bias
-    try {
-      const { getActivePersona } = require('./persona.ts')
-      const persona = getActivePersona()
-      if (persona?.memoryBias?.length > 0 && m.scope) {
-        if (i > 0 && results[i - 1].activation > 0 && results[i].activation / results[i - 1].activation > 0.9) {
-          if (persona.memoryBias.includes(m.scope)) bonus += 0.8
-        }
-      }
-    } catch {}
-    // Identity change
-    try {
-      const { getLivingProfile } = require('./person-model.ts')
-      const profile = getLivingProfile?.()
-      if (profile?.timeline?.length > 0) {
-        const recentChanges = profile.timeline.filter((c: any) => Date.now() - (c.ts || 0) < 30 * 86400000)
-        if (recentChanges.length > 0) {
-          const oldValues = new Set(recentChanges.map((c: any) => (c.oldValue || '').toLowerCase()).filter((v: string) => v.length >= 2))
-          const memL = (m.content || '').toLowerCase()
-          for (const oldVal of oldValues) {
-            if (memL.includes(oldVal)) { bonus -= 0.8; break }
-          }
-        }
-      }
-    } catch {}
-    // Frustration
-    if (_frustrationUrgency > 0.3) {
-      const contentLen = (m.content || '').length
-      if (contentLen < 80) bonus += _frustrationUrgency * 2.0
-      if (contentLen > 300) bonus -= _frustrationUrgency * 1.0
-    }
-    // Negation (additional boost beyond the one above)
-    if (_isNegationQuery) {
-      if (m.scope === 'correction') bonus += 2.0
-      if (m.emotion === 'painful') bonus += 2.0
     }
     results[i].activation *= (1 + Math.min(0.3, bonus / 6.5))
   }

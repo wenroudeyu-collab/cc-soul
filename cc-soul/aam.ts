@@ -2178,6 +2178,16 @@ const CONCEPT_HIERARCHY: Record<string, string[]> = {
   'dance': ['ballet','salsa','tango','waltz','hip hop','contemporary','jazz','swing','breakdance','tap','ballroom','flamenco'],
   'art form': ['painting','sculpture','photography','pottery','drawing','calligraphy','ceramics','mosaic','watercolor','oil painting','sketching'],
   'gemstone': ['diamond','ruby','emerald','sapphire','amethyst','topaz','opal','jade','pearl','turquoise','garnet'],
+  // ── LOCOMO 失败模式补充：抽象查询词→具体活动/物品 ──
+  'activity': ['hiking','painting','pottery','camping','reading','cooking','gardening','dancing','swimming','running','yoga','fishing','knitting','singing','playing','volunteering','traveling','shopping'],
+  'destress': ['paint','read','hike','yoga','meditate','garden','cook','walk','swim','exercise','music','sleep','bath','journal'],
+  'relax': ['paint','read','hike','yoga','meditate','garden','cook','walk','swim','exercise','music','sleep','bath','nap','unwind'],
+  'partake': ['participate','join','attend','do','engage','take part','involved','active'],
+  'identity': ['transgender','gender','orientation','sexuality','queer','nonbinary','pronouns','transition','coming out','LGBTQ'],
+  'book': ['novel','story','read','reading','author','title','fiction','nonfiction','memoir','biography','literature'],
+  'camp': ['camping','tent','campfire','outdoor','campsite','campground','trail','backpack','wilderness','nature trip'],
+  'event': ['conference','parade','rally','meeting','workshop','seminar','festival','gathering','celebration','ceremony','fundraiser','race','charity','support group'],
+  'participate': ['attend','join','volunteer','contribute','engage','take part','involved','active','signed up','registered'],
 }
 
 // ── T2: CONCEPT_HIERARCHY 反向索引（child → parent keys）──

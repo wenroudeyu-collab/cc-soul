@@ -134,6 +134,27 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         tags: [`speaker:${role}`, `session:${si}`],
       } as Memory)
     }
+
+    // ── Sliding Window Memory Merging：步长 2 跳步合并，减少记忆膨胀 ──
+    for (let ti = 0; ti < session.length - 1; ti += 2) {  // 步长 2 不重叠
+      const turns = session.slice(ti, ti + 3).filter(t => t?.content?.length >= 10)
+      if (turns.length >= 2) {
+        const merged = turns.map(t => t.content).join(' ')
+        if (merged.length > 30 && merged.length < 500) {
+          const memTs = baseTs + ti * 60000 + 30000
+          memories.push({
+            content: merged,
+            scope: 'episode',
+            ts: memTs,
+            confidence: 0.75,
+            recallCount: 2,
+            lastAccessed: Math.min(now - 7200000, memTs + 86400000),
+            importance: 3,  // 低于 episode(5)，让 pre-filter 更容易裁掉
+            tags: [`merged:${ti}`, `session:${si}`],
+          } as Memory)
+        }
+      }
+    }
   }
 
   return memories
@@ -251,9 +272,23 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
     // Strategy 1: exact substring
     if (memLower.includes(ansLower)) return { hit: true, rank: i + 1 }
 
-    // Strategy 2: token coverage（动态阈值：短答案严，长答案松）
+    // Strategy 2: token coverage（动态阈值 + stemming）
     if (ansTokens.length > 0) {
-      const tokenHits = ansTokens.filter(t => memLower.includes(t)).length
+      let tokenHits = 0
+      for (const t of ansTokens) {
+        if (memLower.includes(t)) { tokenHits++; continue }
+        // Stemmed fallback: "camped"↔"camping", "played"↔"playing"
+        if (t.length >= 4 && /^[a-z]+$/.test(t)) {
+          const stem = t.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
+          if (stem.length >= 3 && memLower.includes(stem)) { tokenHits++; continue }
+          // 反向：memory 里的词 stem 后匹配 answer token
+          const memWords = memLower.match(/[a-z]{4,}/g) || []
+          for (const mw of memWords) {
+            const mStem = mw.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
+            if (mStem === stem || mw.startsWith(stem) || stem.startsWith(mw.slice(0, -1))) { tokenHits++; break }
+          }
+        }
+      }
       const coverage = tokenHits / ansTokens.length
       const threshold = ansTokens.length <= 3 ? 0.9
         : ansTokens.length <= 6 ? 0.8
@@ -265,6 +300,15 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
     const memTri = trigrams(memLower)
     const triSim = trigramSimilarity(ansTri, memTri)
     if (triSim > 0.4 && ansLower.length >= 4) return { hit: true, rank: i + 1 }
+
+    // Strategy 4: 实体名 + 内容词组合匹配（更严格）
+    const ansNames = answer.match(/\b[A-Z][a-z]{2,}\b/g)?.filter(n => !/^(The|This|That|What|When|Where|How|Who|Not|Yes|And|But)$/.test(n)) || []
+    if (ansNames.length >= 1 && ansTokens.length >= 3) {
+      const nameHits = ansNames.filter(n => memLower.includes(n.toLowerCase())).length
+      const contentTokenHits = ansTokens.filter(t => t.length >= 4 && memLower.includes(t)).length
+      // 至少 1 个名字 + 2 个内容词同时匹配
+      if (nameHits >= 1 && contentTokenHits >= 2) return { hit: true, rank: i + 1 }
+    }
   }
 
   return { hit: false, rank: -1 }
@@ -324,10 +368,18 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
       score = Math.max(score, 1.0)
     }
 
-    // S2: token coverage (flexible)
+    // S2: token coverage with stemming (flexible)
     const tokens = choiceLower.split(/\s+/).filter(t => t.length >= 2)
     if (tokens.length > 0) {
-      const hits = tokens.filter(t => context.includes(t)).length
+      let hits = 0
+      for (const t of tokens) {
+        if (context.includes(t)) { hits++; continue }
+        // Stemmed fallback
+        if (t.length >= 4 && /^[a-z]+$/.test(t)) {
+          const stem = t.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
+          if (stem.length >= 3 && context.includes(stem)) hits++
+        }
+      }
       score = Math.max(score, hits / tokens.length * 0.8)
     }
 
