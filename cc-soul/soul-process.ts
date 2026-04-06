@@ -521,7 +521,7 @@ async function handleFeedback(body: any): Promise<any> {
     const { feedbackDistillQuality, feedbackMemoryEngagement } = await import('./handler-augments.ts')
     if (qualityScore >= 0) feedbackDistillQuality(qualityScore)
     // P1a: 记忆级 engagement 反馈
-    feedbackMemoryEngagement(userMessage)
+    feedbackMemoryEngagement(userMessage, userId)
     // PAM 时序共现：喂用户原话（双语），而不是 LLM 碎片
     try {
       const aamMod = await import('./aam.ts')

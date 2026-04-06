@@ -130,6 +130,7 @@ export function initSQLite(): boolean {
     ['validFrom', 'INTEGER'],
     ['validUntil', 'INTEGER'],
     ['prospectiveTags', "TEXT DEFAULT '[]'"],
+    ['_entityIds', "TEXT DEFAULT '[]'"],
   ]
   for (const [col, def] of ccSoulColumns) {
     try { db.exec(`ALTER TABLE memories ADD COLUMN ${col} ${def}`) } catch { /* already exists */ }
@@ -351,8 +352,8 @@ export function migrateFromJSON() {
     console.log(`[cc-soul][sqlite] migrating ${memories.length} memories from JSON...`)
 
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, lastRecalled, validFrom, validUntil, prospectiveTags)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, lastRecalled, validFrom, validUntil, prospectiveTags, _entityIds)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     db.exec('BEGIN')
@@ -380,6 +381,7 @@ export function migrateFromJSON() {
           m.validFrom || null,
           m.validUntil || null,
           JSON.stringify(m.prospectiveTags || []),
+          JSON.stringify(m._entityIds || []),
         )
       }
       db.exec('COMMIT')
@@ -438,8 +440,8 @@ export function sqliteAddMemory(mem: Omit<Memory, 'relevance'>): number {
   const now = Date.now()
   const tsVal = mem.ts || now
   const result = db.prepare(`
-    INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, validFrom, validUntil, prospectiveTags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO memories (content, scope, ts, created_at, raw_line, emotion, userId, visibility, channelId, tags, confidence, lastAccessed, access_count, tier, recallCount, validFrom, validUntil, prospectiveTags, _entityIds)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     mem.content,
     mem.scope,
@@ -459,6 +461,7 @@ export function sqliteAddMemory(mem: Omit<Memory, 'relevance'>): number {
     mem.validFrom || null,
     mem.validUntil || null,
     JSON.stringify(mem.prospectiveTags || []),
+    JSON.stringify(mem._entityIds || []),
   )
   const id = Number(result.lastInsertRowid)
 
@@ -825,6 +828,7 @@ function rowToMemory(row: any): Memory {
     validFrom: row.validFrom || undefined,
     validUntil: row.validUntil || undefined,
     prospectiveTags: row.prospectiveTags ? (() => { try { const p = JSON.parse(row.prospectiveTags); return p.length > 0 ? p : undefined } catch { return undefined } })() : undefined,
+    _entityIds: row._entityIds ? (() => { try { const e = JSON.parse(row._entityIds); return e.length > 0 ? e : undefined } catch { return undefined } })() : undefined,
   }
 }
 

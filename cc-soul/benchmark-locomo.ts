@@ -352,7 +352,7 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
 // LAYER 2: ANSWER SELECTION (10-choice)
 // ═══════════════════════════════════════════════════════════════
 
-function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: number; confidence: number } {
+function selectAnswer(recalled: Memory[], choices: string[], question?: string): { choiceIndex: number; confidence: number } {
   if (recalled.length === 0) {
     const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
     return { choiceIndex: naIdx >= 0 ? naIdx : 0, confidence: 0 }
@@ -432,7 +432,7 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
   // ── Dynamic Abstain：三维 answerability 评估 ──
   // evidence coverage × top1-top2 margin × entity coverage
   const _ABSTAIN_STOPS = new Set(['what','when','where','how','who','which','why','the','this','that','does','did','has','have','was','were','can','could','would','should','not','are','its','his','her','she','they','been','being','had','with','from','for','and','but','the','about','after','before','into','over','than','then','some','any','all','both','each','more','most','many','much','very','also','just','only','still'])
-  const qKeywords = (question.toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !_ABSTAIN_STOPS.has(w))
+  const qKeywords = ((question || '').toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !_ABSTAIN_STOPS.has(w))
   const recalledText = recalled.map(m => m.content).join(' ').toLowerCase()
   const evidenceCoverage = qKeywords.length > 0
     ? qKeywords.filter(w => recalledText.includes(w)).length / qKeywords.length
@@ -442,7 +442,7 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
     ? (scores[0].score - scores[1].score) / Math.max(scores[0].score, 0.01)
     : 0
 
-  const qEntities = (question.match(/\b[A-Z][a-z]{2,}\b/g) || [])
+  const qEntities = ((question || '').match(/\b[A-Z][a-z]{2,}\b/g) || [])
     .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
   const entityCoverage = qEntities.length > 0
     ? qEntities.filter(n => recalledText.includes(n.toLowerCase())).length / qEntities.length
@@ -797,6 +797,17 @@ async function run() {
           }
           if (tagged > 0) { suppressLogs = false; print(`  [prospective-tags] ${tagged}/${memories.length} memories tagged`); suppressLogs = true }
         } catch {}
+        // ── Write-time entityIds 补填（graph 注册后才能提取，所以放这里）──
+        try {
+          const graph = require('./graph.ts')
+          let entTagged = 0
+          for (const mem of memories) {
+            if (mem._entityIds) continue
+            const ents = graph.findMentionedEntities(mem.content || '')
+            if (ents.length > 0) { mem._entityIds = ents.slice(0, 10); entTagged++ }
+          }
+          if (entTagged > 0) { suppressLogs = false; print(`  [entityIds] ${entTagged}/${memories.length} memories tagged`); suppressLogs = true }
+        } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
@@ -846,7 +857,7 @@ async function run() {
     if (!opts.recallOnly) {
       // String-match answer selection (always run)
       stat.mcTotal++
-      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices)
+      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices, q.question)
       _qMCCorrect = choiceIndex === q.correct_choice_index
       if (_qMCCorrect) stat.mcCorrect++
 

@@ -173,6 +173,7 @@ export interface Memory {
   _complementOf?: string[]  // 互补候选的 memoryId 列表（写入时标记，heartbeat 消费）
   _preheated?: boolean  // 预测性预热标记（heartbeat 设置，recall 后清除）
   _segmentId?: number   // 话题河流：同一段对话中的记忆共享 segmentId
+  _entityIds?: string[] // 写入时由 findMentionedEntities 提取的实体名列表（slotization 用）
   utility?: number  // -5 to +5, default 0. MemRL: "did this memory help?"
 }
 
@@ -444,6 +445,9 @@ export interface Augment {
   content: string
   priority: number // higher = more important (1-10)
   tokens: number // estimated token count
+  // ── EvidencePack-lite：归因追踪 ──
+  memoryIds?: string[]  // 构成该 augment 的源记忆 memoryId 列表
+  provenance?: 'memory' | 'fact' | 'proactive' | 'core' | 'episode' | 'other'
 }
 
 export interface BodyParams {

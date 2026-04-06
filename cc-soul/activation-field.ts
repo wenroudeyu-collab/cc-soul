@@ -477,16 +477,27 @@ const QUERY_TYPE_MULTIPLIERS: Record<QueryType, { k1Mult: number; bMult: number;
   broad:    { k1Mult: 0.67, bMult: 0.4,  temporalBoost: 1.0 },
 }
 
-const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|when|how\s*many/i
-const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|last|before|ago|when\s+did|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
+// 路由修复：when 从 PRECISE 移到 TEMPORAL（"When did X happen?" 是时间查询不是精确查询）
+const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|how\s*many/i
+const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|when|last|before|after|ago|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
 
 let _currentQueryType: QueryType = 'broad'
 
 function detectQueryType(query: string): QueryType {
-  if (PRECISE_RE.test(query)) return 'precise'
+  // temporal 先检测（更具体的优先，避免 when 被 precise 抢走）
   if (TEMPORAL_RE.test(query)) return 'temporal'
+  if (PRECISE_RE.test(query)) return 'precise'
   return 'broad'
 }
+
+// ── Slot-Aware Query State（暂停：全局乘法 boost 伤分 -5.9%，需要改成 tie-break 模式再启用）──
+// 保留类型定义和检测函数供后续 tie-break 版使用
+interface QuerySlot {
+  slotType: 'person' | 'place' | 'time' | 'count' | 'object' | 'boolean' | 'general'
+  temporalMode: 'point' | 'range' | 'order' | 'none'
+  exactness: number
+}
+const _currentSlot: QuerySlot = { slotType: 'general', temporalMode: 'none', exactness: 0.3 }
 
 /** Get adaptive k1/b — reads base from auto-tune, applies query-type + language multipliers */
 function getAdaptiveParams(queryType: QueryType, query?: string): QueryTypeParams {
@@ -1470,6 +1481,7 @@ export function activationRecall(
 
   // 查询类型检测（adaptive k1/b）
   _currentQueryType = detectQueryType(query)
+  // _currentSlot = detectQuerySlot(query)  // 暂停：slot boost 伤分
 
   // temporal 查询需要更多候选做时间排序比较
   if (_currentQueryType === 'temporal') {
@@ -2048,6 +2060,9 @@ export function activationRecall(
     }
     results = selected
   }
+
+  // Late Slotization + Temporal Rerank 暂停（全局乘法 boost 伤分 -5.9%）
+  // 方向对但实现过早过宽过强。后续改成 tie-break 模式（只在分数差 < 5% 时介入）
 
   // 截断到 topN
   const topResults = results.slice(0, topN)

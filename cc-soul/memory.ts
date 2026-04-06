@@ -1613,6 +1613,12 @@ export function addMemory(content: string, scope: string, userId?: string, visib
     }
   } catch {}
 
+  // ── Write-time entity extraction（为 slotization 提供精确数据）──
+  try {
+    const _ents = require('./graph.ts').findMentionedEntities(content)
+    if (_ents.length > 0) newMem._entityIds = _ents.slice(0, 10)
+  } catch {}
+
   // ── 闪光灯记忆（Flashbulb Memory）：高情绪事件深度编码 ──
   // 人脑原理：极端情绪事件形成超详细记忆（911 你记得你在做什么）
   // cc-soul 原创：emotionIntensity ≥ 0.7 自动触发，零 LLM，存当时完整上下文

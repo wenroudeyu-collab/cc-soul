@@ -1334,6 +1334,10 @@ export function processMemoryDecay() {
     // High-value memories: never decay, always available for recall
     if (PROTECTED_SCOPES.has(mem.scope)) continue
 
+    // MemRL utility 软调制：高 utility 记忆降低衰减概率（不硬免疫）
+    // utility=3 → 70% 概率跳过本轮衰减；utility=1 → 30% 跳过
+    if ((mem.utility ?? 0) > 0 && Math.random() < Math.min(0.7, (mem.utility ?? 0) * 0.15)) continue
+
     // 72h 巩固免疫：刚合并产出的记忆需要时间被用户验证，避免立刻衰减
     if (mem.scope === 'consolidated' && (now - (mem.ts || 0)) < 72 * 60 * 60 * 1000) continue
 

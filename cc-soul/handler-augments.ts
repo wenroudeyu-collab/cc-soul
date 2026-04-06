@@ -57,23 +57,28 @@ const _lastSoulMoments = new Map<string, number>()
 // ── 蒸馏反馈追踪：记录哪些 topic node 被使用了 ──
 const _usedTopicNodes = new Set<string>()
 
-// ── P1a: 记忆级注入竞争 — 追踪本轮注入的记忆内容 ──
-let _lastInjectedMemoryContents: string[] = []
+// ── P1a: 记忆级注入竞争 — 按 senderId 追踪注入的记忆 memoryId（不再用文本匹配）──
+let _lastInjectedMemoryContents: string[] = []  // 保留兼容（旧代码可能还引用）
+const _injectedBySender = new Map<string, { ids: string[]; provenance: Map<string, string> }>()
 
 // ── AAM 闭环修复：缓存最近 5 条查询词（按消息 hash 存，避免快速连发串线）──
 const _queryWordsCache = new Map<string, string[]>()
 
-// P5e: retention 信号已统一到 buildAndSelectAugments 内部的 isFirstAfterGap 分支（L806）
-// 避免同一批记忆被 double-boost（原 L77 +1 与 L807 +0.05 冲突）
-export function checkRetentionSignal(_userId: string): void {
-  // no-op: 逻辑已移至 buildAndSelectAugments 内的 isFirstAfterGap 条件块
-}
+// P5e: retention 信号已统一到 buildAndSelectAugments 内部的 isFirstAfterGap 分支
+export function checkRetentionSignal(_userId: string): void {}
 
-/**
- * 记录本轮注入的记忆内容（由 buildAndSelectAugments 调用）
- */
+/** 旧接口保留兼容 */
 export function trackInjectedMemories(contents: string[]): void {
   _lastInjectedMemoryContents = contents
+}
+
+/** 新接口：按 senderId 存 memoryId + provenance */
+export function trackInjectedMemoriesById(senderId: string, memoryIds: string[], provenance: Map<string, string>): void {
+  _injectedBySender.set(senderId, { ids: memoryIds, provenance })
+  // 兼容旧路径
+  _lastInjectedMemoryContents = memoryIds
+  // LRU：最多保留 5 个 sender
+  if (_injectedBySender.size > 5) _injectedBySender.delete(_injectedBySender.keys().next().value!)
 }
 
 /**
@@ -81,8 +86,11 @@ export function trackInjectedMemories(contents: string[]): void {
  * 对比用户回复与每条注入记忆的 trigram 相似度，判定 engaged/ignored
  * 短确认回复（<8字且匹配 POSITIVE_RE）跳过，不计入
  */
-export function feedbackMemoryEngagement(userReply: string): void {
-  if (_lastInjectedMemoryContents.length === 0) return
+export function feedbackMemoryEngagement(userReply: string, senderId?: string): void {
+  // 优先用 memoryId 归因（新路径），fallback 到文本匹配（兼容旧路径）
+  const injected = _injectedBySender.get(senderId || 'default')
+  const injectedIds = injected?.ids || []
+  if (injectedIds.length === 0 && _lastInjectedMemoryContents.length === 0) return
 
   // 短回复保护：确认性短回复不计
   if (userReply.length < 8 && POSITIVE_RE.test(userReply.trim())) {
@@ -97,20 +105,38 @@ export function feedbackMemoryEngagement(userReply: string): void {
   let engagedTotal = 0
   let matchedTotal = 0
 
-  for (const injectedContent of _lastInjectedMemoryContents) {
-    // 精确查找：遍历 _memLookup 找 content 完全匹配
-    let mem: any = null
-    for (const [, m] of _memLookup) {
-      if (m && m.content === injectedContent) { mem = m; break }
+  // 构建 memoryId → Memory 查找表
+  const _idToMem = new Map<string, any>()
+  if (injectedIds.length > 0) {
+    for (const m of memoryState.memories) {
+      if (m?.memoryId && injectedIds.includes(m.memoryId)) _idToMem.set(m.memoryId, m)
     }
-    // fallback：模糊匹配（兼容 content 被压缩的情况）
-    if (!mem) {
-      mem = memoryState.memories.find((m: any) =>
-        m && m.content && injectedContent.includes(m.content.slice(0, 40))
-      )
-    }
-    if (!mem) continue
+  }
 
+  // 遍历注入的记忆——优先用 memoryId 精确查找
+  const targets: any[] = []
+  if (injectedIds.length > 0) {
+    for (const id of injectedIds) {
+      const mem = _idToMem.get(id)
+      if (mem) targets.push(mem)
+    }
+  } else {
+    // fallback：旧的文本匹配路径
+    for (const injectedContent of _lastInjectedMemoryContents) {
+      let mem: any = null
+      for (const [, m] of _memLookup) {
+        if (m && m.content === injectedContent) { mem = m; break }
+      }
+      if (!mem) {
+        mem = memoryState.memories.find((m: any) =>
+          m && m.content && injectedContent.includes(m.content.slice(0, 40))
+        )
+      }
+      if (mem) targets.push(mem)
+    }
+  }
+
+  for (const mem of targets) {
     matchedTotal++
     const memTri = trigrams(mem.content)
     const overlap = trigramSimilarity(replyTri, memTri)
@@ -123,6 +149,13 @@ export function feedbackMemoryEngagement(userReply: string): void {
         const { learnAssociation } = require('./aam.ts')
         learnAssociation(mem.content, 0, 2.0)  // engaged = 2x weight
       } catch {}
+      // MemRL utility：按 provenance 分级写回
+      const _prov = injected?.provenance?.get(mem.memoryId || '') || 'memory'
+      if (_prov === 'proactive') {
+        mem.utility = Math.min(5, (mem.utility ?? 0) + 0.5)  // 主动提起被接受，价值高
+      } else {
+        mem.utility = Math.min(5, (mem.utility ?? 0) + 0.3)  // 普通 engaged
+      }
       // 代谢确认：如果被 engaged 的记忆是 ABSORB 产生的（lineage 里有 absorbed），记录验证
       if (mem.lineage?.some((l: any) => l.action === 'absorbed')) {
         try { require('./decision-log.ts').logDecision('metabolism_confirmed', mem.content.slice(0, 30), 'ABSORB memory was engaged by user') } catch {}
@@ -1031,10 +1064,18 @@ export async function buildAndSelectAugments(params: {
       if (_proactiveResults.length > 0) {
         const isShortMsg = userMsg.length <= 6
         const proactiveContent = _proactiveResults.map(r => r.content.slice(0, 50)).join(' | ')
+        // 收集 proactive 候选的 memoryIds（从 memoryState 里匹配）
+        const _proactiveIds: string[] = []
+        for (const r of _proactiveResults) {
+          const m = memoryState.memories.find((m: any) => m.content === r.content && m.memoryId)
+          if (m?.memoryId) _proactiveIds.push(m.memoryId)
+        }
         augments.push({
           content: `[主动回顾] ${proactiveContent}`,
           priority: isShortMsg ? 9 : 4,
           tokens: estimateTokens(proactiveContent),
+          memoryIds: _proactiveIds.length > 0 ? _proactiveIds : undefined,
+          provenance: 'proactive',
         })
       }
     }
@@ -1310,7 +1351,11 @@ export async function buildAndSelectAugments(params: {
     const crystalContent = crystallize(userMsg, recalled, crystalBudget)
     const content = '[记忆] ' + crystalContent
     console.log(`[cc-soul][augments] crystal: budget=${crystalBudget}, output=${crystalContent.length} chars, content="${crystalContent.slice(0,60)}"`)
-    augments.push({ content, priority: 8, tokens: estimateTokens(content) })
+    augments.push({
+      content, priority: 8, tokens: estimateTokens(content),
+      memoryIds: recalled.filter(m => m.memoryId).map(m => m.memoryId!),
+      provenance: 'memory',
+    })
 
     // ── 因果链注入: 当召回的记忆包含纠正类时，追溯因果并注入上下文 ──
     const corrRecalled = recalled.filter(m => m.scope === 'correction' || m.scope === 'event')
@@ -2383,8 +2428,24 @@ export async function buildAndSelectAugments(params: {
   // Snapshot augments for post-hoc attribution
   snapshotAugments(selected)
 
-  // P1a: 追踪本轮注入的记忆内容（用于 engagement 反馈）
-  trackInjectedMemories(selected.filter(s => /^\[(?:记忆|偏好|事实|经历|纠正|核心记忆)]/.test(s)))
+  // P1a: 追踪本轮注入的记忆（按 senderId 存，用 memoryId 归因而非文本匹配）
+  {
+    // 从 selected strings 反查 Augment 对象恢复 memoryIds
+    const _contentToAugment = new Map<string, Augment>()
+    for (const a of augments) _contentToAugment.set(a.content, a)
+    const _selectedAugments = selected.map(s => _contentToAugment.get(s)).filter(Boolean) as Augment[]
+    const _injectedIds: string[] = []
+    const _injectedProvenance = new Map<string, string>()  // memoryId → provenance
+    for (const a of _selectedAugments) {
+      if (a.memoryIds) {
+        for (const id of a.memoryIds) {
+          _injectedIds.push(id)
+          if (a.provenance) _injectedProvenance.set(id, a.provenance)
+        }
+      }
+    }
+    trackInjectedMemoriesById(senderId || 'default', _injectedIds, _injectedProvenance)
+  }
 
   // ── Track compression metrics ──
   {
