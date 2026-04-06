@@ -333,6 +333,22 @@ export function buildSoulPrompt(
   sections.push('- 别记了/隐私模式 → "好，隐私模式开启"')
   sections.push('- 可以了/关闭隐私 → "隐私模式关闭"')
 
+  // cc-soul LLM configuration guide (injected into prompt so the LLM can guide users)
+  try {
+    const { getLLMStatus } = require('./cli.ts')
+    const llmStatus = getLLMStatus()
+    sections.push('')
+    sections.push('## cc-soul LLM 配置')
+    sections.push('配置文件：~/.cc-soul/data/ai_config.json')
+    if (llmStatus.configured && llmStatus.connected) {
+      sections.push(`状态：✅ 已连接（${llmStatus.model}）`)
+    } else if (llmStatus.configured) {
+      sections.push(`状态：⚠️ 已配置但连接失败（${llmStatus.error || '未验证'}）`)
+    } else {
+      sections.push('状态：未配置（编辑上面的文件填入 API Key 即可，保存后自动生效）')
+    }
+  } catch {}
+
   // Relationship narrative: moved to augment (injected per-message when relevant)
 
   // Current body state

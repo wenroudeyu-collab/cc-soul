@@ -36,6 +36,9 @@ async function safeCompute<T>(fn: () => Promise<T> | T, fallback: T, context: st
 }
 
 async function handleProcess(body: any): Promise<any> {
+  // 热加载 ai_config.json（用户改了文件不用重启）
+  try { (await import('./cli.ts')).hotReloadIfChanged() } catch {}
+
   const message = body.message || ''
   const userId = body.user_id || body.userId || 'default'
   const agentId = body.agent_id || body.agentId || 'default'
@@ -200,11 +203,11 @@ async function handleProcess(body: any): Promise<any> {
   } catch {}
 
   // ── 3.5 共享 extractFacts 结果（避免 3 个模块各自重新跑正则）──
+  // 一次提取，带 source/userId，下游 addFacts + person-model/user-profiles/avatar 共用
   let _sharedFacts: any[] = []
   try {
     const { extractFacts } = await import('./fact-store.ts')
-    _sharedFacts = extractFacts(message)
-    // 存到 globalThis 让 person-model/user-profiles/avatar 读取
+    _sharedFacts = extractFacts(message, 'user_said', userId)
     ;(globalThis as any).__ccSoulSharedFacts = _sharedFacts
     ;(globalThis as any).__ccSoulSharedFactsTs = Date.now()
   } catch {}
@@ -239,13 +242,12 @@ async function handleProcess(body: any): Promise<any> {
       if (walEntries.length > 0) console.log(`[cc-soul][api] WAL: ${walEntries.length} entries`)
     } catch {}
 
-    // ── 5b. 直接事实提取（不依赖 WAL 正则覆盖面）──
-    // WAL 正则只覆盖"我叫/我住在/我喜欢"等模式
-    // extractFacts 覆盖更多（女朋友/宠物/习惯/学历等），确保事实不遗漏
+    // ── 5b. 直接事实提取（复用 L205 的 _sharedFacts，不再重跑 60+ 条正则）──
     try {
-      const { extractFacts, addFacts } = await import('./fact-store.ts')
-      const facts = extractFacts(message, 'user_said', userId)
-      if (facts.length > 0) addFacts(facts)
+      if (_sharedFacts.length > 0) {
+        const { addFacts } = await import('./fact-store.ts')
+        addFacts(_sharedFacts)
+      }
     } catch {}
 
     // ── 6. Avatar collection ──
@@ -292,9 +294,14 @@ async function handleProcess(body: any): Promise<any> {
     session.lastPrompt = message
     session.lastSenderId = userId
 
+    // CGAF: 生成 cogHints 供 recall 链路使用
+    let _cogHints: any = null
+    try { _cogHints = (await import('./cognition.ts')).toCogHints(message) } catch {}
+
     const result = await buildAndSelectAugments({
       userMsg: message, session, senderId: userId, channelId: '',
       cog: cogResult || { attention: 'general', intent: 'wants_answer', strategy: 'balanced', complexity: 0.3, hints: [] },
+      cogHints: _cogHints,
       flow: flow || { turnCount: 0, frustration: 0 },
       flowKey: userId, followUpHints: [], workingMemKey: userId,
     })
@@ -319,19 +326,7 @@ async function handleProcess(body: any): Promise<any> {
     soulPrompt = buildSoulPrompt(stats.totalMessages, stats.corrections, stats.firstSeen, [])
   } catch {}
 
-  // 始终把上次回复摘要和去重提醒嵌入 system_prompt（不依赖 SOUL.md 写入时序）
-  try {
-    const { resolve } = await import('path')
-    const { DATA_DIR, loadJson } = await import('./persistence.ts')
-    const DEDUP_PATH = resolve(DATA_DIR, 'recent_replies.json')
-    const dedup: Record<string, { reply: string; ts: number }> = loadJson(DEDUP_PATH, {})
-    const dedupKey = message.slice(0, 100).toLowerCase().trim()
-    const prev = dedup[dedupKey]
-    if (prev && Date.now() - prev.ts < 3600000) {
-      // 重复消息提醒（简短，不塞回复摘要，避免 SOUL.md 膨胀）
-      soulPrompt = `⚠️ 用户重复发了同一条消息，换角度回答或说"刚回答过"。\n\n` + soulPrompt
-    }
-  } catch {}
+  // 重复消息提醒已由内存版 _dedupCache (L266-281) 处理，磁盘版 recent_replies.json 已移除
 
   // ── System prompt 分段缓存（学自 Claude Code static/dynamic split）──
   // static_prompt: 身份/价值观/规则（跨会话不变，API 可缓存）

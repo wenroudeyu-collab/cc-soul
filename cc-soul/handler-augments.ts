@@ -60,28 +60,10 @@ const _usedTopicNodes = new Set<string>()
 // ── P1a: 记忆级注入竞争 — 追踪本轮注入的记忆内容 ──
 let _lastInjectedMemoryContents: string[] = []
 
-// ── P5e: retention 信号 — 用户 48 小时内回来 → 上次 session 记忆注入有效 ──
-var _lastRetentionCheckTs = 0  // var 避免 TDZ（模块加载顺序问题）
-export function checkRetentionSignal(userId: string): void {
-  const now = Date.now()
-  if (now - _lastRetentionCheckTs < 3600000) return
-  _lastRetentionCheckTs = now
-  try {
-    const { getProfile } = require('./user-profiles.ts')
-    const profile = getProfile(userId)
-    const lastSeen = profile?.lastSeen ?? 0
-    // 48 小时内回来 → 上次 session 的记忆注入是成功的
-    if (lastSeen > 0 && now - lastSeen < 48 * 3600000 && now - lastSeen > 1800000) {
-      // 轻微提升最近被注入记忆的 engagement 分
-      const { memoryState } = require('./memory.ts')
-      const recent = memoryState.memories.filter((m: any) =>
-        m && (m.injectionEngagement ?? 0) > 0 && now - (m.lastAccessed || 0) < 48 * 3600000
-      )
-      for (const m of recent.slice(0, 5)) {
-        m.injectionEngagement = (m.injectionEngagement ?? 0) + 1
-      }
-    }
-  } catch {}
+// P5e: retention 信号已统一到 buildAndSelectAugments 内部的 isFirstAfterGap 分支（L806）
+// 避免同一批记忆被 double-boost（原 L77 +1 与 L807 +0.05 冲突）
+export function checkRetentionSignal(_userId: string): void {
+  // no-op: 逻辑已移至 buildAndSelectAugments 内的 isFirstAfterGap 条件块
 }
 
 /**
@@ -304,19 +286,9 @@ function weaveNarrative(query: string, recalled: Memory[]): string {
     topicNode = getRelevantTopics(query, recalled[0]?.userId, 1)[0] ?? null
   } catch {}
 
-  // 提取时间线骨架
+  // 提取时间线骨架（直接截取，不调 extractFacts 避免对每条记忆跑 60+ 条正则）
   const timeline: string[] = []
-  try {
-    const { extractFacts } = require('./fact-store.ts')
-    for (const m of sorted) {
-      const facts = extractFacts(m.content)
-      timeline.push(facts.length > 0
-        ? facts.map((f: any) => `${f.subject}${f.predicate}${f.object}`).join('，')
-        : m.content.slice(0, 40))
-    }
-  } catch {
-    for (const m of sorted) timeline.push(m.content.slice(0, 40))
-  }
+  for (const m of sorted) timeline.push(m.content.slice(0, 40))
   const deduped = timeline.filter((t, i) => i === 0 || t !== timeline[i - 1])
 
   if (!topicNode) {
@@ -707,6 +679,7 @@ export async function buildAndSelectAugments(params: {
   senderId: string
   channelId: string
   cog: { attention: string; complexity: number; intent: string; hints: string[]; strategy: string; spectrum?: { information: number; action: number; emotional: number; validation: number; exploration: number } }
+  cogHints?: any
   flow: { turnCount: number; frustration: number; frustrationTrajectory?: { current: number; velocity: number; turnsToAbandon: number | null } }
   flowKey: string
   followUpHints: string[]
@@ -733,10 +706,29 @@ export async function buildAndSelectAugments(params: {
   function cachedRecall(msg: string, topN: number, userId?: string, channelId?: string, moodCtx?: any): Memory[] {
     const key = `${msg.slice(0, 50)}:${topN}:${userId || ''}`
     if (_recallCache.has(key)) return _recallCache.get(key)!
-    const result = recall(msg, topN, userId, channelId, moodCtx)
+    const result = recall(msg, topN, userId, channelId, moodCtx, undefined, params.cogHints || null)
     _recallCache.set(key, result)
     return result
   }
+
+  // ── Message-level entity cache (avoids redundant findMentionedEntities for same input) ──
+  const _entityCache = new Map<string, string[]>()
+  function cachedFindEntities(text: string): string[] {
+    if (_entityCache.has(text)) return _entityCache.get(text)!
+    const result = findMentionedEntities(text)
+    _entityCache.set(text, result)
+    return result
+  }
+
+  // ── Local scope index (避免 12+ 次 memoryState.memories.filter by scope) ──
+  const _memByScope = new Map<string, Memory[]>()
+  for (const m of memoryState.memories) {
+    const s = m.scope || 'other'
+    const arr = _memByScope.get(s)
+    if (arr) arr.push(m)
+    else _memByScope.set(s, [m])
+  }
+  const _getByScope = (scope: string): Memory[] => _memByScope.get(scope) || []
 
   // ── Augment feedback: learn from user's reaction to last turn's augments ──
   recordAugmentFeedbackFromUser(session.lastAugmentsUsed, userMsg)
@@ -802,13 +794,15 @@ export async function buildAndSelectAugments(params: {
     const hoursSinceLastMessage = (Date.now() - innerState.lastActivityTime) / 3600000
     const isFirstAfterGap = hoursSinceLastMessage >= 8 && stats.totalMessages > 50
 
-    // P5e: 用户回来了 → 上次 session 的注入记忆是成功的，轻微提升 engagement 分
+    // P5e: 用户回来了 → 上次 session 的注入记忆是成功的，提升 engagement 分
+    // （统一入口：原 checkRetentionSignal 的 +1 逻辑已合并到此处，使用 +0.5 折中值）
     if (isFirstAfterGap && hoursSinceLastMessage < 48 && senderId) {
-      for (const m of memoryState.memories) {
-        if (m && m.injectionEngagement && m.injectionEngagement > 0 && m.lastAccessed &&
-            m.lastAccessed > Date.now() - 48 * 3600000) {
-          m.injectionEngagement += 0.05  // retention boost
-        }
+      const now = Date.now()
+      const recentInjected = memoryState.memories.filter((m: any) =>
+        m && (m.injectionEngagement ?? 0) > 0 && (m.lastAccessed || 0) > now - 48 * 3600000
+      ).slice(0, 5)
+      for (const m of recentInjected) {
+        m.injectionEngagement = (m.injectionEngagement ?? 0) + 0.5  // retention boost (统一值)
       }
     }
 
@@ -835,8 +829,8 @@ export async function buildAndSelectAugments(params: {
       const briefingGoalHint = getActiveGoalHint()
       if (briefingGoalHint) briefingParts.push(`目标: ${briefingGoalHint.slice(0, 60)}`)
 
-      const recentSummaries = memoryState.memories
-        .filter(m => m.scope === 'consolidated' && Date.now() - (Number(m.ts) || 0) < 24 * 3600000)
+      const recentSummaries = _getByScope('consolidated')
+        .filter(m => Date.now() - (Number(m.ts) || 0) < 24 * 3600000)
         .slice(-2)
       if (recentSummaries.length > 0) {
         briefingParts.push(`昨天聊了: ${recentSummaries.map(s => s.content.slice(0, 40)).join('; ')}`)
@@ -874,7 +868,7 @@ export async function buildAndSelectAugments(params: {
 
   // #4 Checkpoint recovery
   {
-    const checkpoints = memoryState.memories.filter(m => m.scope === 'checkpoint').slice(-1)
+    const checkpoints = _getByScope('checkpoint').slice(-1)
     if (checkpoints.length > 0) {
       const cpContent = `[上下文恢复] ${checkpoints[0].content.slice(0, 300)}`
       augments.push({ content: cpContent, priority: 9, tokens: estimateTokens(cpContent) })
@@ -898,8 +892,7 @@ export async function buildAndSelectAugments(params: {
 
     if (isResuming) {
       const topicHint = userMsg.replace(/上次聊|上次说|上次那个|之前讨论|接着聊|继续上次/g, '').trim()
-      const relevantMemories = memoryState.memories
-        .filter(m => m.scope === 'consolidated' || m.scope === 'fact' || m.scope === 'reflexion')
+      const relevantMemories = [..._getByScope('consolidated'), ..._getByScope('fact'), ..._getByScope('reflexion')]
         .filter(m => {
           if (!topicHint) return true
           const words = topicHint.match(/[\u4e00-\u9fff]{2,}|[a-z]{3,}/gi) || []
@@ -1308,7 +1301,7 @@ export async function buildAndSelectAugments(params: {
     }
 
     // ── Graph causal chain: trace caused_by/triggers edges and inject chain context ──
-    const mentionedEnts = findMentionedEntities(userMsg)
+    const mentionedEnts = cachedFindEntities(userMsg)
     if (mentionedEnts.length > 0) {
       const chains = traceCausalChain(mentionedEnts, 3)
       if (chains.length > 0) {
@@ -1469,12 +1462,8 @@ export async function buildAndSelectAugments(params: {
     if (bestRepeat) {
       const mem = bestRepeat.mem
       // 在时间窗口内找相关结论记忆
-      const nearbyMems = memoryState.memories.filter(m =>
-        m !== mem &&
-        m.scope !== 'expired' &&
-        (m.scope === 'consolidated' || m.scope === 'fact' || m.scope === 'reflexion') &&
-        Math.abs((m.ts || 0) - (mem.ts || 0)) < 3600000
-      )
+      const nearbyMems = [..._getByScope('consolidated'), ..._getByScope('fact'), ..._getByScope('reflexion')]
+        .filter(m => m !== mem && Math.abs((m.ts || 0) - (mem.ts || 0)) < 3600000)
       const conclusion = nearbyMems[0]
       const dateStr = new Date(mem.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
       const repeatContent = conclusion
@@ -1708,13 +1697,16 @@ export async function buildAndSelectAugments(params: {
     }
   }
 
+  // ── 预计算 correction 记忆（思维盲点 + 情境快捷 共用，避免重复 filter）──
+  ensureMemoriesLoaded()
+  const _correctionMemories = _getByScope('correction').filter(m => m.content.length > 10)
+
   // ── Cognitive blind spot injection (思维盲点) ──
   // 思维盲点：实时分析 correction 记忆 + 当前域匹配（不依赖心跳缓存）
   {
     const msgDomain = detectDomain(userMsg)
     if (msgDomain !== '闲聊' && msgDomain !== '通用') {
-      ensureMemoriesLoaded()
-      const corrections = memoryState.memories.filter(m => m.scope === 'correction' && m.content.length > 10)
+      const corrections = _correctionMemories
       if (corrections.length >= 3) {
         // 按域分组统计纠正次数
         const domainCorrections = new Map<string, number>()
@@ -1774,13 +1766,12 @@ export async function buildAndSelectAugments(params: {
     }
   }
 
-  // ── #10 情境快捷 ──
+  // ── #10 情境快捷（复用 _correctionMemories）──
   {
-    const correctionMemories = memoryState.memories.filter(m => m.scope === 'correction' && m.content.length > 10)
-    if (correctionMemories.length > 0 && userMsg.length >= 5) {
+    if (_correctionMemories.length > 0 && userMsg.length >= 5) {
       const userTri = trigrams(userMsg)
       let bestMatch: { content: string; sim: number } | null = null
-      for (const mem of correctionMemories.slice(-50)) {
+      for (const mem of _correctionMemories.slice(-50)) {
         const memTri = trigrams(mem.content)
         const sim = trigramSimilarity(userTri, memTri)
         if (sim >= 0.15 && (!bestMatch || sim > bestMatch.sim)) {
@@ -1817,7 +1808,7 @@ export async function buildAndSelectAugments(params: {
     augments.push({ content, priority: 5, tokens: estimateTokens(content) })
   }
   {
-    const mentioned = findMentionedEntities(userMsg)
+    const mentioned = cachedFindEntities(userMsg)
     for (const name of mentioned.slice(0, 2)) {
       const summary = generateEntitySummary(name)
       if (summary && (!entityCtx.length || !entityCtx.some(c => c.includes(name)))) {

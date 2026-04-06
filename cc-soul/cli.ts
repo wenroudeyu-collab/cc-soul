@@ -26,7 +26,7 @@ const CIRCUIT_BREAKER_THRESHOLD = 3
 const CIRCUIT_BREAKER_COOLDOWN_MS = 3600000 // 1 hour
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AI BACKEND CONFIG — auto-detects from OpenClaw's openclaw.json
+// AI BACKEND CONFIG — user-configured via ai_config.json or soul.json
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface AIConfig {
@@ -39,10 +39,10 @@ interface AIConfig {
   max_concurrent: number
 }
 
-const OPENCLAW_CONFIG_PATH = resolve(homedir(), '.openclaw/openclaw.json')
-const OPENCLAW_CONFIGJSON_PATH = resolve(homedir(), '.openclaw/config.json')
-const OPENCLAW_MODELS_PATH = resolve(homedir(), '.openclaw/agents/main/agent/models.json')
-const AI_CONFIG_PATH = resolve(DATA_DIR, 'ai_config.json')
+// ai_config.json 固定路径，不跟 DATA_DIR 走——所有用户统一一个位置
+const CC_SOUL_HOME = resolve(homedir(), '.cc-soul/data')
+const AI_CONFIG_PATH = resolve(CC_SOUL_HOME, 'ai_config.json')
+export { AI_CONFIG_PATH }
 
 /**
  * Auto-detect AI backend from OpenClaw's config.
@@ -52,136 +52,47 @@ const AI_CONFIG_PATH = resolve(DATA_DIR, 'ai_config.json')
  */
 let _fallbackApiConfig: AIConfig | null = null
 
-/**
- * Merge provider info from config.json (apiKey, baseUrl) and models.json (baseUrl, models list).
- * Returns { baseUrl, apiKey, model } for a given provider name.
- */
-function resolveProvider(providerName: string, modelId: string): { baseUrl: string; apiKey: string; model: string } | null {
-  let baseUrl = ''
-  let apiKey = ''
-  let model = modelId || ''
-
-  // Read config.json providers
-  try {
-    if (existsSync(OPENCLAW_CONFIGJSON_PATH)) {
-      const cfg = JSON.parse(readFileSync(OPENCLAW_CONFIGJSON_PATH, 'utf-8'))
-      const p = cfg?.providers?.[providerName]
-      if (p) {
-        if (p.apiKey) apiKey = p.apiKey
-        if (p.baseUrl) baseUrl = p.baseUrl
-      }
-    }
-  } catch {}
-
-  // Read models.json providers (may have baseUrl + apiKey + model list)
-  try {
-    if (existsSync(OPENCLAW_MODELS_PATH)) {
-      const modelsRaw = JSON.parse(readFileSync(OPENCLAW_MODELS_PATH, 'utf-8'))
-      const p = modelsRaw?.providers?.[providerName]
-      if (p) {
-        if (p.baseUrl && !baseUrl) baseUrl = p.baseUrl
-        if (p.apiKey && !apiKey) apiKey = p.apiKey
-        // If no model specified, use first model from list
-        if (!model && p.models?.length > 0) model = p.models[0].id
-      }
-    }
-  } catch {}
-
-  // Read openclaw.json providers as last resort
-  try {
-    if (existsSync(OPENCLAW_CONFIG_PATH)) {
-      const raw = JSON.parse(readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8'))
-      const p = raw?.providers?.[providerName]
-      if (p) {
-        if (p.apiKey && !apiKey) apiKey = p.apiKey
-        if (p.baseUrl && !baseUrl) baseUrl = p.baseUrl
-      }
-    }
-  } catch {}
-
-  if (!baseUrl || !apiKey) return null
-  return { baseUrl, apiKey, model }
-}
+// OpenClaw provider resolution removed — cc-soul uses independent LLM config only
 
 function detectAIConfig(): AIConfig {
-  // 1. User override: if ai_config.json exists, use it
+  // 确保 ~/.cc-soul/data/ 目录和 ai_config.json 模板存在
+  try {
+    const { mkdirSync, existsSync, writeFileSync } = require('fs')
+    mkdirSync(CC_SOUL_HOME, { recursive: true })
+    if (!existsSync(AI_CONFIG_PATH)) {
+      writeFileSync(AI_CONFIG_PATH, JSON.stringify({
+        backend: 'openai-compatible', api_base: '', api_key: '', api_model: '',
+        _guide: '填写 api_base、api_key、api_model 三个字段即可。',
+        _examples: {
+          DeepSeek: { api_base: 'https://api.deepseek.com/v1', api_model: 'deepseek-chat' },
+          OpenAI: { api_base: 'https://api.openai.com/v1', api_model: 'gpt-4o-mini' },
+          Ollama: { api_base: 'http://localhost:11434/v1', api_key: 'ollama', api_model: 'qwen2.5:7b' },
+        },
+      }, null, 2))
+      console.log(`[cc-soul][ai] 已创建配置模板: ${AI_CONFIG_PATH}`)
+    }
+  } catch {}
+  // 1. ~/.cc-soul/data/ai_config.json
   const userConfig = loadJson<Partial<AIConfig>>(AI_CONFIG_PATH, {})
-  if (userConfig.backend) {
-    console.log(`[cc-soul][ai] using user override from ai_config.json`)
+  if (userConfig.backend && userConfig.api_base && userConfig.api_key) {
+    console.log(`[cc-soul][ai] using ai_config.json: ${userConfig.api_model || 'unknown'} @ ${userConfig.api_base}`)
     return {
       backend: userConfig.backend,
-      cli_command: userConfig.cli_command || 'claude',
-      cli_args: userConfig.cli_args || ['-p'],
-      api_base: userConfig.api_base || 'https://api.openai.com/v1',
+      cli_command: userConfig.cli_command || '',
+      cli_args: userConfig.cli_args || [],
+      api_base: userConfig.api_base || '',
       api_key: userConfig.api_key || '',
-      api_model: userConfig.api_model || 'gpt-4o',
+      api_model: userConfig.api_model || '',
       max_concurrent: userConfig.max_concurrent || 5,
     }
   }
 
-  // 2. Follow OpenClaw's model.primary — whatever OpenClaw uses, we use
-  try {
-    if (existsSync(OPENCLAW_CONFIG_PATH)) {
-      const raw = JSON.parse(readFileSync(OPENCLAW_CONFIG_PATH, 'utf-8'))
-      const agents = raw?.agents?.defaults || {}
-      const modelRef = agents?.model?.primary || '' // e.g. "volcengine/doubao-seed-1-8-251228"
-      const cliBackends = agents?.cliBackends || {}
-
-      if (modelRef) {
-        const [provider, model] = modelRef.split('/')
-        const backendDef = cliBackends[provider]
-
-        if (backendDef?.command) {
-          // CLI backend (claude/codex/gemini) — use CLI for main, resolve API fallback for background tasks
-          const resolved = resolveProviderFallback()
-          if (resolved) {
-            _fallbackApiConfig = resolved
-            console.log(`[cc-soul][ai] fallback API ready: ${resolved.api_model}`)
-          }
-          const command = backendDef.command
-          console.log(`[cc-soul][ai] following OpenClaw: CLI "${command}" (${modelRef})`)
-          return {
-            backend: 'cli',
-            cli_command: command,
-            cli_args: command === 'claude' ? ['-p'] : (backendDef.args || []),
-            api_base: '',
-            api_key: '',
-            api_model: '',
-            max_concurrent: 5,
-          }
-        }
-
-        // Not a CLI backend — resolve provider config from config.json + models.json
-        const resolved = resolveProvider(provider, model)
-        if (resolved) {
-          console.log(`[cc-soul][ai] following OpenClaw: API "${provider}/${resolved.model}"`)
-          return {
-            backend: 'openai-compatible',
-            cli_command: '',
-            cli_args: [],
-            api_base: resolved.baseUrl,
-            api_key: resolved.apiKey,
-            api_model: resolved.model,
-            max_concurrent: 8,
-          }
-        }
-        console.log(`[cc-soul][ai] model.primary "${modelRef}" — provider not resolved, trying fallback`)
-      }
-
-      // No model.primary or provider not found — try any available provider
-      const fallback = resolveProviderFallback()
-      if (fallback) return fallback
-    }
-  } catch (e: any) {
-    console.error(`[cc-soul][ai] failed to read openclaw.json: ${e.message}`)
-  }
-
-  // 3. Default fallback: claude CLI
-  console.log(`[cc-soul][ai] using default: claude CLI`)
+  // 2. 无配置 → 纯 NAM 模式（核心功能全部可用，后台 LLM 任务跳过）
+  console.log(`[cc-soul][ai] 未配置 LLM，纯 NAM 模式。配置方法：编辑 ${AI_CONFIG_PATH} 填入 api_base、api_key、api_model`)
   return {
-    backend: 'cli',
-    cli_command: 'claude',
-    cli_args: ['-p'],
+    backend: 'openai-compatible',
+    cli_command: '',
+    cli_args: [],
     api_base: '',
     api_key: '',
     api_model: '',
@@ -189,29 +100,90 @@ function detectAIConfig(): AIConfig {
   }
 }
 
-/**
- * Fallback: try all known providers from models.json + config.json.
- * Used when model.primary is a CLI backend and we need an API for background tasks,
- * or when model.primary provider can't be resolved.
- */
-function resolveProviderFallback(): AIConfig | null {
-  const candidates = ['deepseek', 'moonshot', 'zhipu', 'volcengine', 'openai']
-  for (const name of candidates) {
-    const resolved = resolveProvider(name, '')
-    if (resolved) {
-      return {
-        backend: 'openai-compatible',
-        cli_command: '',
-        cli_args: [],
-        api_base: resolved.baseUrl,
-        api_key: resolved.apiKey,
-        api_model: resolved.model,
-        max_concurrent: 8,
-      }
-    }
-  }
-  return null
+// ── LLM 服务商预置表 ──
+export const LLM_PROVIDERS: Record<string, { api_base: string; default_model: string; name: string }> = {
+  deepseek:    { api_base: 'https://api.deepseek.com/v1',            default_model: 'deepseek-chat',                name: 'DeepSeek' },
+  openai:      { api_base: 'https://api.openai.com/v1',              default_model: 'gpt-4o-mini',                  name: 'OpenAI' },
+  siliconflow: { api_base: 'https://api.siliconflow.cn/v1',          default_model: 'Qwen/Qwen2.5-7B-Instruct',    name: '硅基流动' },
+  volcengine:  { api_base: 'https://ark.cn-beijing.volces.com/api/v3', default_model: '',                           name: '火山引擎' },
+  ollama:      { api_base: 'http://localhost:11434/v1',               default_model: 'qwen2.5:7b',                  name: 'Ollama（本地）' },
 }
+
+// ── LLM 连通性验证 ──
+let _llmValidated: { ok: boolean; error?: string; ts: number } | null = null
+
+export async function validateLLM(): Promise<{ ok: boolean; error?: string }> {
+  if (!hasLLM()) return { ok: false, error: '未配置 LLM' }
+
+  const cfg = _fallbackApiConfig || aiConfig
+  if (!cfg.api_base || !cfg.api_key) return { ok: false, error: '未配置 api_base 或 api_key' }
+
+  try {
+    const resp = await fetch(cfg.api_base + '/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${cfg.api_key}`,
+      },
+      body: JSON.stringify({
+        model: cfg.api_model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 1,
+      }),
+      signal: AbortSignal.timeout(10000),
+    })
+    if (resp.ok) {
+      _llmValidated = { ok: true, ts: Date.now() }
+      return { ok: true }
+    }
+    const body = await resp.text().catch(() => '')
+    let error = `HTTP ${resp.status}`
+    if (resp.status === 401) error = 'API Key 无效'
+    else if (resp.status === 404) error = 'API 地址错误或模型不存在'
+    else if (body) error += `: ${body.slice(0, 100)}`
+    _llmValidated = { ok: false, error, ts: Date.now() }
+    return { ok: false, error }
+  } catch (e: any) {
+    const error = e.name === 'TimeoutError' ? 'API 连接超时（10s）' : `连接失败: ${e.message}`
+    _llmValidated = { ok: false, error, ts: Date.now() }
+    return { ok: false, error }
+  }
+}
+
+export function getLLMStatus(): { configured: boolean; connected: boolean; model: string; error?: string } {
+  const cfg = _fallbackApiConfig || aiConfig
+  const configured = !!(cfg.api_base && cfg.api_key)
+  return {
+    configured,
+    connected: _llmValidated?.ok ?? false,
+    model: cfg.api_model || '',
+    error: _llmValidated?.error,
+  }
+}
+
+/** 保存 LLM 配置到 ai_config.json 并立即生效 */
+export function saveLLMConfig(api_base: string, api_key: string, api_model: string) {
+  const { writeFileSync } = require('fs')
+  const config = {
+    backend: 'openai-compatible',
+    api_base,
+    api_key,
+    api_model,
+    max_concurrent: 5,
+  }
+  writeFileSync(AI_CONFIG_PATH, JSON.stringify(config, null, 2))
+  // 立即生效
+  aiConfig.backend = 'openai-compatible'
+  aiConfig.api_base = api_base
+  aiConfig.api_key = api_key
+  aiConfig.api_model = api_model
+  // 同步 fallback
+  _fallbackApiConfig = { ...aiConfig, cli_command: '', cli_args: [] }
+  _llmValidated = null
+  console.log(`[cc-soul][ai] config saved & activated: ${api_model} @ ${api_base}`)
+}
+
+// resolveProviderFallback removed — no longer needed
 
 export function getFallbackApiConfig(): AIConfig | null { return _fallbackApiConfig }
 export function setFallbackApiConfig(config: AIConfig) {
@@ -227,9 +199,32 @@ export function setFallbackApiConfig(config: AIConfig) {
 }
 
 let aiConfig: AIConfig = detectAIConfig()
+let _configMtime = 0
+try { _configMtime = require('fs').statSync(AI_CONFIG_PATH).mtimeMs } catch {}
 
 export function loadAIConfig() {
   aiConfig = detectAIConfig()
+  try { _configMtime = require('fs').statSync(AI_CONFIG_PATH).mtimeMs } catch {}
+}
+
+/** 检查 ai_config.json 是否被修改，是则热加载并自动验证连通性 */
+export function hotReloadIfChanged() {
+  try {
+    const mtime = require('fs').statSync(AI_CONFIG_PATH).mtimeMs
+    if (mtime > _configMtime) {
+      _configMtime = mtime
+      aiConfig = detectAIConfig()
+      _llmValidated = null
+      console.log(`[cc-soul][ai] ai_config.json changed, hot-reloaded: ${aiConfig.api_model || 'none'}`)
+      // 自动验证连通性
+      if (hasLLM()) {
+        validateLLM().then(r => {
+          if (r.ok) console.log(`[cc-soul][ai] ✅ 连接验证通过: ${aiConfig.api_model}`)
+          else console.log(`[cc-soul][ai] ❌ 连接验证失败: ${r.error}`)
+        }).catch(() => {})
+      }
+    }
+  } catch {}
 }
 
 export function getAIConfig(): AIConfig {

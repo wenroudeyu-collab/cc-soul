@@ -27,7 +27,7 @@ import {
   trigrams, trigramSimilarity, expandQueryWithSynonyms, shuffleArray, timeDecay,
   SYNONYM_MAP, onCacheEvent, tokenize as unifiedTokenize, WORD_PATTERN,
 } from './memory-utils.ts'
-import { learnAssociation } from './aam.ts'
+import { learnAssociation, getTemporalSuccessors as _getTemporalSuccessors } from './aam.ts'
 import { positiveEvidence as _posEvidence, negativeEvidence as _negEvidence, confidenceRecallModifier as _confModifier } from './confidence-cascade.ts'
 
 // Event-Driven Cache Coherence：注册缓存失效
@@ -84,6 +84,82 @@ export function updatePrimingCache(userMsg: string): void {
     for (const [k, ts] of _primingCache) {
       if (now - ts > 10 * 60 * 1000) _primingCache.delete(k)
     }
+  }
+}
+
+// ── 预测性启动缓存（Predictive Priming Cache）──
+// 人脑原理：回忆 A 后，大脑自动预激活与 A 时序关联的 B（前瞻性记忆准备）
+// cc-soul 原创：用 AAM 时序后继预测下一个话题，BM25 轻量匹配预热记忆
+export const _predictivePrimingCache = new Map<string, { predictedRelevance: number; primedAt: number }>()
+// key = memory content (用 content 做 key，因为 memory.id 不稳定)
+
+const PREDICTIVE_PRIMING_WINDOW_MS = 5 * 60 * 1000  // 5 分钟过期
+const PREDICTIVE_PRIMING_MAX = 30  // 最多缓存 30 条预热记忆
+
+/** 预测性启动：召回后用 AAM 时序后继预热下轮可能需要的记忆 */
+export function predictivePrime(recalledMemories: Memory[], allMemories: Memory[]): void {
+  if (recalledMemories.length === 0 || allMemories.length === 0) return
+
+  // 从召回结果中提取关键词
+  const recalledWords = new Set<string>()
+  for (const m of recalledMemories) {
+    const words = (m.content.match(WORD_PATTERN.CJK2_EN3) || [])
+    for (const w of words) recalledWords.add(w.toLowerCase())
+  }
+
+  // 用 AAM 时序后继预测下一轮话题关键词
+  const predictedWords = new Map<string, number>()  // word → max successor count
+  for (const w of recalledWords) {
+    try {
+      const successors = _getTemporalSuccessors(w, 3)
+      for (const s of successors) {
+        const existing = predictedWords.get(s.word) || 0
+        if (s.count > existing) predictedWords.set(s.word, s.count)
+      }
+    } catch {}
+  }
+
+  // 没有后继 → 不浪费 cycle（冷启动保护）
+  if (predictedWords.size === 0) return
+
+  // 清理过期条目
+  const now = Date.now()
+  for (const [k, v] of _predictivePrimingCache) {
+    if (now - v.primedAt > PREDICTIVE_PRIMING_WINDOW_MS) _predictivePrimingCache.delete(k)
+  }
+
+  // 轻量 BM25 匹配：对 allMemories 做 token overlap 打分
+  const recalledContentSet = new Set(recalledMemories.map(m => m.content))
+  const scored: { content: string; relevance: number }[] = []
+
+  for (const mem of allMemories) {
+    if (!mem || !mem.content || recalledContentSet.has(mem.content)) continue
+    const tokens = bm25Tokenize(getContentForRecall(mem))
+    if (tokens.length === 0) continue
+
+    let matchScore = 0
+    for (const t of tokens) {
+      const succCount = predictedWords.get(t)
+      if (succCount) matchScore += succCount
+    }
+
+    if (matchScore > 0) {
+      // 归一化：token overlap 比率 × 后继强度
+      const relevance = Math.min(1.0, matchScore / (tokens.length * 2))
+      scored.push({ content: mem.content, relevance })
+    }
+  }
+
+  // 取 top-N 存入缓存
+  scored.sort((a, b) => b.relevance - a.relevance)
+  const topPrimed = scored.slice(0, PREDICTIVE_PRIMING_MAX)
+
+  for (const s of topPrimed) {
+    _predictivePrimingCache.set(s.content, { predictedRelevance: s.relevance, primedAt: now })
+  }
+
+  if (topPrimed.length > 0) {
+    try { require('./decision-log.ts').logDecision('predictive_prime', `${topPrimed.length} memories`, `predicted_words=${predictedWords.size}, top="${topPrimed[0].content.slice(0, 30)}"`) } catch {}
   }
 }
 
@@ -1306,7 +1382,7 @@ function system1FastRecall(msg: string, topN: number, _userId?: string): Memory[
 }
 
 /** Public recall — strips internal score field from results. Merges OpenClaw native memory if available. */
-export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }): Memory[] {
+export function recall(msg: string, topN = 3, userId?: string, channelId?: string, moodCtx?: { mood: number; alertness: number }, opts?: { awaitVector?: boolean }, cogHints?: any): Memory[] {
   if (!msg || memoryState.memories.length === 0) return []
 
   // ── 认知负荷自适应：根据消息复杂度动态调整 topN ──
@@ -1338,6 +1414,7 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
       topN,
       moodCtx?.mood || 0,
       moodCtx?.alertness || 0.5,
+      cogHints || null,
     )
     if (results.length > 0) console.log(`[cc-soul][recall] activationRecall returned ${results.length} results, top: "${(results[0]?.content||'').slice(0,40)}"`)
 
@@ -1431,6 +1508,9 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
     }
 
     if (results.length > 0) saveMemories()
+
+    // ── 预测性启动：用 AAM 时序后继为下一轮预热记忆 ──
+    try { predictivePrime(results, memoryState.memories) } catch {}
 
     return results
   } catch (e: any) {

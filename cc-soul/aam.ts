@@ -2263,7 +2263,7 @@ export function resetLearnedData(): void {
  * Feed a new memory into the association network.
  * Updates word co-occurrence counts.
  */
-export function learnAssociation(content: string, emotionIntensity: number = 0, weight: number = 1.0) {
+export function learnAssociation(content: string, emotionIntensity: number = 0, weight: number = 1.0, fullPair: boolean = false) {
   const lang = detectLanguage(content)
   _currentLang = lang
   const emotionMultiplier = emotionIntensity >= 0.7 ? 3 : emotionIntensity >= 0.5 ? 2 : 1
@@ -2277,22 +2277,38 @@ export function learnAssociation(content: string, emotionIntensity: number = 0, 
 
   network().totalDocs++
 
-  // Update document frequency
+  // Update document frequency (always uses unique — "how many docs contain this word")
   for (const w of unique) {
     network().df[w] = (network().df[w] || 0) + 1
   }
 
-  // Update co-occurrence (all pairs within the same memory)
-  for (let i = 0; i < unique.length; i++) {
-    if (!network().cooccur[unique[i]]) network().cooccur[unique[i]] = {}
-    for (let j = i + 1; j < unique.length; j++) {
-      network().cooccur[unique[i]][unique[j]] = (network().cooccur[unique[i]][unique[j]] || 0) + emotionMultiplier * weight
-      // Cap at 50 to prevent positive feedback bubble
-      if (network().cooccur[unique[i]][unique[j]] > 50) network().cooccur[unique[i]][unique[j]] = 50
-      // Bidirectional
-      if (!network().cooccur[unique[j]]) network().cooccur[unique[j]] = {}
-      network().cooccur[unique[j]][unique[i]] = (network().cooccur[unique[j]][unique[i]] || 0) + emotionMultiplier * weight
-      if (network().cooccur[unique[j]][unique[i]] > 50) network().cooccur[unique[j]][unique[i]] = 50
+  const inc = emotionMultiplier * weight
+  const _addPair = (w1: string, w2: string) => {
+    if (!network().cooccur[w1]) network().cooccur[w1] = {}
+    network().cooccur[w1][w2] = Math.min(50, (network().cooccur[w1][w2] || 0) + inc)
+    if (!network().cooccur[w2]) network().cooccur[w2] = {}
+    network().cooccur[w2][w1] = Math.min(50, (network().cooccur[w2][w1] || 0) + inc)
+  }
+
+  if (fullPair) {
+    // 全配对模式：跨消息语义桥梁等场景使用
+    for (let i = 0; i < unique.length; i++)
+      for (let j = i + 1; j < unique.length; j++)
+        _addPair(unique[i], unique[j])
+  } else {
+    // 滑动窗口模式（默认）：只有距离 ≤ 5 的词算共现，减少噪音 ~80%
+    const WINDOW = 5
+    const seen = new Set<string>()
+    for (let i = 0; i < words.length; i++) {
+      if (isJunkToken(words[i])) continue
+      for (let j = i + 1; j < Math.min(i + WINDOW, words.length); j++) {
+        if (isJunkToken(words[j])) continue
+        if (words[i] === words[j]) continue
+        const pair = words[i] < words[j] ? `${words[i]}\0${words[j]}` : `${words[j]}\0${words[i]}`
+        if (seen.has(pair)) continue
+        seen.add(pair)
+        _addPair(words[i], words[j])
+      }
     }
   }
 
@@ -2490,10 +2506,9 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     for (const [other, _count] of Object.entries(cooc)) {
       if (expanded.has(other)) continue
       // Filter: skip 2-char CJK fragments that aren't real words
-      // Real words: in synonym table, or df >= 3 (appeared in 3+ memories)
+      // Real words: in synonym table (key or value via _reverseIndex), or df >= 1
       if (other.length === 2 && /^[\u4e00-\u9fff]+$/.test(other)) {
-        const isKnown = Object.keys(langSynonyms).includes(other) ||
-          Object.values(langSynonyms).some(syns => syns.includes(other))
+        const isKnown = !!langSynonyms[other] || !!(_reverseIndex.get(lang)?.has(other))
         if (!isKnown && (network().df[other] || 0) < 1) continue
       }
       const p = pmi(w, other)
@@ -2592,7 +2607,17 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
   }
   for (const w of queryWords) {
     // 上位→下位：用户说"健康"→扩展出"血压/血糖/体重..."
-    const children = CONCEPT_HIERARCHY[w]
+    // 英文 stemming：instruments→instrument, books→book, activities→activity
+    let children = CONCEPT_HIERARCHY[w]
+    if (!children && w.length >= 4 && /^[a-z]+$/i.test(w)) {
+      const stems = [
+        w.replace(/ies$/i, 'y'), w.replace(/ves$/i, 'f'), w.replace(/ses$/i, 'se'),
+        w.replace(/s$/i, ''), w.replace(/ing$/i, ''), w.replace(/ed$/i, ''),
+      ]
+      for (const stem of stems) {
+        if (stem !== w && CONCEPT_HIERARCHY[stem]) { children = CONCEPT_HIERARCHY[stem]; break }
+      }
+    }
     if (children) {
       for (const c of children) {
         if (c.length >= 2) {
@@ -2602,7 +2627,14 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
       }
     }
     // 下位→上位：用户说"血压"→关联"健康"相关记忆
-    const parents = _conceptReverse.get(w)
+    // 同样做 stemming 查找反向索引
+    let parents = _conceptReverse.get(w)
+    if (!parents && w.length >= 4 && /^[a-z]+$/i.test(w)) {
+      const stems = [w.replace(/ies$/i, 'y'), w.replace(/s$/i, ''), w.replace(/ing$/i, ''), w.replace(/ed$/i, '')]
+      for (const stem of stems) {
+        if (stem !== w && _conceptReverse.has(stem)) { parents = _conceptReverse.get(stem); break }
+      }
+    }
     if (parents) {
       for (const p of parents) {
         if (!expanded.has(p)) expanded.set(p, 0.3)

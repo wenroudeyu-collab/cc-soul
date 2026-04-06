@@ -975,6 +975,8 @@ const COMMANDS: SoulCommand[] = [
       } catch (_) { return '价值观模块不可用' }
     },
   },
+
+  // LLM 配置命令已移除 — 通过 system prompt 注入指引，让 OpenClaw 的 LLM 自然引导用户编辑 ai_config.json
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1059,12 +1061,7 @@ export function routeCommand(
     }
   }
 
-  // ── User dashboard commands (non-regex — uses external handleDashboardCommand) ──
-  const dashboardResult = handleDashboardCommand(userMsg, senderId, stats.totalMessages, stats.corrections)
-  if (dashboardResult) {
-    cmdReply(ctx, event, session, dashboardResult, userMsg)
-    return true
-  }
+  // User dashboard retired — handleDashboardCommand removed
 
   // ── Auto-tune commands (non-regex — uses external handleTuneCommand) ──
   if (handleTuneCommand(userMsg)) {

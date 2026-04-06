@@ -21,11 +21,11 @@
  *   ⑦ 时序共现（PAM有向链接：用户说A后常说B → 说A时含B的记忆boost）
  */
 
-import type { Memory } from './types.ts'
+import type { Memory, CogHints } from './types.ts'
 import { trigrams, trigramSimilarity, tokenize as _utilTokenize, WORD_PATTERN, TRIGRAM_THRESHOLD } from './memory-utils.ts'
 import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken, learnTemporalLink as _aamLearnTemporalLink } from './aam.ts'
 // 顶层 import 替代运行时 require（修复 benchmark ESM 环境下 require is not defined）
-import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef } from './memory-recall.ts'
+import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef, _predictivePrimingCache as _predictivePrimingRef } from './memory-recall.ts'
 import { extractTagsLocal as _extractTagsLocal } from './memory.ts'
 
 // ── 统一 import 所有模块（不用 require，ESM 兼容）──
@@ -582,7 +582,7 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   const safeDenom = Math.max(originalDenom, 0.01)
   const safeExpDenom = Math.max(expansionTotal, 0.01)
   const baseScore = originalHits / safeDenom
-  const expansionBonus = expansionHits * 0.3 / safeExpDenom
+  const expansionBonus = expansionHits * 0.5 / safeExpDenom  // 0.3→0.5: 概念扩展词应得更多信任（CONCEPT_HIERARCHY 权重 0.85）
   const tier1Score = baseScore + expansionBonus
   const tier2Score = tier2Total > 0 ? tier2Hits / tier2Total : 0
   // Tier 1 命中直接用，Tier 2 打 7 折（碎片词匹配不应得高分）
@@ -931,11 +931,38 @@ export function computeActivationField(
   expandedWords: Map<string, number>,
   topN: number = 10,
   timeRange?: TimeRange | null,
+  cogHints?: CogHints | null,
 ): ActivationResult[] {
   const now = Date.now()
 
-  // ── IMAF: Intent-Modulated Activation Field ──
+  // ── CGAF: Cognition-Gated Activation Field ──
+  // 当有 cogHints 时，用 Bayesian 连续概率调制信号权重（替代硬编码正则）
+  // 当无 cogHints 时，回退到旧的 IMAF 正则（兼容性）
   const _imaf = (() => {
+    if (cogHints) {
+      const h = cogHints
+      // 连续插值：多假设概率叠加，不是 if/else 互斥
+      // temporal query 检测（补充 cognition 不覆盖的维度）
+      const isTemporalQ = /什么时候|上次|上周|when did|last time|recently|what happened|ago|how long/i.test(query)
+      const hasEntityName = !!(query.match(/\b[A-Z][a-z]{2,}\b/g)?.filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n)).length)
+      const isCausalQ = /为什么|原因|导致|why|because|cause|reason|how come/i.test(query)
+
+      let s1 = 1.0 - 0.3 * h.casualProb                          // 闲聊时 base 降权
+      let s2 = 1.0 + 0.5 * h.technicalProb                       // 技术/精确查询 context 加权
+      let s3 = 0.3 + 1.7 * h.emotionalProb                       // 情绪问题情绪共振拉满
+      let s4 = 1.0 + 1.0 * h.complexity                          // 复杂问题扩散激活更多
+      let s6 = 1.0 + 0.5 * h.correctionProb                      // 纠正时近期记忆更重要
+
+      // temporal query 叠加调制（cognition 不区分 temporal）
+      if (isTemporalQ) { s1 += 1.0; s6 += 2.0; s3 *= 0.3; s4 *= 0.5 }
+      // entity query 叠加
+      if (hasEntityName) { s2 += 0.5; s4 += 1.0 }
+      // causal query 叠加
+      if (isCausalQ) { s4 += 1.0; s6 += 0.5 }
+
+      return { s1, s2, s3, s4, s6 }
+    }
+    // Fallback: 旧 IMAF 正则（无 cogHints 时）
     if (/为什么|原因|导致|why|because|cause|reason|how come/i.test(query))
       return { s1: 1.0, s2: 1.0, s3: 0.5, s4: 2.0, s6: 1.5 }
     if (/什么时候|上次|上周|when did|last time|recently|what happened|ago/i.test(query))
@@ -1398,6 +1425,7 @@ export function activationRecall(
   topN: number = 5,
   mood: number = 0,
   alertness: number = 0.5,
+  cogHints?: CogHints | null,
 ): Memory[] {
   if (!query || memories.length === 0) return []
 
@@ -1570,9 +1598,10 @@ export function activationRecall(
   } catch {}
 
   // Step 2: 激活场计算（用扩展后的查询，候选集更完整）
-  // 过采样倍数随候选池大小动态调整（大池子需要更大漏斗）
-  const _oversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : memories.length <= 500 ? 4 : 6
-  let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * _oversample, timeRange)
+  // 过采样倍数：cogHints.complexity 可用时按复杂度调整，否则按池大小
+  const _baseOversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : 4
+  const _oversample = cogHints ? Math.min(4, Math.max(2, Math.round(_baseOversample * (0.7 + 0.6 * cogHints.complexity)))) : _baseOversample
+  let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * _oversample, timeRange, cogHints)
 
   // ── DQR: Dual-Query Recall（双查询召回）——用扩展词重组第二个查询再搜一次 ──
   // 原创：论文证明 dual-query 能提升 6.7%，我们用 AAM 扩展词自动生成第二查询（零 LLM）
@@ -1588,7 +1617,7 @@ export function activationRecall(
       if (altWords.length >= 2) {
         const altQuery = altWords.join(' ')
         const altExpanded = new Map(expanded)  // 复用已有扩展
-        const altResults = computeActivationField(memories, altQuery, mood, alertness, altExpanded, topN * 2, timeRange)
+        const altResults = computeActivationField(memories, altQuery, mood, alertness, altExpanded, topN * 2, timeRange, cogHints)
         // 合并去重
         const seenContent = new Set(results.map(r => r.memory.content))
         for (const r of altResults) {
@@ -1671,7 +1700,7 @@ export function activationRecall(
 
     if (prfAdded > 0) {
       // 二次召回（PRF flag 内置：只跑 1 轮，不递归）
-      const prfResults = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * 2, timeRange)
+      const prfResults = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * 2, timeRange, cogHints)
 
       // 合并 + 去重（by content）
       const seen = new Set(results.map(r => r.memory.content))
@@ -1712,6 +1741,26 @@ export function activationRecall(
         }
       }
       results.sort((a, b) => b.activation - a.activation)
+    }
+  } catch {}
+
+  // ── 预测性启动（Predictive Priming）：上一轮 AAM 时序后继预热的记忆获得 boost ──
+  try {
+    if (_predictivePrimingRef && _predictivePrimingRef.size > 0) {
+      const now = Date.now()
+      const PP_WINDOW = 5 * 60 * 1000
+      let ppHits = 0
+      for (const r of results) {
+        const cached = _predictivePrimingRef.get(r.memory.content)
+        if (cached && now - cached.primedAt < PP_WINDOW) {
+          // boost 与预测相关度成正比，最多 +25%
+          const boost = Math.min(0.25, cached.predictedRelevance * 0.5)
+          r.activation *= (1 + boost)
+          ppHits++
+          try { require('./decision-log.ts').logDecision('predictive_priming_hit', (r.memory.content || '').slice(0, 30), `relevance=${cached.predictedRelevance.toFixed(2)}, boost=${boost.toFixed(2)}, age=${((now - cached.primedAt) / 1000).toFixed(0)}s`) } catch {}
+        }
+      }
+      if (ppHits > 0) results.sort((a, b) => b.activation - a.activation)
     }
   } catch {}
 
@@ -1789,6 +1838,34 @@ export function activationRecall(
     }
   }
 
+  // ── Graph Walk Fusion：PPR 实体扩散结果混入 NAM 排序 ──
+  // graphWalkRecallScored 返回 { content, graphScore }，用分数归一化混入
+  try {
+    const entities = _graphMod.findMentionedEntities(lexicalQuery)
+    if (entities.length > 0) {
+      const graphResults = _graphMod.graphWalkRecallScored(entities, memories, 2, topN)
+      if (graphResults.length > 0) {
+        const seenContent = new Set(results.map(r => r.memory.content))
+        const namTopActivation = results.length > 0 ? results[0].activation : 0.5
+        const maxGraphScore = graphResults[0].graphScore || 1
+        let graphAdded = 0
+        for (const gr of graphResults) {
+          if (seenContent.has(gr.content)) continue
+          const mem = memories.find(m => m.content === gr.content)
+          if (!mem) continue
+          const graphActivation = namTopActivation * Math.min(1.0, gr.graphScore / maxGraphScore) * 0.8
+          results.push({ memory: mem, activation: graphActivation, signals: { base: 0, context: 0, emotion: 0, spread: 1, interference: 1, temporal: 0 } })
+          seenContent.add(gr.content)
+          graphAdded++
+        }
+        if (graphAdded > 0) {
+          results.sort((a, b) => b.activation - a.activation)
+          console.log(`[activation-field] graph-fusion: ${graphAdded} graph memories merged (entities: ${entities.slice(0, 3).join(',')})`)
+        }
+      }
+    }
+  } catch {}
+
   // ── MMR Diversification：最大边际相关性，避免返回过于相似的记忆 ──
   // 聚合查询跳过 MMR：需要同主题多条记忆，MMR 会踢掉它们
   if (results.length > topN && !_isAggregation) {
@@ -1826,6 +1903,43 @@ export function activationRecall(
     }
 
     results = mmrResults
+  }
+
+  // ── Segment Cohesion Boost（第二遍）：同 segment/session 的记忆互相印证时加分 ──
+  // 人脑原理：回忆一个场景时，整个场景的上下文记忆一起被激活
+  // 实现：对当前 top 结果统计各 segment 出现次数，出现 2+ 次的 segment 内记忆获得 boost
+  // segment 来源：优先 segmentId 字段，fallback 读 tags 里的 session:N（benchmark 兼容）
+  if (results.length >= 4) {
+    const getSegment = (mem: any): string | null => {
+      if (mem.segmentId !== undefined && mem.segmentId > 0) return `seg:${mem.segmentId}`
+      if (mem.tags?.length) {
+        const st = mem.tags.find((t: string) => /^session:/.test(t))
+        if (st) return st
+      }
+      return null
+    }
+    const topSlice = results.slice(0, Math.min(topN * 2, results.length))
+    const segCounts = new Map<string, number>()
+    for (const r of topSlice) {
+      const seg = getSegment(r.memory)
+      if (seg) segCounts.set(seg, (segCounts.get(seg) || 0) + 1)
+    }
+    // 只对出现 2+ 次的 segment 做 boost（单条不算印证）
+    let boosted = 0
+    for (const r of results) {
+      const seg = getSegment(r.memory)
+      if (seg) {
+        const count = segCounts.get(seg) || 0
+        if (count >= 2) {
+          r.activation *= 1 + Math.min(0.15, (count - 1) * 0.05)  // 2条+5%, 3条+10%, 上限+15%
+          boosted++
+        }
+      }
+    }
+    if (boosted > 0) {
+      results.sort((a, b) => b.activation - a.activation)
+      console.log(`[activation-field] segment-cohesion: boosted ${boosted} memories across ${[...segCounts.values()].filter(v => v >= 2).length} segments`)
+    }
   }
 
   // 截断到 topN

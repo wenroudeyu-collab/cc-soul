@@ -5,7 +5,7 @@
  * Ported from handler.ts lines 444-570 with attention gate false-positive fix.
  */
 
-import type { CogResult, IntentSpectrum, EntropyFeedbackResult } from './types.ts'
+import type { CogResult, CogHints, IntentSpectrum, EntropyFeedbackResult } from './types.ts'
 import { body, bodyOnCorrection, bodyOnPositiveFeedback, emotionVector } from './body.ts'
 import { getProfile, getProfileTier } from './user-profiles.ts'
 import { CORRECTION_WORDS, CORRECTION_EXCLUDE, EMOTION_ALL, EMOTION_NEGATIVE, TECH_WORDS, CASUAL_WORDS } from './signals.ts'
@@ -516,4 +516,63 @@ export function cogProcess(msg: string, lastResponseContent: string, lastPrompt:
   }
 
   return { hints, intent, strategy, attention: attention.type, complexity, spectrum: modulatedSpectrum, entropyFeedback }
+}
+
+/**
+ * CGAF: 从 CogResult 提取 Bayesian 概率作为 activation-field 信号调制器。
+ * 独立函数，benchmark 可以直接调用 computeIntentSpectrum + toCogHints（不需要完整 cogProcess）
+ */
+export function toCogHints(msg: string): CogHints {
+  const m = msg.toLowerCase()
+  const spectrum = computeIntentSpectrum(msg)
+
+  // 复用 attentionGate 的 Bayesian 逻辑（但提取概率分布而非离散标签）
+  const scores = { correction: 0, emotional: 0, technical: 0, casual: 0, general: 1 }
+
+  // correction 信号
+  const corrHits = CORRECTION_WORDS.filter(w => m.includes(w)).length
+  const corrExclude = CORRECTION_EXCLUDE.some(w => m.includes(w))
+  if (corrHits > 0 && !corrExclude) scores.correction += corrHits * 3
+
+  // emotion 信号
+  scores.emotional += EMOTION_ALL.filter(w => m.includes(w)).length * 2
+
+  // technical 信号
+  scores.technical += TECH_WORDS.filter(w => m.includes(w)).length * 2
+
+  // casual 信号
+  scores.casual += CASUAL_WORDS.filter(w => m === w || m === w + '的').length * 2
+  if (msg.length < 15) scores.casual += 1
+  if (msg.length < 8) scores.casual += 1
+
+  // length priors
+  if (msg.length > 100) scores.technical += 0.5
+
+  // LOCOMO 英文补充信号（中文词表覆盖不足时的 fallback）
+  // temporal 信号映射到 technical（需要精确召回）
+  if (/when did|last time|how long ago|what year|what month|what date|recently|before that/i.test(msg)) scores.technical += 2
+  // entity 查询信号
+  const entityNames = (msg.match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
+  if (entityNames.length > 0) scores.technical += 1.5
+  // why/cause 查询信号
+  if (/why|because|cause|reason|how come/i.test(msg)) scores.technical += 1
+  // opinion/feeling 查询
+  if (/feel|happy|sad|anxious|stressed|mood|emotion|opinion|think about/i.test(msg)) scores.emotional += 2
+  // casual 英文
+  if (/^(hey|hi|hello|yo|sup|what's up|how are you)/i.test(msg)) scores.casual += 3
+
+  // Softmax → 概率分布
+  const keys = ['correction', 'emotional', 'technical', 'casual', 'general'] as const
+  const expScores = keys.map(k => Math.exp(scores[k] * 1.5))
+  const sumExp = expScores.reduce((s, e) => s + e, 0)
+  const probs = Object.fromEntries(keys.map((k, i) => [k, expScores[i] / sumExp])) as Record<string, number>
+
+  return {
+    correctionProb: probs.correction,
+    emotionalProb: probs.emotional,
+    technicalProb: probs.technical,
+    casualProb: probs.casual,
+    complexity: Math.min(1, msg.length / 500),
+    spectrum,
+  }
 }

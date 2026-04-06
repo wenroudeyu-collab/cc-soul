@@ -39,28 +39,45 @@ export async function initSoulEngine() {
   try { (await import('./features.ts')).loadFeatures() } catch {}
   try { (await import('./user-profiles.ts')).loadProfiles() } catch {}
 
-  // LLM 自动检测（三级优先：soul.json → OpenClaw 宿主 → 纯 NAM）
+  // LLM 配置（两级优先：ai_config.json → soul.json）
   let llmConfigured = false
 
-  // 1. 读 soul.json 的 llm 字段（非 OpenClaw 用户在这里配）
+  // 1. ai_config.json（用户通过"soul设置"命令或手动创建）
   try {
-    const { resolve } = await import('path')
-    const { DATA_DIR } = await import('./persistence.ts')
-    const { readFileSync, existsSync } = await import('fs')
-    const soulJsonPath = resolve(DATA_DIR, '..', 'soul.json')
-    if (existsSync(soulJsonPath)) {
-      const soulJson = JSON.parse(readFileSync(soulJsonPath, 'utf-8'))
-      if (soulJson.llm?.base_url && soulJson.llm?.api_key) {
-        configureLLM({ api_base: soulJson.llm.base_url, api_key: soulJson.llm.api_key, model: soulJson.llm.model || 'gpt-4o-mini' })
-        llmConfigured = true
-        console.log(`[cc-soul] LLM configured from soul.json: ${soulJson.llm.model || 'gpt-4o-mini'}`)
-      }
+    (await import('./cli.ts')).loadAIConfig()
+    const { hasLLM } = await import('./cli.ts')
+    if (hasLLM()) {
+      llmConfigured = true
     }
   } catch {}
 
-  // 2. OpenClaw 宿主自动检测（插件模式，零配置）
+  // 2. soul.json 的 llm 字段（备选）
   if (!llmConfigured) {
-    try { (await import('./cli.ts')).loadAIConfig(); console.log('[cc-soul] LLM auto-detected from host') } catch {}
+    try {
+      const { resolve } = await import('path')
+      const { DATA_DIR } = await import('./persistence.ts')
+      const { readFileSync, existsSync } = await import('fs')
+      const soulJsonPath = resolve(DATA_DIR, '..', 'soul.json')
+      if (existsSync(soulJsonPath)) {
+        const soulJson = JSON.parse(readFileSync(soulJsonPath, 'utf-8'))
+        if (soulJson.llm?.base_url && soulJson.llm?.api_key) {
+          configureLLM({ api_base: soulJson.llm.base_url, api_key: soulJson.llm.api_key, model: soulJson.llm.model || 'gpt-4o-mini' })
+          llmConfigured = true
+          console.log(`[cc-soul] LLM configured from soul.json: ${soulJson.llm.model || 'gpt-4o-mini'}`)
+        }
+      }
+    } catch {}
+  }
+
+  // 3. LLM 连通性验证（异步，不阻塞启动）
+  if (llmConfigured) {
+    import('./cli.ts').then(async ({ validateLLM }) => {
+      const result = await validateLLM()
+      if (result.ok) console.log(`[cc-soul] ✅ LLM 连接正常`)
+      else console.log(`[cc-soul] ⚠️ LLM 连接失败: ${result.error}（核心功能不受影响）`)
+    }).catch(() => {})
+  } else {
+    console.log(`[cc-soul] 未配置 LLM，纯 NAM 模式。发送"/soul-llm"查看配置方法。`)
   }
 
   if (!heartbeatTimer) {
@@ -165,6 +182,9 @@ async function handleAction(action: string, body: any): Promise<any> {
         featureStats = { total: entries.length, enabled: entries.filter(([_, v]) => v).length }
       } catch {}
 
+      let llm = { configured: false, connected: false, model: '', error: '' }
+      try { llm = require('./cli.ts').getLLMStatus() } catch {}
+
       return {
         status: 'ok',
         version: '2.9.2',
@@ -173,6 +193,7 @@ async function handleAction(action: string, body: any): Promise<any> {
         sqlite: sqliteStatus,
         memoryCount,
         factCount,
+        llm,
         workloadCosts,
         recentEvents,
         features: featureStats,

@@ -34,6 +34,7 @@ const print = _origLog  // always prints
 const { activationRecall } = require('./activation-field.ts')
 const { learnAssociation } = require('./aam.ts')
 const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
+const { toCogHints } = require('./cognition.ts')
 
 // ═══════════════════════════════════════════════════════════════
 // DATA TYPES
@@ -108,10 +109,11 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         scope: 'fact',
         ts: baseTs,
         confidence: 0.95,
-        recallCount: 10,  // 蒸馏知识被频繁访问
-        lastAccessed: now - 3600000,  // 最近 1 小时内被访问（模拟 heartbeat 巩固）
+        recallCount: 10,
+        lastAccessed: now - 3600000,
         importance: 8,
         tags: ['summary'],
+        _segmentId: si,
       } as Memory)
     }
 
@@ -132,6 +134,7 @@ function buildMemories(q: LocomoQuestion): Memory[] {
         lastAccessed: Math.min(now - 7200000, memTs + 86400000),
         importance: 5,
         tags: [`speaker:${role}`, `session:${si}`],
+        _segmentId: si,
       } as Memory)
     }
 
@@ -149,8 +152,9 @@ function buildMemories(q: LocomoQuestion): Memory[] {
             confidence: 0.75,
             recallCount: 2,
             lastAccessed: Math.min(now - 7200000, memTs + 86400000),
-            importance: 3,  // 低于 episode(5)，让 pre-filter 更容易裁掉
+            importance: 3,
             tags: [`merged:${ti}`, `session:${si}`],
+            _segmentId: si,
           } as Memory)
         }
       }
@@ -311,6 +315,27 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
     }
   }
 
+  // Strategy 5: 跨记忆累计匹配——答案碎片分散在多条记忆中
+  // 合并 top-K 记忆文本，再做 token coverage（rank = 最后一条贡献者的位置）
+  if (ansTokens.length >= 3 && recalled.length >= 2) {
+    let accumulated = ''
+    for (let i = 0; i < recalled.length; i++) {
+      accumulated += ' ' + recalled[i].content.toLowerCase()
+      // 每加一条新记忆就检查累计匹配
+      let tokenHits = 0
+      for (const t of ansTokens) {
+        if (accumulated.includes(t)) { tokenHits++; continue }
+        if (t.length >= 4 && /^[a-z]+$/.test(t)) {
+          const stem = t.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
+          if (stem.length >= 3 && accumulated.includes(stem)) tokenHits++
+        }
+      }
+      const coverage = tokenHits / ansTokens.length
+      // 跨记忆匹配要求更严格的阈值（避免 false positive）
+      if (coverage >= 0.85 && i >= 1) return { hit: true, rank: i + 1 }
+    }
+  }
+
   return { hit: false, rank: -1 }
 }
 
@@ -438,22 +463,41 @@ async function selectAnswerWithLLM(
   choices: string[],
   apiKey: string,
 ): Promise<{ choiceIndex: number; raw: string }> {
-  const context = recalled.map(m => m.content).join('\n')
   const letters = 'ABCDEFGHIJ'
   const choiceBlock = choices.map((c, i) => `${letters[i]}. ${c}`).join('\n')
 
-  const prompt = `Based on the following memory context, answer the question by selecting the best choice.
-If the context doesn't contain enough information, select "Not answerable" if available.
+  // 结构化 context + 置信度信号
+  const structuredContext = recalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
 
-Context:
-${context}
+  // 检测是否有 "Not answerable" 选项
+  const hasNA = choices.some(c => /not answerable|cannot be answered|unanswerable/i.test(c))
+  // 计算记忆与问题的词汇重叠度（作为置信度信号传给 LLM）
+  const qWords = new Set(question.toLowerCase().match(/[a-z]{3,}/g) || [])
+  const mWords = new Set(recalled.flatMap(m => (m.content || '').toLowerCase().match(/[a-z]{3,}/g) || []))
+  let overlap = 0
+  for (const w of qWords) if (mWords.has(w)) overlap++
+  const relevanceHint = qWords.size > 0 ? (overlap / qWords.size) : 0
+
+  const systemPrompt = `You are answering a multiple-choice question about a person's life based on conversation memories.
+
+Rules:
+1. If a choice matches specific details (names, numbers, dates, activities) mentioned in the memories, prefer it.
+2. Pay attention to WHO said what — the question asks about a specific person.
+3. If the question asks about a date/time and you can estimate from context clues, pick the closest date.
+${hasNA ? `4. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
+   - If the question asks about a topic/person/event that is never mentioned in any memory → "Not answerable"
+   - If the memories mention the topic but don't contain enough detail to pick a specific answer → still pick the best match, NOT "Not answerable"
+   - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question` : '4. Pick the best matching answer based on the memories.'}`
+
+  const userPrompt = `Memories (relevance score: ${(relevanceHint * 100).toFixed(0)}%):
+${structuredContext}
 
 Question: ${question}
 
 Choices:
 ${choiceBlock}
 
-Reply with ONLY the letter (A-J). Nothing else.`
+Answer with ONLY one letter (A-J).`
 
   const resp = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -463,7 +507,10 @@ Reply with ONLY the letter (A-J). Nothing else.`
     },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
       temperature: 0,
       max_tokens: 5,
     }),
@@ -599,7 +646,7 @@ async function run() {
               const w1 = (memories[mi].content || '').match(/[a-zA-Z]{3,}/gi) || []
               const w2 = (memories[mi + 1].content || '').match(/[a-zA-Z]{3,}/gi) || []
               if (w1.length > 0 && w2.length > 0) {
-                learnAssociation(w1.slice(0, 8).join(' ') + ' ' + w2.slice(0, 8).join(' '), 0.4)
+                learnAssociation(w1.slice(0, 8).join(' ') + ' ' + w2.slice(0, 8).join(' '), 0.4, 1.0, true)
               }
             }
           }
@@ -629,16 +676,19 @@ async function run() {
             suppressLogs = true
           }
         } catch {}
-        // G1: 从记忆内容构建图谱实体关系（让 Signal 4 在 benchmark 里生效）
+        // G1: 从记忆内容构建图谱实体关系（让 Signal 4 + graph fusion 在 benchmark 里生效）
         try {
           const graph = require('./graph.ts')
-          for (const mem of memories) {
+          // 两遍：先从 summary（信息密度高，多人名共现），再从 episode
+          const summaries = memories.filter(m => m.tags?.includes('summary'))
+          const episodes = memories.filter(m => !m.tags?.includes('summary'))
+          for (const mem of [...summaries, ...episodes]) {
             const entities = graph.findMentionedEntities(mem.content)
             if (entities.length >= 2) {
               for (let ei = 0; ei < entities.length; ei++) {
                 for (let ej = ei + 1; ej < entities.length; ej++) {
                   try {
-                    graph.addRelation?.({ source: entities[ei], target: entities[ej], type: 'co_mentioned', ts: mem.ts || Date.now(), weight: 0.5 })
+                    graph.addRelation?.(entities[ei], entities[ej], 'co_mentioned')
                   } catch {}
                 }
               }
@@ -664,7 +714,8 @@ async function run() {
 
     // Recall (with latency tracking)
     const _qStart = Date.now()
-    const recalled: Memory[] = activationRecall(memories, q.question, opts.topK, 0, 0.5)
+    const _cogHints = toCogHints(q.question)
+    const recalled: Memory[] = activationRecall(memories, q.question, opts.topK, 0, 0.5, _cogHints)
     perQueryLatency.push(Date.now() - _qStart)
 
     // ── PMI 反馈学习：模拟真实使用中 query↔recall 共现 ──

@@ -65,6 +65,16 @@ export interface CogResult {
   entropyFeedback?: EntropyFeedbackResult
 }
 
+/** CGAF: Cognition-Gated Activation Field — Bayesian 概率到信号权重的桥梁 */
+export interface CogHints {
+  correctionProb: number   // 0-1, Bayesian gate
+  emotionalProb: number    // 0-1
+  technicalProb: number    // 0-1
+  casualProb: number       // 0-1
+  complexity: number       // 0-1
+  spectrum?: IntentSpectrum // 5维意图向量
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MEMORY
 // ═══════════════════════════════════════════════════════════════════════════════

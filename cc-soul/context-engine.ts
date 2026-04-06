@@ -373,7 +373,10 @@ export function createCcSoulContextEngine() {
       // 解决一轮延迟问题：确保当前消息的记忆实时注入，不管走什么 AI 后端
       if (_state.lastUserMsg) {
         try {
-          const recalled = recall(_state.lastUserMsg, 8, _state.lastSenderId || undefined)
+          // CGAF: 生�� cogHints 供 recall 使用（<1ms 纯正则，不阻塞）
+          let _ceHints: any = null
+          try { _ceHints = require('./cognition.ts').toCogHints(_state.lastUserMsg) } catch {}
+          const recalled = recall(_state.lastUserMsg, 8, _state.lastSenderId || undefined, undefined, undefined, undefined, _ceHints)
           if (recalled.length > 0) {
             const memAugment = '[相关记忆] ' + recalled.map(m => {
               const emotionTag = m.emotion && m.emotion !== 'neutral' ? ` (${m.emotion})` : ''

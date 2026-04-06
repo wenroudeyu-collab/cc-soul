@@ -176,10 +176,13 @@ export default {
           })
           const data = await resp.json()
 
-          // Command: SOUL.md disk write removed — Context Engine mode
+          // Command detected → inject result as augment so OpenClaw's LLM relays it
           if (data.command && data.command_reply) {
-            console.log(`[cc-soul] command processed (${data.command_reply.length} chars)`)
-            return
+            try {
+              const { setLastAugments } = await import('./context-engine.ts')
+              setLastAugments([`[cc-soul 命令结果，请直接转述给用户，不要修改内容]\n${data.command_reply}`])
+              console.log(`[cc-soul] command → augment injected (${data.command_reply.length} chars)`)
+            } catch {}
           }
 
           // Context Engine 推送已移除——cc-soul 独立 API 模式
