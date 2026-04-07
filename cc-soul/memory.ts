@@ -204,7 +204,7 @@ export const memoryState = {
 }
 
 // ── 写入去重集合（5分钟 TTL，防止同一内容短时间内重复存储）──
-const _recentWriteHashes = new Set<string>()
+export const _recentWriteHashes = new Set<string>()
 // 5 分钟后自动清除（通过 heartbeat 或 setTimeout）
 setInterval(() => { _recentWriteHashes.clear() }, 300000)
 
@@ -1257,13 +1257,16 @@ function computeSurprise(content: string, scope: string, _userId?: string): numb
   // 身份信息 → 高 surprise（重要但稀少）
   if (/名字|叫我|职业|住在|工作|年龄|生日|毕业|my name|call me|i work|i live|birthday|graduated|i'm a/i.test(content)) score = 9
   // 偏好信息 → 中高
-  if (/喜欢|讨厌|偏好|习惯|最爱|受不了|i like|i love|i hate|i prefer|favorite|can't stand/i.test(content)) score = 7
+  if (/喜欢|讨厌|偏好|习惯|最爱|受不了|i like|i love|i hate|i prefer|i enjoy|favorite|can't stand/i.test(content)) score = 7
+  // 英文个人经历 → 至少中等（"I went/did/have/had/made/took"）
+  if (/\bi (went|did|have|had|made|took)\b/i.test(content)) score = Math.max(score, 4)
   // 纠正 → 高（意味着之前的理解错了）
   if (scope === 'correction') score = 8
   // 情绪爆发 → 高
   if (/[！!]{2,}|卧槽|崩溃|太开心|难受|焦虑|omg|fuck|shit|so happy|breaking down|anxious/i.test(content)) score += 2
-  // 时效性信息 → 降级（"今天""刚才"这类信息过期快）
-  if (/今天|刚才|现在|刚刚|today|just now|right now|earlier today/i.test(content)) score -= 2
+  // 时效性信息 → 降级（中文时效词 -2，英文时效词只 -1 避免过度惩罚）
+  if (/今天|刚才|现在|刚刚/i.test(content)) score -= 2
+  if (/today|just now|right now|earlier today/i.test(content)) score -= 1
   // 常见寒暄/无信息量回复 → 极低
   if (/^(你好|嗯+|好的?|谢谢|哈哈+|ok|行吧?|收到|了解|明白|可以|没问题|好吧|哦+|是的?|嗯嗯|对的?|没事|算了|随便|都行|无所谓|不用了?|知道了)$/i.test(content.trim())) score = 1
   // 日常闲聊/无决策价值 → 降级
@@ -1448,7 +1451,7 @@ export function addMemory(content: string, scope: string, userId?: string, visib
   // ── Surprise-Only Encoding (Predictive Coding Theory, Friston 2005) ──
   // 只有出乎预料的信息才值得记忆
   const surprise = computeSurprise(content, scope, userId)
-  if (surprise <= 2 && scope !== 'correction' && scope !== 'preference') {
+  if (surprise <= 1 && scope !== 'correction' && scope !== 'preference') {
     console.log(`[cc-soul][memory-crud] SKIP (low surprise=${surprise}): ${content.slice(0, 60)}`)
     return // 太平凡了，不存储
   }

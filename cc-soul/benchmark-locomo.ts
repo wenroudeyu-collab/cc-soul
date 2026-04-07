@@ -31,7 +31,7 @@ console.warn = (...args: any[]) => { if (!suppressLogs) _origWarn(...args) }
 const print = _origLog  // always prints
 
 // Lazy-load modules
-const { activationRecall } = require('./activation-field.ts')
+const { activationRecall, activationRecallWithScores, getIdfCache } = require('./activation-field.ts')
 const { learnAssociation } = require('./aam.ts')
 const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
 const { toCogHints } = require('./cognition.ts')
@@ -197,6 +197,151 @@ function buildMemories(q: LocomoQuestion): Memory[] {
   }
 
   return memories
+}
+
+/**
+ * Online 模式：逐轮 addMemory，走完整记忆管道
+ * (addMemory → dedup → conflict resolution → surprise encoding → fact extraction → AAM learning)
+ */
+function buildMemoriesOnline(q: LocomoQuestion): Memory[] {
+  const { addMemory, memoryState, scopeIndex, _recentWriteHashes } = require('./memory.ts')
+
+  // 抑制 addMemory 内部日志
+  const _prevSuppress = suppressLogs
+  suppressLogs = true
+
+  // 清空之前的记忆（每个 conv 隔离）
+  memoryState.memories.length = 0
+  memoryState.chatHistory.length = 0
+  scopeIndex.clear()
+  _recentWriteHashes.clear()  // 清空去重集合，避免跨 conv 误判
+
+  // 时间归一化（同 offline 模式）
+  const originalTimestamps = q.haystack_session_datetimes.map((d: string) => new Date(d).getTime())
+  const minTs = Math.min(...originalTimestamps)
+  const maxTs = Math.max(...originalTimestamps)
+  const timeSpan = Math.max(maxTs - minTs, 1)
+  const now = Date.now()
+  const TARGET_SPAN = 30 * 86400000
+  const TARGET_END = now - 3600000
+  function normalizeTs(originalTs: number): number {
+    const ratio = (originalTs - minTs) / timeSpan
+    return TARGET_END - TARGET_SPAN * (1 - ratio)
+  }
+
+  let totalAdded = 0, totalSkipped = 0
+
+  for (let si = 0; si < q.haystack_sessions.length; si++) {
+    const session = q.haystack_sessions[si]
+    const baseTs = normalizeTs(originalTimestamps[si])
+
+    // 1. 逐轮喂入对话消息（episode 记忆）
+    const _epDatePrefix = `[${new Date(originalTimestamps[si]).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}]`
+    for (let ti = 0; ti < session.length; ti++) {
+      const turn = session[ti]
+      const content = turn?.content
+      if (!content || content.length < 10) continue
+
+      // 模拟时间推进
+      const _mockNow = baseTs + ti * 60000
+      const beforeCount = memoryState.memories.length
+
+      try {
+        addMemory(`${_epDatePrefix} ${content}`, 'event', 'benchmark-user')
+      } catch {}
+
+      if (memoryState.memories.length > beforeCount) {
+        // 手动修正时间戳（addMemory 用 Date.now()，我们需要模拟时间）
+        const newMem = memoryState.memories[memoryState.memories.length - 1]
+        newMem.ts = _mockNow
+        newMem.lastAccessed = Math.min(now - 7200000, _mockNow + 86400000)
+        newMem._segmentId = si
+        if (!newMem.tags) newMem.tags = []
+        newMem.tags.push(`session:${si}`)
+        totalAdded++
+      } else {
+        totalSkipped++
+      }
+    }
+
+    // 2. Session summary 作为蒸馏知识
+    const summary = q.haystack_session_summaries[si]
+    if (summary) {
+      const beforeCount = memoryState.memories.length
+      try {
+        addMemory(summary, 'fact', 'benchmark-user')
+      } catch {}
+      if (memoryState.memories.length > beforeCount) {
+        const newMem = memoryState.memories[memoryState.memories.length - 1]
+        newMem.ts = baseTs
+        newMem.confidence = 0.95
+        newMem.recallCount = 10
+        newMem.lastAccessed = now - 3600000
+        newMem.importance = 8
+        if (!newMem.tags) newMem.tags = []
+        newMem.tags.push('summary')
+        newMem._segmentId = si
+        totalAdded++
+      }
+    }
+  }
+
+  // 3. Sliding Window Merged Memories — 步长 2 合并相邻记忆（复制 offline 策略）
+  // 直接推入 memoryState，不走 addMemory（避免被 dedup 过滤）
+  let mergedCount = 0
+  const episodeMemories = memoryState.memories.filter(m => !m.tags?.includes('summary'))
+  for (let i = 0; i < episodeMemories.length - 1; i += 2) {
+    const m1 = episodeMemories[i], m2 = episodeMemories[i + 1]
+    if (!m1 || !m2) continue
+    const timeDiff = Math.abs((m2.ts || 0) - (m1.ts || 0))
+    if (timeDiff > 300000) continue  // 超过 5 分钟的不合并
+    const merged = (m1.content || '') + ' ' + (m2.content || '')
+    if (merged.length > 30 && merged.length < 800) {
+      memoryState.memories.push({
+        content: merged,
+        scope: 'event',
+        ts: m1.ts,
+        confidence: 0.75,
+        recallCount: 2,
+        lastAccessed: Math.min(now - 7200000, (m1.ts || now) + 86400000),
+        importance: 3,
+        tags: [`merged:${i}`, `session:${m1._segmentId ?? 0}`],
+        _segmentId: m1._segmentId,
+      } as Memory)
+      mergedCount++
+    }
+  }
+
+  // 4. Gist Trace — 情感极性 + 抽象主题标签（零 LLM，Fuzzy Trace Theory）
+  const POSITIVE_WORDS = new Set(['happy','excited','love','great','amazing','wonderful','enjoy','fun','glad','proud','beautiful','awesome','fantastic','celebrate','perfect','thrilled','delighted'])
+  const NEGATIVE_WORDS = new Set(['sad','angry','frustrated','stressed','worried','anxious','tired','upset','disappointed','hurt','scared','lonely','overwhelmed','painful','annoyed','difficult','struggled'])
+  const ABSTRACT_MAP: Record<string, string[]> = {
+    'moved': ['relocation','change'], 'travel': ['journey','adventure'], 'bought': ['acquisition','purchase'],
+    'lost': ['loss','misfortune'], 'won': ['achievement','success'], 'failed': ['setback','failure'],
+    'married': ['relationship','milestone'], 'graduated': ['education','achievement'], 'hired': ['career','opportunity'],
+    'fired': ['career','setback'], 'adopted': ['family','decision'], 'volunteered': ['community','service'],
+    'painted': ['art','hobby'], 'hiked': ['outdoor','activity'], 'camped': ['outdoor','adventure'],
+    'cooked': ['food','hobby'], 'read': ['reading','learning'], 'played': ['music','hobby','activity'],
+  }
+  for (const mem of memoryState.memories) {
+    const c = (mem.content || '').toLowerCase()
+    const words = c.match(/[a-z]{3,}/g) || []
+    const posHits = words.filter(w => POSITIVE_WORDS.has(w)).length
+    const negHits = words.filter(w => NEGATIVE_WORDS.has(w)).length
+    const polarity = posHits > negHits ? 1 : negHits > posHits ? -1 : 0
+    const abstractTags = new Set<string>()
+    for (const w of words) {
+      const mapped = ABSTRACT_MAP[w]
+      if (mapped) for (const t of mapped) abstractTags.add(t)
+    }
+    if (abstractTags.size > 0 || polarity !== 0) {
+      ;(mem as any)._gist = { polarity, abstractTags: [...abstractTags].slice(0, 6) }
+    }
+  }
+
+  suppressLogs = _prevSuppress
+  _origLog(`  [online] ${totalAdded} memories added, ${totalSkipped} skipped, ${mergedCount} merged windows`)
+  return memoryState.memories
 }
 
 /**
@@ -386,61 +531,77 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
 
   const context = recalled.map(m => m.content).join(' ').toLowerCase()
 
-  // S0: Extract entities from recalled memories for precise matching
+  const idfMap: Map<string, number> = getIdfCache?.() || new Map()
+  if (!(selectAnswer as any)._idfLogged) {
+    (selectAnswer as any)._idfLogged = true
+    _origLog(`  [selectAnswer] IDF cache: ${idfMap.size > 0 ? idfMap.size + ' terms' : 'EMPTY (fallback mode)'}`)
+  }
+
+  const qLower = (question || '').toLowerCase()
+  const qaType = /^who\b|who (?:is|was|does|did|has|had)\b/.test(qLower) ? 'who'
+    : /^when\b|what (?:date|time|year|month|day)\b/.test(qLower) ? 'when'
+    : /^where\b|what (?:place|location|city|country|address)\b/.test(qLower) ? 'where'
+    : /^how many\b|how much\b|what (?:number|amount|count)\b/.test(qLower) ? 'howmany'
+    : null
+
+  // S0: Extract entities (named entities + dates + years, no bare 2-digit numbers)
   const entitySet = new Set<string>()
   const allRecalledText = recalled.map(m => m.content).join(' ')
-  // Dates like "7 January 2023"
-  const dateMatches = allRecalledText.match(/\d{1,2}\s+\w+\s+\d{4}/g) || []
-  for (const d of dateMatches) entitySet.add(d.toLowerCase())
-  // Numbers (standalone, 2+ digits to avoid noise)
-  const numMatches = allRecalledText.match(/\b\d{2,}\b/g) || []
-  for (const n of numMatches) entitySet.add(n)
-  // Capitalized names (sequences of capitalized words)
-  const nameMatches = allRecalledText.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || []
-  for (const name of nameMatches) {
-    entitySet.add(name.toLowerCase())
-    // Also add individual parts for multi-word names
-    for (const part of name.split(/\s+/)) {
-      if (part.length >= 2) entitySet.add(part.toLowerCase())
+  const _ENTITY_EXCLUDE = new Set(['The','This','That','What','When','Where','How','Who','Which','Why','Does','Did','Has','Have','Was','Were','Can','Could','Would','Should','Not','And','But','For','From','With','About','After','Before','Since','During','Also','Just','Only','Still','Very','Much','Most','Many','Some','Both','Each','Every','Other'])
+  // Precise dates "7 January 2023"
+  for (const d of allRecalledText.match(/\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/gi) || [])
+    entitySet.add(d.toLowerCase())
+  // Standalone years and 4+ digit numbers (not bare 2-digit)
+  for (const n of allRecalledText.match(/\b\d{4,}\b/g) || []) entitySet.add(n)
+  // Named entities
+  for (const name of allRecalledText.match(/[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]+)*/g) || []) {
+    if (!_ENTITY_EXCLUDE.has(name.split(' ')[0])) {
+      entitySet.add(name.toLowerCase())
+      for (const part of name.split(/\s+/))
+        if (part.length >= 3 && !_ENTITY_EXCLUDE.has(part)) entitySet.add(part.toLowerCase())
     }
   }
 
   const scores = choices.map((choice, idx) => {
     const choiceLower = choice.toLowerCase().trim()
-
-    // Dynamic scoring: try multiple strategies, take the best
     let score = 0
 
-    // S0: entity exact matching (highest priority for factual questions)
+    // S0: entity exact matching (cleaned entities)
     if (entitySet.size > 0) {
       let entityHits = 0
-      for (const entity of entitySet) {
-        if (choiceLower.includes(entity)) entityHits++
-      }
-      // Normalize by entity count, weight higher than token coverage
-      if (entityHits > 0) {
-        score = Math.max(score, Math.min(1.0, entityHits / Math.max(3, entitySet.size) * 1.5))
-      }
+      for (const entity of entitySet) if (choiceLower.includes(entity)) entityHits++
+      if (entityHits > 0) score = Math.max(score, Math.min(1.0, entityHits / Math.max(3, entitySet.size) * 1.5))
     }
 
-    // S1: exact substring (strongest)
-    if (context.includes(choiceLower)) {
-      score = Math.max(score, 1.0)
-    }
+    // S1: exact substring
+    if (context.includes(choiceLower)) score = Math.max(score, 1.0)
 
-    // S2: token coverage with stemming (flexible)
+    // S2: IDF-weighted token coverage (B4)
     const tokens = choiceLower.split(/\s+/).filter(t => t.length >= 2)
     if (tokens.length > 0) {
-      let hits = 0
-      for (const t of tokens) {
-        if (context.includes(t)) { hits++; continue }
-        // Stemmed fallback
-        if (t.length >= 4 && /^[a-z]+$/.test(t)) {
-          const stem = t.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
-          if (stem.length >= 3 && context.includes(stem)) hits++
+      if (idfMap.size > 0) {
+        let weightedHits = 0, weightedTotal = 0
+        for (const t of tokens) {
+          const idfW = idfMap.get(t) ?? (t.length >= 4 ? 0.7 : 0.3)
+          weightedTotal += idfW
+          if (context.includes(t)) { weightedHits += idfW; continue }
+          if (t.length >= 4 && /^[a-z]+$/.test(t)) {
+            const stem = t.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
+            if (stem.length >= 3 && context.includes(stem)) weightedHits += idfW * 0.8
+          }
         }
+        if (weightedTotal > 0) score = Math.max(score, (weightedHits / weightedTotal) * 0.8)
+      } else {
+        let hits = 0
+        for (const t of tokens) {
+          if (context.includes(t)) { hits++; continue }
+          if (t.length >= 4 && /^[a-z]+$/.test(t)) {
+            const stem = t.replace(/ing$|ed$|s$|er$|est$|ly$/, '')
+            if (stem.length >= 3 && context.includes(stem)) hits++
+          }
+        }
+        score = Math.max(score, hits / tokens.length * 0.8)
       }
-      score = Math.max(score, hits / tokens.length * 0.8)
     }
 
     // S3: per-memory trigram (fuzzy)
@@ -450,12 +611,20 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
       score = Math.max(score, sim * 0.6)
     }
 
+    // B5: QA Type bonus
+    if (qaType) {
+      if (qaType === 'who' && /[A-Z][a-z]{2,}/.test(choice)) score += 0.08
+      else if (qaType === 'when' && /\d{4}|\b\d{1,2}\s+\w+\b|january|february|march|april|may|june|july|august|september|october|november|december/i.test(choice)) score += 0.08
+      else if (qaType === 'where' && /[A-Z][a-z]{2,}/.test(choice)) score += 0.05
+      else if (qaType === 'howmany' && /\d+/.test(choice)) score += 0.08
+    }
+
     return { idx, score }
   })
 
   scores.sort((a, b) => b.score - a.score)
 
-  // ── Dynamic Abstain：三维 answerability 评估（原创）──
+  // ── Dynamic Abstain + C3 Negative Evidence ──
   const _ABSTAIN_STOPS = new Set(['what','when','where','how','who','which','why','the','this','that','does','did','has','have','was','were','can','could','would','should','not','are','its','his','her','she','they','been','being','had','with','from','for','and','but','about','after','before','into','over','than','then','some','any','all','both','each','more','most','many','much','very','also','just','only','still'])
   const qKeywords = ((question || '').toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !_ABSTAIN_STOPS.has(w))
   const recalledText = recalled.map(m => m.content).join(' ').toLowerCase()
@@ -463,11 +632,17 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
   const margin = scores[0].score > 0 && scores.length >= 2 ? (scores[0].score - scores[1].score) / Math.max(scores[0].score, 0.01) : 0
   const qEntities = ((question || '').match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
   const entityCoverage = qEntities.length > 0 ? qEntities.filter(n => recalledText.includes(n.toLowerCase())).length / qEntities.length : 1
-  const answerability = evidenceCoverage * (0.3 + 0.7 * margin) * entityCoverage
-  const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
-  if (answerability < 0.15 && naIdx >= 0) return { choiceIndex: naIdx, confidence: answerability }
 
-  // Low confidence fallback
+  const topicPresence = entityCoverage > 0.5
+  const topChoiceTokens = choices[scores[0].idx]?.toLowerCase().match(/[a-z]{3,}/g) || []
+  const detailHits = topChoiceTokens.filter(t => !_ABSTAIN_STOPS.has(t) && recalledText.includes(t)).length
+  const detailSufficiency = scores[0].score > 0.3 && (topChoiceTokens.length === 0 || detailHits / Math.max(1, topChoiceTokens.length) > 0.3)
+
+  const answerability = evidenceCoverage * (0.3 + 0.7 * margin) * entityCoverage
+  const groundingScore = topicPresence ? (detailSufficiency ? 1.0 : 0.3) : 0.1
+
+  const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
+  if (naIdx >= 0 && (answerability < 0.15 || groundingScore < 0.2)) return { choiceIndex: naIdx, confidence: Math.min(answerability, groundingScore) }
   if (scores[0].score < 0.15 && naIdx >= 0) return { choiceIndex: naIdx, confidence: scores[0].score }
 
   return { choiceIndex: scores[0].idx, confidence: scores[0].score }
@@ -480,7 +655,7 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
 function parseArgs() {
   const args = process.argv.slice(2)
   let conv: number | undefined, type: string | undefined, topK = 10, verbose = false, limit = 0
-  let recallOnly = false, llm = false
+  let recallOnly = false, llm = false, online = false
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--conv' && args[i + 1]) conv = parseInt(args[++i])
     if (args[i] === '--type' && args[i + 1]) type = args[++i]
@@ -489,8 +664,9 @@ function parseArgs() {
     if (args[i] === '--verbose') verbose = true
     if (args[i] === '--recall-only') recallOnly = true
     if (args[i] === '--llm') llm = true
+    if (args[i] === '--online') online = true
   }
-  return { conv, type, topK, verbose, limit, recallOnly, llm }
+  return { conv, type, topK, verbose, limit, recallOnly, llm, online }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -498,6 +674,8 @@ function parseArgs() {
 // ═══════════════════════════════════════════════════════════════
 
 function loadLLMKey(): string {
+  if (process.env.LLM_PROVIDER === 'claude') return process.env.ANTHROPIC_KEY || ''
+  if (process.env.LLM_PROVIDER === 'gemini') return process.env.GEMINI_KEY || ''
   return 'sk-2d29b4fb236b40908c54a9517f86d504'
 }
 
@@ -510,8 +688,38 @@ async function selectAnswerWithLLM(
   const letters = 'ABCDEFGHIJ'
   const choiceBlock = choices.map((c, i) => `${letters[i]}. ${c}`).join('\n')
 
-  // 结构化 context + 置信度信号
-  const structuredContext = recalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
+  // 过滤 merged 记忆（只用于 recall 辅助，不展示给 LLM 避免冗余）
+  const llmRecalled = recalled.filter(m => !m.tags?.some((t: string) => t.startsWith('merged:')))
+  const displayRecalled = llmRecalled.length >= 3 ? llmRecalled : recalled  // fallback if too few
+
+  // 结构化 context：按 session 分组展示（B2：让 LLM 更容易定位时间和实体）
+  const sessionGroups = new Map<string, { idx: number; content: string }[]>()
+  for (let i = 0; i < displayRecalled.length; i++) {
+    const sessionTag = displayRecalled[i].tags?.find((t: string) => t.startsWith('session:')) || 'other'
+    if (!sessionGroups.has(sessionTag)) sessionGroups.set(sessionTag, [])
+    sessionGroups.get(sessionTag)!.push({ idx: i + 1, content: displayRecalled[i].content })
+  }
+  let structuredContext = ''
+  if (sessionGroups.size > 1) {
+    // 多 session：分组展示
+    for (const [session, mems] of sessionGroups) {
+      structuredContext += `\n[${session}]\n`
+      for (const m of mems) structuredContext += `  ${m.idx}. ${m.content}\n`
+    }
+  } else {
+    // 单 session：扁平列表
+    structuredContext = recalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
+  }
+
+  // ── FOK (Feeling of Knowing) 元记忆信号（原创，Metamemory 理论）──
+  // 用可获取的信号判断系统对问题的了解程度
+  const _fokQEnts = (question.match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
+  const _fokRecalledText = recalled.map(m => (m.content || '').toLowerCase()).join(' ')
+  const _fokEntityPresent = _fokQEnts.length === 0 || _fokQEnts.some(n => _fokRecalledText.includes(n.toLowerCase()))
+  // QPP 信号：查询关键词在 recalled 中覆盖率
+  const _fokQWords = (question.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !/^(what|when|where|how|who|which|why|does|did|has|have|was|were|would|could|should|about|their|with|from|been|this|that|they|them|most|more)$/.test(w))
+  const _fokWordCoverage = _fokQWords.length > 0 ? _fokQWords.filter(w => _fokRecalledText.includes(w)).length / _fokQWords.length : 0
+  const _fokConfidence = !_fokEntityPresent ? 'LOW' : _fokWordCoverage < 0.3 ? 'LOW' : _fokWordCoverage < 0.6 ? 'MEDIUM' : 'HIGH'
 
   // 检测是否有 "Not answerable" 选项
   const hasNA = choices.some(c => /not answerable|cannot be answered|unanswerable/i.test(c))
@@ -527,13 +735,20 @@ async function selectAnswerWithLLM(
 Rules:
 1. If a choice matches specific details (names, numbers, dates, activities) mentioned in the memories, prefer it.
 2. Pay attention to WHO said what — the question asks about a specific person.
-3. If the question asks about a date/time and you can estimate from context clues, pick the closest date.
-${hasNA ? `4. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
+3. If the question asks about a date/time and you can estimate from context, pick the closest date rather than "Not answerable".
+${hasNA ? (_fokConfidence === 'LOW'
+  ? `4. Memory confidence is LOW. Choose "Not answerable" unless you find SPECIFIC, DIRECT evidence in the memories. Specifically:
+   - If NO memory contains the exact detail the question asks about → "Not answerable"
+   - Vague topic overlap is NOT sufficient — you need concrete facts/dates/names that directly answer the question
+   - When in doubt, prefer "Not answerable" over guessing`
+  : `4. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
    - If the question asks about a topic/person/event that is never mentioned in any memory → "Not answerable"
    - If the memories mention the topic but don't contain enough detail to pick a specific answer → still pick the best match, NOT "Not answerable"
-   - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question` : '4. Pick the best matching answer based on the memories.'}`
+   - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question`)
+  : '4. Pick the best matching answer based on the memories.'}`
 
-  const userPrompt = `Memories (relevance score: ${(relevanceHint * 100).toFixed(0)}%):
+  const fokNote = _fokConfidence === 'LOW' ? '\n[System note: Memory confidence is LOW — the topic may not be covered in these memories. Prefer "Not answerable" unless you see direct evidence.]\n' : ''
+  const userPrompt = `Memories (relevance: ${(relevanceHint * 100).toFixed(0)}%, confidence: ${_fokConfidence}):${fokNote}
 ${structuredContext}
 
 Question: ${question}
@@ -543,33 +758,85 @@ ${choiceBlock}
 
 Answer with ONLY one letter (A-J).`
 
-  const resp = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0,
-      max_tokens: 5,
-    }),
-  })
+  // 动态选择 LLM API：Claude / Gemini / DeepSeek
+  const useClaude = process.env.LLM_PROVIDER === 'claude'
+  const useGemini = process.env.LLM_PROVIDER === 'gemini'
+  const resp = useGemini
+    ? await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 10 },
+        }),
+      })
+    : useClaude
+    ? await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          system: systemPrompt + '\n\nIMPORTANT: Respond with ONLY a single letter (A-J). No explanation, no reasoning, just the letter.',
+          messages: [{ role: 'user', content: userPrompt }],
+          temperature: 0,
+          max_tokens: 3,
+        }),
+      })
+    : await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0,
+          max_tokens: 5,
+        }),
+      })
 
   if (!resp.ok) {
     const body = await resp.text()
-    throw new Error(`DeepSeek API ${resp.status}: ${body.slice(0, 200)}`)
+    throw new Error(`LLM API ${resp.status}: ${body.slice(0, 200)}`)
   }
 
   const json = await resp.json() as any
-  const msg = json.choices?.[0]?.message || {}
-  let raw = (msg.content || '').trim()
+  // Gemini: candidates[0].content.parts[0].text, Claude: content[0].text, DeepSeek: choices[0].message.content
+  let raw = ''
+  if (useGemini) {
+    raw = (json.candidates?.[0]?.content?.parts?.[0]?.text || '').trim()
+  } else if (useClaude) {
+    raw = (json.content?.[0]?.text || '').trim()
+  } else {
+    raw = (json.choices?.[0]?.message?.content || '').trim()
+  }
 
-  const letter = raw.charAt(0).toUpperCase()
+  // 提取答案字母（优先匹配 ANSWER: X 格式，然后回退到旧模式）
+  let letter = ''
+  const answerTagMatch = raw.match(/ANSWER\s*:\s*\*?\*?\s*([A-J])\b/i)
+  if (answerTagMatch) {
+    letter = answerTagMatch[1]
+  } else {
+    const directMatch = raw.match(/^([A-J])\b/)
+    if (directMatch) {
+      letter = directMatch[1]
+    } else {
+      const answerMatch = raw.match(/(?:answer|choice|select|pick|choose)[:\s]+\*?\*?([A-J])\b/i)
+        || raw.match(/\b([A-J])\.\s/)
+        || raw.match(/\*\*([A-J])\*\*/)
+        || raw.match(/\b([A-J])$/m)
+      if (answerMatch) letter = answerMatch[1]
+      else letter = raw.charAt(0).toUpperCase()
+    }
+  }
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
 }
@@ -578,7 +845,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 async function run() {
   const opts = parseArgs()
-  const mode = opts.recallOnly ? 'recall-only' : opts.llm ? 'llm' : 'default'
+  const mode = opts.recallOnly ? 'recall-only' : opts.llm ? 'llm' : opts.online ? 'online' : 'default'
 
   print('═══════════════════════════════════════════════════════════')
   print('  cc-soul NAM × LOCOMO-MC10 Benchmark')
@@ -677,7 +944,7 @@ async function run() {
 
     // Build memories (cached)
     if (!memoryCache.has(convId)) {
-      const memories = buildMemories(q)
+      const memories = opts.online ? buildMemoriesOnline(q) : buildMemories(q)
       memoryCache.set(convId, memories)
       if (!learnedConvs.has(convId)) {
         // ── T1: 跨轮关联学习——Q-A 对的词自动共现，建立语义桥梁 ──
@@ -784,7 +1051,7 @@ async function run() {
             if (!words || words.length < 2) continue
             const contentLower = (mem.content || '').toLowerCase()
             const expanded = expandQuery(words.slice(0, 5).map((w: string) => w.toLowerCase()), 10)
-            const threshold = expanded.length < 3 ? 0.3 : 0.5
+            const threshold = expanded.length < 3 ? 0.15 : 0.3  // 放宽阈值，让更多扩展词参与（原 0.3/0.5）
             const tags = expanded
               .filter((e: any) => e.weight >= threshold && !contentLower.includes(e.word) && e.word.length >= 2)
               .map((e: any) => e.word)
@@ -816,7 +1083,7 @@ async function run() {
         // 从 top-5 recalled 提取关键词（更广泛的学习窗口）
         const recallKw = recalled.slice(0, 5).flatMap(m => (m.content.match(/[a-zA-Z]{3,}/gi) || [])).slice(0, 15)
         const combined = queryKw.join(' ') + ' ' + recallKw.join(' ')
-        learnAssociation(combined, 0.6)  // 权重提高
+        learnAssociation(combined, 0.6)
         // Summary 记忆的内容词额外学习（summary 是聚合知识，关联质量高）
         for (const mem of recalled.slice(0, 3)) {
           if (mem.tags?.includes('summary')) {
@@ -827,8 +1094,9 @@ async function run() {
     }
 
     // ── 增量前瞻标签：把 query 关键词注入到被召回记忆的 prospectiveTags ──
-    // 模拟真实使用：用户问过一次后，相关记忆的未来匹配能力增强
-    if (recalled.length > 0) {
+    // 跳过推理型查询（"Would X..."、"Is it likely..."）——推理词注入会引入噪声
+    const _isInferenceQ = /^(would|could|is it|are there|might|should|do you think)/i.test(q.question.trim())
+    if (recalled.length > 0 && !_isInferenceQ) {
       try {
         const qContentWords = (q.question.match(/[a-zA-Z]{4,}/gi) || [])
           .map((w: string) => w.toLowerCase())

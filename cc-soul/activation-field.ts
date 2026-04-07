@@ -667,7 +667,9 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
     }
   }
 
-  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight, sshScore * 0.8, cerScore * 0.9)
+  // 多通道融合：max + 次高 × 0.15（多通道同时支持时给额外奖励，原创）
+  const _cmScores = [wordScore, phraseScore * 1.2, triScore * _triWeight, sshScore * 0.8, cerScore * 0.9].sort((a, b) => b - a)
+  return _cmScores[0] + (_cmScores.length >= 2 && _cmScores[1] > 0.05 ? _cmScores[1] * 0.15 : 0)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -842,25 +844,42 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
 
 /** Compute MMR-based interference factor for a candidate against already-selected memories.
  *  Uses max similarity to ANY selected memory (maximal marginal relevance style).
- *  Trigrams are pre-cached to avoid recomputation.
+ *  A3 SIMPLE extension: temporal proximity amplifies interference (Brown, Neath & Chater 2007).
+ *  Log-scale invariant: 5s vs 25s ago has same discriminability as 5min vs 25min ago.
  *  Returns suppression factor in [0.3, 1.0]. */
-function interferenceMMR(memTri: Set<string>, selectedTris: Set<string>[], isSummary: boolean): number {
+function interferenceMMR(memTri: Set<string>, selectedTris: Set<string>[], isSummary: boolean, memAge?: number, selectedAges?: number[]): number {
   if (selectedTris.length === 0) return 1.0
 
   // MMR core: max similarity to ANY already-selected memory
   let maxSim = 0
-  for (const selTri of selectedTris) {
-    const sim = trigramSimilarity(memTri, selTri)
-    if (sim > maxSim) maxSim = sim
+  let maxSimIdx = 0
+  for (let i = 0; i < selectedTris.length; i++) {
+    const sim = trigramSimilarity(memTri, selectedTris[i])
+    if (sim > maxSim) { maxSim = sim; maxSimIdx = i }
   }
 
+  // A3 SIMPLE: temporal proximity amplifies interference
+  // Two memories from same time period are more likely redundant
+  let temporalFactor = 1.0
+  if (memAge !== undefined && selectedAges && selectedAges.length > maxSimIdx) {
+    const selAge = selectedAges[maxSimIdx]
+    if (selAge > 0 && memAge > 0) {
+      const logDist = Math.abs(Math.log(memAge + 1) - Math.log(selAge + 1))
+      // logDist ≈ 0 → same time period → amplify interference
+      // logDist > 3 → very different times → no extra interference
+      temporalFactor = 1.0 + 0.3 * Math.exp(-2 * logDist)  // [1.0, 1.3]
+    }
+  }
+
+  // Apply temporal amplification to similarity
+  const effectiveSim = Math.min(1.0, maxSim * temporalFactor)
+
   if (isSummary) {
-    // Relaxed thresholds for summaries/facts
-    if (maxSim > TRIGRAM_THRESHOLD.DEDUP_MERGE) return 0.5
-    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.8
+    if (effectiveSim > TRIGRAM_THRESHOLD.DEDUP_MERGE) return 0.5
+    if (effectiveSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.8
   } else {
-    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.3
-    if (maxSim > TRIGRAM_THRESHOLD.INTERFERENCE_LIGHT) return 0.7
+    if (effectiveSim > TRIGRAM_THRESHOLD.INTERFERENCE_STRONG) return 0.3
+    if (effectiveSim > TRIGRAM_THRESHOLD.INTERFERENCE_LIGHT) return 0.7
   }
   return 1.0
 }
@@ -1224,13 +1243,15 @@ export function computeActivationField(
     return tri
   }
   const selectedTris: Set<string>[] = []  // trigrams of selected memories (for MMR)
+  const selectedAges: number[] = []      // ages of selected memories (for A3 SIMPLE)
 
   for (const r of rawResults) {
     const memContent = r.mem.content || ''
     const memTri = _getTriCached(memContent)
     const isSummary = r.mem.scope === 'fact' || r.mem.scope === 'consolidated'
       || memContent.startsWith('[summary]') || memContent.startsWith('[Session')
-    const s5 = interferenceMMR(memTri, selectedTris, isSummary)
+    const memAge = now - (r.mem.ts || now)
+    const s5 = interferenceMMR(memTri, selectedTris, isSummary, memAge, selectedAges)
     let activation = r.raw * s5
 
     // ── Semantic drift modifier：上升话题 boost，下降话题 slight reduction ──
@@ -1268,6 +1289,7 @@ export function computeActivationField(
       })
       currentTop.push(r.mem)
       selectedTris.push(memTri)
+      selectedAges.push(memAge)
     }
 
     if (results.length >= topN) break
@@ -1425,7 +1447,11 @@ export function expandQueryForField(query: string): Map<string, number> {
     const aamExpanded = _aamExpandQuery(queryWords, _aamMaxExp)
     for (const { word, weight } of aamExpanded) {
       if (weight >= _aamMinW && !expanded.has(word)) {
-        expanded.set(word, weight)
+        // A7: Cue Overload penalty — words hitting too many memories are less diagnostic
+        // IDF naturally captures this: low IDF = high df = many hits = less diagnostic
+        const idf = _idfCache?.get(word) ?? 0.5
+        const adjustedWeight = weight * Math.max(0.3, idf)  // floor at 30% to avoid killing useful expansions
+        expanded.set(word, adjustedWeight)
       }
     }
     if (_queryAbstract) {
@@ -1695,6 +1721,27 @@ export function activationRecall(
     } catch {}
   }
 
+  // ── Temporal Entity Expansion：推理型查询用纯实体名做第二轮 recall ──
+  // "Would Caroline be religious?" → 第二轮用 "Caroline" 搜索，补充该人的全面信息
+  // 只对 temporal 查询且有实体名时触发
+  if (_currentQueryType === 'temporal' && _queryNames && _queryNames.length >= 1 && results.length > 0) {
+    try {
+      const entityQuery = _queryNames.join(' ')
+      const entityResults = computeActivationField(memories, entityQuery, mood, alertness, expanded, topN, timeRange, cogHints)
+      const seenContent = new Set(results.map(r => r.memory.content))
+      let added = 0
+      for (const r of entityResults) {
+        if (!seenContent.has(r.memory.content)) {
+          results.push(r)
+          seenContent.add(r.memory.content)
+          added++
+          if (added >= 5) break  // 最多补 5 条实体记忆
+        }
+      }
+      if (added > 0) results.sort((a, b) => b.activation - a.activation)
+    } catch {}
+  }
+
   // ── 分数平坦度检测 → 聚合查询自适应 topN ──
   // 无明显赢家 = 查询需要综合多条记忆（"我是怎样的人"/"描述我的一天"）
   if (results.length >= 5) {
@@ -1731,8 +1778,9 @@ export function activationRecall(
   // 过采样 2x，给 Step 3 的 rerank 留空间
 
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
-  // 仅在首轮几乎无结果时触发（阈值 0.03），避免大量计算
-  if (results.length > 0 && results[0].activation < 0.03) {
+  // 首轮结果质量不足时触发：top-1 activation < 0.15 或 top-10 覆盖率低
+  const _prfThreshold = results.length >= topN ? 0.15 : 0.03
+  if (results.length > 0 && results[0].activation < _prfThreshold) {
     const prfTopN = Math.min(3, results.length)
     const prfKeywords = new Map<string, number>()  // word → IDF weight
 
@@ -2043,6 +2091,93 @@ export function activationRecall(
     results = selected
   }
 
+  // ── NAM Coordinator Pattern（原创：协调器式多维度保证召回）──
+  // 灵感来源：Claude Code 的 agent 调度——不融合分数，让每个 worker 独立贡献 top-N
+  // 解决问题：乘法融合中，一个信号为 0 整条记忆就死了
+  // 方案：从 results 中按不同维度各取 top-2，保证每个维度至少有代表
+  if (results.length > topN && topN >= 6) {
+    const seen = new Set<string>()
+    const coordinated: typeof results = []
+
+    // Worker 1: 综合最好的（activation 排序，已有）
+    for (const r of results) {
+      if (coordinated.length >= Math.ceil(topN * 0.5)) break  // 50% 给综合
+      if (!seen.has(r.memory.content)) {
+        coordinated.push(r)
+        seen.add(r.memory.content)
+      }
+    }
+
+    // Worker 2: context signal 最高的（BM25 纯内容匹配）
+    const byContext = [...results].sort((a, b) => b.signals.context - a.signals.context)
+    for (const r of byContext) {
+      if (coordinated.length >= Math.ceil(topN * 0.7)) break  // 20% 给 context
+      if (!seen.has(r.memory.content)) {
+        coordinated.push(r)
+        seen.add(r.memory.content)
+      }
+    }
+
+    // Worker 3: base activation 最高的（最近/最频繁的记忆）
+    const byBase = [...results].sort((a, b) => b.signals.base - a.signals.base)
+    for (const r of byBase) {
+      if (coordinated.length >= Math.ceil(topN * 0.9)) break  // 20% 给 base
+      if (!seen.has(r.memory.content)) {
+        coordinated.push(r)
+        seen.add(r.memory.content)
+      }
+    }
+
+    // Worker 4（条件性）: temporal 查询时，按 temporal signal 排序取 top
+    // 仅在 temporal 查询时激活，保证时间相关记忆不被遗漏
+    if (_currentQueryType === 'temporal') {
+      const byTemporal = [...results].sort((a, b) => b.signals.temporal - a.signals.temporal)
+      for (const r of byTemporal) {
+        if (coordinated.length >= topN - 1) break  // 留 1 位给兜底
+        if (!seen.has(r.memory.content) && r.signals.temporal > 0) {
+          coordinated.push(r)
+          seen.add(r.memory.content)
+        }
+      }
+    }
+
+    // Worker 5: spread signal 最高的（entity graph 关联性最强的记忆）
+    const bySpread = [...results].sort((a, b) => b.signals.spread - a.signals.spread)
+    for (const r of bySpread) {
+      if (coordinated.length >= topN - 1) break
+      if (!seen.has(r.memory.content) && r.signals.spread > 0) {
+        coordinated.push(r)
+        seen.add(r.memory.content)
+      }
+    }
+
+    // Worker 6: Episode-Only（原创，ENGRAM per-store 启发）
+    // 保证 episode 记忆不被 summary 的高 BM25 分数挤掉
+    // ENGRAM 证明分 store 独立 top-k 对 multi_hop 贡献 +12%
+    const episodeOnly = results.filter(r => r.memory.scope === 'episode' && !r.memory.tags?.includes('summary'))
+      .sort((a, b) => b.activation - a.activation)
+    for (const r of episodeOnly) {
+      if (coordinated.length >= topN) break
+      if (!seen.has(r.memory.content)) {
+        coordinated.push(r)
+        seen.add(r.memory.content)
+      }
+    }
+
+    // 填满剩余位置（从综合排序里补）
+    for (const r of results) {
+      if (coordinated.length >= topN) break
+      if (!seen.has(r.memory.content)) {
+        coordinated.push(r)
+        seen.add(r.memory.content)
+      }
+    }
+
+    // 按 activation 重排保持顺序一致性
+    coordinated.sort((a, b) => b.activation - a.activation)
+    results = coordinated
+  }
+
   // 截断到 topN
   const topResults = results.slice(0, topN)
 
@@ -2091,6 +2226,27 @@ export function activationRecall(
 
   return topResults.map(r => r.memory)
 }
+
+/** 带 activation 分数的召回（benchmark 投票制用） */
+export function activationRecallWithScores(
+  memories: Memory[], query: string, topK: number,
+  mood: number, alertness: number, cogHints?: any
+): { memory: Memory; activation: number }[] {
+  // 复用 activationRecall 的内部逻辑，但保留分数
+  // 先调用 computeActivationField 获取带分数的结果
+  const expandedWords = (() => {
+    try {
+      const aam = require('./aam.ts')
+      const words = query.toLowerCase().match(/[a-z]{2,}/gi) || []
+      return aam.expandQuery?.(words.slice(0, 5).map((w: string) => w.toLowerCase()), 10) || new Map()
+    } catch { return new Map<string, number>() }
+  })()
+  const results = computeActivationField(memories, query, mood, alertness, expandedWords, topK * 3, null, cogHints)
+  return results.slice(0, topK).map(r => ({ memory: r.memory, activation: r.activation }))
+}
+
+/** 获取当前 IDF 缓存（selectAnswer 用） */
+export function getIdfCache(): Map<string, number> | null { return _idfCache }
 
 // ═══════════════════════════════════════════════════════════════
 // 调试/透明度

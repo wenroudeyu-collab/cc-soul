@@ -2255,23 +2255,17 @@ export function isKnownWord(word: string): boolean {
 }
 
 /**
- * 清空用户学习数据（benchmark per-conv 隔离用）
- * 保留：seeds df、synonyms、concept hierarchy
- * 清空：cooccur（共现）、totalDocs、temporal network
+ * 清空 per-conversation 状态（benchmark per-conv 隔离用）
+ * 保留：cooccur / df / totalDocs（长期学习到的关联知识）
+ * 清空：activation damping / max-hop 负反馈 / prevMessageWords / temporal net
  */
 export function resetLearnedData(): void {
-  // fix: _networks → networks（typo bug，导致 per-conv 隔离完全失效）
-  for (const [, net] of networks) {
-    net.cooccur = {}
-    net.totalDocs = 0
-    // 保留 net.df（seeds 注入的 df 不清，否则 IDF 废掉）
-  }
-  // 清 temporal 网络（原实现遗漏：注释说要清但没清）
-  _temporalNet.directed = {}
+  // 只清 per-conversation 短期状态，不碰 cooccur/df/totalDocs（长期知识）
+  _activationDamping.clear()
+  _maxHopByPattern.clear()
   _prevMessageWords = []
-  // 重新注入 seeds 共现对（lite injection）
-  try { injectSeedsLite('zh') } catch {}
-  try { injectSeedsLite('en') } catch {}
+  // 清 temporal 网络（session 级别的时序关系）
+  _temporalNet.directed = {}
 }
 
 /**
@@ -2990,9 +2984,9 @@ export function reinforceTrace(trace: { memory?: { content?: string }; path?: an
     for (const mw of memWords) {
       if (qw === mw) continue
       if (!network().cooccur[qw]) network().cooccur[qw] = {}
-      network().cooccur[qw][mw] = Math.min(50, (network().cooccur[qw][mw] || 0) + 0.3)
+      network().cooccur[qw][mw] = Math.min(50, (network().cooccur[qw][mw] || 0) + 1.5)
       if (!network().cooccur[mw]) network().cooccur[mw] = {}
-      network().cooccur[mw][qw] = Math.min(50, (network().cooccur[mw][qw] || 0) + 0.3)
+      network().cooccur[mw][qw] = Math.min(50, (network().cooccur[mw][qw] || 0) + 1.5)
       reinforced++
     }
   }
