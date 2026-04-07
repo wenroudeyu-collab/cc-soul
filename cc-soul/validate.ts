@@ -68,37 +68,3 @@ export function validate(body: any, schema: Schema): ValidateResult {
   return { ok: true, data }
 }
 
-// ── API Schemas ──
-
-export const SCHEMAS: Record<string, Schema> = {
-  process: {
-    message: { required: true, type: 'string', min: 1 },
-    user_id: { type: 'string' },
-    agent_id: { type: 'string' },
-    context_window: { type: 'number', min: 1024 },
-  },
-  feedback: {
-    user_message: { required: true, type: 'string' },
-    ai_reply: { required: true, type: 'string' },
-    user_id: { type: 'string' },
-    satisfaction: { type: 'string', enum: ['positive', 'negative', 'neutral', ''] },
-  },
-  command: {
-    message: { required: true, type: 'string', min: 1 },
-  },
-  config: {
-    // flexible — no strict schema
-  },
-}
-
-/**
- * 验证 API 入参。返回 null 表示通过，否则返回错误消息。
- */
-export function validateAction(action: string, body: any): string | null {
-  const schema = SCHEMAS[action]
-  if (!schema) return null  // 没有 schema 的 action 不验证（health, profile 等）
-
-  const result = validate(body, schema)
-  if (!result.ok) return result.error
-  return null
-}

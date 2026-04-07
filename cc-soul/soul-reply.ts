@@ -5,8 +5,6 @@
  * Requires LLM configuration.
  */
 
-export { handleSoul }
-
 async function handleSoul(body: any): Promise<any> {
   const message = body.message || ''
   const userId = body.user_id || body.userId || 'default'

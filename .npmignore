@@ -15,7 +15,16 @@ node_modules/
 .clawhub/
 *.tgz
 .DS_Store
+tsconfig.json
+
+# Source maps（防止逆向还原源码）
+*.map
+
+# 源码（只发编译后的 JS）
+*.ts
+!*.d.ts
 
 # 测试和文档源文件
 *.test.*
 tests.*
+benchmark-*

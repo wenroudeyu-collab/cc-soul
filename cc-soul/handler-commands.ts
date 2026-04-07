@@ -137,7 +137,7 @@ function _fullRestore(filePath: string): Record<string, number> {
 // Uses OpenClaw SDK (replySender) to send command results directly.
 // cfg is threaded through from inbound_claim hook or falls back to legacy path.
 let _replyCfg: any = null   // set by handleCommandInbound / setReplyCfg
-export function setReplyCfg(cfg: any) { _replyCfg = cfg }
+function setReplyCfg(cfg: any) { _replyCfg = cfg }
 
 function cmdReply(ctx: any, event: any, session: SessionState, text: string, userMsg: string) {
   session.lastPrompt = userMsg
@@ -1245,7 +1245,7 @@ export function isCommand(msg: string): boolean {
  * Called when isCommand() returns true — routes to routeCommandDirect
  * with SDK config for replySender.
  */
-export async function handleCommandInbound(
+async function handleCommandInbound(
   msg: string,
   to: string,
   cfg: any,

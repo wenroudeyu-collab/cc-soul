@@ -2217,10 +2217,6 @@ function buildConceptReverseIndex(): void {
 }
 buildConceptReverseIndex()
 
-/** 查询一个词的上位概念（从 CONCEPT_HIERARCHY 反向查找）*/
-export function getConceptParents(word: string): string[] {
-  return _conceptReverseIndex.get(word.toLowerCase()) || []
-}
 
 /** SSH: 查询一个词属于哪些语义维度（seeds 组 + concept parent）*/
 export function getSemanticDimensions(word: string): string[] {
@@ -2957,10 +2953,6 @@ export function recoverDamping(): void {
 // 负反馈跳数状态：query pattern → max hop（默认 2，miss 时降级）
 const _maxHopByPattern = new Map<string, number>()
 
-/** 获取某类查询允许的最大跳数（默认 2） */
-export function getMaxHop(queryPattern: string): number {
-  return _maxHopByPattern.get(queryPattern) ?? 2
-}
 
 /**
  * 正反馈：用户 engaged 的记忆，强化其扩展路径上的 AAM 边

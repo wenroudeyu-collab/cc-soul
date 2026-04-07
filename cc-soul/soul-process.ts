@@ -23,7 +23,6 @@ function cleanDedup() {
   }
 }
 
-export { handleProcess, handleFeedback }
 
 /** Isolate independent pipeline steps — on throw, log degradation and return fallback */
 async function safeCompute<T>(fn: () => Promise<T> | T, fallback: T, context: string): Promise<T> {

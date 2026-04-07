@@ -1871,6 +1871,41 @@ export function addMemory(content: string, scope: string, userId?: string, visib
         queueForTagging(content, memoryState.memories[lastIdx].ts)
       }
     }
+
+    // ── 微蒸馏（Real-time Micro-Distillation，原创）──
+    // 新记忆存入后，检查最近 10 条有没有 trigram > 0.4 + 时间相近(5min) 的可合并记忆
+    // 轻活实时干：合并相似记忆减少碎片，深度蒸馏(6h)做全局整理
+    try {
+      const newIdx = memoryState.memories.length - 1
+      const newMem = memoryState.memories[newIdx]
+      if (newMem && newMem.content.length >= 15) {
+        const newTri = trigrams(newMem.content)
+        const searchStart = Math.max(0, newIdx - 10)
+        let bestSim = 0, bestIdx = -1
+        for (let i = searchStart; i < newIdx; i++) {
+          const other = memoryState.memories[i]
+          if (!other || other.scope === 'expired' || other.scope === 'historical') continue
+          if (Math.abs((newMem.ts || 0) - (other.ts || 0)) > 300000) continue  // >5min apart, skip
+          const sim = trigramSimilarity(newTri, trigrams(other.content))
+          if (sim > bestSim) { bestSim = sim; bestIdx = i }
+        }
+        if (bestSim > 0.4 && bestIdx >= 0) {
+          const target = memoryState.memories[bestIdx]
+          // 合并：保留较长的作为 base，追加较短的新信息
+          if (target.content.length >= newMem.content.length) {
+            target.content = target.content + ' ' + newMem.content
+          } else {
+            target.content = newMem.content + ' ' + target.content
+          }
+          target.confidence = Math.max(target.confidence || 0.7, newMem.confidence || 0.7)
+          target.recallCount = (target.recallCount || 0) + (newMem.recallCount || 0)
+          // 标记新记忆为已合并（不删除，让 eviction 自然清理）
+          newMem.scope = 'expired'
+          newMem.content = `[merged→${bestIdx}]`
+          console.log(`[cc-soul][micro-distill] merged memory #${newIdx} into #${bestIdx} (sim=${bestSim.toFixed(2)})`)
+        }
+      }
+    } catch {}
   } finally {
     saveMemories()
   }

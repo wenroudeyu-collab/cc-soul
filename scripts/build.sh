@@ -40,7 +40,7 @@ for f in "$SRC"/*.ts; do
   # Step 1: compile TS → JS
   npx esbuild "$f" --outfile="$DIST/${JSNAME%.js}.tmp.js" \
     --format=esm --platform=node --target=node20 2>/dev/null
-  # Step 2: obfuscate (javascript-obfuscator — control flow + string encryption)
+  # Step 2: obfuscate (javascript-obfuscator — control flow + string + numbers encryption)
   npx javascript-obfuscator "$DIST/${JSNAME%.js}.tmp.js" \
     --output "$DIST/$JSNAME" \
     --compact true \
@@ -51,12 +51,56 @@ for f in "$SRC"/*.ts; do
     --string-array true \
     --string-array-encoding rc4 \
     --string-array-threshold 0.5 \
+    --numbers-to-expressions true \
     --self-defending false \
     --disable-console-output false \
     2>/dev/null
   rm -f "$DIST/${JSNAME%.js}.tmp.js"
   echo "   🔒 $BASENAME → $JSNAME (obfuscated)"
 done
+
+# ── Module name obfuscation ──
+# Rename all .js files to short hashes, rewrite import paths
+# plugin-entry.js keeps its name (package.json entry point)
+echo ""
+echo "── Obfuscating module names ──"
+
+# Step 1: Build name mapping (original → hashed)
+declare -A NAME_MAP
+for f in "$DIST"/*.js; do
+  [ -f "$f" ] || continue
+  ORIG=$(basename "$f" .js)
+  if [ "$ORIG" = "plugin-entry" ]; then
+    NAME_MAP[$ORIG]="plugin-entry"
+  else
+    # Deterministic short hash: md5 of name, take first 6 chars, prefix with 'm_'
+    HASH=$(echo -n "cc-soul:$ORIG" | md5 -q | head -c 6)
+    NAME_MAP[$ORIG]="m_${HASH}"
+  fi
+done
+
+# Step 2: Rename files and rewrite imports
+for f in "$DIST"/*.js; do
+  [ -f "$f" ] || continue
+  ORIG=$(basename "$f" .js)
+  # Rewrite all import paths in this file
+  for KEY in "${!NAME_MAP[@]}"; do
+    HASHED="${NAME_MAP[$KEY]}"
+    if [ "$KEY" != "$HASHED" ]; then
+      # Replace './original-name.js' → './m_hash.js' and './original-name' → './m_hash'
+      sed -i '' "s|['\"]\./${KEY}\.js['\"]|'./${HASHED}.js'|g" "$f"
+      sed -i '' "s|['\"]\./${KEY}['\"]|'./${HASHED}.js'|g" "$f"
+      # Also handle .ts references that esbuild may have left
+      sed -i '' "s|['\"]\./${KEY}\.ts['\"]|'./${HASHED}.js'|g" "$f"
+    fi
+  done
+  # Rename file if needed
+  if [ "$ORIG" != "${NAME_MAP[$ORIG]}" ]; then
+    mv "$f" "$DIST/${NAME_MAP[$ORIG]}.js"
+    echo "   🔀 ${ORIG}.js → ${NAME_MAP[$ORIG]}.js"
+  fi
+done
+echo "   ✅ ${#NAME_MAP[@]} modules renamed"
 
 # ── Copy HOOK.md ──
 cp "$SRC/HOOK.md" "$DIST/" 2>/dev/null || true

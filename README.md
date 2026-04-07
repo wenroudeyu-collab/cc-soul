@@ -1,224 +1,256 @@
 # cc-soul — Your AI, But It Actually Knows You
 
-Your AI forgets everything after each session. cc-soul fixes that — persistent memory, adaptive personality, emotion tracking, and learning from corrections. Works with any AI.
+**100% local memory. Zero cloud upload. Zero telemetry. GDPR-friendly by design.**
 
-## Two Ways to Use
+Your AI forgets everything after each session. cc-soul fixes that — persistent memory, adaptive personality, emotion tracking, and learning from corrections. All data stays on your device in SQLite. Nothing ever leaves your machine.
 
-### OpenClaw Users (one command, zero config)
+> While ChatGPT Memory stores your data in the cloud and Google Gemini reads your Gmail, cc-soul runs entirely on your machine. No server. No upload. No fine.
 
-```bash
-openclaw plugins install @cc-soul/openclaw
-# Done. Works automatically. Say "help" to see commands.
-```
+---
 
-### Any AI (local API)
+## Why Not ChatGPT Memory?
+
+| | cc-soul | ChatGPT Memory | Google Gemini |
+|---|---------|---------------|---------------|
+| **Data location** | Your device (SQLite) | OpenAI cloud | Google cloud |
+| **Upload** | Never | Always | Always |
+| **GDPR compliance** | By design | Fined €15M (Italy) | Requires opt-in (EU) |
+| **Works offline** | Yes | No | No |
+| **Memory engine** | 17 original algorithms (cognitive science) | Vector search | Vector search |
+| **Recall latency** | <30ms (local) | Network-dependent | Network-dependent |
+| **Vendor lock-in** | None — works with any AI | OpenAI only | Google only |
+| **Open source** | Yes | No | No |
+| **User data training** | Impossible (no server) | Opt-out required | Opt-out required |
+
+---
+
+## How It Works — No Vectors, No Embeddings, No Cloud
+
+cc-soul doesn't use vector databases or embedding models. Instead, it's built on **cognitive science** — memories aren't "searched", they surface automatically, like the human brain.
+
+**Three core innovations:**
+
+**1. Neural Activation Memory (NAM)** — Each memory has a real-time activation score [0, 1], computed from 7 signals: recency, context match, emotional resonance, spreading activation, interference suppression, temporal encoding, and sequential co-occurrence. Based on ACT-R cognitive architecture.
+
+**2. Three-Layer Distillation** — Raw memories (L1) cluster into topic nodes (L2), which distill into a mental model of you (L3). Like how the human brain consolidates short-term memory into long-term understanding during sleep.
+
+**3. Zero-LLM Recall** — Memory retrieval needs no AI model. Five parallel channels (tags, trigrams, BM25, vector FTS, knowledge graph) fuse results in <30ms. The AI only sees what's relevant.
+
+---
+
+## Quick Start
 
 ```bash
 npm install -g @cc-soul/openclaw
-# Done. API auto-starts at localhost:18800
-```
-
-LLM configuration is **automatic** — cc-soul reads your OpenClaw config if available. Most features (memory, recall, persona, emotion) work without any LLM. Only `/soul` endpoint and background tasks need LLM access.
-
-If not using OpenClaw, configure LLM via API after install:
-
-```bash
-curl -X POST localhost:18800/config \
-  -H "Content-Type: application/json" \
-  -d '{"api_base":"https://api.openai.com/v1","api_key":"sk-xxx","model":"gpt-4o"}'
+# Done. API auto-starts at localhost:18800. Two endpoints, ready to use.
 ```
 
 ---
 
-## API Endpoints
+## API — Just Two Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/process` | **Core.** Send user message, get augmented context (memory + persona + emotion + cognition). No LLM needed. |
-| `POST` | `/feedback` | Send AI's reply back. cc-soul learns, stores memories, tracks quality. All POST endpoints accept optional `agent_id` for multi-agent data isolation. |
-| `POST` | `/soul` | Soul mode — cc-soul replies as the user's avatar (needs LLM). |
-| `POST` | `/config` | Configure LLM backend (only needed for `/soul`). |
-| `POST` | `/command` | Execute cc-soul commands (stats, search, habits, etc.). |
-| `GET` | `/profile` | User personality profile — avatar, social graph, mood, energy. |
-| `GET` | `/features` | List all feature toggles and their status. |
-| `POST` | `/features` | Enable/disable a feature. |
-| `GET` | `/health` | Health check. |
-| `GET` | `/.well-known/agent.json` | A2A Agent Card (5 capabilities). |
-| `POST` | `/a2a` | Agent-to-Agent protocol request. |
-| `GET` | `/mcp/tools` | List MCP tools (4 tools). |
-| `POST` | `/mcp/call` | Execute an MCP tool call. |
-| `GET` | `/avatar` | Soul injection prompt — makes any LLM respond as you. Accepts `?sender=` and `?message=` params. |
-| `GET` | `/soul-spec` | Returns soul spec files (soul.json, STYLE, IDENTITY, HEARTBEAT) dynamically. |
-| `POST` | `/api` | Unified entry point — routes to any action via `{"action": "process\|feedback\|soul\|..."}`. |
+| `POST` | `/memories` | Store a memory |
+| `POST` | `/search` | Search memories |
+| `GET` | `/health` | Health check |
 
-### POST /process
+That's it. Store and retrieve. Everything else (learning, distillation, decay, dedup) happens automatically in the background.
 
-The core endpoint. Send a user message, get back enriched context to feed your AI.
+### POST /memories — Store
 
 ```bash
-curl -X POST http://localhost:18800/process \
+curl -X POST http://localhost:18800/memories \
   -H "Content-Type: application/json" \
-  -d '{"message": "Help me fix this timeout error", "user_id": "alice"}'
-
-# Multi-agent: each agent_id gets isolated memory/personality
-curl -X POST http://localhost:18800/process \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello", "user_id": "alice", "agent_id": "support-bot"}'
+  -d '{"content": "I deployed on AWS us-east-1, port 8080, Python 3.11", "user_id": "alice"}'
 ```
 
 Response:
+```json
+{"stored": true, "facts_extracted": 3}
+```
 
+Facts are automatically extracted and indexed. AAM learns word associations. No extra calls needed.
+
+### POST /search — Retrieve
+
+```bash
+curl -X POST http://localhost:18800/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "server config", "user_id": "alice"}'
+```
+
+Response:
 ```json
 {
-  "system_prompt": "...(personality + rules + identity)...",
-  "augments": "...(recalled memories + proactive insights + persona hints)...",
-  "augments_array": [{"content": "...", "priority": 8.2, "tokens": 45}],
-  "mood": 0.1,
-  "energy": 0.8,
-  "emotion": "neutral",
-  "cognition": {"attention": "technical", "intent": "wants_answer", "strategy": "balanced", "complexity": 0.6}
+  "memories": [
+    {"content": "I deployed on AWS us-east-1, port 8080, Python 3.11", "scope": "fact", "ts": 1712534400, "confidence": 0.85}
+  ],
+  "facts": [
+    {"predicate": "deployed_on", "object": "AWS us-east-1", "confidence": 0.9}
+  ],
+  "fact_summary": "Deployed on AWS us-east-1 with Python 3.11",
+  "_meta": {"reranked": false, "query_rewritten": false}
 }
 ```
 
-### POST /feedback
-
-After your AI replies, send the exchange back so cc-soul can learn.
-
-```bash
-curl -X POST http://localhost:18800/feedback \
-  -H "Content-Type: application/json" \
-  -d '{"user_message": "Fix this timeout", "ai_reply": "The issue is...", "user_id": "alice", "satisfaction": "positive"}'
-```
-
-### POST /command
-
-Execute any cc-soul command via API.
-
-```bash
-curl -X POST http://localhost:18800/command \
-  -H "Content-Type: application/json" \
-  -d '{"message": "search memory deploy", "user_id": "alice"}'
-```
-
-### POST /features
-
-```bash
-# Enable a feature
-curl -X POST http://localhost:18800/features \
-  -H "Content-Type: application/json" \
-  -d '{"feature": "debate", "enabled": true}'
-```
-
-### POST /soul
-
-Soul mode — cc-soul calls LLM and replies as the user's avatar. Requires LLM configured via `POST /config`.
-
-```bash
-curl -X POST http://localhost:18800/soul \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What do you think about Rust?", "user_id": "alice"}'
-# → {"reply": "I'd stick with Python unless profiling proves CPU-bound...", "persona": "engineer"}
-```
-
-### GET /profile
-
-```bash
-curl http://localhost:18800/profile
-# → {"avatar": {...}, "social": [...], "identity": "...", "thinkingStyle": "...", "mood": 0.6, "energy": 0.8}
-```
+Parameters:
+- `query` — what to search for (required)
+- `user_id` — user identifier (default: "default")
+- `top_n` / `limit` — number of results (default: 5)
 
 ### GET /health
 
 ```bash
 curl http://localhost:18800/health
-# → {"status": "ok", "version": "2.5.0", "memories": 5231, "uptime": 3600}
-```
-
-### GET /avatar
-
-Returns a system prompt that makes any LLM respond as the user. Feed this to your AI's system message.
-
-```bash
-curl "http://localhost:18800/avatar?sender=colleague&message=How%20should%20we%20deploy%20this"
-# → {"prompt": "You are cc. You think like a pragmatic backend engineer who prioritizes stability...", "userId": "default"}
-```
-
-### GET /soul-spec
-
-```bash
-curl http://localhost:18800/soul-spec
-# → {"soul_json": {...}, "style": "# cc 说话风格...", "identity": "# cc 的身份...", "heartbeat": "# cc 心跳..."}
+# → {"status": "ok", "version": "2.9.2", "memoryCount": 5231, "factCount": 892, "llm": {"configured": true}}
 ```
 
 ---
 
-## How Other AIs Connect
+## LLM Configuration (Optional)
 
-### Basic Flow (any HTTP client)
+cc-soul works **without any LLM** — NAM recall runs purely on local algorithms (<30ms). If you add an LLM, you get two bonus features:
 
-```
-1. POST /process  { message, user_id }     → get system_prompt + augments
-2. Feed system_prompt + augments to your AI  → AI generates reply
-3. POST /feedback { user_message, ai_reply } → cc-soul learns
-```
+- **Query Rewrite** — abstract queries ("What are my habits?") get expanded with specific keywords before search
+- **LLM Rerank** — NAM recalls 4x candidates, LLM picks the most relevant ones
 
-That's it. Three calls per message. Your AI gets persistent memory without changing anything else.
+### Setup
 
-### Claude Code (MCP)
+After install, cc-soul auto-creates a config template at `~/.cc-soul/data/ai_config.json`. Just fill in three fields:
 
-```bash
-# List available tools
-curl http://localhost:18800/mcp/tools
-# → cc_memory_search, cc_memory_add, cc_soul_state, cc_persona_info
-
-# Call a tool
-curl -X POST http://localhost:18800/mcp/call \
-  -H "Content-Type: application/json" \
-  -d '{"tool": "cc_memory_search", "args": {"query": "deploy"}}'
+```json
+{
+  "backend": "openai-compatible",
+  "api_base": "https://api.deepseek.com/v1",
+  "api_key": "sk-xxx",
+  "api_model": "deepseek-chat"
+}
 ```
 
-### A2A Protocol
+Any OpenAI-compatible API works:
 
-```bash
-# Get agent card
-curl http://localhost:18800/.well-known/agent.json
+| Provider | api_base | api_model |
+|----------|----------|-----------|
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| Claude | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514` |
+| Ollama (local) | `http://localhost:11434/v1` | `qwen2.5:7b` |
 
-# Send agent-to-agent request
-curl -X POST http://localhost:18800/a2a \
-  -H "Content-Type: application/json" \
-  -d '{"capability": "memory-recall", "params": {"query": "server setup"}}'
+**OpenClaw users**: just talk to your AI:
+
+```
+You: "帮我查看下 ~/.cc-soul/data/ai_config.json 并且告诉我怎么配置"
+AI:  (reads the file, shows current config, guides you step by step)
+
+You: "我要用 DeepSeek，key 是 sk-xxx"
+AI:  (writes the config for you, done)
 ```
 
-### Python Example
+No manual editing needed — your AI is your setup assistant.
+
+Config is hot-reloaded — save the file and cc-soul picks it up automatically, no restart needed.
+
+---
+
+## How to Integrate
+
+### Python
 
 ```python
 import requests
 
 API = "http://localhost:18800"
 
-# Step 1: Get augmented context
-ctx = requests.post(f"{API}/process", json={
-    "message": "What's my server config?",
+# Store memories from conversations
+requests.post(f"{API}/memories", json={
+    "content": "User prefers Python over Java, deployed on AWS",
+    "user_id": "alice"
+})
+
+# Later: retrieve relevant memories
+results = requests.post(f"{API}/search", json={
+    "query": "what language does alice prefer?",
     "user_id": "alice"
 }).json()
 
-# Step 2: Feed to your AI (OpenAI example)
+# Feed memories to your AI
 from openai import OpenAI
 client = OpenAI()
+memory_context = "\n".join([m["content"] for m in results["memories"]])
 reply = client.chat.completions.create(
     model="gpt-4o",
     messages=[
-        {"role": "system", "content": ctx["system_prompt"] + "\n\n" + ctx["augments"]},
-        {"role": "user", "content": "What's my server config?"}
+        {"role": "system", "content": f"User context:\n{memory_context}"},
+        {"role": "user", "content": "What language should I use for this project?"}
     ]
 ).choices[0].message.content
+```
 
-# Step 3: Feedback
-requests.post(f"{API}/feedback", json={
-    "user_message": "What's my server config?",
-    "ai_reply": reply,
-    "user_id": "alice"
+### JavaScript / Node.js
+
+```javascript
+const API = "http://localhost:18800"
+
+// Store
+await fetch(`${API}/memories`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ content: "Likes spicy food, lives in Berlin", user_id: "bob" })
 })
+
+// Search
+const res = await fetch(`${API}/search`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ query: "food preferences", user_id: "bob" })
+})
+const { memories, facts } = await res.json()
+```
+
+### cURL
+
+```bash
+# Store
+curl -X POST http://localhost:18800/memories \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Meeting with John next Tuesday at 3pm", "user_id": "alice"}'
+
+# Search
+curl -X POST http://localhost:18800/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "upcoming meetings", "user_id": "alice"}'
+
+# Health
+curl http://localhost:18800/health
+```
+
+### OpenClaw Users
+
+```bash
+openclaw plugins install @cc-soul/openclaw
+# Done. Works automatically in the background. Say "help" to see commands.
+```
+
+---
+
+## What Happens Automatically
+
+You only call two endpoints. Behind the scenes, cc-soul runs a full cognitive pipeline:
+
+```
+POST /memories → store → dedup → fact extraction → AAM association learning
+                                                          ↓
+                          ┌─────────── background ───────────────┐
+                          │ every minute:  memory decay           │
+                          │ every hour:    FSRS consolidation     │
+                          │ every 6h:     L1→L2 topic clustering  │
+                          │ every 12h:    L2→L3 mental model      │
+                          │ every 24h:    full L3 refresh         │
+                          └──────────────────────────────────────┘
+                                                          ↓
+POST /search  → NAM 7-signal activation → MMR dedup → coverage rerank
+                (+ LLM rewrite & rerank if configured)
 ```
 
 ---
@@ -310,7 +342,7 @@ All automatic. No setup, no toggles. Works from the first message.
 
 **Memory (NAM Engine)**
 - Every message auto-extracted for facts, preferences, events
-- NAM 6-signal activation field — memories surface by relevance, not keyword match
+- NAM 7-signal activation field — memories surface by relevance, not keyword match
 - Contradiction detection — catches when you contradict yourself
 - Smart decay (Weibull + ACT-R) — unused memories fade, important ones strengthen
 - Memory compression — 90-day+ memories distilled into summaries
@@ -351,6 +383,21 @@ All automatic. No setup, no toggles. Works from the first message.
 - Cost tracking — token usage per conversation
 
 **6 optional features** (user can toggle): `auto_daily_review` · `self_correction` · `memory_session_summary` · `absence_detection` · `behavior_prediction` · `auto_mood_care`
+
+---
+
+## Privacy & Security
+
+All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data/` if using OpenClaw). Auto-detected, auto-created. Nothing ever leaves your machine. No telemetry.
+
+- **Privacy mode** — say `隐私模式` to pause all memory storage
+- **PII filtering** — auto-strips emails, phone numbers, API keys, IPs
+- **Prompt injection detection** — 9 pattern filters
+- **Immutable audit log** — SHA256 chain-linked operation history
+- **MCP rate limiting** — prevents abuse from external agents
+- **Full data export** — `导出全部` exports everything to a single JSON you own
+
+[SECURITY.md](https://github.com/wenroudeyu-collab/cc-soul/blob/main/SECURITY.md)
 
 ---
 
@@ -406,30 +453,8 @@ All automatic. No setup, no toggles. Works from the first message.
 
 ---
 
-## NAM — Neural Activation Memory
-
-cc-soul's original memory engine. Memories aren't "searched" — they surface automatically, like the human brain. No external models needed. Gets smarter the more you talk.
-
-Powered by 17 original algorithms: NAM (Neural Activation Memory), AAM (Adaptive Associative Memory), CIN (Cognitive Interference Network), BPS (Behavioral Phase Space), FSRS-7, Coupled Pressure Oscillators, 3-Layer Distillation Pipeline, Adaptive Context Budget, Personalized Compression, User Projector, 4-Level Confidence Voice, Multi-dimensional Thompson Sampling, CIN Prior Fusion, Social Graph Integration, Bidirectional Causal Graph, Semantic Freshness Scoring, Decision Audit Chain.
-
----
-
-## Privacy & Security
-
-All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data/` if using OpenClaw). Auto-detected, auto-created. Nothing ever leaves your machine. No telemetry.
-
-- **Privacy mode** — say `隐私模式` to pause all memory storage
-- **PII filtering** — auto-strips emails, phone numbers, API keys, IPs
-- **Prompt injection detection** — 9 pattern filters
-- **Immutable audit log** — SHA256 chain-linked operation history
-- **MCP rate limiting** — prevents abuse from external agents
-
-[SECURITY.md](https://github.com/wenroudeyu-collab/cc-soul/blob/main/SECURITY.md)
-
----
-
-**NAM memory engine · 50+ commands · 49 feature toggles · 15 API endpoints · 11 personas · 7-dimension user model · no external models needed**
+**NAM memory engine · 2 API endpoints · 17 original algorithms · <30ms recall · works with or without LLM · 100% local**
 
 [npm](https://www.npmjs.com/package/@cc-soul/openclaw) · [GitHub](https://github.com/wenroudeyu-collab/cc-soul) · Issues: [github.com/wenroudeyu-collab/cc-soul/issues](https://github.com/wenroudeyu-collab/cc-soul/issues) · wenroudeyu@gmail.com
 
-*Your AI, but it actually knows you.*
+*Your AI remembers everything — and tells no one.*

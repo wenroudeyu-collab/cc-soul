@@ -345,6 +345,90 @@ function buildMemoriesOnline(q: LocomoQuestion): Memory[] {
 }
 
 /**
+ * API 模式：通过 HTTP API 存取记忆（走完整 Query Rewrite + LLM Rerank + Consensus Recall）
+ * 需要 standalone 服务先启动：npx tsx cc-soul/standalone.ts
+ */
+async function buildMemoriesAPI(q: LocomoQuestion, apiPort: number): Promise<void> {
+  const baseUrl = `http://localhost:${apiPort}`
+
+  // 清空之前的记忆（直接调内部方法，API 没有 clear 端点）
+  try {
+    const { memoryState, scopeIndex, _recentWriteHashes } = require('./memory.ts')
+    memoryState.memories.length = 0
+    memoryState.chatHistory.length = 0
+    scopeIndex.clear()
+    _recentWriteHashes.clear()
+    try { require('./aam.ts').resetLearnedData?.() } catch {}
+    try { require('./fact-store.ts').clearFacts?.() } catch {}
+  } catch {}
+
+  const originalTimestamps = q.haystack_session_datetimes.map((d: string) => new Date(d).getTime())
+  let totalAdded = 0, totalSkipped = 0
+
+  for (let si = 0; si < q.haystack_sessions.length; si++) {
+    const session = q.haystack_sessions[si]
+    const _epDatePrefix = `[${new Date(originalTimestamps[si]).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}]`
+
+    // 逐轮通过 API 存入
+    for (let ti = 0; ti < session.length; ti++) {
+      const turn = session[ti]
+      const content = turn?.content
+      if (!content || content.length < 10) continue
+
+      try {
+        const resp = await fetch(`${baseUrl}/memories`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: `${_epDatePrefix} ${content}`, scope: 'event', user_id: 'benchmark-user' }),
+        })
+        const result = await resp.json() as any
+        if (result.stored) totalAdded++
+        else totalSkipped++
+      } catch { totalSkipped++ }
+    }
+
+    // Summary
+    const summary = q.haystack_session_summaries[si]
+    if (summary) {
+      try {
+        await fetch(`${baseUrl}/memories`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: summary, scope: 'fact', user_id: 'benchmark-user' }),
+        })
+        totalAdded++
+      } catch {}
+    }
+  }
+
+  _origLog(`  [api] ${totalAdded} memories stored via API, ${totalSkipped} skipped`)
+}
+
+/** API 模式召回：通过 /search 端点（含 Query Rewrite + LLM Rerank） */
+async function recallViaAPI(query: string, topK: number, apiPort: number): Promise<Memory[]> {
+  const baseUrl = `http://localhost:${apiPort}`
+  try {
+    const resp = await fetch(`${baseUrl}/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, top_n: topK, user_id: 'benchmark-user' }),
+    })
+    const result = await resp.json() as any
+    // 转换为 Memory 格式
+    return (result.memories || []).map((m: any) => ({
+      content: m.content || '',
+      scope: m.scope || 'fact',
+      ts: m.ts || Date.now(),
+      confidence: m.confidence || 0.7,
+      tags: m.tags || [],
+    } as Memory))
+  } catch (e: any) {
+    _origLog(`  [api] search error: ${e.message}`)
+    return []
+  }
+}
+
+/**
  * 从 LOCOMO summary 提取英文结构化事实（轻量正则，不依赖 LLM）
  * 原创双通道架构：NAM 模糊召回 + fact-store 精确匹配
  */
@@ -544,21 +628,18 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
     : /^how many\b|how much\b|what (?:number|amount|count)\b/.test(qLower) ? 'howmany'
     : null
 
-  // S0: Extract entities (named entities + dates + years, no bare 2-digit numbers)
+  // S0: Extract entities from recalled memories for precise matching
   const entitySet = new Set<string>()
   const allRecalledText = recalled.map(m => m.content).join(' ')
-  const _ENTITY_EXCLUDE = new Set(['The','This','That','What','When','Where','How','Who','Which','Why','Does','Did','Has','Have','Was','Were','Can','Could','Would','Should','Not','And','But','For','From','With','About','After','Before','Since','During','Also','Just','Only','Still','Very','Much','Most','Many','Some','Both','Each','Every','Other'])
-  // Precise dates "7 January 2023"
-  for (const d of allRecalledText.match(/\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/gi) || [])
-    entitySet.add(d.toLowerCase())
-  // Standalone years and 4+ digit numbers (not bare 2-digit)
-  for (const n of allRecalledText.match(/\b\d{4,}\b/g) || []) entitySet.add(n)
-  // Named entities
-  for (const name of allRecalledText.match(/[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]+)*/g) || []) {
-    if (!_ENTITY_EXCLUDE.has(name.split(' ')[0])) {
-      entitySet.add(name.toLowerCase())
-      for (const part of name.split(/\s+/))
-        if (part.length >= 3 && !_ENTITY_EXCLUDE.has(part)) entitySet.add(part.toLowerCase())
+  const dateMatches = allRecalledText.match(/\d{1,2}\s+\w+\s+\d{4}/g) || []
+  for (const d of dateMatches) entitySet.add(d.toLowerCase())
+  const numMatches = allRecalledText.match(/\b\d{2,}\b/g) || []
+  for (const n of numMatches) entitySet.add(n)
+  const nameMatches = allRecalledText.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || []
+  for (const name of nameMatches) {
+    entitySet.add(name.toLowerCase())
+    for (const part of name.split(/\s+/)) {
+      if (part.length >= 2) entitySet.add(part.toLowerCase())
     }
   }
 
@@ -655,7 +736,7 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
 function parseArgs() {
   const args = process.argv.slice(2)
   let conv: number | undefined, type: string | undefined, topK = 10, verbose = false, limit = 0
-  let recallOnly = false, llm = false, online = false
+  let recallOnly = false, llm = false, online = false, api = false, apiPort = 18800, sample = false
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--conv' && args[i + 1]) conv = parseInt(args[++i])
     if (args[i] === '--type' && args[i + 1]) type = args[++i]
@@ -665,8 +746,11 @@ function parseArgs() {
     if (args[i] === '--recall-only') recallOnly = true
     if (args[i] === '--llm') llm = true
     if (args[i] === '--online') online = true
+    if (args[i] === '--api') { api = true; online = true }
+    if (args[i] === '--api-port' && args[i + 1]) apiPort = parseInt(args[++i])
+    if (args[i] === '--sample') sample = true  // 3-conv 快速采样（小/中/大库）
   }
-  return { conv, type, topK, verbose, limit, recallOnly, llm, online }
+  return { conv, type, topK, verbose, limit, recallOnly, llm, online, api, apiPort, sample }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -819,23 +903,19 @@ Answer with ONLY one letter (A-J).`
     raw = (json.choices?.[0]?.message?.content || '').trim()
   }
 
-  // 提取答案字母（优先匹配 ANSWER: X 格式，然后回退到旧模式）
+  // 提取答案字母
   let letter = ''
-  const answerTagMatch = raw.match(/ANSWER\s*:\s*\*?\*?\s*([A-J])\b/i)
-  if (answerTagMatch) {
-    letter = answerTagMatch[1]
+  const directMatch = raw.match(/^([A-J])\b/)
+  if (directMatch) {
+    letter = directMatch[1]
   } else {
-    const directMatch = raw.match(/^([A-J])\b/)
-    if (directMatch) {
-      letter = directMatch[1]
-    } else {
-      const answerMatch = raw.match(/(?:answer|choice|select|pick|choose)[:\s]+\*?\*?([A-J])\b/i)
-        || raw.match(/\b([A-J])\.\s/)
-        || raw.match(/\*\*([A-J])\*\*/)
-        || raw.match(/\b([A-J])$/m)
-      if (answerMatch) letter = answerMatch[1]
-      else letter = raw.charAt(0).toUpperCase()
-    }
+    const answerMatch = raw.match(/(?:answer|choice|select|pick|choose)[:\s]+\*?\*?([A-J])\b/i)
+      || raw.match(/ANSWER\s*:\s*\*?\*?\s*([A-J])\b/i)
+      || raw.match(/\b([A-J])\.\s/)
+      || raw.match(/\*\*([A-J])\*\*/)
+      || raw.match(/\b([A-J])$/m)
+    if (answerMatch) letter = answerMatch[1]
+    else letter = raw.charAt(0).toUpperCase()
   }
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
@@ -845,7 +925,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 async function run() {
   const opts = parseArgs()
-  const mode = opts.recallOnly ? 'recall-only' : opts.llm ? 'llm' : opts.online ? 'online' : 'default'
+  const mode = opts.recallOnly ? 'recall-only' : opts.llm ? 'llm' : opts.api ? 'api' : opts.online ? 'online' : 'default'
 
   print('═══════════════════════════════════════════════════════════')
   print('  cc-soul NAM × LOCOMO-MC10 Benchmark')
@@ -881,7 +961,12 @@ async function run() {
 
   // Filter
   let questions = allQuestions
-  if (opts.conv !== undefined) {
+  if (opts.sample) {
+    // 3-conv 快速采样：小库(conv-0)、中库(conv-4)、大库(conv-9) → ~500 题，2 分钟
+    const sampleConvs = [convIds[0], convIds[4], convIds[9]].filter(Boolean)
+    questions = allQuestions.filter(q => sampleConvs.includes(q.question_id.split('_')[0]))
+    print(`  Sample mode: ${sampleConvs.join(', ')} → ${questions.length} questions`)
+  } else if (opts.conv !== undefined) {
     const targetConv = convIds[opts.conv]
     if (!targetConv) { print(`  Invalid conv index: ${opts.conv}`); return }
     questions = convMap.get(targetConv) || []
@@ -944,6 +1029,8 @@ async function run() {
 
     // Build memories (cached)
     if (!memoryCache.has(convId)) {
+      // API 模式也用 buildMemoriesOnline（走 addMemory 完整管道含微蒸馏），
+      // 区别在于召回时更新元数据（模拟 recall() 的再固化）
       const memories = opts.online ? buildMemoriesOnline(q) : buildMemories(q)
       memoryCache.set(convId, memories)
       if (!learnedConvs.has(convId)) {
@@ -971,7 +1058,7 @@ async function run() {
             for (const sent of sentences) learnAssociation(sent, 0.5)
           }
         }
-        // S2: fact-store 暂关（A/B 测试发现它拉低 Hit@10）
+        // S2: fact-store 暂关（验证：限量融合仍 -2.2% Hit@10，facts 挤占 top-10）
         if (false) try {
           const { extractFacts, addFacts } = require('./fact-store.ts')
           let factCount = 0

@@ -290,9 +290,6 @@ let _abDisabledChannel: string | null = null
 let _abEngagementWithChannel: number[] = []
 let _abEngagementWithout: number[] = []
 
-export function getABDisabledChannel(): string | null {
-  return _abDisabledChannel
-}
 
 /** 每次 recall 调用时推进 A/B 计数器 */
 function tickABExperiment(): void {
