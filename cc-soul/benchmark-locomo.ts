@@ -809,13 +809,40 @@ async function run() {
     const recalled: Memory[] = activationRecall(memories, q.question, opts.topK, 0, 0.5, _cogHints)
     perQueryLatency.push(Date.now() - _qStart)
 
-    // ── PMI 反馈学习：模拟真实使用中 query↔recall 共现 ──
+    // ── Recall-Driven AAM Learning：模拟真实使用中 query↔recall 共现（增强版）──
     if (recalled.length > 0) {
       try {
-        const queryKw = (q.question.match(/[a-zA-Z]{3,}/gi) || []).slice(0, 5)
-        const recallKw = recalled.slice(0, 3).flatMap(m => (m.content.match(/[a-zA-Z]{3,}/gi) || [])).slice(0, 10)
+        const queryKw = (q.question.match(/[a-zA-Z]{3,}/gi) || []).slice(0, 8)
+        // 从 top-5 recalled 提取关键词（更广泛的学习窗口）
+        const recallKw = recalled.slice(0, 5).flatMap(m => (m.content.match(/[a-zA-Z]{3,}/gi) || [])).slice(0, 15)
         const combined = queryKw.join(' ') + ' ' + recallKw.join(' ')
-        learnAssociation(combined, 0.5)
+        learnAssociation(combined, 0.6)  // 权重提高
+        // Summary 记忆的内容词额外学习（summary 是聚合知识，关联质量高）
+        for (const mem of recalled.slice(0, 3)) {
+          if (mem.tags?.includes('summary')) {
+            learnAssociation(queryKw.join(' ') + ' ' + (mem.content.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 10).join(' '), 0.8)
+          }
+        }
+      } catch {}
+    }
+
+    // ── 增量前瞻标签：把 query 关键词注入到被召回记忆的 prospectiveTags ──
+    // 模拟真实使用：用户问过一次后，相关记忆的未来匹配能力增强
+    if (recalled.length > 0) {
+      try {
+        const qContentWords = (q.question.match(/[a-zA-Z]{4,}/gi) || [])
+          .map((w: string) => w.toLowerCase())
+          .filter(w => !/^(what|when|where|how|who|which|why|does|did|has|have|was|were|can|could|would|should)$/.test(w))
+          .slice(0, 5)
+        for (const mem of recalled.slice(0, 3)) {
+          const pt = (mem as any).prospectiveTags || []
+          for (const w of qContentWords) {
+            if (!pt.includes(w) && !(mem.content || '').toLowerCase().includes(w)) {
+              pt.push(w)
+            }
+          }
+          if (pt.length > 0) (mem as any).prospectiveTags = pt.slice(0, 12)
+        }
       } catch {}
     }
 
