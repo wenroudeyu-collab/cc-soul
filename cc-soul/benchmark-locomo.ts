@@ -164,26 +164,37 @@ function buildMemories(q: LocomoQuestion): Memory[] {
     }
   }
 
-  // ── Document Expansion: 给记忆追加概念上位词标签 ──
-  // IR 经典技术：在索引时扩展文档，让查询更容易匹配
-  // "I played ukulele" → "I played ukulele [instrument music]"
-  // 查询 "instruments" 直接命中 "instrument" 标签
-  try {
-    const { getConceptParents } = require('./aam.ts')
-    for (const mem of memories) {
-      const words = (mem.content || '').match(/[a-zA-Z]{3,}/gi) || []
-      const parents = new Set<string>()
-      for (const w of words) {
-        const ps = getConceptParents(w.toLowerCase())
-        for (const p of ps) {
-          if (p.length >= 3 && !/[\u4e00-\u9fff]/.test(p)) parents.add(p)  // 只加英文概念
-        }
-      }
-      if (parents.size > 0) {
-        mem.content += ' [' + [...parents].slice(0, 8).join(' ') + ']'
-      }
+  // ── Gist Trace：情节要旨痕迹（原创，Fuzzy Trace Theory 启发）──
+  // 不改 content（Document Expansion 验证伤分），而是存独立的 gist 结构
+  // 匹配在 gist 层做，作为 activation field 的独立信号，不污染 BM25
+  // 提取：动词骨架 + 情感极性 + 抽象主题标签
+  const POSITIVE_WORDS = new Set(['happy','excited','love','great','amazing','wonderful','enjoy','fun','glad','proud','beautiful','awesome','fantastic','celebrate','perfect','thrilled','delighted'])
+  const NEGATIVE_WORDS = new Set(['sad','angry','frustrated','stressed','worried','anxious','tired','upset','disappointed','hurt','scared','lonely','overwhelmed','painful','annoyed','difficult','struggled'])
+  const ABSTRACT_MAP: Record<string, string[]> = {
+    'moved': ['relocation','change'], 'travel': ['journey','adventure'], 'bought': ['acquisition','purchase'],
+    'lost': ['loss','misfortune'], 'won': ['achievement','success'], 'failed': ['setback','failure'],
+    'married': ['relationship','milestone'], 'graduated': ['education','achievement'], 'hired': ['career','opportunity'],
+    'fired': ['career','setback'], 'adopted': ['family','decision'], 'volunteered': ['community','service'],
+    'painted': ['art','hobby'], 'hiked': ['outdoor','activity'], 'camped': ['outdoor','adventure'],
+    'cooked': ['food','hobby'], 'read': ['reading','learning'], 'played': ['music','hobby','activity'],
+  }
+  for (const mem of memories) {
+    const c = (mem.content || '').toLowerCase()
+    const words = c.match(/[a-z]{3,}/g) || []
+    // 情感极性
+    const posHits = words.filter(w => POSITIVE_WORDS.has(w)).length
+    const negHits = words.filter(w => NEGATIVE_WORDS.has(w)).length
+    const polarity = posHits > negHits ? 1 : negHits > posHits ? -1 : 0
+    // 抽象标签
+    const abstractTags = new Set<string>()
+    for (const w of words) {
+      const mapped = ABSTRACT_MAP[w]
+      if (mapped) for (const t of mapped) abstractTags.add(t)
     }
-  } catch {}
+    if (abstractTags.size > 0 || polarity !== 0) {
+      ;(mem as any)._gist = { polarity, abstractTags: [...abstractTags].slice(0, 6) }
+    }
+  }
 
   return memories
 }
@@ -367,7 +378,7 @@ function answerInRecalled(recalled: Memory[], answer: string): { hit: boolean; r
 // LAYER 2: ANSWER SELECTION (10-choice)
 // ═══════════════════════════════════════════════════════════════
 
-function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: number; confidence: number } {
+function selectAnswer(recalled: Memory[], choices: string[], question?: string): { choiceIndex: number; confidence: number } {
   if (recalled.length === 0) {
     const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
     return { choiceIndex: naIdx >= 0 ? naIdx : 0, confidence: 0 }
@@ -444,11 +455,20 @@ function selectAnswer(recalled: Memory[], choices: string[]): { choiceIndex: num
 
   scores.sort((a, b) => b.score - a.score)
 
-  // Low confidence + "Not answerable" available → dynamic fallback
-  if (scores[0].score < 0.15) {
-    const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
-    if (naIdx >= 0) return { choiceIndex: naIdx, confidence: scores[0].score }
-  }
+  // ── Dynamic Abstain：三维 answerability 评估（原创）──
+  const _ABSTAIN_STOPS = new Set(['what','when','where','how','who','which','why','the','this','that','does','did','has','have','was','were','can','could','would','should','not','are','its','his','her','she','they','been','being','had','with','from','for','and','but','about','after','before','into','over','than','then','some','any','all','both','each','more','most','many','much','very','also','just','only','still'])
+  const qKeywords = ((question || '').toLowerCase().match(/[a-z]{3,}/g) || []).filter(w => !_ABSTAIN_STOPS.has(w))
+  const recalledText = recalled.map(m => m.content).join(' ').toLowerCase()
+  const evidenceCoverage = qKeywords.length > 0 ? qKeywords.filter(w => recalledText.includes(w)).length / qKeywords.length : 0
+  const margin = scores[0].score > 0 && scores.length >= 2 ? (scores[0].score - scores[1].score) / Math.max(scores[0].score, 0.01) : 0
+  const qEntities = ((question || '').match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
+  const entityCoverage = qEntities.length > 0 ? qEntities.filter(n => recalledText.includes(n.toLowerCase())).length / qEntities.length : 1
+  const answerability = evidenceCoverage * (0.3 + 0.7 * margin) * entityCoverage
+  const naIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
+  if (answerability < 0.15 && naIdx >= 0) return { choiceIndex: naIdx, confidence: answerability }
+
+  // Low confidence fallback
+  if (scores[0].score < 0.15 && naIdx >= 0) return { choiceIndex: naIdx, confidence: scores[0].score }
 
   return { choiceIndex: scores[0].idx, confidence: scores[0].score }
 }
@@ -822,7 +842,7 @@ async function run() {
     if (!opts.recallOnly) {
       // String-match answer selection (always run)
       stat.mcTotal++
-      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices)
+      const { choiceIndex, confidence } = selectAnswer(recalled, q.choices, q.question)
       _qMCCorrect = choiceIndex === q.correct_choice_index
       if (_qMCCorrect) stat.mcCorrect++
 

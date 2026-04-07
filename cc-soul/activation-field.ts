@@ -641,7 +641,33 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
       sshScore = tw > 0 ? wo / tw : 0
     }
   }
-  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight, sshScore * 0.8)
+  // ── CER: Contextual Entity Relevance（原创子算法——嵌套在 contextMatch 内）──
+  // BM25 的弱点：词覆盖率低时整条记忆被截断（wordScore=0）
+  // CER 补偿：只要实体名+动作词同时命中，就给分——绕过 BM25 的分母膨胀问题
+  let cerScore = 0
+  // 提取 query 中的实体名（大写开头，排除疑问词）
+  const _cerEntities = (query.match(/\b[A-Z][a-z]{2,}\b/g) || [])
+    .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/.test(n))
+  if (_cerEntities.length > 0) {
+    const entityHit = _cerEntities.some(n => contentLower.includes(n.toLowerCase()))
+    if (entityHit) {
+      // 实体命中后检查内容词重叠（至少 1 个非实体非停用词命中）
+      const _cerContentWords = (query.match(/[a-zA-Z]{4,}/gi) || [])
+        .map(w => w.toLowerCase())
+        .filter(w => !EN_STOP_WORDS.has(w) && !_cerEntities.map(e => e.toLowerCase()).includes(w))
+      const contentHits = _cerContentWords.filter(w => {
+        if (contentLower.includes(w)) return true
+        // Porter stem fallback
+        const stem = porterStem(w)
+        return stem !== w && contentLower.includes(stem)
+      }).length
+      if (contentHits > 0) {
+        cerScore = Math.min(0.8, contentHits / Math.max(_cerContentWords.length, 1))
+      }
+    }
+  }
+
+  return Math.max(wordScore, phraseScore * 1.2, triScore * _triWeight, sshScore * 0.8, cerScore * 0.9)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1645,6 +1671,30 @@ export function activationRecall(
     } catch {}
   }
 
+  // ── Entity-Focused Reformulation（原创：实体焦点查询改写）──
+  // "What instruments does Melanie play?" → 额外搜 "Melanie play"（只保留实体+动词）
+  // 原理：长查询的 BM25 被疑问词（what/does）和概念词（instruments）分散了
+  // 短查询只含实体+动词，BM25 更聚焦到包含该人实际行为的记忆
+  if (_queryNames && _queryNames.length >= 1 && results.length > 0 && results[0].activation < 0.8) {
+    try {
+      const verbs = (lexicalQuery.match(/\b[a-z]{3,}(?:ed|ing|s|es)?\b/gi) || [])
+        .filter(w => !EN_STOP_WORDS.has(w.toLowerCase()) && !_queryNames.includes(w.toLowerCase()))
+        .slice(0, 3)
+      if (verbs.length >= 1) {
+        const focusedQuery = _queryNames.join(' ') + ' ' + verbs.join(' ')
+        const focusedResults = computeActivationField(memories, focusedQuery, mood, alertness, expanded, topN * 2, timeRange, cogHints)
+        const seenContent = new Set(results.map(r => r.memory.content))
+        for (const r of focusedResults) {
+          if (!seenContent.has(r.memory.content)) {
+            results.push(r)
+            seenContent.add(r.memory.content)
+          }
+        }
+        results.sort((a, b) => b.activation - a.activation)
+      }
+    } catch {}
+  }
+
   // ── 分数平坦度检测 → 聚合查询自适应 topN ──
   // 无明显赢家 = 查询需要综合多条记忆（"我是怎样的人"/"描述我的一天"）
   if (results.length >= 5) {
@@ -1954,6 +2004,43 @@ export function activationRecall(
       results.sort((a, b) => b.activation - a.activation)
       console.log(`[activation-field] segment-cohesion: boosted ${boosted} memories across ${[...segCounts.values()].filter(v => v >= 2).length} segments`)
     }
+  }
+
+  // ── Coverage Rerank：多约束覆盖最大化（multi-hop / 跨实体查询）──
+  // 原创算法：从"单条最相关"变成"组合覆盖最多约束"
+  // 只在多实体查询时触发，避免对单约束查询引入噪声
+  if (_queryNames && _queryNames.length >= 2 && results.length > topN) {
+    const constraints = new Set<string>()
+    for (const n of _queryNames) constraints.add('entity:' + n)
+    const contentWords = (lexicalQuery.match(/[a-z]{4,}/gi) || [])
+      .filter(w => !EN_STOP_WORDS.has(w.toLowerCase()))
+      .slice(0, 6)
+    for (const w of contentWords) constraints.add('kw:' + w.toLowerCase())
+
+    const pool = results.slice(0, topN * 2)
+    const selected: typeof results = []
+    const uncovered = new Set(constraints)
+
+    while (selected.length < topN && pool.length > 0) {
+      let bestIdx = 0, bestScore = -1
+      for (let i = 0; i < pool.length; i++) {
+        const ml = pool[i].memory.content.toLowerCase()
+        let gain = 0
+        for (const c of uncovered) {
+          if (ml.includes(c.split(':')[1])) gain++
+        }
+        const rankScore = 1 / (1 + i)
+        const combined = 0.6 * rankScore + 0.4 * (gain / Math.max(constraints.size, 1))
+        if (combined > bestScore) { bestScore = combined; bestIdx = i }
+      }
+      const picked = pool.splice(bestIdx, 1)[0]
+      selected.push(picked)
+      const ml = picked.memory.content.toLowerCase()
+      for (const c of [...uncovered]) {
+        if (ml.includes(c.split(':')[1])) uncovered.delete(c)
+      }
+    }
+    results = selected
   }
 
   // 截断到 topN
