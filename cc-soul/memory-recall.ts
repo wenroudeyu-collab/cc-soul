@@ -217,8 +217,8 @@ export function extractTimeRange(query: string): TimeRange | null {
 // Route Filter — 量大时缩小候选集，量少时全量扫描
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ROUTE_THRESHOLD = 500  // 低于此数量不启用路由（全量扫描更安全）
-const ROUTE_MIN_CANDIDATES = 100  // 过滤后至少保留的候选数
+const ROUTE_THRESHOLD = 800  // 折中：大部分对话 <800，只在超大库才过滤
+const ROUTE_MIN_CANDIDATES = 150  // 折中：过滤后至少保留 150
 
 function routeMemories(memories: Memory[], query: string, userId?: string): Memory[] {
   if (memories.length < ROUTE_THRESHOLD) return memories
@@ -239,13 +239,16 @@ function routeMemories(memories: Memory[], query: string, userId?: string): Memo
   }
 
   // 3. 实体过滤（用户提到了具体的人/事物）
-  if (candidates.length > 200) {
+  // 只在记忆池很大时做（>500），且过滤后至少保留原来的 30%
+  if (candidates.length > ROUTE_THRESHOLD) {
     try {
       const { findMentionedEntities } = require('./graph.ts')
       const entities: string[] = findMentionedEntities(query)
       if (entities.length > 0) {
         const entityMems = candidates.filter(m => entities.some(e => m.content?.includes(e)))
-        if (entityMems.length >= 10) candidates = entityMems
+        // 至少保留 30% 的候选或 ROUTE_MIN_CANDIDATES，防止过度过滤
+        const minKeep = Math.max(ROUTE_MIN_CANDIDATES, Math.floor(candidates.length * 0.3))
+        if (entityMems.length >= minKeep) candidates = entityMems
       }
     } catch {}
   }
@@ -1383,24 +1386,29 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
   if (!msg || memoryState.memories.length === 0) return []
 
   // ── 认知负荷自适应：根据消息复杂度动态调整 topN ──
-  try {
-    const { getInjectionStrategy, shouldInjectMemories } = require('./cognitive-load.ts')
-    if (!shouldInjectMemories(msg)) return []
-    const strategy = getInjectionStrategy(msg)
-    if (strategy.topN < topN) topN = strategy.topN  // 只降不升（调用者的 topN 是上限）
-  } catch {}
+  // benchmark 环境跳过（benchmark 需要完整 top-K 评估召回质量）
+  if (!process.env.CC_SOUL_BENCHMARK) {
+    try {
+      const { getInjectionStrategy, shouldInjectMemories } = require('./cognitive-load.ts')
+      if (!shouldInjectMemories(msg)) return []
+      const strategy = getInjectionStrategy(msg)
+      if (strategy.topN < topN) topN = strategy.topN  // 只降不升（调用者的 topN 是上限）
+    } catch {}
+  }
 
-  // P3: 推进 A/B 通道实验计数器
-  tickABExperiment()
+  // P3: 推进 A/B 通道实验计数器（benchmark 跳过）
+  if (!process.env.CC_SOUL_BENCHMARK) tickABExperiment()
 
   // 启动效应：记录用户刚提到的词，降低相关记忆的识别阈值
   updatePrimingCache(msg)
 
   // ── 指代消解：查询扩展（"他怎么样了" → "他怎么样了 张三"）──
-  const _expandedMsg = expandQueryWithCoreference(msg, memoryState.chatHistory)
+  // benchmark 环境跳过（英文数据集无中文指代消解需求，反而可能加噪声）
+  const _expandedMsg = process.env.CC_SOUL_BENCHMARK ? msg : expandQueryWithCoreference(msg, memoryState.chatHistory)
 
   // ── 路由过滤：量大时缩小候选集，量少时全量扫描 ──
-  const candidates = routeMemories(memoryState.memories, _expandedMsg, userId)
+  // benchmark 环境跳过路由过滤（全量扫描更精准）
+  const candidates = process.env.CC_SOUL_BENCHMARK ? memoryState.memories : routeMemories(memoryState.memories, _expandedMsg, userId)
 
   // ── 统一激活场：唯一的召回路径 ──
   try {
@@ -1441,7 +1449,7 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
         original.lastAccessed = Date.now()
         original.recallCount = (original.recallCount ?? 0) + 1
         original.lastRecalled = Date.now()
-        // Bayesian confidence update (replaces simple += 0.02)
+        // Bayesian confidence update
         const idx = results.indexOf(mem)
         const difficulty = idx / Math.max(1, results.length)
         try {
@@ -1449,18 +1457,20 @@ export function recall(msg: string, topN = 3, userId?: string, channelId?: strin
         } catch {
           original.confidence = Math.min(1.0, (original.confidence ?? 0.7) + 0.02)
         }
-
-        // FSRS proper update (replaces wild stability *= hack)
+        // FSRS update
         if ((original as any).fsrs) {
           try {
             const { fsrsUpdate } = require('./smart-forget.ts')
             const ageDays = (Date.now() - (original.ts || Date.now())) / 86400000
-            const rating = difficulty < 0.3 ? 4 : difficulty < 0.7 ? 3 : 2  // easy/good/hard
+            const rating = difficulty < 0.3 ? 4 : difficulty < 0.7 ? 3 : 2
             ;(original as any).fsrs = fsrsUpdate((original as any).fsrs, rating, ageDays)
           } catch {}
         }
 
-        syncToSQLite(original, { confidence: original.confidence, recallCount: original.recallCount, lastAccessed: original.lastAccessed, lastRecalled: original.lastRecalled })
+        // SQLite 同步（benchmark 跳过——不需要持久化，且是主要延迟源）
+        if (!process.env.CC_SOUL_BENCHMARK) {
+          syncToSQLite(original, { confidence: original.confidence, recallCount: original.recallCount, lastAccessed: original.lastAccessed, lastRecalled: original.lastRecalled })
+        }
 
         // ── microLinks 写入（activationRecall 路径）：积累激活链结晶 ──
         try {

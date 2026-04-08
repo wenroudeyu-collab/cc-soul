@@ -50,8 +50,9 @@
 3. **B4 IDF-Weighted Coverage** — token coverage 加 IDF 权重，"the"≠"ukulele"。改 selectAnswer。预估 SM +2~3%
 4. **B5 QA Type 匹配** — Who→人名boost, When→日期boost, Where→地名boost, How many→数字boost。20行规则。预估 SM +2~4%
 
-### P0（跑分+产品）
-5. **微蒸馏（Real-time Micro-Distillation）** — addMemory 后检查最近 10 条 trigram > 0.3 的记忆，合并更新。轻活实时干（+5ms），重活定时干（6h 深度蒸馏）。解决 online 缺 merged windows。与深度蒸馏互补不冲突。
+### P0（架构升级）
+5. **话题分池召回（Topic-Partitioned Recall）** — ✅ 已实现硬编码版（15 个话题 hard-partition + fallback）。待做：动态话题发现（AAM PMI > 3.0 词簇自动聚类为新话题）。
+6. **微蒸馏（Real-time Micro-Distillation）** — addMemory 后检查最近 10 条 trigram > 0.3 的记忆，合并更新。轻活实时干（+5ms），重活定时干（6h 深度蒸馏）。解决 online 缺 merged windows。与深度蒸馏互补不冲突。
 6. **PSA（Parallel Signal Agents）** — 子 agent 并行召回 + RRF 总成。参考 /Users/z/Downloads/claude-code-main 的 agent 架构做原创设计。预期：打破乘法融合的天花板
 6. **API 全系统 benchmark** — 用 soul-api.ts 接口，让 AAM/蒸馏/utility 全部运行。对标竞品的真实测试方式
 
@@ -123,6 +124,27 @@
 - **Online vs Offline 才是真差距** — LongMemEval: GPT-4o offline 91% → online 57%（-34%）
 - **cc-soul 论点**: 别家 offline 强 online 弱，我们为 online 优化（AAM+蒸馏+utility 越用越准）
 
+## 竞品论文可偷的算法（2026-04-08 收到）
+
+### P0（白捡分）
+- **PMI 阈值参数化** — aam.ts:2346 硬编码 3.0 改 getParam()
+- **light_sleep 跑 L1→L2** — handler-heartbeat.ts 浅睡加调 distillL1toL2()
+- **事实衰老** — fact-store.ts 工作地点 auto-expire 1 年
+- **entity 时间衰减** — graph.ts 1 年前关联 0.5×
+
+### P1（中等改动）
+- **Event-based 衰减** — FOREVER 论文：ACT-R 用"之后发生了多少事件"替代 wall-clock（activation-field.ts s1）
+- **Complexity-aware routing** — TiMem 论文：简单查询直读 L3 心智模型，复杂查询走 activationRecall
+- **五因子准入控制** — A-MAC 论文：替代单一 surprise 阈值（utility×confidence×novelty×recency×contentType）
+- **因果图谱** — MAGMA 论文：检测"因为/所以/导致/because"建 causal edge，multi_hop 直接解
+
+### P2（论文级原创）
+- **RRF NAM Coordinator** — 把 6 worker 并集改成 Reciprocal Rank Fusion: score = Σ 1/(k+rank_i)。RwF 论文(arxiv 2603.09576)启发的能量最小化路由思路。★★★★☆
+- **认知负荷感知路由 (CLAR)** — CGAF + TiMem 融合 ★★★★★
+- **自适应概率门控** — FluxMem 论文：Beta Mixture Model 替代硬阈值 ★★★★☆
+- **Hopfield 联想召回通道** — SuperLocalMemory 论文：记忆级模式补全 ★★★★☆
+- **个人 FSRS 参数学习** — 从用户遗忘历史反演 FSRS weights ★★★★☆
+
 ### 参考文献清单（论文用）
 - Hindsight: arxiv.org/abs/2512.12818
 - ENGRAM: arxiv.org/abs/2511.12960
@@ -140,3 +162,10 @@
 - Encoding Variability: Memory & Cognition 2024-2025
 - BM25F: Robertson et al.
 - PRF/RM3: Rocchio
+- A-MAC: arxiv.org/abs/2603.04549
+- TiMem: arxiv.org/abs/2601.02845
+- FOREVER: arxiv.org/abs/2601.03938
+- FluxMem: arxiv.org/abs/2602.14038
+- MAGMA: arxiv.org/abs/2601.03236
+- CraniMem: arxiv.org/abs/2603.15642
+- SuperLocalMemory: arxiv.org/abs/2604.04514

@@ -1,14 +1,5 @@
 [
   {
-    "id": "pm_1774874875923_0",
-    "trigger": "wang",
-    "remind": "用户近期多次提到\"wang\"（7次），可能是持续关注的话题",
-    "createdAt": 1774874875923,
-    "expiresAt": 1776084475923,
-    "source": "auto",
-    "firedAt": 1774941825234
-  },
-  {
     "id": "pm_1774874875924_1",
     "trigger": "historical",
     "remind": "用户近期多次提到\"historical\"（5次），可能是持续关注的话题",
@@ -97,15 +88,6 @@
     "source": "auto"
   },
   {
-    "id": "pm_1774896425512_0",
-    "trigger": "nginx",
-    "remind": "用户近期多次提到\"nginx\"（6次），可能是持续关注的话题",
-    "createdAt": 1774896425512,
-    "expiresAt": 1776106025512,
-    "source": "auto",
-    "firedAt": 1774912805443
-  },
-  {
     "id": "pm_1774896425512_1",
     "trigger": "apache",
     "remind": "用户近期多次提到\"apache\"（6次），可能是持续关注的话题",
@@ -170,39 +152,12 @@
     "source": "auto"
   },
   {
-    "id": "pm_1774910323028_4",
-    "trigger": "python",
-    "remind": "用户近期多次提到\"python\"（4次），可能是持续关注的话题",
-    "createdAt": 1774910323028,
-    "expiresAt": 1776119923028,
-    "source": "auto",
-    "firedAt": 1774914357455
-  },
-  {
-    "id": "pm_1774911840001_0",
-    "trigger": "redis",
-    "remind": "用户近期多次提到\"redis\"（3次），可能是持续关注的话题",
-    "createdAt": 1774911840001,
-    "expiresAt": 1776121440001,
-    "source": "auto",
-    "firedAt": 1774912546281
-  },
-  {
     "id": "pm_1774912739114_0",
     "trigger": "单体架构",
     "remind": "用户近期多次提到\"单体架构\"（3次），可能是持续关注的话题",
     "createdAt": 1774912739114,
     "expiresAt": 1776122339114,
     "source": "auto"
-  },
-  {
-    "id": "pm_1774913460039_0",
-    "trigger": "java",
-    "remind": "用户近期多次提到\"java\"（3次），可能是持续关注的话题",
-    "createdAt": 1774913460039,
-    "expiresAt": 1776123060039,
-    "source": "auto",
-    "firedAt": 1775081558464
   },
   {
     "id": "pm_1774913460039_1",
@@ -277,16 +232,6 @@
     "source": "auto"
   },
   {
-    "id": "pm_1774918004336_0",
-    "trigger": "会议|review|评审|述职|汇报|PPT|材料|分享|演讲|讲座|slides",
-    "remind": "用户之前提到有会议/分享安排：提醒我 周五下午3点开会",
-    "createdAt": 1774918004336,
-    "expiresAt": 1775522804336,
-    "source": "user_explicit",
-    "userId": "ou_db9ed11831f16364610ed6eefcff963e",
-    "firedAt": 1774941285389
-  },
-  {
     "id": "pm_1774942210469_0",
     "trigger": "wang",
     "remind": "用户近期多次提到\"wang\"（10次），可能是持续关注的话题",
@@ -319,30 +264,12 @@
     "source": "auto"
   },
   {
-    "id": "pm_1775030839049_1",
-    "trigger": "swift",
-    "remind": "用户近期多次提到\"swift\"（8次），可能是持续关注的话题",
-    "createdAt": 1775030839049,
-    "expiresAt": 1776240439049,
-    "source": "auto",
-    "firedAt": 1775078662624
-  },
-  {
     "id": "pm_1775034439073_2",
     "trigger": "android",
     "remind": "用户近期多次提到\"android\"（4次），可能是持续关注的话题",
     "createdAt": 1775034439073,
     "expiresAt": 1776244039073,
     "source": "auto"
-  },
-  {
-    "id": "pm_1775036239098_3",
-    "trigger": "豆豆",
-    "remind": "用户近期多次提到\"豆豆\"（3次），可能是持续关注的话题",
-    "createdAt": 1775036239098,
-    "expiresAt": 1776245839098,
-    "source": "auto",
-    "firedAt": 1775077191663
   },
   {
     "id": "pm_1775036239098_4",

@@ -259,19 +259,21 @@ export function getMomentumBoost(memContent: string): number {
 // ═══════════════════════════════════════════════════════════════
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  work: ['工作', '上班', '公司', '同事', '加班', '薪资', '面试', '简历', '老板', '晋升', 'work', 'job', 'company', 'boss', 'salary'],
-  tech: ['代码', '编程', '服务器', '数据库', 'bug', 'Python', 'code', 'deploy', '开发', '接口', 'API', '框架', 'debug'],
-  health: ['血压', '睡眠', '运动', '减肥', '过敏', '体检', '医院', '吃药', '感冒', '头疼', 'health', 'doctor', 'exercise'],
-  family: ['老婆', '女朋友', '孩子', '父母', '家人', '宝宝', '老公', '男朋友', '爸', '妈', 'wife', 'family', 'husband', 'kid'],
-  finance: ['房贷', '工资', '股票', '理财', '存款', '基金', '投资', '账单', 'mortgage', 'salary', 'stock', 'invest'],
-  food: ['吃', '做饭', '火锅', '外卖', '餐厅', '菜', '烧烤', '奶茶', 'food', 'restaurant', 'cook', 'recipe'],
-  travel: ['旅游', '出差', '机票', '酒店', '签证', '景点', 'travel', 'trip', 'flight', 'hotel'],
-  emotion: ['开心', '难过', '焦虑', '压力', '心情', '烦', '崩溃', '郁闷', 'happy', 'sad', 'anxious', 'stress'],
-  housing: ['房子', '租房', '装修', '搬家', '物业', '小区', 'house', 'rent', 'apartment', 'move'],
-  social: ['朋友', '聚会', '约会', '社交', '饭局', 'friend', 'party', 'date', 'hangout'],
-  education: ['学习', '大学', '考试', '课程', '论文', '毕业', 'study', 'university', 'exam', 'course'],
-  entertainment: ['电影', '游戏', '音乐', '看书', '追剧', '综艺', 'movie', 'game', 'music', 'book'],
-  pet: ['猫', '狗', '宠物', '铲屎', '猫粮', '狗粮', 'cat', 'dog', 'pet'],
+  work: ['工作', '上班', '公司', '同事', '加班', '薪资', '面试', '简历', '老板', '晋升', 'work', 'job', 'company', 'boss', 'salary', 'career', 'office', 'colleague'],
+  tech: ['代码', '编程', '服务器', '数据库', 'bug', 'Python', 'code', 'deploy', '开发', '接口', 'API', '框架', 'debug', 'programming', 'software'],
+  health: ['血压', '睡眠', '运动', '减肥', '过敏', '体检', '医院', '吃药', '感冒', '头疼', 'health', 'doctor', 'exercise', 'running', 'fitness', 'gym', 'marathon', 'yoga', 'workout'],
+  family: ['老婆', '女朋友', '孩子', '父母', '家人', '宝宝', '老公', '男朋友', '爸', '妈', 'wife', 'family', 'husband', 'kid', 'children', 'mother', 'father', 'daughter', 'son', 'sibling', 'grandma', 'grandmother'],
+  finance: ['房贷', '工资', '股票', '理财', '存款', '基金', '投资', '账单', 'mortgage', 'salary', 'stock', 'invest', 'budget', 'savings'],
+  food: ['吃', '做饭', '火锅', '外卖', '餐厅', '菜', '烧烤', '奶茶', 'food', 'restaurant', 'cook', 'recipe', 'bake', 'dinner', 'lunch'],
+  travel: ['旅游', '出差', '机票', '酒店', '签证', '景点', 'travel', 'trip', 'flight', 'hotel', 'vacation', 'road trip', 'camping', 'hiking', 'beach'],
+  emotion: ['开心', '难过', '焦虑', '压力', '心情', '烦', '崩溃', '郁闷', 'happy', 'sad', 'anxious', 'stress', 'excited', 'worried', 'proud', 'grateful', 'scared'],
+  housing: ['房子', '租房', '装修', '搬家', '物业', '小区', 'house', 'rent', 'apartment', 'move', 'home', 'neighborhood'],
+  social: ['朋友', '聚会', '约会', '社交', '饭局', 'friend', 'party', 'date', 'hangout', 'reunion', 'catch up', 'meeting'],
+  education: ['学习', '大学', '考试', '课程', '论文', '毕业', 'study', 'university', 'exam', 'course', 'school', 'teacher', 'graduate', 'degree'],
+  entertainment: ['电影', '游戏', '音乐', '看书', '追剧', '综艺', 'movie', 'game', 'music', 'book', 'read', 'concert', 'painting', 'art', 'pottery', 'piano', 'guitar', 'ukulele'],
+  pet: ['猫', '狗', '宠物', '铲屎', '猫粮', '狗粮', 'cat', 'dog', 'pet', 'kitten', 'puppy', 'animal', 'foster', 'shelter'],
+  identity: ['adoption', 'adopted', 'religion', 'religious', 'church', 'faith', 'LGBTQ', 'transgender', 'pride', 'community', 'volunteer', 'charity', 'mentorship', 'counseling', 'advocacy'],
+  outdoor: ['hike', 'bike', 'camp', 'trail', 'park', 'garden', 'nature', 'sunrise', 'photography', 'landscape', 'mountain', 'lake'],
 }
 
 // 预编译：为每个 category 建一个 Set（加速查找）
@@ -280,14 +282,27 @@ for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
   _categoryWordSets.set(cat, new Set(words.map(w => w.toLowerCase())))
 }
 
-/** 检测文本的领域分类，返回命中的 category 列表（按命中数降序） */
+/** 检测文本的领域分类，返回命中的 category 列表（按命中数降序）
+ *  使用 stemming 扩大匹配覆盖（"ran"→"run" 匹配 "running"）*/
 function detectCategories(text: string): string[] {
   const lower = text.toLowerCase()
+  // 提取文本中的所有词（含 stemmed 形式）
+  const textWords = new Set<string>()
+  for (const w of (lower.match(/[a-z]{3,}/g) || [])) {
+    textWords.add(w)
+    textWords.add(porterStem(w))  // stemmed 形式
+  }
+  // CJK 保留
+  for (const w of (lower.match(/[\u4e00-\u9fff]{2,4}/g) || [])) textWords.add(w)
+
   const scores: [string, number][] = []
   for (const [cat, wordSet] of _categoryWordSets) {
     let hits = 0
-    for (const w of wordSet) {
-      if (lower.includes(w)) hits++
+    for (const kw of wordSet) {
+      // 直接包含 or stemmed 匹配
+      if (lower.includes(kw)) { hits++; continue }
+      const kwStem = kw.length >= 3 && /^[a-z]+$/.test(kw) ? porterStem(kw) : kw
+      if (textWords.has(kwStem)) hits++
     }
     if (hits > 0) scores.push([cat, hits])
   }
@@ -324,37 +339,67 @@ const CATEGORY_HIGH_IMPORTANCE = 8    // 高重要性记忆无条件保留
 // 存储在 _categoryPenalty Map 中，供 computeActivationField 读取
 const _categoryPenalty = new Map<string, number>()
 
+/**
+ * Topic-Partitioned Recall v3（hard-partition + stemming 增强 + 安全 fallback）
+ * v1: soft-weighting → 效果弱
+ * v2: hard-partition + 关键词匹配 → 英文覆盖不足 -6.4%
+ * v3: hard-partition + stemming + 40% 安全阈值 + 无分类记忆保留
+ */
 function categoryPrePrune(memories: Memory[], query: string): Memory[] {
   _categoryPenalty.clear()
 
   if (memories.length <= CATEGORY_PRUNE_THRESHOLD) return memories
 
-  const queryCats = detectCategories(query)
-  if (queryCats.length === 0) return memories  // 查询无明确领域，不调
+  // temporal 查询不做 hard-partition（时间答案可能在任何话题里）
+  if (_currentQueryType === 'temporal') return memories
 
-  const queryCatSet = new Set(queryCats)
+  const queryCats = detectCategories(query)
+  if (queryCats.length === 0) return memories
+
+  const queryCatSet = new Set(queryCats.slice(0, 3))
+  const partitioned: Memory[] = []
+  const seen = new Set<Memory>()
 
   for (const mem of memories) {
-    // 高重要性无条件满权重
-    if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE) continue
-    // 无 category 标签 → 满权重（不冤枉）
-    const memCats = getMemCategories(mem)
-    if (memCats.length === 0) continue
-    // 有交集 → 满权重
-    let matched = false
-    for (const mc of memCats) {
-      if (queryCatSet.has(mc)) { matched = true; break }
+    // 无条件保留：高重要性 / summary / 蒸馏 / insight
+    if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE ||
+        mem.tags?.includes('summary') || mem.scope === 'consolidated' ||
+        mem.scope === 'fact' || mem.scope === 'insight') {
+      if (!seen.has(mem)) { partitioned.push(mem); seen.add(mem) }
+      continue
     }
-    // 无交集 → 降权 0.5（不删除）
-    if (!matched) {
-      _categoryPenalty.set(memKey(mem), 0.5)
+    // 话题匹配（stemming 增强后覆盖率更高）
+    const memCats = getMemCategories(mem)
+    if (memCats.length === 0) {
+      // 无法分类的记忆也保留（不冤枉）
+      if (!seen.has(mem)) { partitioned.push(mem); seen.add(mem) }
+      continue
+    }
+    for (const mc of memCats) {
+      if (queryCatSet.has(mc)) {
+        if (!seen.has(mem)) { partitioned.push(mem); seen.add(mem) }
+        break
+      }
     }
   }
 
-  if (_categoryPenalty.size > 0) {
-    console.log(`[activation-field] category soft-weight: ${_categoryPenalty.size}/${memories.length} memories penalized (query cats: ${queryCats.join(',')})`)
+  // 安全阈值：partition 后至少保留 50% 或 MIN_POOL
+  if (partitioned.length < Math.max(CATEGORY_PRUNE_MIN_POOL, memories.length * 0.5)) {
+    // fallback: soft-weighting
+    for (const mem of memories) {
+      if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE) continue
+      const memCats = getMemCategories(mem)
+      if (memCats.length === 0) continue
+      let matched = false
+      for (const mc of memCats) { if (queryCatSet.has(mc)) { matched = true; break } }
+      if (!matched) _categoryPenalty.set(memKey(mem), 0.5)
+    }
+    console.log(`[activation-field] topic-partition fallback: pool ${partitioned.length}/${memories.length} too small, soft-weight`)
+    return memories
   }
-  return memories  // 永远返回全集，不删除
+
+  console.log(`[activation-field] topic-partition: ${partitioned.length}/${memories.length} (topics: ${[...queryCatSet].join(',')})`)
+  return partitioned
 }
 
 function getCategoryWeight(mem: Memory): number {
@@ -392,7 +437,7 @@ function baseActivation(mem: Memory, now: number): number {
 
   // ACT-R: B = ln(Σ t_i^(-d)), d=0.5
   let sum = 0
-  const cap = Math.min(n, 50)
+  const cap = Math.min(n, 20)  // 限制 recallCount 对 base activation 的贡献（从 50 降到 20）
   if (cap === 1) {
     sum = Math.pow(lastAgo, -0.5)
   } else {
@@ -466,24 +511,38 @@ function buildIdfCache(memories: Memory[]): Map<string, number> {
 // Query-Type Adaptive Parameters（查询类型自适应 k1/b）
 // ═══════════════════════════════════════════════════════════════
 
-type QueryType = 'precise' | 'temporal' | 'broad'
+type QueryType = 'precise' | 'temporal' | 'broad' | 'multi_entity'
 
 interface QueryTypeParams { k1: number; b: number; temporalBoost: number }
 
 // Query-type multipliers applied on top of auto-tune base k1/b
 const QUERY_TYPE_MULTIPLIERS: Record<QueryType, { k1Mult: number; bMult: number; temporalBoost: number }> = {
-  precise:  { k1Mult: 1.5,  bMult: 1.0,  temporalBoost: 1.0 },
-  temporal: { k1Mult: 1.0,  bMult: 0.67, temporalBoost: 2.0 },
-  broad:    { k1Mult: 0.67, bMult: 0.4,  temporalBoost: 1.0 },
+  precise:      { k1Mult: 1.5,  bMult: 1.0,  temporalBoost: 1.0 },
+  temporal:     { k1Mult: 1.0,  bMult: 0.67, temporalBoost: 2.0 },
+  broad:        { k1Mult: 0.67, bMult: 0.4,  temporalBoost: 1.0 },
+  multi_entity: { k1Mult: 0.8,  bMult: 0.5,  temporalBoost: 1.0 },  // 宽松匹配，让多实体都能命中
 }
 
 const PRECISE_RE = /什么|哪个|哪里|几[个岁号]|多少|谁是|who|what|where|how\s*many/i
 const TEMPORAL_RE = /上次|之前|以前|上周|昨天|前天|上个月|最近|那时|那年|当时|when|last|before|after|ago|first\s+time|how\s+long|since\s+when|back\s+when|at\s+what\s+point|which\s+session|what\s+time/i
 
 let _currentQueryType: QueryType = 'broad'
+let _twoPassInProgress = false
 
+/**
+ * 查询类型分治检测（原创升级）
+ * 不只是 BM25 参数调整，而是后续策略分派的依据：
+ * - temporal → 时间信号优先 + date-entity boost
+ * - multi_entity → iterative recall + coverage rerank
+ * - precise → 精准匹配，topic partition 更激进
+ * - broad → 宽泛召回，全量扫描
+ */
 function detectQueryType(query: string): QueryType {
-  if (TEMPORAL_RE.test(query)) return 'temporal'  // temporal 优先（when 是时间查询不是精确查询）
+  if (TEMPORAL_RE.test(query)) return 'temporal'
+  // 多实体检测：2+ 大写人名 → multi_entity（multi_hop 特征）
+  const names = (query.match(/\b[A-Z][a-z]{2,}\b/g) || [])
+    .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not|And|But|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December)$/.test(n))
+  if (names.length >= 2) return 'multi_entity'
   if (PRECISE_RE.test(query)) return 'precise'
   return 'broad'
 }
@@ -835,7 +894,7 @@ function spreadingActivation(mem: Memory, allMemories: Memory[], query?: string)
     if (erfBoost > 0) totalSpread += erfBoost
   }
 
-  return Math.min(0.6, totalSpread)  // cap 从 0.5 提到 0.6（ERF 贡献空间）
+  return Math.min(0.6, totalSpread)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1187,8 +1246,36 @@ export function computeActivationField(
     // MemRL utility modulation
     const utilityMod = 1 + ((mem as any).utility ?? 0) * 0.1
 
+    // ── Signal 9: microLinks history boost（曾被成功召回的记忆更可信）──
+    let microLinkBoost = 1.0
+    if (mem.microLinks && mem.microLinks.length > 0) {
+      // 检查 microLinks 中是否有跟当前查询相关的历史召回
+      const qWords = new Set((queryLower.match(WORD_PATTERN.CJK2_EN3) || []).map((w: string) => w.toLowerCase()))
+      let linkHits = 0
+      for (const link of mem.microLinks) {
+        if (link.sharedKeywords?.some((k: string) => qWords.has(k.toLowerCase()))) linkHits++
+      }
+      if (linkHits > 0) microLinkBoost = 1 + Math.min(0.2, linkHits * 0.05)  // max +20%
+    }
+
+    // ── Signal 10: insight/reflexion 记忆优先（蒸馏后的高质量信号）──
+    const insightBoost = (mem.scope === 'insight' || mem.scope === 'reflexion') ? 1.15 : 1.0
+
+    // ── Signal 11: person-model 上下文调制（用户画像驱动召回偏好）──
+    // 技术型用户偏重 fact/tech 记忆，情感型用户偏重 event/emotion 记忆
+    let personModelMod = 1.0
+    try {
+      const { getPersonModel } = require('./person-model.ts')
+      const pm = getPersonModel()
+      if (pm?.thinkingStyle) {
+        const style = pm.thinkingStyle
+        if (style === 'analytical' && (mem.scope === 'fact' || mem.tags?.some((t: string) => t.includes('tech')))) personModelMod = 1.1
+        if (style === 'emotional' && (mem.scope === 'event' || mem.tags?.some((t: string) => t.includes('emotion')))) personModelMod = 1.1
+      }
+    } catch {}
+
     const catWeight = getCategoryWeight(mem)
-    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * (1 + s8 * 0.5) * utilityMod * catWeight
+    const finalRaw = raw * confScale * impBoost * (1 + _momentumCoeff * momentum) * (1 + _pamCoeff * s7) * (1 + s8 * 0.5) * utilityMod * catWeight * microLinkBoost * insightBoost * personModelMod
 
     // 构建 trace path
     const path: TraceStep[] = [
@@ -1477,6 +1564,20 @@ export function expandQueryForField(query: string): Map<string, number> {
       }
     }
   } catch {}
+
+  // ── 行为预测扩展：predictNextTopic 的预测词注入查询（产品模式）──
+  if (!process.env.CC_SOUL_BENCHMARK) {
+    try {
+      const { getTopPredictions } = require('./behavioral-phase-space.ts')
+      const predictions = getTopPredictions?.(3) || []
+      for (const pred of predictions) {
+        const word = (pred.topic || pred.word || '').toLowerCase()
+        if (word.length >= 2 && !expanded.has(word)) {
+          expanded.set(word, (pred.probability || 0.3) * 0.3)  // 预测词低权重，不干扰主查询
+        }
+      }
+    } catch {}
+  }
 
   return expanded
 }
@@ -1775,10 +1876,20 @@ export function activationRecall(
     // 注：不改 r.activation，只改排序
   }
 
-  // 过采样 2x，给 Step 3 的 rerank 留空间
+  // ── Temporal Tie-Break（原创）：temporal 查询时，含日期的记忆 tie-break 优先 ──
+  if (_currentQueryType === 'temporal' && results.length > 1) {
+    const DATE_PATTERN = /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|\b\d{4}\b|\b\d{1,2}\s+\w+\s+\d{4}\b/i
+    for (const r of results) {
+      if (DATE_PATTERN.test(r.memory.content || '')) {
+        r.activation *= 1.05  // 微小 5% boost，只做 tie-break 不改主排序
+      }
+    }
+    results.sort((a, b) => b.activation - a.activation)
+  }
 
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
   // 首轮结果质量不足时触发：top-1 activation < 0.15 或 top-10 覆盖率低
+  // PRF：首轮结果质量不足时触发
   const _prfThreshold = results.length >= topN ? 0.15 : 0.03
   if (results.length > 0 && results[0].activation < _prfThreshold) {
     const prfTopN = Math.min(3, results.length)
@@ -2092,90 +2203,95 @@ export function activationRecall(
   }
 
   // ── NAM Coordinator Pattern（原创：协调器式多维度保证召回）──
-  // 灵感来源：Claude Code 的 agent 调度——不融合分数，让每个 worker 独立贡献 top-N
-  // 解决问题：乘法融合中，一个信号为 0 整条记忆就死了
-  // 方案：从 results 中按不同维度各取 top-2，保证每个维度至少有代表
   if (results.length > topN && topN >= 6) {
     const seen = new Set<string>()
     const coordinated: typeof results = []
-
-    // Worker 1: 综合最好的（activation 排序，已有）
     for (const r of results) {
-      if (coordinated.length >= Math.ceil(topN * 0.5)) break  // 50% 给综合
-      if (!seen.has(r.memory.content)) {
-        coordinated.push(r)
-        seen.add(r.memory.content)
-      }
+      if (coordinated.length >= Math.ceil(topN * 0.5)) break
+      if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
-
-    // Worker 2: context signal 最高的（BM25 纯内容匹配）
     const byContext = [...results].sort((a, b) => b.signals.context - a.signals.context)
     for (const r of byContext) {
-      if (coordinated.length >= Math.ceil(topN * 0.7)) break  // 20% 给 context
-      if (!seen.has(r.memory.content)) {
-        coordinated.push(r)
-        seen.add(r.memory.content)
-      }
+      if (coordinated.length >= Math.ceil(topN * 0.7)) break
+      if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
-
-    // Worker 3: base activation 最高的（最近/最频繁的记忆）
     const byBase = [...results].sort((a, b) => b.signals.base - a.signals.base)
     for (const r of byBase) {
-      if (coordinated.length >= Math.ceil(topN * 0.9)) break  // 20% 给 base
-      if (!seen.has(r.memory.content)) {
-        coordinated.push(r)
-        seen.add(r.memory.content)
-      }
+      if (coordinated.length >= Math.ceil(topN * 0.9)) break
+      if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
-
-    // Worker 4（条件性）: temporal 查询时，按 temporal signal 排序取 top
-    // 仅在 temporal 查询时激活，保证时间相关记忆不被遗漏
     if (_currentQueryType === 'temporal') {
       const byTemporal = [...results].sort((a, b) => b.signals.temporal - a.signals.temporal)
       for (const r of byTemporal) {
-        if (coordinated.length >= topN - 1) break  // 留 1 位给兜底
-        if (!seen.has(r.memory.content) && r.signals.temporal > 0) {
-          coordinated.push(r)
-          seen.add(r.memory.content)
-        }
+        if (coordinated.length >= topN - 1) break
+        if (!seen.has(r.memory.content) && r.signals.temporal > 0) { coordinated.push(r); seen.add(r.memory.content) }
       }
     }
-
-    // Worker 5: spread signal 最高的（entity graph 关联性最强的记忆）
     const bySpread = [...results].sort((a, b) => b.signals.spread - a.signals.spread)
     for (const r of bySpread) {
       if (coordinated.length >= topN - 1) break
-      if (!seen.has(r.memory.content) && r.signals.spread > 0) {
-        coordinated.push(r)
-        seen.add(r.memory.content)
-      }
+      if (!seen.has(r.memory.content) && r.signals.spread > 0) { coordinated.push(r); seen.add(r.memory.content) }
     }
-
-    // Worker 6: Episode-Only（原创，ENGRAM per-store 启发）
-    // 保证 episode 记忆不被 summary 的高 BM25 分数挤掉
-    // ENGRAM 证明分 store 独立 top-k 对 multi_hop 贡献 +12%
     const episodeOnly = results.filter(r => r.memory.scope === 'episode' && !r.memory.tags?.includes('summary'))
       .sort((a, b) => b.activation - a.activation)
     for (const r of episodeOnly) {
       if (coordinated.length >= topN) break
-      if (!seen.has(r.memory.content)) {
-        coordinated.push(r)
-        seen.add(r.memory.content)
-      }
+      if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
-
-    // 填满剩余位置（从综合排序里补）
     for (const r of results) {
       if (coordinated.length >= topN) break
-      if (!seen.has(r.memory.content)) {
-        coordinated.push(r)
-        seen.add(r.memory.content)
-      }
+      if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
-
-    // 按 activation 重排保持顺序一致性
     coordinated.sort((a, b) => b.activation - a.activation)
     results = coordinated
+  }
+
+  // ── 分治策略后处理（原创：Query-Type Dispatch）──
+  // 不同查询类型用不同的后处理策略，而非统一参数
+  if (_currentQueryType === 'multi_entity' && !_twoPassInProgress && _queryNames && _queryNames.length >= 2) {
+    // 策略 B：multi_entity → iterative recall（从 top-5 提取桥梁词做二轮召回）
+    try {
+      const top5 = results.slice(0, 5)
+      const topTokens = new Map<string, number>()
+      for (const r of top5) {
+        for (const t of ((r.memory.content || '').toLowerCase().match(WORD_PATTERN.CJK2_EN3) || [])) {
+          if (!EN_STOP_WORDS.has(t)) topTokens.set(t, (topTokens.get(t) || 0) + 1)
+        }
+      }
+      const bridgeTokens = [...topTokens.entries()]
+        .filter(([t, freq]) => freq >= 2 && !expanded.has(t) && (_idfCache?.get(t) ?? 0.5) > 0.3)
+        .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t)
+
+      if (bridgeTokens.length >= 1) {
+        _twoPassInProgress = true
+        const seen = new Set(results.map(r => r.memory.content))
+        let p2Added = 0
+        for (const entity of _queryNames.slice(0, 2)) {
+          const p2Query = entity + ' ' + bridgeTokens.join(' ')
+          const p2Res = computeActivationField(memories, p2Query, mood, alertness, expanded, topN, timeRange, cogHints)
+          for (const r of p2Res.slice(0, 3)) {
+            if (!seen.has(r.memory.content)) {
+              r.activation *= 0.6
+              results.push(r); seen.add(r.memory.content); p2Added++
+            }
+          }
+        }
+        if (p2Added > 0) {
+          results.sort((a, b) => b.activation - a.activation)
+          console.log(`[activation-field] dispatch:multi_entity iterative recall +${p2Added} results`)
+        }
+        _twoPassInProgress = false
+      }
+    } catch { _twoPassInProgress = false }
+  }
+
+  if (_currentQueryType === 'temporal') {
+    // 策略 D：temporal → 含日期的记忆优先 tie-break
+    const DATE_PATTERN = /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|\b\d{4}\b|\b\d{1,2}\s+\w+\s+\d{4}\b/i
+    for (const r of results) {
+      if (DATE_PATTERN.test(r.memory.content || '')) r.activation *= 1.05
+    }
+    results.sort((a, b) => b.activation - a.activation)
   }
 
   // 截断到 topN

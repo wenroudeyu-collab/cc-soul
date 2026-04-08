@@ -251,7 +251,6 @@ function buildMemoriesOnline(q: LocomoQuestion): Memory[] {
       } catch {}
 
       if (memoryState.memories.length > beforeCount) {
-        // 手动修正时间戳（addMemory 用 Date.now()，我们需要模拟时间）
         const newMem = memoryState.memories[memoryState.memories.length - 1]
         newMem.ts = _mockNow
         newMem.lastAccessed = Math.min(now - 7200000, _mockNow + 86400000)
@@ -905,6 +904,12 @@ Answer with ONLY one letter (A-J).`
 
   // 提取答案字母
   let letter = ''
+  // 特殊处理：LLM 直接输出 "Not answerable" 而非选项字母
+  if (/not answerable|cannot be answered|unanswerable/i.test(raw)) {
+    const naChoiceIdx = choices.findIndex(c => /not answerable|cannot be answered|unanswerable/i.test(c))
+    if (naChoiceIdx >= 0) letter = letters[naChoiceIdx]
+  }
+  if (!letter) {
   const directMatch = raw.match(/^([A-J])\b/)
   if (directMatch) {
     letter = directMatch[1]
@@ -915,8 +920,14 @@ Answer with ONLY one letter (A-J).`
       || raw.match(/\*\*([A-J])\*\*/)
       || raw.match(/\b([A-J])$/m)
     if (answerMatch) letter = answerMatch[1]
-    else letter = raw.charAt(0).toUpperCase()
+    else {
+      // Last resort: scan entire raw output for any A-J letter
+      const anyLetter = raw.match(/\b([A-J])\b/)
+      if (anyLetter) letter = anyLetter[1]
+      else letter = raw.charAt(0).toUpperCase()
+    }
   }
+  }  // end if (!letter)
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
 }
@@ -1160,7 +1171,14 @@ async function run() {
     // Recall (with latency tracking)
     const _qStart = Date.now()
     const _cogHints = toCogHints(q.question)
-    const recalled: Memory[] = activationRecall(memories, q.question, opts.topK, 0, 0.5, _cogHints)
+    let recalled: Memory[]
+    if (opts.api) {
+      // API 模式：用 recall()（完整管道：指代消解+启动效应+路由+元数据更新+graveyard）
+      const { recall: fullRecall } = require('./memory-recall.ts')
+      recalled = fullRecall(q.question, opts.topK, 'benchmark-user', undefined, { mood: 0, alertness: 0.5 }, undefined, _cogHints) || []
+    } else {
+      recalled = activationRecall(memories, q.question, opts.topK, 0, 0.5, _cogHints)
+    }
     perQueryLatency.push(Date.now() - _qStart)
 
     // ── Recall-Driven AAM Learning：模拟真实使用中 query↔recall 共现（增强版）──
