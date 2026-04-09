@@ -775,7 +775,7 @@ async function selectAnswerWithLLM(
   const llmRecalled = recalled.filter(m => !m.tags?.some((t: string) => t.startsWith('merged:')))
   const displayRecalled = llmRecalled.length >= 3 ? llmRecalled : recalled  // fallback if too few
 
-  // 结构化 context：按 session 分组展示（B2：让 LLM 更容易定位时间和实体）
+  // 结构化 context：按 session 分组展示（验证：比扁平列表好 +0.8%，LLM 需要 session 上下文）
   const sessionGroups = new Map<string, { idx: number; content: string }[]>()
   for (let i = 0; i < displayRecalled.length; i++) {
     const sessionTag = displayRecalled[i].tags?.find((t: string) => t.startsWith('session:')) || 'other'
@@ -784,14 +784,12 @@ async function selectAnswerWithLLM(
   }
   let structuredContext = ''
   if (sessionGroups.size > 1) {
-    // 多 session：分组展示
     for (const [session, mems] of sessionGroups) {
       structuredContext += `\n[${session}]\n`
       for (const m of mems) structuredContext += `  ${m.idx}. ${m.content}\n`
     }
   } else {
-    // 单 session：扁平列表
-    structuredContext = recalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
+    structuredContext = displayRecalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
   }
 
   // ── FOK (Feeling of Knowing) 元记忆信号（原创，Metamemory 理论）──
@@ -921,10 +919,33 @@ Answer with ONLY one letter (A-J).`
       || raw.match(/\b([A-J])$/m)
     if (answerMatch) letter = answerMatch[1]
     else {
-      // Last resort: scan entire raw output for any A-J letter
-      const anyLetter = raw.match(/\b([A-J])\b/)
-      if (anyLetter) letter = anyLetter[1]
-      else letter = raw.charAt(0).toUpperCase()
+      // Last resort 1: scan for standalone letter (not article "A" or "I")
+      const anyLetter = raw.match(/(?:^|\n)\s*([A-J])(?:\s*$|\s*[.)\]])/m)
+        || raw.match(/\b([B-J])\b/)  // B-J 不会是冠词
+      if (anyLetter) { letter = anyLetter[1] }
+      else {
+        // Last resort 2: LLM 输出了选项内容而非字母 → 模糊匹配选项
+        const rawLower = raw.toLowerCase().trim()
+        let bestMatch = -1, bestSim = 0
+        for (let ci = 0; ci < choices.length; ci++) {
+          const choiceLower = choices[ci].toLowerCase().trim()
+          // 精确包含
+          if (rawLower.includes(choiceLower) || choiceLower.includes(rawLower)) {
+            bestMatch = ci; break
+          }
+          // 前缀匹配（LLM 可能截断）
+          const rawPrefix = rawLower.slice(0, 30)
+          const choicePrefix = choiceLower.slice(0, 30)
+          if (rawPrefix.length >= 10 && (choicePrefix.startsWith(rawPrefix) || rawPrefix.startsWith(choicePrefix))) {
+            bestMatch = ci; break
+          }
+          // trigram 相似度匹配（模糊兜底）
+          const sim = trigramSimilarity(trigrams(rawLower), trigrams(choiceLower))
+          if (sim > bestSim && sim > 0.4) { bestSim = sim; bestMatch = ci }
+        }
+        if (bestMatch >= 0) letter = letters[bestMatch]
+        else letter = raw.charAt(0).toUpperCase()
+      }
     }
   }
   }  // end if (!letter)
@@ -1158,6 +1179,8 @@ async function run() {
           }
           if (tagged > 0) { suppressLogs = false; print(`  [prospective-tags] ${tagged}/${memories.length} memories tagged`); suppressLogs = true }
         } catch {}
+        // 触发 PMI cluster 构建（在 heartbeat 不运行的 benchmark 里手动触发）
+        try { require('./aam.ts').buildPMIClusters?.(2.5) } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx

@@ -1971,8 +1971,14 @@ const CJK_FUNCTION_CHARS = new Set(
   '的了是在很不也都就有我你他她它和与被把让给会能要想到过着吗呢吧啊么'
 )
 
+// 英文高频低信息动词/代词（AAM 不应该学这些的共现）
+const EN_JUNK_VERBS = new Set(['went','said','told','asked','thought','knew','came','made','took','gave','called','looked','tried','started','seemed','wanted','felt','found','used','needed','helped','talked','mentioned','shared','decided','agreed','moved','worked','lived','played','enjoyed','loved','liked','happened','become','getting','going','doing','having','being','making','taking','coming','saying','looking','trying'])
+
 export function isJunkToken(word: string): boolean {
-  // 只对 CJK 2-gram 做判断
+  // 英文 junk token 过滤（高频低信息动词）
+  if (/^[a-z]+$/.test(word) && EN_JUNK_VERBS.has(word)) return true
+
+  // CJK 2-gram 判断
   if (word.length !== 2 || !/^[\u4e00-\u9fff]{2}$/.test(word)) return false
 
   // Phase 1: 虚词表——两个字都是虚词才算 junk（"的了"、"是在"）
