@@ -282,9 +282,42 @@ for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
   _categoryWordSets.set(cat, new Set(words.map(w => w.toLowerCase())))
 }
 
+// ── AAM 动态话题扩展：用 PMI 邻居自动扩充 category 关键词 ──
+let _dynamicCategorySets: Map<string, Set<string>> | null = null
+let _dynamicCategoryTs = 0
+const DYNAMIC_CATEGORY_TTL = 30000  // 30s 缓存
+
+/** 从 AAM 学习的共现关系动态扩展话题关键词 */
+export function buildDynamicCategories(): void {
+  const now = Date.now()
+  if (_dynamicCategorySets && now - _dynamicCategoryTs < DYNAMIC_CATEGORY_TTL) return
+  _dynamicCategorySets = new Map<string, Set<string>>()
+  _dynamicCategoryTs = now
+  for (const [cat, staticSet] of _categoryWordSets) {
+    const expanded = new Set(staticSet)
+    for (const seed of staticSet) {
+      if (seed.length < 3 || !/^[a-z]+$/.test(seed)) continue
+      try {
+        const neighbors = _aamGetAAMNeighbors(seed, 3)
+        for (const n of neighbors) {
+          if (n.pmiScore > 2.0 && n.fanOut < 50 && n.word.length >= 3) {
+            expanded.add(n.word.toLowerCase())
+          }
+        }
+      } catch {}
+    }
+    _dynamicCategorySets.set(cat, expanded)
+  }
+}
+
+/** 获取当前 category 词集（动态优先，静态 fallback） */
+function getActiveCategorySets(): Map<string, Set<string>> {
+  return _dynamicCategorySets || _categoryWordSets
+}
+
 /** 检测文本的领域分类，返回命中的 category 列表（按命中数降序）
  *  使用 stemming 扩大匹配覆盖（"ran"→"run" 匹配 "running"）*/
-function detectCategories(text: string): string[] {
+export function detectCategories(text: string): string[] {
   const lower = text.toLowerCase()
   // 提取文本中的所有词（含 stemmed 形式）
   const textWords = new Set<string>()
@@ -296,7 +329,8 @@ function detectCategories(text: string): string[] {
   for (const w of (lower.match(/[\u4e00-\u9fff]{2,4}/g) || [])) textWords.add(w)
 
   const scores: [string, number][] = []
-  for (const [cat, wordSet] of _categoryWordSets) {
+  const activeSets = getActiveCategorySets()
+  for (const [cat, wordSet] of activeSets) {
     let hits = 0
     for (const kw of wordSet) {
       // 直接包含 or stemmed 匹配
@@ -1682,9 +1716,15 @@ export function activationRecall(
     console.log(`[activation-field] negation query detected, expanded +${_negSeedWords.length} neg seeds`)
   }
 
-  // ── Category Pre-Pruning：按领域预筛，减少候选池 ──
-  // 在 computeActivationField 之前执行，同时加速 IDF 缓存构建
-  memories = categoryPrePrune(memories, query)
+  // ── CGAF 查询类型分派：precise 用 topic pool，broad 跳过 topic filter ──
+  // temporal 已在 categoryPrePrune 内部跳过
+  if (_currentQueryType === 'broad') {
+    // broad 查询用全量池，不做 topic partition
+    console.log(`[activation-field] CGAF: broad query, skip topic partition`)
+  } else {
+    // precise / multi_entity / temporal → categoryPrePrune 处理
+    memories = categoryPrePrune(memories, query)
+  }
 
   // ── Parallel Channel: fact-store 关键词召回（与 NAM 并行，最终融合）──
   // 遍历所有已存三元组，用查询词+AAM扩展词评分，不短路，结果在 NAM 之后融合
@@ -1840,6 +1880,25 @@ export function activationRecall(
         }
       }
       if (added > 0) results.sort((a, b) => b.activation - a.activation)
+    } catch {}
+  }
+
+  // ── Multi-Entity Bridge Recall：多实体查询逐实体召回再合并 ──
+  if (_currentQueryType === 'multi_entity' && _queryNames.length >= 2 && results.length > 0) {
+    try {
+      const seenContent = new Set(results.map(r => r.memory.content))
+      for (const name of _queryNames.slice(0, 3)) {
+        const bridgeResults = computeActivationField(memories, name, mood, alertness, expanded, topN, timeRange, cogHints)
+        let added = 0
+        for (const r of bridgeResults) {
+          if (!seenContent.has(r.memory.content)) {
+            results.push(r); seenContent.add(r.memory.content); added++
+            if (added >= 3) break
+          }
+        }
+      }
+      results.sort((a, b) => b.activation - a.activation)
+      console.log(`[activation-field] CGAF: multi_entity bridge recall for ${_queryNames.length} entities`)
     } catch {}
   }
 

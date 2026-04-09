@@ -31,10 +31,11 @@ console.warn = (...args: any[]) => { if (!suppressLogs) _origWarn(...args) }
 const print = _origLog  // always prints
 
 // Lazy-load modules
-const { activationRecall, activationRecallWithScores, getIdfCache } = require('./activation-field.ts')
+const { activationRecall, activationRecallWithScores, getIdfCache, buildDynamicCategories } = require('./activation-field.ts')
 const { learnAssociation } = require('./aam.ts')
 const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
 const { toCogHints } = require('./cognition.ts')
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // ═══════════════════════════════════════════════════════════════
 // DATA TYPES
@@ -257,6 +258,12 @@ function buildMemoriesOnline(q: LocomoQuestion): Memory[] {
         newMem._segmentId = si
         if (!newMem.tags) newMem.tags = []
         newMem.tags.push(`session:${si}`)
+        // 话题标签（写入时打标，召回时用标签预筛）
+        try {
+          const { detectCategories } = require('./activation-field.ts')
+          const cats = detectCategories(newMem.content || '')
+          for (const c of cats.slice(0, 2)) newMem.tags.push(`topic:${c}`)
+        } catch {}
         totalAdded++
       } else {
         totalSkipped++
@@ -753,6 +760,104 @@ function parseArgs() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// LLM-ENHANCED RECALL: Query Rewrite + Rerank + MemR3
+// ═══════════════════════════════════════════════════════════════
+
+/** Generic DeepSeek call (short responses) — shared by rewrite/rerank/memr3 */
+async function callDeepSeek(prompt: string, apiKey: string, maxTokens = 100): Promise<string> {
+  const resp = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0, max_tokens: maxTokens,
+    }),
+  })
+  if (!resp.ok) throw new Error(`DeepSeek ${resp.status}`)
+  const json = await resp.json() as any
+  return (json.choices?.[0]?.message?.content || '').trim()
+}
+
+/** FOK confidence level from recalled memories + question */
+function computeFOK(question: string, recalled: Memory[]): 'LOW' | 'MEDIUM' | 'HIGH' {
+  const fokQEnts = (question.match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
+  const fokText = recalled.map(m => (m.content || '').toLowerCase()).join(' ')
+  const entityPresent = fokQEnts.length === 0 || fokQEnts.some(n => fokText.includes(n.toLowerCase()))
+  const fokQWords = (question.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !/^(what|when|where|how|who|which|why|does|did|has|have|was|were|would|could|should|about|their|with|from|been|this|that|they|them|most|more)$/.test(w))
+  const wordCov = fokQWords.length > 0 ? fokQWords.filter(w => fokText.includes(w)).length / fokQWords.length : 0
+  return !entityPresent ? 'LOW' : wordCov < 0.3 ? 'LOW' : wordCov < 0.6 ? 'MEDIUM' : 'HIGH'
+}
+
+/** LLM Query Rewrite: expand query when FOK is weak */
+async function llmQueryRewrite(
+  question: string, memories: Memory[], recalled: Memory[],
+  topK: number, apiKey: string, cogHints: any,
+): Promise<Memory[]> {
+  const fok = computeFOK(question, recalled)
+  if (fok === 'HIGH') return recalled  // already confident
+  const prompt = `Given this question about a person's life, list 3-5 specific keywords to search for in conversation memories. Only output keywords separated by commas.\n\nQuestion: ${question}`
+  const raw = await callDeepSeek(prompt, apiKey, 50)
+  await sleep(500)
+  const keywords = raw.split(/[,\n]/).map(w => w.trim().toLowerCase()).filter(w => w.length >= 2).slice(0, 5)
+  if (keywords.length === 0) return recalled
+  const expandedQuery = keywords.join(' ')
+  const extra = activationRecall(memories, expandedQuery, topK, 0, 0.5, cogHints) as Memory[]
+  // merge
+  const seenContent = new Set(recalled.map(m => m.content))
+  const merged = [...recalled]
+  for (const m of extra) {
+    if (!seenContent.has(m.content)) { merged.push(m); seenContent.add(m.content) }
+  }
+  return merged.slice(0, topK * 2)
+}
+
+/** MemR3 Reflective Retrieval: analyze what's missing, do targeted 2nd recall */
+async function memR3Reflect(
+  question: string, memories: Memory[], recalled: Memory[],
+  topK: number, apiKey: string, cogHints: any,
+): Promise<Memory[]> {
+  const fok = computeFOK(question, recalled)
+  if (fok !== 'LOW') return recalled  // only for low confidence
+  const memSnippets = recalled.slice(0, 5).map((m, i) => `${i + 1}. ${(m.content || '').slice(0, 100)}`).join('\n')
+  const prompt = `Based on these memories, what information is missing to answer: "${question}"? List 2-3 search keywords.\n\nMemories:\n${memSnippets}\n\nKeywords:`
+  const raw = await callDeepSeek(prompt, apiKey, 50)
+  await sleep(500)
+  const keywords = raw.split(/[,\n]/).map(w => w.trim().toLowerCase()).filter(w => w.length >= 2).slice(0, 3)
+  if (keywords.length === 0) return recalled
+  const extra = activationRecall(memories, keywords.join(' '), topK, 0, 0.5, cogHints) as Memory[]
+  const seenContent = new Set(recalled.map(m => m.content))
+  const merged = [...recalled]
+  for (const m of extra) {
+    if (!seenContent.has(m.content)) { merged.push(m); seenContent.add(m.content) }
+  }
+  return merged.slice(0, topK * 2)
+}
+
+/** LLM Rerank: let DeepSeek pick the most relevant memories */
+async function llmRerank(
+  question: string, recalled: Memory[], topK: number, apiKey: string,
+): Promise<Memory[]> {
+  if (recalled.length <= topK) return recalled
+  const numbered = recalled.slice(0, 20).map((m, i) => `${i + 1}. ${(m.content || '').slice(0, 120)}`).join('\n')
+  const prompt = `Select the ${topK} most relevant memories for answering: "${question}"\nReply with numbers only, separated by commas.\n\n${numbered}`
+  const raw = await callDeepSeek(prompt, apiKey, 50)
+  await sleep(500)
+  const indices = raw.match(/\d+/g)?.map(n => parseInt(n) - 1).filter(i => i >= 0 && i < recalled.length) || []
+  if (indices.length === 0) return recalled.slice(0, topK)
+  const picked = indices.slice(0, topK).map(i => recalled[i]).filter(Boolean)
+  // fill remaining from NAM order if LLM picked too few
+  if (picked.length < topK) {
+    const pickedSet = new Set(picked.map(m => m.content))
+    for (const m of recalled) {
+      if (picked.length >= topK) break
+      if (!pickedSet.has(m.content)) { picked.push(m); pickedSet.add(m.content) }
+    }
+  }
+  return picked
+}
+
+// ═══════════════════════════════════════════════════════════════
 // LLM ANSWER SELECTION (Kimi k2.5)
 // ═══════════════════════════════════════════════════════════════
 
@@ -952,8 +1057,6 @@ Answer with ONLY one letter (A-J).`
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
 }
-
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 async function run() {
   const opts = parseArgs()
@@ -1181,6 +1284,8 @@ async function run() {
         } catch {}
         // 触发 PMI cluster 构建（在 heartbeat 不运行的 benchmark 里手动触发）
         try { require('./aam.ts').buildPMIClusters?.(2.5) } catch {}
+        // CNAS: AAM 动态话题扩展（用 PMI 邻居扩充 category 关键词）
+        try { buildDynamicCategories() } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
@@ -1273,7 +1378,20 @@ async function run() {
       if (opts.llm) {
         stat.llmTotal++
         try {
-          const { choiceIndex: llmIdx, raw } = await selectAnswerWithLLM(recalled, q.question, q.choices, apiKey)
+          // ── CNAS: LLM-enhanced recall pipeline (query rewrite → MemR3 → rerank) ──
+          let llmRecalled = recalled
+          try {
+            // Step 1: MemR3 reflective retrieval (FOK=LOW → analyze gaps → 2nd recall)
+            llmRecalled = await memR3Reflect(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
+            // Step 2: LLM query rewrite (FOK=LOW/MEDIUM → expand keywords → merge)
+            llmRecalled = await llmQueryRewrite(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
+            // Step 3: LLM rerank (pick best top-K from expanded pool)
+            llmRecalled = await llmRerank(q.question, llmRecalled, opts.topK, apiKey)
+          } catch (e: any) {
+            // fallback to NAM-only recalled on any LLM error
+            llmRecalled = recalled
+          }
+          const { choiceIndex: llmIdx, raw } = await selectAnswerWithLLM(llmRecalled, q.question, q.choices, apiKey)
           if (llmIdx >= 0 && llmIdx === q.correct_choice_index) stat.llmCorrect++
           if (llmIdx < 0) stat.llmFail++
 
