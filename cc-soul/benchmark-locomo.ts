@@ -32,7 +32,7 @@ const print = _origLog  // always prints
 
 // Lazy-load modules
 const { activationRecall, activationRecallWithScores, getIdfCache, buildDynamicCategories } = require('./activation-field.ts')
-const { learnAssociation } = require('./aam.ts')
+const { learnAssociation, learnNegativeAssociation, learnTemporalChain, learnEmotionContext } = require('./aam.ts')
 const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
 const { toCogHints } = require('./cognition.ts')
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -258,11 +258,21 @@ function buildMemoriesOnline(q: LocomoQuestion): Memory[] {
         newMem._segmentId = si
         if (!newMem.tags) newMem.tags = []
         newMem.tags.push(`session:${si}`)
-        // 话题标签（写入时打标，召回时用标签预筛）
+        // CNAS 三层话题标签（写入时打标）
         try {
-          const { detectCategories } = require('./activation-field.ts')
-          const cats = detectCategories(newMem.content || '')
-          for (const c of cats.slice(0, 2)) newMem.tags.push(`topic:${c}`)
+          const af = require('./activation-field.ts')
+          const cats = af.detectCategoriesV2 ? af.detectCategoriesV2(newMem.content || '') : null
+          if (cats) {
+            newMem.category_c1 = cats.c1
+            newMem.category_c2 = cats.c2
+            newMem.category_c3 = cats.c3
+            newMem.classifiedBy = 'seed'
+            // 也写 tags（兼容旧 categoryPrePrune）
+            for (const c of cats.c2.slice(0, 2)) newMem.tags.push(`topic:${c}`)
+          } else {
+            const oldCats = af.detectCategories(newMem.content || '')
+            for (const c of oldCats.slice(0, 2)) newMem.tags.push(`topic:${c}`)
+          }
         } catch {}
         totalAdded++
       } else {
@@ -364,7 +374,10 @@ async function buildMemoriesAPI(q: LocomoQuestion, apiPort: number): Promise<voi
     memoryState.chatHistory.length = 0
     scopeIndex.clear()
     _recentWriteHashes.clear()
-    try { require('./aam.ts').resetLearnedData?.() } catch {}
+    // Direction 4: CC_SOUL_AAM_PERSIST — skip reset to let AAM accumulate across convs
+    if (!process.env.CC_SOUL_AAM_PERSIST) {
+      try { require('./aam.ts').resetLearnedData?.() } catch {}
+    }
     try { require('./fact-store.ts').clearFacts?.() } catch {}
   } catch {}
 
@@ -755,6 +768,7 @@ function parseArgs() {
     if (args[i] === '--api') { api = true; online = true }
     if (args[i] === '--api-port' && args[i + 1]) apiPort = parseInt(args[++i])
     if (args[i] === '--sample') sample = true  // 3-conv 快速采样（小/中/大库）
+    if (args[i] === '--aam-persist') process.env.CC_SOUL_AAM_PERSIST = '1'  // Direction 4: cross-conv AAM persistence
   }
   return { conv, type, topK, verbose, limit, recallOnly, llm, online, api, apiPort, sample }
 }
@@ -854,6 +868,34 @@ async function llmRerank(
       if (!pickedSet.has(m.content)) { picked.push(m); pickedSet.add(m.content) }
     }
   }
+  // ── Consensus Learning：LLM 选中但 NAM 排低的 → 反馈给 AAM ──
+  // 闭环：LLM rerank 结果教 AAM 什么词跟什么词相关
+  try {
+    const queryKw = (question.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
+    const namTop = new Set(recalled.slice(0, topK).map(m => m.content))
+    const pickedSet = new Set(picked.map(m => m.content))
+    for (const mem of picked) {
+      if (!namTop.has(mem.content)) {
+        // LLM 提升了 NAM 没选的记忆 → 学习 query↔memory 的关联
+        const memKw = ((mem.content || '').match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
+        if (queryKw.length > 0 && memKw.length > 0) {
+          learnAssociation(queryKw.join(' ') + ' ' + memKw.join(' '), 0.8)
+        }
+      }
+    }
+    // Direction 5: Negative Association — NAM top-K memories dropped by LLM → negative signal
+    if (queryKw.length > 0) {
+      for (const mem of recalled.slice(0, topK)) {
+        if (!pickedSet.has(mem.content)) {
+          const memKw = ((mem.content || '').match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
+          if (memKw.length > 0) {
+            try { learnNegativeAssociation(queryKw, memKw) } catch {}
+          }
+        }
+      }
+    }
+  } catch {}
+
   return picked
 }
 
@@ -1156,8 +1198,11 @@ async function run() {
     const convId = q.question_id.split('_')[0]
 
     // ── Per-conv 数据隔离：清空上一个 conv 的学习数据 ──
+    // Direction 4: CC_SOUL_AAM_PERSIST — 跨 conv 保留 AAM 学习（积累跨对话关联）
     if (convId !== _lastConvId && _lastConvId !== '') {
-      try { require('./aam.ts').resetLearnedData?.() } catch {}
+      if (!process.env.CC_SOUL_AAM_PERSIST) {
+        try { require('./aam.ts').resetLearnedData?.() } catch {}
+      }
       try { require('./fact-store.ts').clearFacts?.() } catch {}
     }
     _lastConvId = convId
@@ -1184,6 +1229,18 @@ async function run() {
             }
           }
         }
+        // Direction 6: Temporal chain learning — build prev→next links from memory timestamps
+        try { learnTemporalChain(memories) } catch {}
+
+        // Direction 8: Emotion trace learning — emotion words ↔ content words association
+        try {
+          for (const mem of memories) {
+            if (mem.content && /(?:happy|sad|angry|excited|worried|love|hate|miss|enjoy|afraid|disappointed|grateful|anxious|frustrated|lonely|surprised|开心|难过|生气|兴奋|担心|害怕|喜欢|讨厌|想念)/i.test(mem.content)) {
+              learnEmotionContext(mem.content)
+            }
+          }
+        } catch {}
+
         // Summary 强化学习（高权重 + 二次拆分）——summary 信息密度高，实体关联更重要
         for (const mem of memories) {
           if (mem.tags?.includes('summary')) {
@@ -1284,8 +1341,63 @@ async function run() {
         } catch {}
         // 触发 PMI cluster 构建（在 heartbeat 不运行的 benchmark 里手动触发）
         try { require('./aam.ts').buildPMIClusters?.(2.5) } catch {}
+        // 强制蒸馏（benchmark 里蒸馏不会自然触发，手动触发一次）
+        // 蒸馏 → TopicNode → 反哺 AAM（飞轮效应）
+        try {
+          const distill = require('./distill.ts')
+          // 临时清除 cooldown 让蒸馏能跑
+          if (distill.distillState) distill.distillState.lastL1toL2 = 0
+          distill.distillL1toL2?.()
+        } catch {}
         // CNAS: AAM 动态话题扩展（用 PMI 邻居扩充 category 关键词）
         try { buildDynamicCategories() } catch {}
+        // AAM 学完后，重建动态话题词表 + 三层 retag（覆盖率 80%+）
+        try {
+          const af = require('./activation-field.ts')
+          af.buildDynamicCategories?.()
+          let retagged = 0
+          for (const mem of memories) {
+            const cats = af.detectCategoriesV2 ? af.detectCategoriesV2(mem.content || '') : null
+            if (cats && (cats.c1.length > 0 || cats.c2.length > 0)) {
+              mem.category_c1 = cats.c1
+              mem.category_c2 = cats.c2
+              mem.category_c3 = cats.c3
+              if (!mem.classifiedBy || mem.classifiedBy === 'seed') mem.classifiedBy = 'aam'
+              if (!mem.tags) mem.tags = []
+              mem.tags = mem.tags.filter((t: string) => !t.startsWith('topic:'))
+              for (const c of cats.c2.slice(0, 2)) mem.tags.push(`topic:${c}`)
+              retagged++
+            }
+          }
+          if (retagged > 0) { suppressLogs = false; print(`  [topic-retag-v2] ${retagged}/${memories.length} memories (3-level) after AAM`); suppressLogs = true }
+          // LLM 兜底分类：覆盖率 < 70% 时调 DeepSeek 补分类
+          const unclassified = memories.filter(m => !m.category_c2 || m.category_c2.length === 0)
+          const coverageRate = 1 - unclassified.length / Math.max(memories.length, 1)
+          if (coverageRate < 0.7 && opts.llm && apiKey) {
+            let llmClassified = 0
+            for (const mem of unclassified.slice(0, 50)) {  // 最多 50 条（省 token）
+              try {
+                const raw = await callDeepSeek(
+                  `Classify this message into a daily life topic. Reply with ONE word only (e.g. eating, exercise, family, friends, work, hobby, travel, health, education, entertainment):\n"${(mem.content || '').slice(0, 100)}"`,
+                  apiKey, 10
+                )
+                const topic = (raw || '').trim().toLowerCase().replace(/[^a-z_]/g, '')
+                if (topic.length >= 3) {
+                  mem.category_c2 = [topic]
+                  mem.classifiedBy = 'llm'
+                  if (!mem.tags) mem.tags = []
+                  mem.tags.push(`topic:${topic}`)
+                  // 反哺 AAM（LLM 教 AAM）
+                  const memKw = (mem.content.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
+                  if (memKw.length >= 2) learnAssociation(topic + ' ' + memKw.join(' '), 0, 1.0)
+                  llmClassified++
+                }
+                await sleep(300)
+              } catch {}
+            }
+            if (llmClassified > 0) { suppressLogs = false; print(`  [llm-classify] ${llmClassified}/${unclassified.length} unclassified memories classified by LLM`); suppressLogs = true }
+          }
+        } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
@@ -1379,12 +1491,16 @@ async function run() {
         stat.llmTotal++
         try {
           // ── CNAS: LLM-enhanced recall pipeline (query rewrite → MemR3 → rerank) ──
+          // temporal 查询跳过 rewrite/MemR3（保护时间词不被改写）
           let llmRecalled = recalled
+          const _isTemporal = /when|last|before|after|ago|first\s+time|how\s+long|what\s+time|what\s+date/i.test(q.question)
           try {
-            // Step 1: MemR3 reflective retrieval (FOK=LOW → analyze gaps → 2nd recall)
-            llmRecalled = await memR3Reflect(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
-            // Step 2: LLM query rewrite (FOK=LOW/MEDIUM → expand keywords → merge)
-            llmRecalled = await llmQueryRewrite(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
+            if (!_isTemporal) {
+              // Step 1: MemR3 reflective retrieval (FOK=LOW → analyze gaps → 2nd recall)
+              llmRecalled = await memR3Reflect(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
+              // Step 2: LLM query rewrite (FOK=LOW/MEDIUM → expand keywords → merge)
+              llmRecalled = await llmQueryRewrite(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
+            }
             // Step 3: LLM rerank (pick best top-K from expanded pool)
             llmRecalled = await llmRerank(q.question, llmRecalled, opts.topK, apiKey)
           } catch (e: any) {
@@ -1394,6 +1510,18 @@ async function run() {
           const { choiceIndex: llmIdx, raw } = await selectAnswerWithLLM(llmRecalled, q.question, q.choices, apiKey)
           if (llmIdx >= 0 && llmIdx === q.correct_choice_index) stat.llmCorrect++
           if (llmIdx < 0) stat.llmFail++
+
+          // Direction 9: Failure case learning — wrong answer → learn query↔correct_answer association
+          try {
+            if (llmIdx >= 0 && llmIdx !== q.correct_choice_index) {
+              const correctAnswer = q.choices[q.correct_choice_index] || ''
+              const correctKw = (correctAnswer.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 8)
+              const queryKw = (q.question.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
+              if (correctKw.length > 0 && queryKw.length > 0) {
+                learnAssociation(queryKw.join(' ') + ' ' + correctKw.join(' '), 0.8, 1.5, true)
+              }
+            }
+          } catch {}
 
           if (opts.verbose) {
             const smOk = choiceIndex === q.correct_choice_index

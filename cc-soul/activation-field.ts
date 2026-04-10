@@ -21,9 +21,12 @@
  *   ⑦ 时序共现（PAM有向链接：用户说A后常说B → 说A时含B的记忆boost）
  */
 
+import { existsSync, readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import type { Memory, CogHints } from './types.ts'
 import { trigrams, trigramSimilarity, tokenize as _utilTokenize, WORD_PATTERN, TRIGRAM_THRESHOLD } from './memory-utils.ts'
-import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken, learnTemporalLink as _aamLearnTemporalLink } from './aam.ts'
+import { expandQuery as _aamExpandQuery, learnAssociation as _aamLearn, isKnownWord as _aamIsKnownWord, getTemporalSuccessors as _aamGetTemporalSuccessors, getAAMNeighbors as _aamGetAAMNeighbors, isJunkToken as _aamIsJunkToken, learnTemporalLink as _aamLearnTemporalLink, getTemporalNeighbors as _aamGetTemporalNeighbors } from './aam.ts'
 // 顶层 import 替代运行时 require（修复 benchmark ESM 环境下 require is not defined）
 import { extractTimeRange as _extractTimeRange, _primingCache as _primingCacheRef, _predictivePrimingCache as _predictivePrimingRef } from './memory-recall.ts'
 import { extractTagsLocal as _extractTagsLocal } from './memory.ts'
@@ -37,6 +40,7 @@ import { extractAnchors as _extractAnchors, inferTimeRange as _inferTemporalRang
 import { getTopicRecallModifier as _getDriftModifier } from './semantic-drift.ts'
 import { confidenceRecallModifier as _getConfModifier } from './confidence-cascade.ts'
 import { getParam as _getAutoTuneParam } from './auto-tune.ts'
+import { getRelevantTopics as _getRelevantTopics } from './distill.ts'
 
 // ── Lightweight English Porter Stemmer (suffix-stripping, English only) ──
 function porterStem(word: string): string {
@@ -276,23 +280,132 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   outdoor: ['hike', 'bike', 'camp', 'trail', 'park', 'garden', 'nature', 'sunrise', 'photography', 'landscape', 'mountain', 'lake'],
 }
 
-// 预编译：为每个 category 建一个 Set（加速查找）
+// ═══════════════════════════════════════════════════════════════
+// 3-LEVEL CATEGORY SYSTEM — C1(broad) / C2(specific topic) / C3(keywords)
+// Seeds loaded from seeds/category_seeds_v2.json, fallback to CATEGORY_KEYWORDS
+// ═══════════════════════════════════════════════════════════════
+
+export interface CategoryResult {
+  c1: string[]   // broad: life, work, health, ...
+  c2: string[]   // specific: eating, sleeping, career, ...
+  c3: string[]   // matched keywords themselves
+}
+
+// ── Seed data structures ──
+// C1: broad category keyword sets (zh+en stemmed)
+let _c1WordSets = new Map<string, Set<string>>()
+// C2: specific topic keyword sets (zh+en stemmed)
+let _c2WordSets = new Map<string, Set<string>>()
+// C2 → C1 parent mapping
+const _c2ToC1 = new Map<string, string>()
+// C1 → C2 children mapping
+const _c1ToC2s = new Map<string, string[]>()
+// Whether seed file was loaded successfully
+let _seedsLoaded = false
+
+/** Build a stemmed keyword set from zh + en arrays */
+function _buildStemmedSet(zh: string[], en: string[]): Set<string> {
+  const s = new Set<string>()
+  for (const w of zh) s.add(w.toLowerCase())
+  for (const w of en) {
+    const lw = w.toLowerCase()
+    s.add(lw)
+    if (lw.length >= 3 && /^[a-z]+$/.test(lw)) s.add(porterStem(lw))
+  }
+  return s
+}
+
+/** Load 3-level category seeds from JSON file */
+function loadCategorySeeds(): boolean {
+  try {
+    // Resolve seed path relative to this source file
+    let seedDir: string
+    try {
+      seedDir = dirname(fileURLToPath(import.meta.url))
+    } catch {
+      seedDir = __dirname || '.'
+    }
+    const seedPath = resolve(seedDir, 'seeds', 'category_seeds_v2.json')
+    if (!existsSync(seedPath)) {
+      console.log(`[activation-field] category seeds not found at ${seedPath}, using fallback`)
+      return false
+    }
+    const raw = JSON.parse(readFileSync(seedPath, 'utf-8'))
+    const c1Data = raw.c1 as Record<string, { zh: string[]; en: string[]; children: string[] }>
+    const c2Data = raw.c2 as Record<string, { parent: string; zh: string[]; en: string[] }>
+
+    // Build C1 sets
+    const newC1 = new Map<string, Set<string>>()
+    const newC1ToC2s = new Map<string, string[]>()
+    for (const [name, entry] of Object.entries(c1Data)) {
+      newC1.set(name, _buildStemmedSet(entry.zh, entry.en))
+      newC1ToC2s.set(name, entry.children || [])
+    }
+
+    // Build C2 sets + parent mapping
+    const newC2 = new Map<string, Set<string>>()
+    for (const [name, entry] of Object.entries(c2Data)) {
+      newC2.set(name, _buildStemmedSet(entry.zh, entry.en))
+      _c2ToC1.set(name, entry.parent)
+    }
+
+    _c1WordSets = newC1
+    _c2WordSets = newC2
+    _c1ToC2s.clear()
+    for (const [k, v] of newC1ToC2s) _c1ToC2s.set(k, v)
+
+    console.log(`[activation-field] loaded category seeds: ${newC1.size} C1, ${newC2.size} C2`)
+    return true
+  } catch (e) {
+    console.log(`[activation-field] failed to load category seeds: ${e}`)
+    return false
+  }
+}
+
+// Attempt to load seeds at module init
+_seedsLoaded = loadCategorySeeds()
+
+// 预编译：为每个 category 建一个 Set（加速查找）— 旧系统 fallback
 const _categoryWordSets = new Map<string, Set<string>>()
 for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
   _categoryWordSets.set(cat, new Set(words.map(w => w.toLowerCase())))
 }
 
 // ── AAM 动态话题扩展：用 PMI 邻居自动扩充 category 关键词 ──
+let _dynamicC2Sets: Map<string, Set<string>> | null = null
 let _dynamicCategorySets: Map<string, Set<string>> | null = null
 let _dynamicCategoryTs = 0
 const DYNAMIC_CATEGORY_TTL = 30000  // 30s 缓存
 
-/** 从 AAM 学习的共现关系动态扩展话题关键词 */
+/** 从 AAM 学习的共现关系动态扩展话题关键词（3-level: C2 优先，旧系统 fallback） */
 export function buildDynamicCategories(): void {
   const now = Date.now()
   if (_dynamicCategorySets && now - _dynamicCategoryTs < DYNAMIC_CATEGORY_TTL) return
-  _dynamicCategorySets = new Map<string, Set<string>>()
+
   _dynamicCategoryTs = now
+
+  // Expand C2 sets if seeds loaded
+  if (_seedsLoaded && _c2WordSets.size > 0) {
+    _dynamicC2Sets = new Map<string, Set<string>>()
+    for (const [cat, staticSet] of _c2WordSets) {
+      const expanded = new Set(staticSet)
+      for (const seed of staticSet) {
+        if (seed.length < 3 || !/^[a-z]+$/.test(seed)) continue
+        try {
+          const neighbors = _aamGetAAMNeighbors(seed, 3)
+          for (const n of neighbors) {
+            if (n.pmiScore > 2.0 && n.fanOut < 50 && n.word.length >= 3) {
+              expanded.add(n.word.toLowerCase())
+            }
+          }
+        } catch {}
+      }
+      _dynamicC2Sets.set(cat, expanded)
+    }
+  }
+
+  // Also expand old flat system (for detectCategories compat)
+  _dynamicCategorySets = new Map<string, Set<string>>()
   for (const [cat, staticSet] of _categoryWordSets) {
     const expanded = new Set(staticSet)
     for (const seed of staticSet) {
@@ -310,41 +423,118 @@ export function buildDynamicCategories(): void {
   }
 }
 
-/** 获取当前 category 词集（动态优先，静态 fallback） */
+/** 获取当前 category 词集（动态优先，静态 fallback）— 旧 flat 系统 */
 function getActiveCategorySets(): Map<string, Set<string>> {
   return _dynamicCategorySets || _categoryWordSets
 }
 
-/** 检测文本的领域分类，返回命中的 category 列表（按命中数降序）
- *  使用 stemming 扩大匹配覆盖（"ran"→"run" 匹配 "running"）*/
-export function detectCategories(text: string): string[] {
-  const lower = text.toLowerCase()
-  // 提取文本中的所有词（含 stemmed 形式）
+/** 获取当前 C2 词集（动态优先，静态 fallback）— 新 3-level 系统 */
+function getActiveC2Sets(): Map<string, Set<string>> {
+  return _dynamicC2Sets || _c2WordSets
+}
+
+/** 提取文本中的词（含 stemmed 形式），供分类匹配使用 */
+function _extractTextWords(lower: string): Set<string> {
   const textWords = new Set<string>()
   for (const w of (lower.match(/[a-z]{3,}/g) || [])) {
     textWords.add(w)
-    textWords.add(porterStem(w))  // stemmed 形式
+    textWords.add(porterStem(w))
   }
-  // CJK 保留
   for (const w of (lower.match(/[\u4e00-\u9fff]{2,4}/g) || [])) textWords.add(w)
+  return textWords
+}
+
+/** 对一个词集计算命中数和命中的关键词 */
+function _matchWordSet(lower: string, textWords: Set<string>, wordSet: Set<string>): { hits: number; matched: string[] } {
+  let hits = 0
+  const matched: string[] = []
+  for (const kw of wordSet) {
+    if (lower.includes(kw)) { hits++; matched.push(kw); continue }
+    const kwStem = kw.length >= 3 && /^[a-z]+$/.test(kw) ? porterStem(kw) : kw
+    if (textWords.has(kwStem)) { hits++; matched.push(kw) }
+  }
+  return { hits, matched }
+}
+
+/** 检测文本的领域分类，返回命中的 category 列表（按命中数降序）
+ *  使用 stemming 扩大匹配覆盖（"ran"→"run" 匹配 "running"）
+ *  兼容旧接口：返回 string[]（flat category names） */
+export function detectCategories(text: string): string[] {
+  const lower = text.toLowerCase()
+  const textWords = _extractTextWords(lower)
 
   const scores: [string, number][] = []
   const activeSets = getActiveCategorySets()
   for (const [cat, wordSet] of activeSets) {
-    let hits = 0
-    for (const kw of wordSet) {
-      // 直接包含 or stemmed 匹配
-      if (lower.includes(kw)) { hits++; continue }
-      const kwStem = kw.length >= 3 && /^[a-z]+$/.test(kw) ? porterStem(kw) : kw
-      if (textWords.has(kwStem)) hits++
-    }
+    const { hits } = _matchWordSet(lower, textWords, wordSet)
     if (hits > 0) scores.push([cat, hits])
   }
   scores.sort((a, b) => b[1] - a[1])
   return scores.map(s => s[0])
 }
 
-/** 内容级 category 缓存（避免对同一条记忆重复检测） */
+/**
+ * 3-level category detection（新系统）
+ * 返回 { c1: broad categories, c2: specific topics, c3: matched keywords }
+ * 使用 seeds/category_seeds_v2.json 的 C1/C2 层级
+ * 如果 seed 未加载，降级到旧 detectCategories 映射
+ */
+export function detectCategoriesV2(text: string): CategoryResult {
+  if (!_seedsLoaded || _c2WordSets.size === 0) {
+    // Fallback: 旧系统没有层级，c2=旧分类名，c1=空，c3=空
+    const flat = detectCategories(text)
+    return { c1: [], c2: flat, c3: [] }
+  }
+
+  const lower = text.toLowerCase()
+  const textWords = _extractTextWords(lower)
+
+  // Match against C2 (specific topics)
+  const c2Scores: [string, number, string[]][] = []
+  const activeC2 = getActiveC2Sets()
+  for (const [cat, wordSet] of activeC2) {
+    const { hits, matched } = _matchWordSet(lower, textWords, wordSet)
+    if (hits > 0) c2Scores.push([cat, hits, matched])
+  }
+  c2Scores.sort((a, b) => b[1] - a[1])
+
+  // Derive C1 from matched C2 parents
+  const c1Set = new Set<string>()
+  const c2List: string[] = []
+  const c3List: string[] = []
+  for (const [cat, , matched] of c2Scores) {
+    c2List.push(cat)
+    const parent = _c2ToC1.get(cat)
+    if (parent) c1Set.add(parent)
+    for (const kw of matched) {
+      if (!c3List.includes(kw)) c3List.push(kw)
+    }
+  }
+
+  // Also try C1 direct match (in case no C2 matched but C1 keywords hit)
+  if (c1Set.size === 0) {
+    const c1Scores: [string, number, string[]][] = []
+    for (const [cat, wordSet] of _c1WordSets) {
+      const { hits, matched } = _matchWordSet(lower, textWords, wordSet)
+      if (hits > 0) c1Scores.push([cat, hits, matched])
+    }
+    c1Scores.sort((a, b) => b[1] - a[1])
+    for (const [cat, , matched] of c1Scores) {
+      c1Set.add(cat)
+      for (const kw of matched) {
+        if (!c3List.includes(kw)) c3List.push(kw)
+      }
+    }
+  }
+
+  return {
+    c1: [...c1Set],
+    c2: c2List,
+    c3: c3List.slice(0, 20),  // cap c3 to avoid bloat
+  }
+}
+
+/** 内容级 category 缓存（避免对同一条记忆重复检测）— 旧 flat 系统 */
 const _memCategoryCache = new Map<string, string[]>()
 const MEM_CATEGORY_CACHE_MAX = 5000
 
@@ -361,32 +551,92 @@ function getMemCategories(mem: Memory): string[] {
   return cats
 }
 
+/** 内容级 V2 category 缓存（3-level） */
+const _memCategoryV2Cache = new Map<string, CategoryResult>()
+const MEM_CATEGORY_V2_CACHE_MAX = 5000
+
+function getMemCategoriesV2(mem: Memory): CategoryResult {
+  const key = (mem.content || '').slice(0, 80)
+  let cats = _memCategoryV2Cache.get(key)
+  if (cats !== undefined) return cats
+  cats = detectCategoriesV2(mem.content || '')
+  if (_memCategoryV2Cache.size >= MEM_CATEGORY_V2_CACHE_MAX) {
+    const keys = [..._memCategoryV2Cache.keys()]
+    for (let i = 0; i < keys.length / 2; i++) _memCategoryV2Cache.delete(keys[i])
+  }
+  _memCategoryV2Cache.set(key, cats)
+  return cats
+}
+
 const CATEGORY_PRUNE_THRESHOLD = 100  // 只在候选池 > 100 时才启用剪枝
 const CATEGORY_PRUNE_MIN_POOL = 20    // 剪枝后最少保留的记忆数
 const CATEGORY_HIGH_IMPORTANCE = 8    // 高重要性记忆无条件保留
 
-/**
- * 按领域预筛记忆：只保留与查询同 category 的 + 高重要性的
- * 返回剪枝后的 memories 子集（如果不值得剪枝，返回原数组）
- */
-// Category soft-weighting: 不再硬删记忆，改为类别不匹配时降权 0.5
-// 存储在 _categoryPenalty Map 中，供 computeActivationField 读取
+// Category soft-weighting: 类别不匹配时降权 0.5
 const _categoryPenalty = new Map<string, number>()
 
+/** 检查记忆是否应该无条件保留（高重要性/summary/蒸馏/fact/insight） */
+function _isAlwaysRetain(mem: Memory): boolean {
+  return (mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE ||
+    mem.tags?.includes('summary') || mem.scope === 'consolidated' ||
+    mem.scope === 'fact' || mem.scope === 'insight' || false
+}
+
 /**
- * Topic-Partitioned Recall v3（hard-partition + stemming 增强 + 安全 fallback）
- * v1: soft-weighting → 效果弱
- * v2: hard-partition + 关键词匹配 → 英文覆盖不足 -6.4%
- * v3: hard-partition + stemming + 40% 安全阈值 + 无分类记忆保留
+ * Topic-Partitioned Recall v4 — 3-level hierarchical pruning
+ *
+ * query → detectCategoriesV2 → {c1, c2, c3}
+ *
+ * Level 1 (C2 matched — specific topic):
+ *   pool = memories matching same C2 tags + always-retain
+ *   if pool >= 20: use pool (small, focused)
+ *
+ * Level 2 (only C1 matched — broad):
+ *   pool = memories matching same C1 tags + always-retain
+ *   if pool >= 20: use pool (medium)
+ *
+ * Level 3 (nothing matched): return all memories
  */
 function categoryPrePrune(memories: Memory[], query: string): Memory[] {
   _categoryPenalty.clear()
 
   if (memories.length <= CATEGORY_PRUNE_THRESHOLD) return memories
 
-  // temporal 查询不做 hard-partition（时间答案可能在任何话题里）
+  // temporal 查询不分池
   if (_currentQueryType === 'temporal') return memories
 
+  try {
+    const queryCatsV2 = detectCategoriesV2(query)
+
+    // ── 硬分区：primary_c2 单标签匹配，真正缩小池子 ──
+    if (queryCatsV2.c2.length > 0) {
+      const queryC2 = queryCatsV2.c2[0]  // 主话题
+      const c2Pool = memories.filter(m =>
+        (m.category_c2 && m.category_c2[0] === queryC2) || _isAlwaysRetain(m)
+      )
+      if (c2Pool.length >= 10) {
+        console.log(`[activation-field] HARD-C2 "${queryC2}": ${c2Pool.length}/${memories.length}`)
+        return c2Pool
+      }
+      // C2 太小 → 升 C1
+      const queryC1 = queryCatsV2.c1[0]
+      if (queryC1) {
+        const c1Pool = memories.filter(m =>
+          (m.category_c1 && m.category_c1[0] === queryC1) || _isAlwaysRetain(m)
+        )
+        if (c1Pool.length >= 10) {
+          console.log(`[activation-field] HARD-C1 "${queryC1}": ${c1Pool.length}/${memories.length}`)
+          return c1Pool
+        }
+      }
+    }
+    // 话题分类只提供 _topicPool 候选集，不干扰 activation score
+  } catch (e) {
+    console.log(`[activation-field] categoryPrePrune V2 error, falling back to flat: ${e}`)
+    // Fall through to flat system
+  }
+
+  // ── Flat fallback (旧系统逻辑) ──
   const queryCats = detectCategories(query)
   if (queryCats.length === 0) return memories
 
@@ -395,17 +645,12 @@ function categoryPrePrune(memories: Memory[], query: string): Memory[] {
   const seen = new Set<Memory>()
 
   for (const mem of memories) {
-    // 无条件保留：高重要性 / summary / 蒸馏 / insight
-    if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE ||
-        mem.tags?.includes('summary') || mem.scope === 'consolidated' ||
-        mem.scope === 'fact' || mem.scope === 'insight') {
+    if (_isAlwaysRetain(mem)) {
       if (!seen.has(mem)) { partitioned.push(mem); seen.add(mem) }
       continue
     }
-    // 话题匹配（stemming 增强后覆盖率更高）
     const memCats = getMemCategories(mem)
     if (memCats.length === 0) {
-      // 无法分类的记忆也保留（不冤枉）
       if (!seen.has(mem)) { partitioned.push(mem); seen.add(mem) }
       continue
     }
@@ -417,11 +662,9 @@ function categoryPrePrune(memories: Memory[], query: string): Memory[] {
     }
   }
 
-  // 安全阈值：partition 后至少保留 50% 或 MIN_POOL
   if (partitioned.length < Math.max(CATEGORY_PRUNE_MIN_POOL, memories.length * 0.5)) {
-    // fallback: soft-weighting
     for (const mem of memories) {
-      if ((mem.importance || 0) >= CATEGORY_HIGH_IMPORTANCE) continue
+      if (_isAlwaysRetain(mem)) continue
       const memCats = getMemCategories(mem)
       if (memCats.length === 0) continue
       let matched = false
@@ -1336,6 +1579,34 @@ export function computeActivationField(
   // 排序
   rawResults.sort((a, b) => b.raw - a.raw)
 
+  // ── Direction 6: Temporal neighbor boost ──
+  // If a memory matches, also boost its temporal neighbors (±2 positions by timestamp)
+  try {
+    const topMatched = rawResults.slice(0, 5)
+    if (topMatched.length > 0) {
+      // Collect temporal neighbor words from top matches
+      const neighborWords = new Set<string>()
+      for (const r of topMatched) {
+        const words = (r.mem.content || '').match(WORD_PATTERN.CJK2_EN3) || []
+        for (const w of words.slice(0, 5)) {
+          const neighbors = _aamGetTemporalNeighbors(w.toLowerCase(), 3)
+          for (const n of neighbors) neighborWords.add(n.word)
+        }
+      }
+      if (neighborWords.size > 0) {
+        const topContents = new Set(topMatched.map(r => r.mem.content))
+        for (const r of rawResults) {
+          if (topContents.has(r.mem.content)) continue
+          const memWords = (r.mem.content || '').match(WORD_PATTERN.CJK2_EN3) || []
+          let hits = 0
+          for (const w of memWords) { if (neighborWords.has(w.toLowerCase())) hits++ }
+          if (hits >= 2) r.raw *= 1.15  // boost temporal neighbors by 15%
+        }
+      }
+    }
+    rawResults.sort((a, b) => b.raw - a.raw)
+  } catch {}
+
   // ── 存入时序 PAM：同批存入的记忆互相 boost ──
   // 同一次 feedback 存入的记忆 ts 差距 < 5s，天然具有语义关联
   // top-3 候选的同批记忆获得 20% boost（零冷启动，不依赖学习数据）
@@ -1391,6 +1662,12 @@ export function computeActivationField(
     try {
       activation *= _getConfModifier(r.mem)
     } catch {}
+
+    // ── TopicNode boost：蒸馏话题匹配的记忆获得额外加分 ──
+    if ((r.mem as any)._topicBoost) {
+      activation *= (r.mem as any)._topicBoost
+      r.path.push({ stage: 'signal_boost', via: 'topic_node', rawScore: (r.mem as any)._topicBoost })
+    }
 
     r.signals.interference = s5
 
@@ -1726,6 +2003,28 @@ export function activationRecall(
     memories = categoryPrePrune(memories, query)
   }
 
+  // ── TopicNode 召回路由：蒸馏话题节点匹配 → 相关记忆 activation boost ──
+  try {
+    const relevantTopics = _getRelevantTopics(query)
+    if (relevantTopics.length > 0) {
+      const topicKeywords = new Set<string>()
+      for (const tn of relevantTopics) {
+        for (const w of (tn.topic + ' ' + tn.summary).match(WORD_PATTERN.CJK2_EN3) || []) {
+          topicKeywords.add(w.toLowerCase())
+        }
+      }
+      if (topicKeywords.size > 0) {
+        for (const mem of memories) {
+          const memWords = (mem.content || '').toLowerCase().match(WORD_PATTERN.CJK2_EN3) || []
+          const overlap = memWords.filter(w => topicKeywords.has(w)).length
+          if (overlap >= 2) {
+            mem._topicBoost = 1.0 + Math.min(overlap * 0.05, 0.2)  // max 20% boost
+          }
+        }
+      }
+    }
+  } catch {}
+
   // ── Parallel Channel: fact-store 关键词召回（与 NAM 并行，最终融合）──
   // 遍历所有已存三元组，用查询词+AAM扩展词评分，不短路，结果在 NAM 之后融合
   let _parallelFactMems: Memory[] = []
@@ -1809,6 +2108,30 @@ export function activationRecall(
   const _baseOversample = memories.length <= 100 ? 2 : memories.length <= 300 ? 3 : 4
   const _oversample = cogHints ? Math.min(4, Math.max(2, Math.round(_baseOversample * (0.7 + 0.6 * cogHints.complexity)))) : _baseOversample
   let results = computeActivationField(memories, lexicalQuery, mood, alertness, expanded, topN * _oversample, timeRange, cogHints)
+
+  // ── 双路召回：话题池精准 + 全量池兜底（合并去重）──
+  // 话题池召回独立运行，结果合并到全量池结果里，互不干扰
+  try {
+    const queryCatsV2 = detectCategoriesV2(query)
+    if (queryCatsV2.c2.length > 0 && memories.length > 100) {
+      const queryC2Set = new Set(queryCatsV2.c2.slice(0, 3))
+      const topicPool = memories.filter(m => {
+        const mc = getMemCategoriesV2(m)
+        return mc.c2.some(c => queryC2Set.has(c)) || _isAlwaysRetain(m)
+      })
+      if (topicPool.length >= 20 && topicPool.length < memories.length * 0.8) {
+        const topicResults = computeActivationField(topicPool, lexicalQuery, mood, alertness, expanded, Math.ceil(topN / 2), timeRange, cogHints)
+        // 合并：话题池结果插入全量池（去重）
+        const seen = new Set(results.map(r => r.memory.content))
+        for (const r of topicResults) {
+          if (!seen.has(r.memory.content)) {
+            results.push(r); seen.add(r.memory.content)
+          }
+        }
+        results.sort((a, b) => b.activation - a.activation)
+      }
+    }
+  } catch {}
 
   // ── DQR: Dual-Query Recall（双查询召回）——用扩展词重组第二个查询再搜一次 ──
   // 原创：论文证明 dual-query 能提升 6.7%，我们用 AAM 扩展词自动生成第二查询（零 LLM）
@@ -2262,41 +2585,62 @@ export function activationRecall(
   }
 
   // ── NAM Coordinator Pattern（原创：协调器式多维度保证召回）──
+  // 动态分派：根据 queryType 调整各 worker 的 slot 分配
   if (results.length > topN && topN >= 6) {
+    const _allocations: Record<string, { comprehensive: number; context: number; base: number; spread: number; episode: number }> = {
+      precise:      { comprehensive: 0.4, context: 0.3, base: 0.1, spread: 0.1, episode: 0.1 },
+      temporal:     { comprehensive: 0.3, context: 0.2, base: 0.1, spread: 0.1, episode: 0.3 },
+      multi_entity: { comprehensive: 0.3, context: 0.2, base: 0.1, spread: 0.3, episode: 0.1 },
+      broad:        { comprehensive: 0.5, context: 0.2, base: 0.1, spread: 0.1, episode: 0.1 },
+    }
+    const alloc = _allocations[_currentQueryType] || _allocations.broad
+    const slotComprehensive = Math.ceil(topN * alloc.comprehensive)
+    const slotContext = Math.ceil(topN * (alloc.comprehensive + alloc.context))
+    const slotBase = Math.ceil(topN * (alloc.comprehensive + alloc.context + alloc.base))
+    const slotSpread = Math.ceil(topN * (1 - alloc.episode))
+    // slotEpisode fills remaining up to topN
+
     const seen = new Set<string>()
     const coordinated: typeof results = []
+    // Worker 1: comprehensive (activation sort — already sorted)
     for (const r of results) {
-      if (coordinated.length >= Math.ceil(topN * 0.5)) break
+      if (coordinated.length >= slotComprehensive) break
       if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
+    // Worker 2: context (BM25)
     const byContext = [...results].sort((a, b) => b.signals.context - a.signals.context)
     for (const r of byContext) {
-      if (coordinated.length >= Math.ceil(topN * 0.7)) break
+      if (coordinated.length >= slotContext) break
       if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
+    // Worker 3: base (recency)
     const byBase = [...results].sort((a, b) => b.signals.base - a.signals.base)
     for (const r of byBase) {
-      if (coordinated.length >= Math.ceil(topN * 0.9)) break
+      if (coordinated.length >= slotBase) break
       if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
+    // Worker 4: temporal (conditional — extra slots for temporal queries)
     if (_currentQueryType === 'temporal') {
       const byTemporal = [...results].sort((a, b) => b.signals.temporal - a.signals.temporal)
       for (const r of byTemporal) {
-        if (coordinated.length >= topN - 1) break
+        if (coordinated.length >= slotSpread) break
         if (!seen.has(r.memory.content) && r.signals.temporal > 0) { coordinated.push(r); seen.add(r.memory.content) }
       }
     }
+    // Worker 5: spread (entity graph)
     const bySpread = [...results].sort((a, b) => b.signals.spread - a.signals.spread)
     for (const r of bySpread) {
-      if (coordinated.length >= topN - 1) break
+      if (coordinated.length >= slotSpread) break
       if (!seen.has(r.memory.content) && r.signals.spread > 0) { coordinated.push(r); seen.add(r.memory.content) }
     }
+    // Worker 6: episode-only
     const episodeOnly = results.filter(r => r.memory.scope === 'episode' && !r.memory.tags?.includes('summary'))
       .sort((a, b) => b.activation - a.activation)
     for (const r of episodeOnly) {
       if (coordinated.length >= topN) break
       if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }
     }
+    // Backfill: 如果还没填满，用综合排序补齐
     for (const r of results) {
       if (coordinated.length >= topN) break
       if (!seen.has(r.memory.content)) { coordinated.push(r); seen.add(r.memory.content) }

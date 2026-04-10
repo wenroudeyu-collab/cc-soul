@@ -190,15 +190,16 @@ export function distillL1toL2() {
   const now = Date.now()
   if (now - distillState.lastL1toL2 < L1_TO_L2_COOLDOWN) return
 
-  // ── 会话门（学自 Claude Code Auto Dream）：至少 3 个有效会话后才允许蒸馏 ──
-  // 防止用户不活跃时浪费 LLM 调用
-  const MIN_SESSIONS_FOR_DISTILL = 3
-  try {
-    const { getSessionState, getLastActiveSessionKey } = require('./handler-state.ts')
-    const sess = getSessionState(getLastActiveSessionKey())
-    const sessionCount = sess?.sessionCount ?? sess?.turnCount ?? 0
-    if (sessionCount < MIN_SESSIONS_FOR_DISTILL) return
-  } catch {}
+  // ── 会话门：至少 3 个有效会话后才允许蒸馏（benchmark 跳过）──
+  if (!process.env.CC_SOUL_BENCHMARK) {
+    const MIN_SESSIONS_FOR_DISTILL = 3
+    try {
+      const { getSessionState, getLastActiveSessionKey } = require('./handler-state.ts')
+      const sess = getSessionState(getLastActiveSessionKey())
+      const sessionCount = sess?.sessionCount ?? sess?.turnCount ?? 0
+      if (sessionCount < MIN_SESSIONS_FOR_DISTILL) return
+    } catch {}
+  }
 
   distillState.lastL1toL2 = now
 
@@ -286,6 +287,18 @@ export function distillL1toL2() {
           }
         }
         saveTopicNodes()
+        // ── 蒸馏反哺 AAM：TopicNode 的关键词注入 AAM 共现网络（飞轮效应）──
+        try {
+          const { learnAssociation } = require('./aam.ts')
+          // 把 summary 的关键词跟 topic 名做共现学习
+          const summaryWords = (node.summary.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).slice(0, 15)
+          if (summaryWords.length >= 2) learnAssociation(summaryWords.join(' '), 0, 1.5)  // 高权重
+          // 跨层传播：topic 名 + C2 级关键词
+          for (const mem of cluster.slice(0, 5)) {
+            const memKw = (mem.content.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{4,}/gi) || []).slice(0, 5)
+            if (memKw.length >= 2) learnAssociation(node.topic + ' ' + memKw.join(' '), 0, 0.8)
+          }
+        } catch {}
         console.log(`[cc-soul][distill] L1→L2 (zero-LLM): "${node.topic}" (${cluster.length} memories → 1 node)`)
         continue  // 跳过 LLM 蒸馏
       }
@@ -330,6 +343,12 @@ export function distillL1toL2() {
           }
         }
         saveTopicNodes()
+        // 蒸馏反哺 AAM（LLM 路径）
+        try {
+          const { learnAssociation: _la } = require('./aam.ts')
+          const sw = (node.summary.match(/[\u4e00-\u9fff]{2,4}|[a-zA-Z]{3,}/gi) || []).slice(0, 15)
+          if (sw.length >= 2) _la(sw.join(' '), 0, 1.5)
+        } catch {}
         console.log(`[cc-soul][distill] L1→L2: "${node.topic}" (${cluster.length} memories → 1 node)`)
       })
     }
@@ -1080,7 +1099,11 @@ function clusterByKeywords(memories: Memory[]): Memory[][] {
       for (const w of wordsI) { if (wordsJ.has(w)) hits++ }
       const overlap = hits / Math.max(1, Math.min(wordsI.size, wordsJ.size))
 
-      if (overlap >= 0.4) {
+      // 话题标签匹配也算（不只靠词汇重叠）
+      const tagI = memories[i].tags?.filter(t => t.startsWith('topic:')) || []
+      const tagJ = memories[j].tags?.filter(t => t.startsWith('topic:')) || []
+      const tagMatch = tagI.some(t => tagJ.includes(t))
+      if (overlap >= 0.25 || tagMatch) {  // 降低阈值 + 同 topic 直接聚
         cluster.push(memories[j])
         assigned.add(j)
       }

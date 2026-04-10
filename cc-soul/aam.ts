@@ -2727,6 +2727,13 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     }
   }
 
+  // Direction 5: Apply negative association penalty before sorting
+  for (const [word, weight] of expanded) {
+    if (queryWords.includes(word)) continue // don't penalize original query words
+    const penalty = getNegativePenalty(queryWords, word)
+    if (penalty < 1.0) expanded.set(word, weight * penalty)
+  }
+
   // Sort by weight, take top N
   return [...expanded.entries()]
     .map(([word, weight]) => ({ word, weight }))
@@ -3183,6 +3190,149 @@ Output ONLY valid JSON, no explanation, no markdown.`
   } catch (e: any) {
     console.log(`[AAM] Seed generation failed: ${e.message}`)
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DIRECTION 5: NEGATIVE ASSOCIATION LEARNING
+// LLM rerank 丢弃的记忆 → query↔memory 负关联，expandQuery 降权
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const _negativeAssoc: Map<string, Set<string>> = new Map()
+
+/**
+ * Learn negative association: queryWords and irrelevantMemWords appeared together
+ * but the memory was judged irrelevant by LLM rerank.
+ */
+export function learnNegativeAssociation(queryWords: string[], irrelevantMemWords: string[]): void {
+  try {
+    for (const qw of queryWords) {
+      if (qw.length < 2) continue
+      if (!_negativeAssoc.has(qw)) _negativeAssoc.set(qw, new Set())
+      const set = _negativeAssoc.get(qw)!
+      // OOM protection: max 200 negative words per query word
+      if (set.size > 200) continue
+      for (const mw of irrelevantMemWords) {
+        if (mw.length < 2 || mw === qw) continue
+        set.add(mw)
+      }
+    }
+  } catch {}
+}
+
+/**
+ * Check if a candidate expansion word has negative association with any query word.
+ * Returns a penalty multiplier (0.0 ~ 1.0, lower = more negative).
+ */
+export function getNegativePenalty(queryWords: string[], candidate: string): number {
+  try {
+    let negCount = 0
+    for (const qw of queryWords) {
+      if (_negativeAssoc.get(qw)?.has(candidate)) negCount++
+    }
+    if (negCount === 0) return 1.0
+    // Each negative hit reduces weight by 40%, max penalty 0.2
+    return Math.max(0.2, 1.0 - negCount * 0.4)
+  } catch { return 1.0 }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DIRECTION 6: TEMPORAL CHAIN LEARNING
+// 从记忆时间戳序列中学习 prev→next 链接
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Learn temporal chain from a sorted array of memories.
+ * Builds prev→next directed links based on timestamp order.
+ */
+export function learnTemporalChain(memories: Memory[]): void {
+  try {
+    const sorted = [...memories].sort((a, b) => (a.ts || 0) - (b.ts || 0))
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = sorted[i]
+      const next = sorted[i + 1]
+      if (!curr.content || !next.content) continue
+      // Only link memories within 10 minutes of each other
+      const gap = Math.abs((next.ts || 0) - (curr.ts || 0))
+      if (gap > 600000) continue
+      const currWords = filterStopWords(tokenize(curr.content)).filter(w => !isJunkToken(w)).slice(0, 5)
+      const nextWords = filterStopWords(tokenize(next.content)).filter(w => !isJunkToken(w)).slice(0, 5)
+      for (const cw of currWords) {
+        if (!_temporalNet.directed[cw]) _temporalNet.directed[cw] = {}
+        for (const nw of nextWords) {
+          if (cw === nw) continue
+          _temporalNet.directed[cw][nw] = (_temporalNet.directed[cw][nw] || 0) + 1
+        }
+      }
+    }
+  } catch {}
+}
+
+/**
+ * Get temporal neighbors (both predecessors and successors) of a word.
+ * Returns words within ±2 hops in the temporal chain.
+ */
+export function getTemporalNeighbors(word: string, topK = 5): { word: string; count: number }[] {
+  try {
+    const neighbors: Map<string, number> = new Map()
+    // Successors (direct)
+    const succs = _temporalNet.directed[word]
+    if (succs) {
+      for (const [w, c] of Object.entries(succs)) neighbors.set(w, (neighbors.get(w) || 0) + c)
+    }
+    // Predecessors (reverse lookup)
+    for (const [src, dests] of Object.entries(_temporalNet.directed)) {
+      if (dests[word]) neighbors.set(src, (neighbors.get(src) || 0) + dests[word])
+    }
+    return [...neighbors.entries()]
+      .map(([w, c]) => ({ word: w, count: c }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, topK)
+  } catch { return [] }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DIRECTION 8: EMOTION TRACE LEARNING
+// 情绪内容关联：情绪词 ↔ 内容词 共现学习
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const EMOTION_WORDS_EN = new Set([
+  'happy','sad','angry','excited','worried','afraid','love','hate','miss','enjoy',
+  'disappointed','grateful','anxious','proud','embarrassed','frustrated','lonely',
+  'surprised','scared','jealous','hopeful','stressed','relieved','depressed',
+])
+const EMOTION_WORDS_ZH = new Set([
+  '开心','难过','生气','兴奋','担心','害怕','喜欢','讨厌','想念','享受',
+  '失望','感激','焦虑','骄傲','尴尬','沮丧','孤独','惊讶','紧张','嫉妒',
+])
+
+/**
+ * Learn association between emotion words and content words in a memory.
+ * This teaches AAM that emotional queries can surface emotionally relevant memories.
+ */
+export function learnEmotionContext(content: string, emotion?: string): void {
+  try {
+    const words = filterStopWords(tokenize(content)).filter(w => !isJunkToken(w))
+    if (words.length < 2) return
+
+    // Find emotion words in content
+    const emotionWords: string[] = []
+    const contentWords: string[] = []
+    for (const w of words) {
+      if (EMOTION_WORDS_EN.has(w.toLowerCase()) || EMOTION_WORDS_ZH.has(w)) {
+        emotionWords.push(w)
+      } else {
+        contentWords.push(w)
+      }
+    }
+    // Also add explicit emotion tag if provided
+    if (emotion && emotion.length >= 2) emotionWords.push(emotion)
+
+    if (emotionWords.length === 0 || contentWords.length === 0) return
+
+    // Learn emotion↔content associations (lower weight than normal cooccur)
+    const combined = emotionWords.slice(0, 3).join(' ') + ' ' + contentWords.slice(0, 8).join(' ')
+    learnAssociation(combined, 0.5, 0.5)
+  } catch {}
 }
 
 // ── Export language detection for external use ──
