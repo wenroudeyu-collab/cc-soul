@@ -527,10 +527,29 @@ export function detectCategoriesV2(text: string): CategoryResult {
     }
   }
 
+  // C2 同义词归一化——相同含义的 C2 合并（提高分池一致性）
+  const _C2_ALIASES: Record<string, string> = {
+    sports: 'exercise', fitness: 'exercise', workout: 'exercise', gym: 'exercise',
+    eating: 'food', meal: 'food', dining: 'food', cuisine: 'food',
+    job: 'career', office: 'career', business: 'career',
+    parents: 'family', kids: 'family', relatives: 'family',
+    trip: 'travel', vacation: 'travel', journey: 'travel', tourism: 'travel',
+    movie: 'entertainment', film: 'entertainment', cinema: 'entertainment',
+    gaming: 'entertainment', games: 'entertainment',
+    singing: 'music', concert: 'music', songs: 'music',
+    painting: 'arts', drawing: 'arts', pottery: 'arts', craft: 'arts', crafts: 'arts',
+    hiking: 'outdoor', camping: 'outdoor', biking: 'outdoor',
+    church: 'community', religion: 'community', volunteer: 'community', charity: 'community',
+    adoption: 'community', foster: 'community',
+  }
+  const normalizedC2 = c2List.map(c => _C2_ALIASES[c] || c)
+  // 去重
+  const uniqueC2 = [...new Set(normalizedC2)]
+
   return {
     c1: [...c1Set],
-    c2: c2List,
-    c3: c3List.slice(0, 20),  // cap c3 to avoid bloat
+    c2: uniqueC2,
+    c3: c3List.slice(0, 20),
   }
 }
 

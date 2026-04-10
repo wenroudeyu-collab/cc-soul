@@ -1936,6 +1936,75 @@ function injectSeedsLite(lang: string) {
 injectSeedsLite('zh')
 injectSeedsLite('en')
 
+// ── 英文同义词种子注入（AAM 学不到的跨形态关联）──
+const _EN_SYNONYMS: Record<string, string[]> = {
+  run: ['running','jog','jogging','sprint','ran','marathon'],
+  eat: ['eating','ate','dine','dining','meal','food'],
+  sleep: ['sleeping','slept','rest','nap','bed'],
+  work: ['working','worked','job','labor','office','career'],
+  study: ['studying','learn','learning','research','studied'],
+  buy: ['bought','purchase','purchased','shop','shopping'],
+  travel: ['traveling','trip','journey','vacation','visit'],
+  cook: ['cooking','cooked','prepared','recipe','bake'],
+  exercise: ['exercising','workout','gym','fitness','sports'],
+  happy: ['glad','joyful','pleased','cheerful','excited'],
+  sad: ['unhappy','upset','depressed','down'],
+  angry: ['mad','furious','annoyed','irritated'],
+  tired: ['exhausted','weary','fatigued','sleepy'],
+  worried: ['anxious','concerned','nervous','stressed'],
+  love: ['loved','loving','adore','enjoy','enjoyed'],
+  friend: ['buddy','pal','companion','friends','bestie'],
+  family: ['parents','relatives','home','household'],
+  parent: ['mom','dad','mother','father','parents'],
+  child: ['kid','children','kids','son','daughter'],
+  boss: ['manager','supervisor','employer','leader'],
+  partner: ['spouse','husband','wife','boyfriend','girlfriend'],
+  home: ['house','apartment','place','residence'],
+  restaurant: ['cafe','diner','eatery','dining'],
+  school: ['college','university','class','campus'],
+  movie: ['film','cinema','show','watching'],
+  book: ['novel','reading','read','literature'],
+  music: ['song','songs','album','listening','concert'],
+  phone: ['mobile','cell','smartphone','call'],
+  car: ['vehicle','driving','drive','commute'],
+  talk: ['talking','speak','speaking','chat','conversation'],
+  meet: ['meeting','met','seeing','encounter'],
+  help: ['helping','assist','support','aid'],
+  money: ['cash','dollars','salary','income','pay'],
+  sick: ['ill','unwell','disease','health'],
+  doctor: ['physician','medical','hospital','clinic'],
+  walk: ['walking','walked','stroll','hike','hiking'],
+  paint: ['painting','painted','art','drawing','canvas'],
+  sing: ['singing','sang','song','choir'],
+  camp: ['camping','camped','tent','outdoor'],
+  adopt: ['adopted','adoption','foster','adopting'],
+  volunteer: ['volunteering','volunteered','charity','community'],
+  counsel: ['counseling','counselor','therapy','therapist'],
+}
+{
+  const net = getNetwork('en')
+  let injected = 0
+  for (const [word, syns] of Object.entries(_EN_SYNONYMS)) {
+    // word ↔ 每个 syn
+    for (const syn of syns) {
+      if (!net.cooccur[word]) net.cooccur[word] = {}
+      if ((net.cooccur[word][syn] || 0) < 3) { net.cooccur[word][syn] = 3; injected++ }
+      if (!net.cooccur[syn]) net.cooccur[syn] = {}
+      if ((net.cooccur[syn][word] || 0) < 3) { net.cooccur[syn][word] = 3; injected++ }
+    }
+    // syn ↔ syn（同义词组内互相关联，修复坑 2：jogging↔marathon 也能互找）
+    for (let i = 0; i < syns.length; i++) {
+      for (let j = i + 1; j < syns.length; j++) {
+        if (!net.cooccur[syns[i]]) net.cooccur[syns[i]] = {}
+        if ((net.cooccur[syns[i]][syns[j]] || 0) < 2) { net.cooccur[syns[i]][syns[j]] = 2; injected++ }
+        if (!net.cooccur[syns[j]]) net.cooccur[syns[j]] = {}
+        if ((net.cooccur[syns[j]][syns[i]] || 0) < 2) { net.cooccur[syns[j]][syns[i]] = 2; injected++ }
+      }
+    }
+  }
+  if (injected > 0) console.log(`[cc-soul][aam] English synonym injection: ${injected} pairs`)
+}
+
 /**
  * Tokenize text into words for association network.
  * CJK: 2-3 char segments. English: 3+ letter words.
@@ -1972,7 +2041,8 @@ const CJK_FUNCTION_CHARS = new Set(
 )
 
 // 英文高频低信息动词/代词（AAM 不应该学这些的共现）
-const EN_JUNK_VERBS = new Set(['went','said','told','asked','thought','knew','came','made','took','gave','called','looked','tried','started','seemed','wanted','felt','found','used','needed','helped','talked','mentioned','shared','decided','agreed','moved','worked','lived','played','enjoyed','loved','liked','happened','become','getting','going','doing','having','being','making','taking','coming','saying','looking','trying'])
+// 精简版：只过滤真正无语义的功能词，保留有语义的动词（enjoyed/loved/played 有情感和事实信息）
+const EN_JUNK_VERBS = new Set(['went','came','made','took','gave','called','looked','tried','started','seemed','happened','become','getting','going','doing','having','being','making','taking','coming','saying','looking','trying'])
 
 export function isJunkToken(word: string): boolean {
   // 英文 junk token 过滤（高频低信息动词）
@@ -3230,8 +3300,13 @@ export function getNegativePenalty(queryWords: string[], candidate: string): num
       if (_negativeAssoc.get(qw)?.has(candidate)) negCount++
     }
     if (negCount === 0) return 1.0
-    // Each negative hit reduces weight by 40%, max penalty 0.2
-    return Math.max(0.2, 1.0 - negCount * 0.4)
+    // 动态衰减：负向集越大，惩罚越温和（避免过度学习）
+    const totalNegSize = [..._negativeAssoc.values()].reduce((s, set) => s + set.size, 0)
+    let penaltyPerHit = 0.2  // 默认温和
+    if (totalNegSize > 200) penaltyPerHit = 0.05
+    else if (totalNegSize > 100) penaltyPerHit = 0.1
+    else if (totalNegSize > 50) penaltyPerHit = 0.15
+    return Math.max(0.5, 1.0 - negCount * penaltyPerHit)  // 最低 0.5（不砍太多）
   } catch { return 1.0 }
 }
 

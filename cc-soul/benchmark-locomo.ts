@@ -1427,6 +1427,44 @@ async function run() {
     }
     perQueryLatency.push(Date.now() - _qStart)
 
+    // ── Iterative Bridge Recall（multi_hop 专用）──
+    // 检测：query 含 2+ 实体名 或 "and"/"also"/"both"
+    const _queryEntities = (q.question.match(/\b[A-Z][a-z]{2,}\b/g) || [])
+      .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not|And|But)$/.test(n))
+    const _isMultiHop = _queryEntities.length >= 2 || /\band\b|\balso\b|\bboth\b/i.test(q.question)
+    if (_isMultiHop && recalled.length >= 3) {
+      try {
+        // 从 top-3 提取桥梁词（高 IDF、不在原 query 中的内容词）
+        const qWordsSet = new Set((q.question.toLowerCase().match(/[a-z]{4,}/g) || []))
+        const bridgeWords: string[] = []
+        for (const mem of recalled.slice(0, 3)) {
+          const memWords = ((mem.content || '').toLowerCase().match(/[a-z]{4,}/g) || [])
+            .filter(w => !qWordsSet.has(w) && !/^(what|when|where|that|this|they|with|from|have|been|their|about|would|could|should|does|which|said|told|asked|went|made)$/.test(w))
+          bridgeWords.push(...memWords)
+        }
+        // 取频次最高的 3 个桥梁词
+        const freq = new Map<string, number>()
+        for (const w of bridgeWords) freq.set(w, (freq.get(w) || 0) + 1)
+        const topBridge = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w]) => w)
+
+        if (topBridge.length >= 1) {
+          // 二轮召回：原 query + 桥梁词
+          const bridgeQuery = q.question + ' ' + topBridge.join(' ')
+          const secondRound = activationRecall(memories, bridgeQuery, opts.topK, 0, 0.5, _cogHints)
+          // 合并去重
+          const seen = new Set(recalled.map(m => m.content))
+          for (const m of secondRound) {
+            if (!seen.has(m.content) && recalled.length < opts.topK * 2) {
+              recalled.push(m)
+              seen.add(m.content)
+            }
+          }
+          // 只保留 topK（按原始 activation 排序已经在 activationRecall 内完成）
+          recalled = recalled.slice(0, opts.topK)
+        }
+      } catch {}
+    }
+
     // ── Recall-Driven AAM Learning：模拟真实使用中 query↔recall 共现（增强版）──
     if (recalled.length > 0) {
       try {
@@ -1496,19 +1534,28 @@ async function run() {
       if (opts.llm) {
         stat.llmTotal++
         try {
-          // ── CNAS: LLM-enhanced recall pipeline (query rewrite → MemR3 → rerank) ──
-          // temporal 查询跳过 rewrite/MemR3（保护时间词不被改写）
+          // ── CNAS: LLM-enhanced recall pipeline ──
           let llmRecalled = recalled
           const _isTemporal = /when|last|before|after|ago|first\s+time|how\s+long|what\s+time|what\s+date/i.test(q.question)
+          const _fokBefore = computeFOK(q.question, recalled)
+          const _recalledBefore = recalled.map(m => m.content).join('|')
+          // 统计
+          if (!(global as any)._cnasStats) (global as any)._cnasStats = { rewrite: 0, memr3: 0, rerankChanged: 0, total: 0 }
+          const _cs = (global as any)._cnasStats
+          _cs.total++
           try {
             if (!_isTemporal) {
-              // Step 1: MemR3 reflective retrieval (FOK=LOW → analyze gaps → 2nd recall)
+              const _beforeLen = llmRecalled.length
               llmRecalled = await memR3Reflect(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
-              // Step 2: LLM query rewrite (FOK=LOW/MEDIUM → expand keywords → merge)
+              if (llmRecalled.length !== _beforeLen) _cs.memr3++
+              const _beforeRewrite = llmRecalled.map(m => m.content).join('|')
               llmRecalled = await llmQueryRewrite(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
+              if (llmRecalled.map(m => m.content).join('|') !== _beforeRewrite) _cs.rewrite++
             }
-            // Step 3: LLM rerank (pick best top-K from expanded pool)
+            // Step 3: LLM rerank
+            const _beforeRerank = llmRecalled[0]?.content
             llmRecalled = await llmRerank(q.question, llmRecalled, opts.topK, apiKey)
+            if (llmRecalled[0]?.content !== _beforeRerank) _cs.rerankChanged++
           } catch (e: any) {
             // fallback to NAM-only recalled on any LLM error
             llmRecalled = recalled
@@ -1819,6 +1866,18 @@ async function run() {
   print(`  Random baseline: 10.0%`)
   print(`  Time: ${elapsed.toFixed(1)}s (${(questions.length / elapsed).toFixed(0)} q/s)`)
   print(`  Isolation: per-conv (AAM + fact-store reset between conversations)`)
+  // CNAS pipeline 统计
+  const _cs = (global as any)._cnasStats
+  if (_cs && _cs.total > 0) {
+    print()
+    print('═══════════════════════════════════════════════════════════')
+    print('  CNAS Pipeline Statistics')
+    print('═══════════════════════════════════════════════════════════')
+    print(`  Total LLM queries: ${_cs.total}`)
+    print(`  MemR3 triggered:   ${_cs.memr3} (${(_cs.memr3/_cs.total*100).toFixed(1)}%)`)
+    print(`  Rewrite triggered: ${_cs.rewrite} (${(_cs.rewrite/_cs.total*100).toFixed(1)}%)`)
+    print(`  Rerank changed #1: ${_cs.rerankChanged} (${(_cs.rerankChanged/_cs.total*100).toFixed(1)}%)`)
+  }
   print()
 }
 

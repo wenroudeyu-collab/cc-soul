@@ -56,6 +56,10 @@ interface TopicNode {
   lastHitTs?: number       // 上次命中时间
   stale?: boolean          // 标记为需要重蒸馏
   confidence?: number      // 置信度 [0.1, 0.95]
+  // ── CNAS 三层话题分类 ──
+  category_c1?: string     // 大类
+  category_c2?: string     // 中类
+  category_c3?: string     // 细类
 }
 
 interface MentalModel {
@@ -267,12 +271,26 @@ export function distillL1toL2() {
         // 零 LLM 蒸馏成功，不调 LLM
         // 从第一条记忆提取主题名
         const topicName = cluster[0].content.slice(0, 10).replace(/[，。！？\s]+$/, '') || '未分类'
+        // 自动给 TopicNode 打 C1/C2/C3 标签（从聚类记忆的标签继承）
+        let _nodeC1 = '', _nodeC2 = '', _nodeC3 = ''
+        try {
+          const catFreq = new Map<string, number>()
+          for (const m of cluster) {
+            for (const c of (m.category_c2 || [])) catFreq.set(c, (catFreq.get(c) || 0) + 1)
+          }
+          if (catFreq.size > 0) {
+            _nodeC2 = [...catFreq.entries()].sort((a, b) => b[1] - a[1])[0][0]
+            _nodeC1 = cluster.find(m => m.category_c1?.length)?.category_c1?.[0] || ''
+          }
+        } catch {}
         const node: TopicNode = {
           topic: topicName.slice(0, 20),
           summary: zeroLLMResult.slice(0, 200),
           sourceCount: cluster.length,
           lastUpdated: Date.now(),
           userId: userId === '_global' ? undefined : userId,
+          category_c1: _nodeC1 || undefined,
+          category_c2: _nodeC2 || undefined,
         }
         if (existingNode) {
           existingNode.topic = node.topic
