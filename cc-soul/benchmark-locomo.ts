@@ -755,7 +755,7 @@ function selectAnswer(recalled: Memory[], choices: string[], question?: string):
 function parseArgs() {
   const args = process.argv.slice(2)
   let conv: number | undefined, type: string | undefined, topK = 10, verbose = false, limit = 0
-  let recallOnly = false, llm = false, online = false, api = false, apiPort = 18800, sample = false
+  let recallOnly = false, llm = false, online = false, api = false, apiPort = 18800, sample = false, mini = false
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--conv' && args[i + 1]) conv = parseInt(args[++i])
     if (args[i] === '--type' && args[i + 1]) type = args[++i]
@@ -768,9 +768,10 @@ function parseArgs() {
     if (args[i] === '--api') { api = true; online = true }
     if (args[i] === '--api-port' && args[i + 1]) apiPort = parseInt(args[++i])
     if (args[i] === '--sample') sample = true  // 3-conv 快速采样（小/中/大库）
+    if (args[i] === '--mini') { mini = true; sample = false }  // 1-conv 极速：~200 题，10 分钟
     if (args[i] === '--aam-persist') process.env.CC_SOUL_AAM_PERSIST = '1'  // Direction 4: cross-conv AAM persistence
   }
-  return { conv, type, topK, verbose, limit, recallOnly, llm, online, api, apiPort, sample }
+  return { conv, type, topK, verbose, limit, recallOnly, llm, online, api, apiPort, sample, mini }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1138,7 +1139,12 @@ async function run() {
 
   // Filter
   let questions = allQuestions
-  if (opts.sample) {
+  if (opts.mini) {
+    // 1-conv 极速模式：中等大小库，~200 题，10 分钟
+    const miniConv = convIds[4] || convIds[0]
+    questions = allQuestions.filter(q => q.question_id.split('_')[0] === miniConv)
+    print(`  Mini mode: ${miniConv} → ${questions.length} questions`)
+  } else if (opts.sample) {
     // 3-conv 快速采样：小库(conv-0)、中库(conv-4)、大库(conv-9) → ~500 题，2 分钟
     const sampleConvs = [convIds[0], convIds[4], convIds[9]].filter(Boolean)
     questions = allQuestions.filter(q => sampleConvs.includes(q.question_id.split('_')[0]))
