@@ -1887,17 +1887,6 @@ export function activationRecall(
     results.sort((a, b) => b.activation - a.activation)
   }
 
-  // ── Multi-Entity Coverage Boost：多实体查询时，覆盖更多实体的记忆优先 ──
-  if (_queryNames && _queryNames.length >= 2 && results.length > 1) {
-    for (const r of results) {
-      const cl = (r.memory.content || '').toLowerCase()
-      let entHits = 0
-      for (const n of _queryNames) if (cl.includes(n)) entHits++
-      if (entHits >= 2) r.activation *= 1.1  // 10% boost for multi-entity coverage
-    }
-    results.sort((a, b) => b.activation - a.activation)
-  }
-
   // ── PRF: Pseudo-Relevance Feedback（伪相关反馈二次召回）──
   // 首轮结果质量不足时触发：top-1 activation < 0.15 或 top-10 覆盖率低
   // PRF：首轮结果质量不足时触发
