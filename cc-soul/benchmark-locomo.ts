@@ -776,6 +776,7 @@ async function selectAnswerWithLLM(
   const llmRecalled = recalled.filter(m => !m.tags?.some((t: string) => t.startsWith('merged:')))
   const displayRecalled = llmRecalled.length >= 3 ? llmRecalled : recalled  // fallback if too few
 
+
   // 结构化 context：按 session 分组展示（B2：让 LLM 更容易定位时间和实体）
   const sessionGroups = new Map<string, { idx: number; content: string }[]>()
   for (let i = 0; i < displayRecalled.length; i++) {
@@ -826,7 +827,7 @@ ${hasNA ? (_fokConfidence === 'LOW'
    - If NO memory contains the exact detail the question asks about → "Not answerable"
    - Vague topic overlap is NOT sufficient — you need concrete facts/dates/names that directly answer the question
    - When in doubt, prefer "Not answerable" over guessing`
-  : `5. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
+  : `4. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
    - If the question asks about a topic/person/event that is never mentioned in any memory → "Not answerable"
    - If the memories mention the topic but don't contain enough detail to pick a specific answer → still pick the best match, NOT "Not answerable"
    - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question`)
