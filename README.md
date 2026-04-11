@@ -1,14 +1,17 @@
-# cc-soul — Your AI, But It Actually Knows You
+# cc-soul
 
-**100% local memory. Zero cloud upload. Zero telemetry. GDPR-friendly by design.**
+> Zero-vector AI memory engine that learns from every conversation.
+> LOCOMO benchmark: **4th place (76.2%)** — the only symbolic system in the top 5.
 
-Your AI forgets everything after each session. cc-soul fixes that — persistent memory, adaptive personality, emotion tracking, and learning from corrections. All data stays on your device in SQLite. Nothing ever leaves your machine.
+```bash
+npm install @cc-soul/openclaw
+```
 
-> While ChatGPT Memory stores your data in the cloud and Google Gemini reads your Gmail, cc-soul runs entirely on your machine. No server. No upload. No fine.
+100% local memory. Zero cloud upload. Zero telemetry. Zero vectors. Zero embeddings. Zero GPU.
 
 ---
 
-## Why Not ChatGPT Memory?
+## Why cc-soul?
 
 | | cc-soul | ChatGPT Memory | Google Gemini |
 |---|---------|---------------|---------------|
@@ -515,6 +518,6 @@ cc-soul is the **only symbolic (non-vector) system** in the top 5.
 
 **NAM memory engine · 15 original algorithms · 127ms p50 recall · works with or without LLM · 100% local**
 
-[npm](https://www.npmjs.com/package/@cc-soul/openclaw) · wenroudeyu@gmail.com
+[npm](https://www.npmjs.com/package/@cc-soul/openclaw) · wenroudeyu@gmail.com · License: Custom Commercial (see LICENSE)
 
 *Your AI remembers everything — and tells no one.*

@@ -65,42 +65,41 @@ done
 echo ""
 echo "── Obfuscating module names ──"
 
-# Step 1: Build name mapping (original → hashed)
-declare -A NAME_MAP
+# Step 1: Build name mapping (original → hashed) using temp file (zsh compatible)
+MAPFILE=$(mktemp)
 for f in "$DIST"/*.js; do
   [ -f "$f" ] || continue
   ORIG=$(basename "$f" .js)
   if [ "$ORIG" = "plugin-entry" ]; then
-    NAME_MAP[$ORIG]="plugin-entry"
+    echo "$ORIG plugin-entry" >> "$MAPFILE"
   else
-    # Deterministic short hash: md5 of name, take first 6 chars, prefix with 'm_'
     HASH=$(echo -n "cc-soul:$ORIG" | md5 -q | head -c 6)
-    NAME_MAP[$ORIG]="m_${HASH}"
+    echo "$ORIG m_${HASH}" >> "$MAPFILE"
   fi
 done
 
 # Step 2: Rename files and rewrite imports
 for f in "$DIST"/*.js; do
   [ -f "$f" ] || continue
-  ORIG=$(basename "$f" .js)
-  # Rewrite all import paths in this file
-  for KEY in "${!NAME_MAP[@]}"; do
-    HASHED="${NAME_MAP[$KEY]}"
+  while IFS=' ' read -r KEY HASHED; do
     if [ "$KEY" != "$HASHED" ]; then
-      # Replace './original-name.js' → './m_hash.js' and './original-name' → './m_hash'
       sed -i '' "s|['\"]\./${KEY}\.js['\"]|'./${HASHED}.js'|g" "$f"
       sed -i '' "s|['\"]\./${KEY}['\"]|'./${HASHED}.js'|g" "$f"
-      # Also handle .ts references that esbuild may have left
       sed -i '' "s|['\"]\./${KEY}\.ts['\"]|'./${HASHED}.js'|g" "$f"
     fi
-  done
-  # Rename file if needed
-  if [ "$ORIG" != "${NAME_MAP[$ORIG]}" ]; then
-    mv "$f" "$DIST/${NAME_MAP[$ORIG]}.js"
-    echo "   🔀 ${ORIG}.js → ${NAME_MAP[$ORIG]}.js"
-  fi
+  done < "$MAPFILE"
 done
-echo "   ✅ ${#NAME_MAP[@]} modules renamed"
+# Rename files
+RENAMED=0
+while IFS=' ' read -r KEY HASHED; do
+  if [ "$KEY" != "$HASHED" ] && [ -f "$DIST/${KEY}.js" ]; then
+    mv "$DIST/${KEY}.js" "$DIST/${HASHED}.js"
+    echo "   🔀 ${KEY}.js → ${HASHED}.js"
+    RENAMED=$((RENAMED+1))
+  fi
+done < "$MAPFILE"
+rm -f "$MAPFILE"
+echo "   ✅ $RENAMED modules renamed"
 
 # ── Copy HOOK.md ──
 cp "$SRC/HOOK.md" "$DIST/" 2>/dev/null || true
@@ -118,7 +117,8 @@ echo ""
 echo "── Copying static files ──"
 cp "$ROOT/README.md" "$ROOT/dist/"
 cp "$ROOT/CHANGELOG.md" "$ROOT/dist/" 2>/dev/null || true
-echo "   ✅ README + CHANGELOG copied"
+cp "$ROOT/LICENSE" "$ROOT/dist/" 2>/dev/null || true
+echo "   ✅ README + CHANGELOG + LICENSE copied"
 
 # ── Generate package.json ──
 cat > "$ROOT/dist/package.json" << 'PKGJSON'
@@ -129,11 +129,11 @@ cat > "$ROOT/dist/package.json" << 'PKGJSON'
   "type": "module",
   "keywords": ["ai","soul","memory","personality","openclaw","cognitive","agent"],
   "author": "cc-soul",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul-docs"},
   "bin": {"cc-soul":"./scripts/cli.js"},
   "main": "cc-soul/plugin-entry.js",
-  "files": ["cc-soul/","hub/","scripts/","README.md","CHANGELOG.md"],
+  "files": ["cc-soul/","hub/","scripts/","README.md","CHANGELOG.md","LICENSE"],
   "openclaw": {"extensions":["./cc-soul/plugin-entry.js"]},
   "peerDependencies": {"openclaw":">=2026.3"},
   "scripts": {"postinstall":"node scripts/install.js"}

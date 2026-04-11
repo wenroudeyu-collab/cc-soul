@@ -177,16 +177,6 @@ export interface Memory {
   _eventDate?: number   // 事件发生的原始时间戳（区别于 ts 的归一化时间）
   utility?: number  // -5 to +5, default 0. MemRL: "did this memory help?"
   _matchScore?: number  // activation-field 计算的匹配分数（运行时临时字段）
-  // ── CNAS 三层话题分类（单标签 + 次标签）──
-  primary_c1?: string      // 主大类（life/work/health/...）
-  primary_c2?: string      // 主中类（eating/exercise/career/...）
-  primary_c3?: string      // 主细类（hotpot/marathon/python/...）
-  secondary_c2?: string[]  // 次中类（召回备用）
-  // 兼容旧字段（retag 用）
-  category_c1?: string[]
-  category_c2?: string[]
-  category_c3?: string[]
-  classifiedBy?: 'seed' | 'aam' | 'llm'
   _gist?: { polarity: number; abstractTags: string[] }  // benchmark gist 摘要（运行时临时字段）
 }
 

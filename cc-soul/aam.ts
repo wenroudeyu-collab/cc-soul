@@ -1936,67 +1936,6 @@ function injectSeedsLite(lang: string) {
 injectSeedsLite('zh')
 injectSeedsLite('en')
 
-// ── 英文同义词种子注入（AAM 学不到的跨形态关联）──
-const _EN_SYNONYMS: Record<string, string[]> = {
-  run: ['running','jog','jogging','sprint','ran','marathon'],
-  eat: ['eating','ate','dine','dining','meal','food'],
-  sleep: ['sleeping','slept','rest','nap','bed'],
-  work: ['working','worked','job','labor','office','career'],
-  study: ['studying','learn','learning','research','studied'],
-  buy: ['bought','purchase','purchased','shop','shopping'],
-  travel: ['traveling','trip','journey','vacation','visit'],
-  cook: ['cooking','cooked','prepared','recipe','bake'],
-  exercise: ['exercising','workout','gym','fitness','sports'],
-  happy: ['glad','joyful','pleased','cheerful','excited'],
-  sad: ['unhappy','upset','depressed','down'],
-  angry: ['mad','furious','annoyed','irritated'],
-  tired: ['exhausted','weary','fatigued','sleepy'],
-  worried: ['anxious','concerned','nervous','stressed'],
-  love: ['loved','loving','adore','enjoy','enjoyed'],
-  friend: ['buddy','pal','companion','friends','bestie'],
-  family: ['parents','relatives','home','household'],
-  parent: ['mom','dad','mother','father','parents'],
-  child: ['kid','children','kids','son','daughter'],
-  boss: ['manager','supervisor','employer','leader'],
-  partner: ['spouse','husband','wife','boyfriend','girlfriend'],
-  home: ['house','apartment','place','residence'],
-  restaurant: ['cafe','diner','eatery','dining'],
-  school: ['college','university','class','campus'],
-  movie: ['film','cinema','show','watching'],
-  book: ['novel','reading','read','literature'],
-  music: ['song','songs','album','listening','concert'],
-  phone: ['mobile','cell','smartphone','call'],
-  car: ['vehicle','driving','drive','commute'],
-  talk: ['talking','speak','speaking','chat','conversation'],
-  meet: ['meeting','met','seeing','encounter'],
-  help: ['helping','assist','support','aid'],
-  money: ['cash','dollars','salary','income','pay'],
-  sick: ['ill','unwell','disease','health'],
-  doctor: ['physician','medical','hospital','clinic'],
-  walk: ['walking','walked','stroll','hike','hiking'],
-  paint: ['painting','painted','art','drawing','canvas'],
-  sing: ['singing','sang','song','choir'],
-  camp: ['camping','camped','tent','outdoor'],
-  adopt: ['adopted','adoption','foster','adopting'],
-  volunteer: ['volunteering','volunteered','charity','community'],
-  counsel: ['counseling','counselor','therapy','therapist'],
-}
-{
-  const net = getNetwork('en')
-  let injected = 0
-  for (const [word, syns] of Object.entries(_EN_SYNONYMS)) {
-    // word ↔ 每个 syn
-    for (const syn of syns) {
-      if (!net.cooccur[word]) net.cooccur[word] = {}
-      if ((net.cooccur[word][syn] || 0) < 3) { net.cooccur[word][syn] = 3; injected++ }
-      if (!net.cooccur[syn]) net.cooccur[syn] = {}
-      if ((net.cooccur[syn][word] || 0) < 3) { net.cooccur[syn][word] = 3; injected++ }
-    }
-    // syn ↔ syn 取消（fullPair 1018 对太多，稀释 AAM 精度）
-  }
-  if (injected > 0) console.log(`[cc-soul][aam] English synonym injection: ${injected} pairs`)
-}
-
 /**
  * Tokenize text into words for association network.
  * CJK: 2-3 char segments. English: 3+ letter words.
@@ -2032,15 +1971,8 @@ const CJK_FUNCTION_CHARS = new Set(
   '的了是在很不也都就有我你他她它和与被把让给会能要想到过着吗呢吧啊么'
 )
 
-// 英文高频低信息动词/代词（AAM 不应该学这些的共现）
-// 精简版：只过滤真正无语义的功能词，保留有语义的动词（enjoyed/loved/played 有情感和事实信息）
-const EN_JUNK_VERBS = new Set(['went','came','made','took','gave','called','looked','tried','started','seemed','happened','become','getting','going','doing','having','being','making','taking','coming','saying','looking','trying'])
-
 export function isJunkToken(word: string): boolean {
-  // 英文 junk token 过滤（高频低信息动词）
-  if (/^[a-z]+$/.test(word) && EN_JUNK_VERBS.has(word)) return true
-
-  // CJK 2-gram 判断
+  // 只对 CJK 2-gram 做判断
   if (word.length !== 2 || !/^[\u4e00-\u9fff]{2}$/.test(word)) return false
 
   // Phase 1: 虚词表——两个字都是虚词才算 junk（"的了"、"是在"）
@@ -2316,57 +2248,6 @@ export function isKnownWord(word: string): boolean {
     _knownWordBuilt = true
   }
   return _knownWordCache.has(word)
-}
-
-// ── AAM SQLite 持久化（跨会话保留学到的词汇关联）──
-let _aamPendingUpdates = new Map<string, { a: string; b: string; count: number }>()
-let _aamSaveTimer: any = null
-
-/** 保存 AAM 学到的高价值关联到 SQLite */
-export function flushAAMToSQLite(): void {
-  if (_aamPendingUpdates.size === 0) return
-  try {
-    const db = (globalThis as any).__ccSoulSqlite?.db
-    if (!db) return
-    const stmt = db.prepare('INSERT OR REPLACE INTO aam_word_network (word_a, word_b, cooccur_count, last_updated) VALUES (?, ?, ?, ?)')
-    const trx = db.transaction(() => {
-      for (const u of _aamPendingUpdates.values()) {
-        stmt.run(u.a, u.b, u.count, Date.now())
-      }
-    })
-    trx()
-    _aamPendingUpdates.clear()
-    if (_aamSaveTimer) { clearTimeout(_aamSaveTimer); _aamSaveTimer = null }
-  } catch {}
-}
-
-/** 从 SQLite 加载之前学到的关联（启动时调用）*/
-export function loadAAMFromSQLite(): void {
-  try {
-    const db = (globalThis as any).__ccSoulSqlite?.db
-    if (!db) return
-    const rows = db.prepare('SELECT word_a, word_b, cooccur_count FROM aam_word_network WHERE cooccur_count > 1').all() as any[]
-    if (!rows || rows.length === 0) return
-    const net = getNetwork('en')
-    let loaded = 0
-    for (const r of rows) {
-      if (!net.cooccur[r.word_a]) net.cooccur[r.word_a] = {}
-      net.cooccur[r.word_a][r.word_b] = Math.max(net.cooccur[r.word_a][r.word_b] || 0, r.cooccur_count)
-      loaded++
-    }
-    console.log(`[cc-soul][aam] loaded ${loaded} word pairs from SQLite`)
-  } catch {}
-}
-
-/** 记录待保存的 AAM 更新（debounced） */
-export function markAAMDirty(w1: string, w2: string, count: number): void {
-  const key = `${w1}|${w2}`
-  _aamPendingUpdates.set(key, { a: w1, b: w2, count })
-  if (_aamPendingUpdates.size >= 200) {
-    flushAAMToSQLite()
-  } else if (!_aamSaveTimer) {
-    _aamSaveTimer = setTimeout(flushAAMToSQLite, 10000)
-  }
 }
 
 /**
@@ -2840,13 +2721,6 @@ export function expandQuery(queryWords: string[], maxExpansion = 10): { word: st
     }
   }
 
-  // Direction 5: Apply negative association penalty before sorting
-  for (const [word, weight] of expanded) {
-    if (queryWords.includes(word)) continue // don't penalize original query words
-    const penalty = getNegativePenalty(queryWords, word)
-    if (penalty < 1.0) expanded.set(word, weight * penalty)
-  }
-
   // Sort by weight, take top N
   return [...expanded.entries()]
     .map(([word, weight]) => ({ word, weight }))
@@ -3303,154 +3177,6 @@ Output ONLY valid JSON, no explanation, no markdown.`
   } catch (e: any) {
     console.log(`[AAM] Seed generation failed: ${e.message}`)
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DIRECTION 5: NEGATIVE ASSOCIATION LEARNING
-// LLM rerank 丢弃的记忆 → query↔memory 负关联，expandQuery 降权
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const _negativeAssoc: Map<string, Set<string>> = new Map()
-
-/**
- * Learn negative association: queryWords and irrelevantMemWords appeared together
- * but the memory was judged irrelevant by LLM rerank.
- */
-export function learnNegativeAssociation(queryWords: string[], irrelevantMemWords: string[]): void {
-  try {
-    for (const qw of queryWords) {
-      if (qw.length < 2) continue
-      if (!_negativeAssoc.has(qw)) _negativeAssoc.set(qw, new Set())
-      const set = _negativeAssoc.get(qw)!
-      // OOM protection: max 200 negative words per query word
-      if (set.size > 200) continue
-      for (const mw of irrelevantMemWords) {
-        if (mw.length < 2 || mw === qw) continue
-        set.add(mw)
-      }
-    }
-  } catch {}
-}
-
-/**
- * Check if a candidate expansion word has negative association with any query word.
- * Returns a penalty multiplier (0.0 ~ 1.0, lower = more negative).
- */
-export function getNegativePenalty(queryWords: string[], candidate: string): number {
-  try {
-    let negCount = 0
-    for (const qw of queryWords) {
-      if (_negativeAssoc.get(qw)?.has(candidate)) negCount++
-    }
-    if (negCount === 0) return 1.0
-    // 动态衰减：负向集越大，惩罚越温和（避免过度学习）
-    const totalNegSize = [..._negativeAssoc.values()].reduce((s, set) => s + set.size, 0)
-    let penaltyPerHit = 0.2  // 默认温和
-    if (totalNegSize > 200) penaltyPerHit = 0.05
-    else if (totalNegSize > 100) penaltyPerHit = 0.1
-    else if (totalNegSize > 50) penaltyPerHit = 0.15
-    return Math.max(0.5, 1.0 - negCount * penaltyPerHit)  // 最低 0.5（不砍太多）
-  } catch { return 1.0 }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DIRECTION 6: TEMPORAL CHAIN LEARNING
-// 从记忆时间戳序列中学习 prev→next 链接
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Learn temporal chain from a sorted array of memories.
- * Builds prev→next directed links based on timestamp order.
- */
-export function learnTemporalChain(memories: Memory[]): void {
-  try {
-    const sorted = [...memories].sort((a, b) => (a.ts || 0) - (b.ts || 0))
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const curr = sorted[i]
-      const next = sorted[i + 1]
-      if (!curr.content || !next.content) continue
-      // Only link memories within 10 minutes of each other
-      const gap = Math.abs((next.ts || 0) - (curr.ts || 0))
-      if (gap > 600000) continue
-      const currWords = filterStopWords(tokenize(curr.content)).filter(w => !isJunkToken(w)).slice(0, 5)
-      const nextWords = filterStopWords(tokenize(next.content)).filter(w => !isJunkToken(w)).slice(0, 5)
-      for (const cw of currWords) {
-        if (!_temporalNet.directed[cw]) _temporalNet.directed[cw] = {}
-        for (const nw of nextWords) {
-          if (cw === nw) continue
-          _temporalNet.directed[cw][nw] = (_temporalNet.directed[cw][nw] || 0) + 1
-        }
-      }
-    }
-  } catch {}
-}
-
-/**
- * Get temporal neighbors (both predecessors and successors) of a word.
- * Returns words within ±2 hops in the temporal chain.
- */
-export function getTemporalNeighbors(word: string, topK = 5): { word: string; count: number }[] {
-  try {
-    const neighbors: Map<string, number> = new Map()
-    // Successors (direct)
-    const succs = _temporalNet.directed[word]
-    if (succs) {
-      for (const [w, c] of Object.entries(succs)) neighbors.set(w, (neighbors.get(w) || 0) + c)
-    }
-    // Predecessors (reverse lookup)
-    for (const [src, dests] of Object.entries(_temporalNet.directed)) {
-      if (dests[word]) neighbors.set(src, (neighbors.get(src) || 0) + dests[word])
-    }
-    return [...neighbors.entries()]
-      .map(([w, c]) => ({ word: w, count: c }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, topK)
-  } catch { return [] }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DIRECTION 8: EMOTION TRACE LEARNING
-// 情绪内容关联：情绪词 ↔ 内容词 共现学习
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const EMOTION_WORDS_EN = new Set([
-  'happy','sad','angry','excited','worried','afraid','love','hate','miss','enjoy',
-  'disappointed','grateful','anxious','proud','embarrassed','frustrated','lonely',
-  'surprised','scared','jealous','hopeful','stressed','relieved','depressed',
-])
-const EMOTION_WORDS_ZH = new Set([
-  '开心','难过','生气','兴奋','担心','害怕','喜欢','讨厌','想念','享受',
-  '失望','感激','焦虑','骄傲','尴尬','沮丧','孤独','惊讶','紧张','嫉妒',
-])
-
-/**
- * Learn association between emotion words and content words in a memory.
- * This teaches AAM that emotional queries can surface emotionally relevant memories.
- */
-export function learnEmotionContext(content: string, emotion?: string): void {
-  try {
-    const words = filterStopWords(tokenize(content)).filter(w => !isJunkToken(w))
-    if (words.length < 2) return
-
-    // Find emotion words in content
-    const emotionWords: string[] = []
-    const contentWords: string[] = []
-    for (const w of words) {
-      if (EMOTION_WORDS_EN.has(w.toLowerCase()) || EMOTION_WORDS_ZH.has(w)) {
-        emotionWords.push(w)
-      } else {
-        contentWords.push(w)
-      }
-    }
-    // Also add explicit emotion tag if provided
-    if (emotion && emotion.length >= 2) emotionWords.push(emotion)
-
-    if (emotionWords.length === 0 || contentWords.length === 0) return
-
-    // Learn emotion↔content associations (lower weight than normal cooccur)
-    const combined = emotionWords.slice(0, 3).join(' ') + ' ' + contentWords.slice(0, 8).join(' ')
-    learnAssociation(combined, 0.5, 0.5)
-  } catch {}
 }
 
 // ── Export language detection for external use ──

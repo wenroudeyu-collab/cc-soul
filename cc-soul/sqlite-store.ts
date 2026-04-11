@@ -323,18 +323,6 @@ export function initSQLite(): boolean {
     );
   `)
 
-  // ── AAM 持久化表（跨会话保留学到的词汇关联）──
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS aam_word_network (
-      word_a TEXT NOT NULL,
-      word_b TEXT NOT NULL,
-      cooccur_count REAL NOT NULL DEFAULT 0,
-      last_updated INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (word_a, word_b)
-    );
-    CREATE INDEX IF NOT EXISTS idx_aam_wa ON aam_word_network(word_a);
-  `)
-
   // Auto-migrate cc-soul data from JSON to official DB on first connect
   migrateFromJSON()
   // habits/goals/reminders migration removed — life features deleted

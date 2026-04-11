@@ -31,11 +31,10 @@ console.warn = (...args: any[]) => { if (!suppressLogs) _origWarn(...args) }
 const print = _origLog  // always prints
 
 // Lazy-load modules
-const { activationRecall, activationRecallWithScores, getIdfCache, buildDynamicCategories } = require('./activation-field.ts')
-const { learnAssociation, learnNegativeAssociation, learnTemporalChain, learnEmotionContext } = require('./aam.ts')
+const { activationRecall, activationRecallWithScores, getIdfCache } = require('./activation-field.ts')
+const { learnAssociation } = require('./aam.ts')
 const { trigrams, trigramSimilarity } = require('./memory-utils.ts')
 const { toCogHints } = require('./cognition.ts')
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // ═══════════════════════════════════════════════════════════════
 // DATA TYPES
@@ -258,22 +257,6 @@ function buildMemoriesOnline(q: LocomoQuestion): Memory[] {
         newMem._segmentId = si
         if (!newMem.tags) newMem.tags = []
         newMem.tags.push(`session:${si}`)
-        // CNAS 三层话题标签（写入时打标）
-        try {
-          const af = require('./activation-field.ts')
-          const cats = af.detectCategoriesV2 ? af.detectCategoriesV2(newMem.content || '') : null
-          if (cats) {
-            newMem.category_c1 = cats.c1
-            newMem.category_c2 = cats.c2
-            newMem.category_c3 = cats.c3
-            newMem.classifiedBy = 'seed'
-            // 也写 tags（兼容旧 categoryPrePrune）
-            for (const c of cats.c2.slice(0, 2)) newMem.tags.push(`topic:${c}`)
-          } else {
-            const oldCats = af.detectCategories(newMem.content || '')
-            for (const c of oldCats.slice(0, 2)) newMem.tags.push(`topic:${c}`)
-          }
-        } catch {}
         totalAdded++
       } else {
         totalSkipped++
@@ -374,10 +357,7 @@ async function buildMemoriesAPI(q: LocomoQuestion, apiPort: number): Promise<voi
     memoryState.chatHistory.length = 0
     scopeIndex.clear()
     _recentWriteHashes.clear()
-    // Direction 4: CC_SOUL_AAM_PERSIST — skip reset to let AAM accumulate across convs
-    if (!process.env.CC_SOUL_AAM_PERSIST) {
-      try { require('./aam.ts').resetLearnedData?.() } catch {}
-    }
+    try { require('./aam.ts').resetLearnedData?.() } catch {}
     try { require('./fact-store.ts').clearFacts?.() } catch {}
   } catch {}
 
@@ -768,136 +748,9 @@ function parseArgs() {
     if (args[i] === '--api') { api = true; online = true }
     if (args[i] === '--api-port' && args[i + 1]) apiPort = parseInt(args[++i])
     if (args[i] === '--sample') sample = true  // 3-conv 快速采样（小/中/大库）
-    if (args[i] === '--mini') { mini = true; sample = false }  // 1-conv 极速：~200 题，10 分钟
-    if (args[i] === '--aam-persist') process.env.CC_SOUL_AAM_PERSIST = '1'  // Direction 4: cross-conv AAM persistence
+    if (args[i] === '--mini') mini = true       // 单 conv 快速验证
   }
   return { conv, type, topK, verbose, limit, recallOnly, llm, online, api, apiPort, sample, mini }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// LLM-ENHANCED RECALL: Query Rewrite + Rerank + MemR3
-// ═══════════════════════════════════════════════════════════════
-
-/** Generic DeepSeek call (short responses) — shared by rewrite/rerank/memr3 */
-async function callDeepSeek(prompt: string, apiKey: string, maxTokens = 100): Promise<string> {
-  const resp = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0, max_tokens: maxTokens,
-    }),
-  })
-  if (!resp.ok) throw new Error(`DeepSeek ${resp.status}`)
-  const json = await resp.json() as any
-  return (json.choices?.[0]?.message?.content || '').trim()
-}
-
-/** FOK confidence level from recalled memories + question */
-function computeFOK(question: string, recalled: Memory[]): 'LOW' | 'MEDIUM' | 'HIGH' {
-  const fokQEnts = (question.match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not)$/.test(n))
-  const fokText = recalled.map(m => (m.content || '').toLowerCase()).join(' ')
-  const entityPresent = fokQEnts.length === 0 || fokQEnts.some(n => fokText.includes(n.toLowerCase()))
-  const fokQWords = (question.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !/^(what|when|where|how|who|which|why|does|did|has|have|was|were|would|could|should|about|their|with|from|been|this|that|they|them|most|more)$/.test(w))
-  const wordCov = fokQWords.length > 0 ? fokQWords.filter(w => fokText.includes(w)).length / fokQWords.length : 0
-  return !entityPresent ? 'LOW' : wordCov < 0.3 ? 'LOW' : wordCov < 0.6 ? 'MEDIUM' : 'HIGH'
-}
-
-/** LLM Query Rewrite: expand query when FOK is weak */
-async function llmQueryRewrite(
-  question: string, memories: Memory[], recalled: Memory[],
-  topK: number, apiKey: string, cogHints: any,
-): Promise<Memory[]> {
-  const fok = computeFOK(question, recalled)
-  if (fok === 'HIGH') return recalled  // already confident
-  const prompt = `Given this question about a person's life, list 3-5 specific keywords to search for in conversation memories. Only output keywords separated by commas.\n\nQuestion: ${question}`
-  const raw = await callDeepSeek(prompt, apiKey, 50)
-  await sleep(500)
-  const keywords = raw.split(/[,\n]/).map(w => w.trim().toLowerCase()).filter(w => w.length >= 2).slice(0, 5)
-  if (keywords.length === 0) return recalled
-  const expandedQuery = keywords.join(' ')
-  const extra = activationRecall(memories, expandedQuery, topK, 0, 0.5, cogHints) as Memory[]
-  // merge
-  const seenContent = new Set(recalled.map(m => m.content))
-  const merged = [...recalled]
-  for (const m of extra) {
-    if (!seenContent.has(m.content)) { merged.push(m); seenContent.add(m.content) }
-  }
-  return merged.slice(0, topK * 2)
-}
-
-/** MemR3 Reflective Retrieval: analyze what's missing, do targeted 2nd recall */
-async function memR3Reflect(
-  question: string, memories: Memory[], recalled: Memory[],
-  topK: number, apiKey: string, cogHints: any,
-): Promise<Memory[]> {
-  const fok = computeFOK(question, recalled)
-  if (fok !== 'LOW') return recalled  // only for low confidence
-  const memSnippets = recalled.slice(0, 5).map((m, i) => `${i + 1}. ${(m.content || '').slice(0, 100)}`).join('\n')
-  const prompt = `Based on these memories, what information is missing to answer: "${question}"? List 2-3 search keywords.\n\nMemories:\n${memSnippets}\n\nKeywords:`
-  const raw = await callDeepSeek(prompt, apiKey, 50)
-  await sleep(500)
-  const keywords = raw.split(/[,\n]/).map(w => w.trim().toLowerCase()).filter(w => w.length >= 2).slice(0, 3)
-  if (keywords.length === 0) return recalled
-  const extra = activationRecall(memories, keywords.join(' '), topK, 0, 0.5, cogHints) as Memory[]
-  const seenContent = new Set(recalled.map(m => m.content))
-  const merged = [...recalled]
-  for (const m of extra) {
-    if (!seenContent.has(m.content)) { merged.push(m); seenContent.add(m.content) }
-  }
-  return merged.slice(0, topK * 2)
-}
-
-/** LLM Rerank: let DeepSeek pick the most relevant memories */
-async function llmRerank(
-  question: string, recalled: Memory[], topK: number, apiKey: string,
-): Promise<Memory[]> {
-  if (recalled.length <= topK) return recalled
-  const numbered = recalled.slice(0, 20).map((m, i) => `${i + 1}. ${(m.content || '').slice(0, 120)}`).join('\n')
-  const prompt = `Select the ${topK} most relevant memories for answering: "${question}"\nReply with numbers only, separated by commas.\n\n${numbered}`
-  const raw = await callDeepSeek(prompt, apiKey, 50)
-  await sleep(500)
-  const indices = raw.match(/\d+/g)?.map(n => parseInt(n) - 1).filter(i => i >= 0 && i < recalled.length) || []
-  if (indices.length === 0) return recalled.slice(0, topK)
-  const picked = indices.slice(0, topK).map(i => recalled[i]).filter(Boolean)
-  // fill remaining from NAM order if LLM picked too few
-  if (picked.length < topK) {
-    const pickedSet = new Set(picked.map(m => m.content))
-    for (const m of recalled) {
-      if (picked.length >= topK) break
-      if (!pickedSet.has(m.content)) { picked.push(m); pickedSet.add(m.content) }
-    }
-  }
-  // ── Consensus Learning：LLM 选中但 NAM 排低的 → 反馈给 AAM ──
-  // 闭环：LLM rerank 结果教 AAM 什么词跟什么词相关
-  try {
-    const queryKw = (question.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
-    const namTop = new Set(recalled.slice(0, topK).map(m => m.content))
-    const pickedSet = new Set(picked.map(m => m.content))
-    for (const mem of picked) {
-      if (!namTop.has(mem.content)) {
-        // LLM 提升了 NAM 没选的记忆 → 学习 query↔memory 的关联
-        const memKw = ((mem.content || '').match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
-        if (queryKw.length > 0 && memKw.length > 0) {
-          learnAssociation(queryKw.join(' ') + ' ' + memKw.join(' '), 0.8)
-        }
-      }
-    }
-    // Direction 5: Negative Association — NAM top-K memories dropped by LLM → negative signal
-    if (queryKw.length > 0) {
-      for (const mem of recalled.slice(0, topK)) {
-        if (!pickedSet.has(mem.content)) {
-          const memKw = ((mem.content || '').match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
-          if (memKw.length > 0) {
-            try { learnNegativeAssociation(queryKw, memKw) } catch {}
-          }
-        }
-      }
-    }
-  } catch {}
-
-  return picked
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -923,7 +776,7 @@ async function selectAnswerWithLLM(
   const llmRecalled = recalled.filter(m => !m.tags?.some((t: string) => t.startsWith('merged:')))
   const displayRecalled = llmRecalled.length >= 3 ? llmRecalled : recalled  // fallback if too few
 
-  // 结构化 context：按 session 分组展示（验证：比扁平列表好 +0.8%，LLM 需要 session 上下文）
+  // 结构化 context：按 session 分组展示（B2：让 LLM 更容易定位时间和实体）
   const sessionGroups = new Map<string, { idx: number; content: string }[]>()
   for (let i = 0; i < displayRecalled.length; i++) {
     const sessionTag = displayRecalled[i].tags?.find((t: string) => t.startsWith('session:')) || 'other'
@@ -932,12 +785,14 @@ async function selectAnswerWithLLM(
   }
   let structuredContext = ''
   if (sessionGroups.size > 1) {
+    // 多 session：分组展示
     for (const [session, mems] of sessionGroups) {
       structuredContext += `\n[${session}]\n`
       for (const m of mems) structuredContext += `  ${m.idx}. ${m.content}\n`
     }
   } else {
-    structuredContext = displayRecalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
+    // 单 session：扁平列表
+    structuredContext = recalled.map((m, i) => `[${i + 1}] ${m.content}`).join('\n')
   }
 
   // ── FOK (Feeling of Knowing) 元记忆信号（原创，Metamemory 理论）──
@@ -1067,39 +922,18 @@ Answer with ONLY one letter (A-J).`
       || raw.match(/\b([A-J])$/m)
     if (answerMatch) letter = answerMatch[1]
     else {
-      // Last resort 1: scan for standalone letter (not article "A" or "I")
-      const anyLetter = raw.match(/(?:^|\n)\s*([A-J])(?:\s*$|\s*[.)\]])/m)
-        || raw.match(/\b([B-J])\b/)  // B-J 不会是冠词
-      if (anyLetter) { letter = anyLetter[1] }
-      else {
-        // Last resort 2: LLM 输出了选项内容而非字母 → 模糊匹配选项
-        const rawLower = raw.toLowerCase().trim()
-        let bestMatch = -1, bestSim = 0
-        for (let ci = 0; ci < choices.length; ci++) {
-          const choiceLower = choices[ci].toLowerCase().trim()
-          // 精确包含
-          if (rawLower.includes(choiceLower) || choiceLower.includes(rawLower)) {
-            bestMatch = ci; break
-          }
-          // 前缀匹配（LLM 可能截断）
-          const rawPrefix = rawLower.slice(0, 30)
-          const choicePrefix = choiceLower.slice(0, 30)
-          if (rawPrefix.length >= 10 && (choicePrefix.startsWith(rawPrefix) || rawPrefix.startsWith(choicePrefix))) {
-            bestMatch = ci; break
-          }
-          // trigram 相似度匹配（模糊兜底）
-          const sim = trigramSimilarity(trigrams(rawLower), trigrams(choiceLower))
-          if (sim > bestSim && sim > 0.4) { bestSim = sim; bestMatch = ci }
-        }
-        if (bestMatch >= 0) letter = letters[bestMatch]
-        else letter = raw.charAt(0).toUpperCase()
-      }
+      // Last resort: scan entire raw output for any A-J letter
+      const anyLetter = raw.match(/\b([A-J])\b/)
+      if (anyLetter) letter = anyLetter[1]
+      else letter = raw.charAt(0).toUpperCase()
     }
   }
   }  // end if (!letter)
   const idx = letters.indexOf(letter)
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
 }
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 async function run() {
   const opts = parseArgs()
@@ -1140,7 +974,7 @@ async function run() {
   // Filter
   let questions = allQuestions
   if (opts.mini) {
-    // 1-conv 极速模式：中等大小库，~200 题，10 分钟
+    // 单 conv 快速验证：conv-4（中等大小）→ ~200 题，3-5 分钟
     const miniConv = convIds[4] || convIds[0]
     questions = allQuestions.filter(q => q.question_id.split('_')[0] === miniConv)
     print(`  Mini mode: ${miniConv} → ${questions.length} questions`)
@@ -1204,11 +1038,8 @@ async function run() {
     const convId = q.question_id.split('_')[0]
 
     // ── Per-conv 数据隔离：清空上一个 conv 的学习数据 ──
-    // Direction 4: CC_SOUL_AAM_PERSIST — 跨 conv 保留 AAM 学习（积累跨对话关联）
     if (convId !== _lastConvId && _lastConvId !== '') {
-      if (!process.env.CC_SOUL_AAM_PERSIST) {
-        try { require('./aam.ts').resetLearnedData?.() } catch {}
-      }
+      try { require('./aam.ts').resetLearnedData?.() } catch {}
       try { require('./fact-store.ts').clearFacts?.() } catch {}
     }
     _lastConvId = convId
@@ -1235,18 +1066,6 @@ async function run() {
             }
           }
         }
-        // Direction 6: Temporal chain learning — build prev→next links from memory timestamps
-        try { learnTemporalChain(memories) } catch {}
-
-        // Direction 8: Emotion trace learning — emotion words ↔ content words association
-        try {
-          for (const mem of memories) {
-            if (mem.content && /(?:happy|sad|angry|excited|worried|love|hate|miss|enjoy|afraid|disappointed|grateful|anxious|frustrated|lonely|surprised|开心|难过|生气|兴奋|担心|害怕|喜欢|讨厌|想念)/i.test(mem.content)) {
-              learnEmotionContext(mem.content)
-            }
-          }
-        } catch {}
-
         // Summary 强化学习（高权重 + 二次拆分）——summary 信息密度高，实体关联更重要
         for (const mem of memories) {
           if (mem.tags?.includes('summary')) {
@@ -1345,65 +1164,6 @@ async function run() {
           }
           if (tagged > 0) { suppressLogs = false; print(`  [prospective-tags] ${tagged}/${memories.length} memories tagged`); suppressLogs = true }
         } catch {}
-        // 触发 PMI cluster 构建（在 heartbeat 不运行的 benchmark 里手动触发）
-        try { require('./aam.ts').buildPMIClusters?.(2.5) } catch {}
-        // 强制蒸馏（benchmark 里蒸馏不会自然触发，手动触发一次）
-        // 蒸馏 → TopicNode → 反哺 AAM（飞轮效应）
-        try {
-          const distill = require('./distill.ts')
-          // 临时清除 cooldown 让蒸馏能跑
-          if (distill.distillState) distill.distillState.lastL1toL2 = 0
-          distill.distillL1toL2?.()
-        } catch {}
-        // CNAS: AAM 动态话题扩展（用 PMI 邻居扩充 category 关键词）
-        try { buildDynamicCategories() } catch {}
-        // AAM 学完后，重建动态话题词表 + 三层 retag（覆盖率 80%+）
-        try {
-          const af = require('./activation-field.ts')
-          af.buildDynamicCategories?.()
-          let retagged = 0
-          for (const mem of memories) {
-            const cats = af.detectCategoriesV2 ? af.detectCategoriesV2(mem.content || '') : null
-            if (cats && (cats.c1.length > 0 || cats.c2.length > 0)) {
-              mem.category_c1 = cats.c1
-              mem.category_c2 = cats.c2
-              mem.category_c3 = cats.c3
-              if (!mem.classifiedBy || mem.classifiedBy === 'seed') mem.classifiedBy = 'aam'
-              if (!mem.tags) mem.tags = []
-              mem.tags = mem.tags.filter((t: string) => !t.startsWith('topic:'))
-              for (const c of cats.c2.slice(0, 2)) mem.tags.push(`topic:${c}`)
-              retagged++
-            }
-          }
-          if (retagged > 0) { suppressLogs = false; print(`  [topic-retag-v2] ${retagged}/${memories.length} memories (3-level) after AAM`); suppressLogs = true }
-          // LLM 兜底分类：覆盖率 < 70% 时调 DeepSeek 补分类
-          const unclassified = memories.filter(m => !m.category_c2 || m.category_c2.length === 0)
-          const coverageRate = 1 - unclassified.length / Math.max(memories.length, 1)
-          if (coverageRate < 0.7 && opts.llm && apiKey) {
-            let llmClassified = 0
-            for (const mem of unclassified.slice(0, 50)) {  // 最多 50 条（省 token）
-              try {
-                const raw = await callDeepSeek(
-                  `Classify this message into a daily life topic. Reply with ONE word only (e.g. eating, exercise, family, friends, work, hobby, travel, health, education, entertainment):\n"${(mem.content || '').slice(0, 100)}"`,
-                  apiKey, 10
-                )
-                const topic = (raw || '').trim().toLowerCase().replace(/[^a-z_]/g, '')
-                if (topic.length >= 3) {
-                  mem.category_c2 = [topic]
-                  mem.classifiedBy = 'llm'
-                  if (!mem.tags) mem.tags = []
-                  mem.tags.push(`topic:${topic}`)
-                  // 反哺 AAM（LLM 教 AAM）
-                  const memKw = (mem.content.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
-                  if (memKw.length >= 2) learnAssociation(topic + ' ' + memKw.join(' '), 0, 1.0)
-                  llmClassified++
-                }
-                await sleep(300)
-              } catch {}
-            }
-            if (llmClassified > 0) { suppressLogs = false; print(`  [llm-classify] ${llmClassified}/${unclassified.length} unclassified memories classified by LLM`); suppressLogs = true }
-          }
-        } catch {}
         learnedConvs.add(convId)
         convMemoryCount.set(convId, memories.length)
         totalMemoryBytes += memories.reduce((s, m) => s + (m.content || '').length * 2, 0)  // UTF-16 approx
@@ -1426,55 +1186,6 @@ async function run() {
       recalled = activationRecall(memories, q.question, opts.topK, 0, 0.5, _cogHints)
     }
     perQueryLatency.push(Date.now() - _qStart)
-
-    // ── Iterative Bridge Recall（multi_hop 专用）──
-    // 检测：query 含 2+ 实体名 或 "and"/"also"/"both"
-    const _queryEntities = (q.question.match(/\b[A-Z][a-z]{2,}\b/g) || [])
-      .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not|And|But)$/.test(n))
-    const _isMultiHop = _queryEntities.length >= 2  // 只有 2+ 实体名才触发（去掉 "and" 误判）
-    if (_isMultiHop && recalled.length >= 3) {
-      try {
-        // 从 top-3 提取桥梁词（高 IDF、不在原 query 中的内容词）
-        const qWordsSet = new Set((q.question.toLowerCase().match(/[a-z]{4,}/g) || []))
-        const bridgeWords: string[] = []
-        for (const mem of recalled.slice(0, 3)) {
-          const memWords = ((mem.content || '').toLowerCase().match(/[a-z]{4,}/g) || [])
-            .filter(w => !qWordsSet.has(w) && !/^(what|when|where|that|this|they|with|from|have|been|their|about|would|could|should|does|which|said|told|asked|went|made)$/.test(w))
-          bridgeWords.push(...memWords)
-        }
-        // 取频次最高的 3 个桥梁词
-        const freq = new Map<string, number>()
-        for (const w of bridgeWords) freq.set(w, (freq.get(w) || 0) + 1)
-        const topBridge = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w]) => w)
-
-        if (topBridge.length >= 1) {
-          // 二轮召回：原 query + 桥梁词
-          const bridgeQuery = q.question + ' ' + topBridge.join(' ')
-          const secondRound = activationRecall(memories, bridgeQuery, opts.topK, 0, 0.5, _cogHints)
-          // 交叉合并（原始 top-5 + bridge top-5），不是 append 后 slice
-          // 修复 bug：之前 append 后 slice(0,topK) 永远只保留原始结果
-          const merged: Memory[] = []
-          const seen = new Set<string>()
-          const half = Math.ceil(opts.topK / 2)
-          // 先取原始 top-half
-          for (const m of recalled) {
-            if (merged.length >= half) break
-            if (!seen.has(m.content)) { merged.push(m); seen.add(m.content) }
-          }
-          // 再取 bridge top-half
-          for (const m of secondRound) {
-            if (merged.length >= opts.topK) break
-            if (!seen.has(m.content)) { merged.push(m); seen.add(m.content) }
-          }
-          // 填满（如果 bridge 不够 half 条）
-          for (const m of recalled) {
-            if (merged.length >= opts.topK) break
-            if (!seen.has(m.content)) { merged.push(m); seen.add(m.content) }
-          }
-          recalled = merged
-        }
-      } catch {}
-    }
 
     // ── Recall-Driven AAM Learning：模拟真实使用中 query↔recall 共现（增强版）──
     if (recalled.length > 0) {
@@ -1545,47 +1256,9 @@ async function run() {
       if (opts.llm) {
         stat.llmTotal++
         try {
-          // ── CNAS: LLM-enhanced recall pipeline ──
-          let llmRecalled = recalled
-          const _isTemporal = /when|last|before|after|ago|first\s+time|how\s+long|what\s+time|what\s+date/i.test(q.question)
-          const _fokBefore = computeFOK(q.question, recalled)
-          const _recalledBefore = recalled.map(m => m.content).join('|')
-          // 统计
-          if (!(global as any)._cnasStats) (global as any)._cnasStats = { rewrite: 0, memr3: 0, rerankChanged: 0, total: 0 }
-          const _cs = (global as any)._cnasStats
-          _cs.total++
-          try {
-            if (!_isTemporal) {
-              const _beforeLen = llmRecalled.length
-              llmRecalled = await memR3Reflect(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
-              if (llmRecalled.length !== _beforeLen) _cs.memr3++
-              const _beforeRewrite = llmRecalled.map(m => m.content).join('|')
-              llmRecalled = await llmQueryRewrite(q.question, memories, llmRecalled, opts.topK, apiKey, _cogHints)
-              if (llmRecalled.map(m => m.content).join('|') !== _beforeRewrite) _cs.rewrite++
-            }
-            // Step 3: LLM rerank
-            const _beforeRerank = llmRecalled[0]?.content
-            llmRecalled = await llmRerank(q.question, llmRecalled, opts.topK, apiKey)
-            if (llmRecalled[0]?.content !== _beforeRerank) _cs.rerankChanged++
-          } catch (e: any) {
-            // fallback to NAM-only recalled on any LLM error
-            llmRecalled = recalled
-          }
-          const { choiceIndex: llmIdx, raw } = await selectAnswerWithLLM(llmRecalled, q.question, q.choices, apiKey)
+          const { choiceIndex: llmIdx, raw } = await selectAnswerWithLLM(recalled, q.question, q.choices, apiKey)
           if (llmIdx >= 0 && llmIdx === q.correct_choice_index) stat.llmCorrect++
           if (llmIdx < 0) stat.llmFail++
-
-          // Direction 9: Failure case learning — wrong answer → learn query↔correct_answer association
-          try {
-            if (llmIdx >= 0 && llmIdx !== q.correct_choice_index) {
-              const correctAnswer = q.choices[q.correct_choice_index] || ''
-              const correctKw = (correctAnswer.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 8)
-              const queryKw = (q.question.match(/[a-zA-Z]{4,}/gi) || []).slice(0, 5)
-              if (correctKw.length > 0 && queryKw.length > 0) {
-                learnAssociation(queryKw.join(' ') + ' ' + correctKw.join(' '), 0.8, 1.5, true)
-              }
-            }
-          } catch {}
 
           if (opts.verbose) {
             const smOk = choiceIndex === q.correct_choice_index
@@ -1877,18 +1550,6 @@ async function run() {
   print(`  Random baseline: 10.0%`)
   print(`  Time: ${elapsed.toFixed(1)}s (${(questions.length / elapsed).toFixed(0)} q/s)`)
   print(`  Isolation: per-conv (AAM + fact-store reset between conversations)`)
-  // CNAS pipeline 统计
-  const _cs = (global as any)._cnasStats
-  if (_cs && _cs.total > 0) {
-    print()
-    print('═══════════════════════════════════════════════════════════')
-    print('  CNAS Pipeline Statistics')
-    print('═══════════════════════════════════════════════════════════')
-    print(`  Total LLM queries: ${_cs.total}`)
-    print(`  MemR3 triggered:   ${_cs.memr3} (${(_cs.memr3/_cs.total*100).toFixed(1)}%)`)
-    print(`  Rewrite triggered: ${_cs.rewrite} (${(_cs.rewrite/_cs.total*100).toFixed(1)}%)`)
-    print(`  Rerank changed #1: ${_cs.rerankChanged} (${(_cs.rerankChanged/_cs.total*100).toFixed(1)}%)`)
-  }
   print()
 }
 
