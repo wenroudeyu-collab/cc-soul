@@ -1881,7 +1881,7 @@ export function activationRecall(
     const DATE_PATTERN = /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b|\b\d{4}\b|\b\d{1,2}\s+\w+\s+\d{4}\b/i
     for (const r of results) {
       if (DATE_PATTERN.test(r.memory.content || '')) {
-        r.activation *= 1.05  // 微小 5% boost，只做 tie-break 不改主排序
+        r.activation *= 1.15  // 15% boost for date-containing memories in temporal queries
       }
     }
     results.sort((a, b) => b.activation - a.activation)

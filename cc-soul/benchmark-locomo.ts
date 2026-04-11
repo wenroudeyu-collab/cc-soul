@@ -819,17 +819,18 @@ async function selectAnswerWithLLM(
 Rules:
 1. If a choice matches specific details (names, numbers, dates, activities) mentioned in the memories, prefer it.
 2. Pay attention to WHO said what — the question asks about a specific person.
-3. If the question asks about a date/time and you can estimate from context, pick the closest date rather than "Not answerable".
+3. For date/time questions: look at the [date] prefix on each memory for exact dates. Match the specific month/year mentioned in memories, not your general knowledge. Pick the closest date rather than "Not answerable".
+4. For multi-step questions: combine information from multiple memories. If memory A says "X happened" and memory B mentions "during August", connect them.
 ${hasNA ? (_fokConfidence === 'LOW'
-  ? `4. Memory confidence is LOW. Choose "Not answerable" unless you find SPECIFIC, DIRECT evidence in the memories. Specifically:
+  ? `5. Memory confidence is LOW. Choose "Not answerable" unless you find SPECIFIC, DIRECT evidence in the memories. Specifically:
    - If NO memory contains the exact detail the question asks about → "Not answerable"
    - Vague topic overlap is NOT sufficient — you need concrete facts/dates/names that directly answer the question
    - When in doubt, prefer "Not answerable" over guessing`
-  : `4. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
+  : `5. Choose "Not answerable" when the memories do NOT contain information relevant to the question topic. Specifically:
    - If the question asks about a topic/person/event that is never mentioned in any memory → "Not answerable"
    - If the memories mention the topic but don't contain enough detail to pick a specific answer → still pick the best match, NOT "Not answerable"
    - When in doubt between a specific answer and "Not answerable", check if ANY memory discusses the same topic as the question`)
-  : '4. Pick the best matching answer based on the memories.'}`
+  : '5. Pick the best matching answer based on the memories.'}`
 
   const fokNote = _fokConfidence === 'LOW' ? '\n[System note: Memory confidence is LOW — the topic may not be covered in these memories. Prefer "Not answerable" unless you see direct evidence.]\n' : ''
   const userPrompt = `Memories (relevance: ${(relevanceHint * 100).toFixed(0)}%, confidence: ${_fokConfidence}):${fokNote}
@@ -929,7 +930,22 @@ Answer with ONLY one letter (A-J).`
     }
   }
   }  // end if (!letter)
-  const idx = letters.indexOf(letter)
+  let idx = letters.indexOf(letter)
+  // Fallback: trigram matching raw text against choices (handles verbose LLM output)
+  if (idx < 0 && raw.length > 1) {
+    const rawLower = raw.toLowerCase()
+    let bestSim = 0, bestIdx = -1
+    for (let ci = 0; ci < choices.length; ci++) {
+      const choiceLower = choices[ci].toLowerCase()
+      // Exact substring match
+      if (rawLower.includes(choiceLower) || choiceLower.includes(rawLower)) {
+        bestIdx = ci; break
+      }
+      const sim = trigramSimilarity(trigrams(rawLower), trigrams(choiceLower))
+      if (sim > bestSim) { bestSim = sim; bestIdx = ci }
+    }
+    if (bestIdx >= 0 && (bestSim > 0.3 || bestIdx >= 0)) idx = bestIdx
+  }
   return { choiceIndex: idx >= 0 ? idx : -1, raw }
 }
 
