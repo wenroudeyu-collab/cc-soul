@@ -1431,7 +1431,7 @@ async function run() {
     // 检测：query 含 2+ 实体名 或 "and"/"also"/"both"
     const _queryEntities = (q.question.match(/\b[A-Z][a-z]{2,}\b/g) || [])
       .filter(n => !/^(What|When|Where|How|Who|Which|Why|The|This|That|Does|Did|Has|Have|Was|Were|Can|Could|Would|Should|Not|And|But)$/.test(n))
-    const _isMultiHop = _queryEntities.length >= 2 || /\band\b|\balso\b|\bboth\b/i.test(q.question)
+    const _isMultiHop = _queryEntities.length >= 2  // 只有 2+ 实体名才触发（去掉 "and" 误判）
     if (_isMultiHop && recalled.length >= 3) {
       try {
         // 从 top-3 提取桥梁词（高 IDF、不在原 query 中的内容词）
@@ -1451,16 +1451,27 @@ async function run() {
           // 二轮召回：原 query + 桥梁词
           const bridgeQuery = q.question + ' ' + topBridge.join(' ')
           const secondRound = activationRecall(memories, bridgeQuery, opts.topK, 0, 0.5, _cogHints)
-          // 合并去重
-          const seen = new Set(recalled.map(m => m.content))
-          for (const m of secondRound) {
-            if (!seen.has(m.content) && recalled.length < opts.topK * 2) {
-              recalled.push(m)
-              seen.add(m.content)
-            }
+          // 交叉合并（原始 top-5 + bridge top-5），不是 append 后 slice
+          // 修复 bug：之前 append 后 slice(0,topK) 永远只保留原始结果
+          const merged: Memory[] = []
+          const seen = new Set<string>()
+          const half = Math.ceil(opts.topK / 2)
+          // 先取原始 top-half
+          for (const m of recalled) {
+            if (merged.length >= half) break
+            if (!seen.has(m.content)) { merged.push(m); seen.add(m.content) }
           }
-          // 只保留 topK（按原始 activation 排序已经在 activationRecall 内完成）
-          recalled = recalled.slice(0, opts.topK)
+          // 再取 bridge top-half
+          for (const m of secondRound) {
+            if (merged.length >= opts.topK) break
+            if (!seen.has(m.content)) { merged.push(m); seen.add(m.content) }
+          }
+          // 填满（如果 bridge 不够 half 条）
+          for (const m of recalled) {
+            if (merged.length >= opts.topK) break
+            if (!seen.has(m.content)) { merged.push(m); seen.add(m.content) }
+          }
+          recalled = merged
         }
       } catch {}
     }

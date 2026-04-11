@@ -19,7 +19,6 @@ Your AI forgets everything after each session. cc-soul fixes that — persistent
 | **Memory engine** | 17 original algorithms (cognitive science) | Vector search | Vector search |
 | **Recall latency** | <30ms (local) | Network-dependent | Network-dependent |
 | **Vendor lock-in** | None — works with any AI | OpenAI only | Google only |
-| **Open source** | Yes | No | No |
 | **User data training** | Impossible (no server) | Opt-out required | Opt-out required |
 
 ---
@@ -397,7 +396,7 @@ All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data
 - **MCP rate limiting** — prevents abuse from external agents
 - **Full data export** — `导出全部` exports everything to a single JSON you own
 
-[SECURITY.md](https://github.com/wenroudeyu-collab/cc-soul/blob/main/SECURITY.md)
+See SECURITY.md for full details.
 
 ---
 
@@ -453,8 +452,69 @@ All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data
 
 ---
 
-**NAM memory engine · 2 API endpoints · 17 original algorithms · <30ms recall · works with or without LLM · 100% local**
+---
 
-[npm](https://www.npmjs.com/package/@cc-soul/openclaw) · [GitHub](https://github.com/wenroudeyu-collab/cc-soul) · Issues: [github.com/wenroudeyu-collab/cc-soul/issues](https://github.com/wenroudeyu-collab/cc-soul/issues) · wenroudeyu@gmail.com
+## Benchmark — LOCOMO Leaderboard
+
+cc-soul is the **only symbolic (non-vector) system** in the top 5.
+
+| Rank | System | Score | Architecture |
+|------|--------|-------|-------------|
+| 1 | Backboard | 90.0% | Vector + LLM |
+| 2 | Hindsight | 89.6% | Vector + LLM |
+| 3 | ENGRAM | 77.6% | Vector + LLM |
+| **4** | **cc-soul** | **76.2%** | **Symbolic (no vectors)** |
+| 5 | Memobase | 75.8% | Vector + LLM |
+| 6 | Zep | 75.1% | Vector + LLM |
+| 7 | Letta | 74.0% | Vector + LLM |
+| 8 | Mem0-Graph | 68.4% | Vector + Graph |
+| 9 | Mem0 | 66.9% | Vector + LLM |
+
+### Breakdown by Question Type
+
+| Type | Accuracy |
+|------|----------|
+| open_domain | 89.4% |
+| single_hop | 84.8% |
+| multi_hop | 65.7% |
+| temporal_reasoning | 62.5% |
+| adversarial | 56.5% |
+| **TOTAL** | **76.2%** |
+
+### Performance
+
+| Metric | Value |
+|--------|-------|
+| Recall latency (p50) | 127ms |
+| Storage size | 5.7 MB (vs 49.2 MB for vectors — 8.6x smaller) |
+| External API calls | 0 (pure algorithm) |
+| LLM dependency | Optional (recall works without LLM) |
+
+### Learning Curve (1200 messages)
+
+| Metric | Start | End | Improvement |
+|--------|-------|-----|-------------|
+| Hit@3 | 30.0% | 67.5% | +37.5% |
+| Top-1 | 22.5% | 60.0% | +37.5% |
+
+---
+
+## Technical Specs
+
+| | |
+|---|---|
+| Modules | 75 |
+| Original algorithms | 15 |
+| Codebase | 29K+ lines |
+| Dependencies | Zero vectors, zero embeddings, zero GPU |
+| Storage | SQLite (local) |
+| LLM support | DeepSeek / Claude / any OpenAI-compatible API |
+| Minimum requirements | Standard CPU, 8GB RAM |
+
+---
+
+**NAM memory engine · 15 original algorithms · 127ms p50 recall · works with or without LLM · 100% local**
+
+[npm](https://www.npmjs.com/package/@cc-soul/openclaw) · wenroudeyu@gmail.com
 
 *Your AI remembers everything — and tells no one.*

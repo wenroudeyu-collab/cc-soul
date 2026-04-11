@@ -1992,15 +1992,7 @@ const _EN_SYNONYMS: Record<string, string[]> = {
       if (!net.cooccur[syn]) net.cooccur[syn] = {}
       if ((net.cooccur[syn][word] || 0) < 3) { net.cooccur[syn][word] = 3; injected++ }
     }
-    // syn ↔ syn（同义词组内互相关联，修复坑 2：jogging↔marathon 也能互找）
-    for (let i = 0; i < syns.length; i++) {
-      for (let j = i + 1; j < syns.length; j++) {
-        if (!net.cooccur[syns[i]]) net.cooccur[syns[i]] = {}
-        if ((net.cooccur[syns[i]][syns[j]] || 0) < 2) { net.cooccur[syns[i]][syns[j]] = 2; injected++ }
-        if (!net.cooccur[syns[j]]) net.cooccur[syns[j]] = {}
-        if ((net.cooccur[syns[j]][syns[i]] || 0) < 2) { net.cooccur[syns[j]][syns[i]] = 2; injected++ }
-      }
-    }
+    // syn ↔ syn 取消（fullPair 1018 对太多，稀释 AAM 精度）
   }
   if (injected > 0) console.log(`[cc-soul][aam] English synonym injection: ${injected} pairs`)
 }
@@ -2324,6 +2316,57 @@ export function isKnownWord(word: string): boolean {
     _knownWordBuilt = true
   }
   return _knownWordCache.has(word)
+}
+
+// ── AAM SQLite 持久化（跨会话保留学到的词汇关联）──
+let _aamPendingUpdates = new Map<string, { a: string; b: string; count: number }>()
+let _aamSaveTimer: any = null
+
+/** 保存 AAM 学到的高价值关联到 SQLite */
+export function flushAAMToSQLite(): void {
+  if (_aamPendingUpdates.size === 0) return
+  try {
+    const db = (globalThis as any).__ccSoulSqlite?.db
+    if (!db) return
+    const stmt = db.prepare('INSERT OR REPLACE INTO aam_word_network (word_a, word_b, cooccur_count, last_updated) VALUES (?, ?, ?, ?)')
+    const trx = db.transaction(() => {
+      for (const u of _aamPendingUpdates.values()) {
+        stmt.run(u.a, u.b, u.count, Date.now())
+      }
+    })
+    trx()
+    _aamPendingUpdates.clear()
+    if (_aamSaveTimer) { clearTimeout(_aamSaveTimer); _aamSaveTimer = null }
+  } catch {}
+}
+
+/** 从 SQLite 加载之前学到的关联（启动时调用）*/
+export function loadAAMFromSQLite(): void {
+  try {
+    const db = (globalThis as any).__ccSoulSqlite?.db
+    if (!db) return
+    const rows = db.prepare('SELECT word_a, word_b, cooccur_count FROM aam_word_network WHERE cooccur_count > 1').all() as any[]
+    if (!rows || rows.length === 0) return
+    const net = getNetwork('en')
+    let loaded = 0
+    for (const r of rows) {
+      if (!net.cooccur[r.word_a]) net.cooccur[r.word_a] = {}
+      net.cooccur[r.word_a][r.word_b] = Math.max(net.cooccur[r.word_a][r.word_b] || 0, r.cooccur_count)
+      loaded++
+    }
+    console.log(`[cc-soul][aam] loaded ${loaded} word pairs from SQLite`)
+  } catch {}
+}
+
+/** 记录待保存的 AAM 更新（debounced） */
+export function markAAMDirty(w1: string, w2: string, count: number): void {
+  const key = `${w1}|${w2}`
+  _aamPendingUpdates.set(key, { a: w1, b: w2, count })
+  if (_aamPendingUpdates.size >= 200) {
+    flushAAMToSQLite()
+  } else if (!_aamSaveTimer) {
+    _aamSaveTimer = setTimeout(flushAAMToSQLite, 10000)
+  }
 }
 
 /**
