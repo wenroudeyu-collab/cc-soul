@@ -1087,7 +1087,7 @@ async function run() {
         for (const mem of memories) {
           if (mem.tags?.includes('summary')) {
             learnAssociation(mem.content, 0.8)  // 4x 权重
-            // 拆句学习：summary 通常是多句，每句独立学习增强句内共现
+            // 拆句学习：每句独立学习增强句内共现（窗口模式，更精准）
             const sentences = mem.content.split(/[.!?;]\s+/).filter(s => s.length > 10)
             for (const sent of sentences) learnAssociation(sent, 0.5)
           }
