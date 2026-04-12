@@ -1083,13 +1083,22 @@ async function run() {
             }
           }
         }
-        // Summary 强化学习（高权重 + 二次拆分）——summary 信息密度高，实体关联更重要
+        // Summary 强化学习（高权重 + 二次拆分 + SVO 三元组）
         for (const mem of memories) {
           if (mem.tags?.includes('summary')) {
             learnAssociation(mem.content, 0.8)  // 4x 权重
-            // 拆句学习：每句独立学习增强句内共现（窗口模式，更精准）
             const sentences = mem.content.split(/[.!?;]\s+/).filter(s => s.length > 10)
-            for (const sent of sentences) learnAssociation(sent, 0.5)
+            for (const sent of sentences) {
+              learnAssociation(sent, 0.5)
+              // ── SVO 三元组学习：提取 主语-动词-宾语 做 fullPair ──
+              // 解决词汇鸿沟："Caroline researched adoption agencies" → caroline+researched+adoption 共现
+              // 正则提取英文 SVO：大写名 + 动词 + 后续名词短语
+              const svoMatch = sent.match(/\b([A-Z][a-z]+)\b.*?\b([a-z]{4,}(?:ed|s|ing)?)\b\s+(?:the\s+|a\s+|an\s+)?([a-z]{3,}(?:\s+[a-z]{3,})?)/i)
+              if (svoMatch) {
+                const svo = `${svoMatch[1]} ${svoMatch[2]} ${svoMatch[3]}`
+                learnAssociation(svo, 0.3, 1.0, true)  // fullPair：保证三者互相共现
+              }
+            }
           }
         }
         // S2: fact-store 暂关（验证：限量融合仍 -2.2% Hit@10，facts 挤占 top-10）
