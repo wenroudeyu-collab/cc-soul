@@ -591,9 +591,11 @@ function contextMatch(query: string, mem: Memory, expandedWords: Map<string, num
   for (const w of enWords) {
     const wl = w.toLowerCase()
     memWords.add(wl)
-    // Stemmed form for English words (allows "phobias" ↔ "phobia" matching)
     if (/^[a-zA-Z]{2,}$/.test(w)) memWords.add(porterStem(wl))
   }
+  // _mergedKeywords：update 时被覆盖的旧内容关键词（信息保留）
+  const _mk = (mem as any)._mergedKeywords as string[] | undefined
+  if (_mk) for (const w of _mk) { memWords.add(w); memWords.add(porterStem(w)) }
 
   // IDF 加权匹配 + BM25+ delta：高频词权重降低，长文档不被过度惩罚
   // k1 controls term saturation: higher = exact match matters more (precise queries)

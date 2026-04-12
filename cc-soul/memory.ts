@@ -784,7 +784,20 @@ export function updateMemory(index: number, newContent: string) {
   // P1-#9: 语义版本化 — 保留旧版本
   if (!mem.history) mem.history = []
   mem.history.push({ content: oldContent, ts: mem.ts })
-  if (mem.history.length > 5) mem.history.shift() // 最多保留5个版本
+  if (mem.history.length > 5) mem.history.shift()
+
+  // ── Information-Preserving Merge：保留旧内容中被覆盖的独特关键词 ──
+  // update 直接替换 content 会丢失旧内容的关键信息（如 "adoption agencies"）
+  // 提取旧内容中新内容不包含的实质性词汇，存为 _mergedKeywords 供 BM25 匹配
+  const _MS = new Set(['the','and','that','this','was','for','are','but','not','you','all','can','had','her','one','our','out','day','get','has','him','his','how','its','new','now','see','way','who','did','got','say','she','too','use','with','been','from','have','just','like','make','more','much','some','than','them','then','they','very','what','when','will','your','about','after','could','first','great','into','most','over','such','take','their','these','those','time','want','would','also','back','come','each','find','give','going','good','here','know','last','long','look','made','need','only','said','tell','went','were','well','work','really','think','because','where','there'])
+  const _oldW = new Set(((oldContent || '').toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !_MS.has(w)))
+  const _newW = new Set((newContent.toLowerCase().match(/[a-z]{4,}/g) || []).filter(w => !_MS.has(w)))
+  const _lost: string[] = []
+  for (const w of _oldW) { if (!_newW.has(w)) _lost.push(w) }
+  if (_lost.length > 0) {
+    (mem as any)._mergedKeywords = ((mem as any)._mergedKeywords || []).concat(_lost).slice(-10)
+  }
+
   mem.content = newContent
   mem.ts = Date.now()
   mem.lastAccessed = Date.now()
