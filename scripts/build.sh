@@ -16,90 +16,35 @@ echo "   output: $DIST"
 rm -rf "$ROOT/dist"
 mkdir -p "$DIST" "$HUB_DIST"
 
-# ── All modules: auto-scan + full obfuscation ──
-# No manual lists — scan all .ts files in source directory
+# ── All modules: auto-scan + compile (open source — no obfuscation) ──
 
 echo ""
-echo "── Compiling + obfuscating ALL modules ──"
+echo "── Compiling ALL modules ──"
 for f in "$SRC"/*.ts; do
   [ -f "$f" ] || continue
   BASENAME=$(basename "$f")
-  # Skip test/integration files
   [[ "$BASENAME" == *"integration-test"* ]] && continue
   [[ "$BASENAME" == *"tests"* ]] && continue
-  # Skip sensitive modules — not included in public npm package
-  [[ "$BASENAME" == "telemetry.ts" ]] && continue
-  [[ "$BASENAME" == "federation.ts" ]] && continue
-  [[ "$BASENAME" == "sync.ts" ]] && continue
-  [[ "$BASENAME" == "upgrade.ts" ]] && continue
-  [[ "$BASENAME" == "upgrade-meta.ts" ]] && continue
-  [[ "$BASENAME" == "upgrade-experience.ts" ]] && continue
-  [[ "$BASENAME" == "rover.ts" ]] && continue
-  [[ "$BASENAME" == "competitive-radar.ts" ]] && continue
   JSNAME="${BASENAME%.ts}.js"
-  # Step 1: compile TS → JS
-  npx esbuild "$f" --outfile="$DIST/${JSNAME%.js}.tmp.js" \
+  npx esbuild "$f" --outfile="$DIST/$JSNAME" \
     --format=esm --platform=node --target=node20 2>/dev/null
-  # Step 2: obfuscate (javascript-obfuscator — control flow + string + numbers encryption)
-  npx javascript-obfuscator "$DIST/${JSNAME%.js}.tmp.js" \
-    --output "$DIST/$JSNAME" \
-    --compact true \
-    --control-flow-flattening true \
-    --control-flow-flattening-threshold 0.5 \
-    --dead-code-injection true \
-    --dead-code-injection-threshold 0.2 \
-    --string-array true \
-    --string-array-encoding rc4 \
-    --string-array-threshold 0.5 \
-    --numbers-to-expressions true \
-    --self-defending false \
-    --disable-console-output false \
-    2>/dev/null
-  rm -f "$DIST/${JSNAME%.js}.tmp.js"
-  echo "   🔒 $BASENAME → $JSNAME (obfuscated)"
+  echo "   ✅ $BASENAME → $JSNAME"
 done
 
 # ── Module name obfuscation ──
-# Rename all .js files to short hashes, rewrite import paths
-# plugin-entry.js keeps its name (package.json entry point)
+# ── Copy TypeScript source for open-source distribution ──
 echo ""
-echo "── Obfuscating module names ──"
-
-# Step 1: Build name mapping (original → hashed) using temp file (zsh compatible)
-MAPFILE=$(mktemp)
-for f in "$DIST"/*.js; do
+echo "── Copying TypeScript source ──"
+mkdir -p "$ROOT/dist/src"
+for f in "$SRC"/*.ts; do
   [ -f "$f" ] || continue
-  ORIG=$(basename "$f" .js)
-  if [ "$ORIG" = "plugin-entry" ]; then
-    echo "$ORIG plugin-entry" >> "$MAPFILE"
-  else
-    HASH=$(echo -n "cc-soul:$ORIG" | md5 -q | head -c 6)
-    echo "$ORIG m_${HASH}" >> "$MAPFILE"
-  fi
+  BASENAME=$(basename "$f")
+  [[ "$BASENAME" == *"integration-test"* ]] && continue
+  [[ "$BASENAME" == *"tests"* ]] && continue
+  cp "$f" "$ROOT/dist/src/"
 done
-
-# Step 2: Rename files and rewrite imports
-for f in "$DIST"/*.js; do
-  [ -f "$f" ] || continue
-  while IFS=' ' read -r KEY HASHED; do
-    if [ "$KEY" != "$HASHED" ]; then
-      sed -i '' "s|['\"]\./${KEY}\.js['\"]|'./${HASHED}.js'|g" "$f"
-      sed -i '' "s|['\"]\./${KEY}['\"]|'./${HASHED}.js'|g" "$f"
-      sed -i '' "s|['\"]\./${KEY}\.ts['\"]|'./${HASHED}.js'|g" "$f"
-    fi
-  done < "$MAPFILE"
-done
-# Rename files
-RENAMED=0
-while IFS=' ' read -r KEY HASHED; do
-  if [ "$KEY" != "$HASHED" ] && [ -f "$DIST/${KEY}.js" ]; then
-    mv "$DIST/${KEY}.js" "$DIST/${HASHED}.js"
-    echo "   🔀 ${KEY}.js → ${HASHED}.js"
-    RENAMED=$((RENAMED+1))
-  fi
-done < "$MAPFILE"
-rm -f "$MAPFILE"
-echo "   ✅ $RENAMED modules renamed"
+SRC_COUNT=$(ls "$ROOT/dist/src/"*.ts 2>/dev/null | wc -l | tr -d ' ')
+echo "   ✅ $SRC_COUNT TypeScript source files copied"
 
 # ── Copy HOOK.md ──
 cp "$SRC/HOOK.md" "$DIST/" 2>/dev/null || true
@@ -129,11 +74,11 @@ cat > "$ROOT/dist/package.json" << 'PKGJSON'
   "type": "module",
   "keywords": ["ai","soul","memory","personality","openclaw","cognitive","agent"],
   "author": "cc-soul",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul-docs"},
   "bin": {"cc-soul":"./scripts/cli.js"},
   "main": "cc-soul/plugin-entry.js",
-  "files": ["cc-soul/","hub/","scripts/","README.md","CHANGELOG.md","LICENSE"],
+  "files": ["cc-soul/","src/","hub/","scripts/","README.md","CHANGELOG.md","LICENSE"],
   "openclaw": {"extensions":["./cc-soul/plugin-entry.js"]},
   "peerDependencies": {"openclaw":">=2026.3"},
   "scripts": {"postinstall":"node scripts/install.js"}

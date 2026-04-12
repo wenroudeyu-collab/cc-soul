@@ -7,7 +7,7 @@
 npm install @cc-soul/openclaw
 ```
 
-100% local memory. Zero cloud upload. Zero telemetry. Zero vectors. Zero embeddings. Zero GPU.
+100% local memory. Zero cloud upload. Zero telemetry. Zero vectors. Zero embeddings. Zero GPU. **Open source (MIT).**
 
 ---
 
@@ -518,6 +518,6 @@ cc-soul is the **only symbolic (non-vector) system** in the top 5.
 
 **NAM memory engine · 15 original algorithms · 127ms p50 recall · works with or without LLM · 100% local**
 
-[npm](https://www.npmjs.com/package/@cc-soul/openclaw) · wenroudeyu@gmail.com · License: Custom Commercial (see LICENSE)
+[npm](https://www.npmjs.com/package/@cc-soul/openclaw) · [GitHub](https://github.com/wenroudeyu-collab/cc-soul) · wenroudeyu@gmail.com · MIT License
 
 *Your AI remembers everything — and tells no one.*
