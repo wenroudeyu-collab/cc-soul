@@ -1,7 +1,7 @@
 ---
 name: cc-soul
 slug: cc-soul
-version: 3.2.2
+version: 3.2.4
 homepage: https://github.com/wenroudeyu-collab/cc-soul
 description: "Zero-vector AI memory engine with self-learning. LOCOMO 76.2% (4th place). 15 original algorithms, open source (MIT)."
 metadata: {"clawdbot":{"emoji":"🧠","requires":{"bins":[]},"os":["linux","darwin","win32"]}}
