@@ -1,8 +1,0 @@
-{
-  "id": "cc-soul",
-  "name": "cc-soul",
-  "description": "Soul layer for OpenClaw — memory, personality, context engine, and autonomous lifecycle",
-  "version": "1.4.0",
-  "entry": "./cc-soul/plugin-entry.ts",
-  "configSchema": {}
-}

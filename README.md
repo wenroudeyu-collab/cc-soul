@@ -73,7 +73,7 @@ npm install @cc-soul/openclaw
 
 ```bash
 curl http://localhost:18800/health
-# → {"status":"ok","version":"3.2.1", ...}
+# → {"status":"ok","version":"3.2.2", ...}
 ```
 
 ### Manual start (if auto-start didn't work)
