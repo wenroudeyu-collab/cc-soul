@@ -31,6 +31,19 @@ for f in "$SRC"/*.ts; do
   echo "   ✅ $BASENAME → $JSNAME"
 done
 
+# ── Fix .ts → .js import paths in compiled JS ──
+echo ""
+echo "── Fixing import paths (.ts → .js) ──"
+FIXED_COUNT=0
+for f in "$DIST"/*.js; do
+  [ -f "$f" ] || continue
+  if grep -q '\.ts"' "$f" || grep -q "\.ts'" "$f"; then
+    sed -i '' 's/\.ts"/\.js"/g; s/\.ts'"'"'/\.js'"'"'/g' "$f"
+    FIXED_COUNT=$((FIXED_COUNT + 1))
+  fi
+done
+echo "   ✅ Fixed import paths in $FIXED_COUNT files"
+
 # ── Module name obfuscation ──
 # ── Copy TypeScript source for open-source distribution ──
 echo ""
@@ -46,8 +59,12 @@ done
 SRC_COUNT=$(ls "$ROOT/dist/src/"*.ts 2>/dev/null | wc -l | tr -d ' ')
 echo "   ✅ $SRC_COUNT TypeScript source files copied"
 
-# ── Copy HOOK.md ──
+# ── Copy HOOK.md + seeds ──
 cp "$SRC/HOOK.md" "$DIST/" 2>/dev/null || true
+if [ -d "$SRC/seeds" ]; then
+  cp -r "$SRC/seeds" "$DIST/seeds"
+  echo "   ✅ seeds/ copied"
+fi
 
 # ── Build Hub (copy as-is, users run with tsx) ──
 echo ""
@@ -75,12 +92,13 @@ cat > "$ROOT/dist/package.json" << 'PKGJSON'
   "keywords": ["ai","soul","memory","personality","openclaw","cognitive","agent"],
   "author": "cc-soul",
   "license": "MIT",
-  "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul-docs"},
+  "repository": {"type":"git","url":"https://github.com/wenroudeyu-collab/cc-soul"},
   "bin": {"cc-soul":"./scripts/cli.js"},
   "main": "cc-soul/plugin-entry.js",
   "files": ["cc-soul/","src/","hub/","scripts/","README.md","CHANGELOG.md","LICENSE"],
   "openclaw": {"extensions":["./cc-soul/plugin-entry.js"]},
-  "peerDependencies": {"openclaw":">=2026.3"},
+  "peerDependencies": {"openclaw":"*"},
+  "peerDependenciesMeta": {"openclaw":{"optional":true}},
   "scripts": {"postinstall":"node scripts/install.js"}
 }
 PKGJSON
@@ -119,7 +137,7 @@ console.log('   ✅ soul files copied')
 // 3. Create package.json (plugin mode)
 if (!existsSync(resolve(PLUGIN_DIR, 'package.json'))) {
   writeFileSync(resolve(PLUGIN_DIR, 'package.json'), JSON.stringify({
-    name: "cc-soul", version: "1.4.0", type: "module",
+    name: "cc-soul", version: "VERSION_PLACEHOLDER", type: "module",
     main: "cc-soul/plugin-entry.js",
     openclaw: { extensions: ["./cc-soul/plugin-entry.js"] }
   }, null, 2))
@@ -130,7 +148,7 @@ writeFileSync(resolve(PLUGIN_DIR, 'openclaw.plugin.json'), JSON.stringify({
   id: "cc-soul",
   name: "cc-soul",
   description: "Soul layer for OpenClaw — memory, personality, context engine",
-  version: "1.4.0",
+  version: "VERSION_PLACEHOLDER",
   configSchema: {}
 }, null, 2))
 
@@ -215,7 +233,7 @@ console.log('   Plugin: ~/.openclaw/plugins/cc-soul/')
 console.log('   API:    http://localhost:' + (process.env.SOUL_PORT || '18800'))
 console.log('')
 console.log('   OpenClaw users: just chat normally, cc-soul works in the background.')
-console.log('   Other AIs: POST http://localhost:18800/process to get started.')
+console.log('   REST API: POST http://localhost:18800/memories | /search | GET /health')
 console.log('')
 console.log('   Say "help" or "帮助" to see all commands.')
 console.log('')
@@ -242,7 +260,7 @@ if (cmd === 'status') {
   const f = load(F, {}); f[args[0]] = false; writeFileSync(F, JSON.stringify(f,null,2))
   console.log(`❌ ${args[0]} disabled.`)
 } else {
-  console.log(`🧠 cc-soul v2.5.0 — Your AI, but it actually knows you\n\n  cc-soul status              Show all features\n  cc-soul enable <feature>    Enable a feature\n  cc-soul disable <feature>   Disable a feature\n\nDocs: https://github.com/wenroudeyu-collab/cc-soul-docs`)
+  console.log(`🧠 cc-soul vVERSION_PLACEHOLDER — Your AI, but it actually knows you\n\n  cc-soul status              Show all features\n  cc-soul enable <feature>    Enable a feature\n  cc-soul disable <feature>   Disable a feature\n\nDocs: https://github.com/wenroudeyu-collab/cc-soul`)
 }
 CLIJS
 echo "   ✅ scripts/install.js + cli.js generated"
@@ -250,7 +268,8 @@ echo "   ✅ scripts/install.js + cli.js generated"
 # ── Version injection ──
 VERSION=$(node -e "const p=JSON.parse(require('fs').readFileSync('$ROOT/package.json','utf-8')); process.stdout.write(p.version)" 2>/dev/null || echo "0.0.0")
 sed -i '' "s/VERSION_PLACEHOLDER/$VERSION/g" "$ROOT/dist/package.json"
-sed -i '' "s/version: \"[0-9]*\.[0-9]*\.[0-9]*\"/version: \"$VERSION\"/g" "$ROOT/dist/scripts/install.js" 2>/dev/null
+sed -i '' "s/VERSION_PLACEHOLDER/$VERSION/g" "$ROOT/dist/scripts/install.js" 2>/dev/null
+sed -i '' "s/VERSION_PLACEHOLDER/$VERSION/g" "$ROOT/dist/scripts/cli.js" 2>/dev/null
 echo "   📌 Version: $VERSION"
 
 # ── Stats ──
