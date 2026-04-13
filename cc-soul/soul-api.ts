@@ -8,9 +8,21 @@
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http'
+import { readFileSync } from 'fs'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import './persistence.ts' // ensure data dir + config init
 
 const SOUL_API_PORT = parseInt(process.env.SOUL_PORT || '18800', 10)
+
+// Version: read from nearest package.json at startup
+let _SOUL_VERSION = '0.0.0'
+try {
+  // Works in both plugin mode (~/.openclaw/plugins/cc-soul/) and npm module mode
+  const _dir = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url))
+  const _pkg = JSON.parse(readFileSync(resolve(_dir, '..', 'package.json'), 'utf-8'))
+  _SOUL_VERSION = _pkg.version || '0.0.0'
+} catch {}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LLM CONFIG
@@ -186,6 +198,12 @@ export function startSoulApi() {
           const recallN = llmAvailable ? Math.max(topN * 4, 20) : topN
           let results = recall(query, recallN, userId)
 
+          // API 强制 userId 隔离（routeMemories 在小库时会跳过过滤）
+          // 严格模式：只返回属于该用户的记忆，无 userId 的旧记忆不泄露
+          if (userId && userId !== 'default') {
+            results = results.filter((m: any) => m.userId === userId)
+          }
+
           // LLM Rerank（从宽召回里精选 topN）
           if (llmAvailable && results.length > topN) {
             try {
@@ -275,7 +293,7 @@ Select the ${topN} most relevant memories for answering the question. Reply with
         res.writeHead(200)
         res.end(JSON.stringify({
           status: 'ok',
-          version: '2.9.2',
+          version: _SOUL_VERSION,
           port: SOUL_API_PORT,
           uptime: Math.floor(process.uptime()),
           sqlite: sqliteStatus,

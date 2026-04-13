@@ -30,22 +30,73 @@ npm install @cc-soul/openclaw
 
 cc-soul doesn't use vector databases or embedding models. Instead, it's built on **cognitive science** — memories aren't "searched", they surface automatically, like the human brain.
 
-**Three core innovations:**
+**Five core systems:**
 
-**1. Neural Activation Memory (NAM)** — Each memory has a real-time activation score [0, 1], computed from 7 signals: recency, context match, emotional resonance, spreading activation, interference suppression, temporal encoding, and sequential co-occurrence. Based on ACT-R cognitive architecture.
+**1. AAM (Adaptive Associative Memory) — Self-Learning**
 
-**2. Three-Layer Distillation** — Raw memories (L1) cluster into topic nodes (L2), which distill into a mental model of you (L3). Like how the human brain consolidates short-term memory into long-term understanding during sleep.
+cc-soul builds a word association network from your conversations. The more you talk, the smarter recall becomes.
+- Every message updates word co-occurrence statistics (PMI-based)
+- Search "marathon" → AAM auto-expands to "running", "race", "training" — learned from YOUR data
+- Strong associations auto-promote to synonym table (zero manual maintenance)
+- Learning curve: Hit@3 improves 30% → 67.5% over 1200 messages (+37.5%)
 
-**3. Zero-LLM Recall** — Memory retrieval needs no AI model. Five parallel channels (tags, trigrams, BM25, vector FTS, knowledge graph) fuse results in <30ms. The AI only sees what's relevant.
+**2. NAM (Neural Activation Memory) — 9-12 Signal Fusion**
+
+Each memory has a real-time activation score computed from: base activation (ACT-R), context match (BM25+), emotion resonance, spreading activation, interference suppression (MMR), temporal encoding, and sequential co-occurrence (PAM).
+
+**3. Three-Layer Distillation**
+
+Raw memories (L1) cluster into topic nodes with hit/miss scoring (L2), which distill into a 4-section mental model (L3: identity / style / facts / dynamics). Low-scoring topics auto-retire. High-scoring ones promote to core memory.
+
+**4. PADCN Emotion System — 5-Dimensional Mood Tracking**
+
+Tracks user emotion across Pleasure / Arousal / Dominance / Certainty / Novelty. Mood-congruent recall: happy → recalls happy memories. Flashbulb effect: highly emotional memories stored stronger. Emotion drives persona selection automatically.
+
+**5. 11 Auto-Switching Personas**
+
+Dynamically blends personas based on context: engineer, friend, mentor, analyst, comforter, strategist, explorer, executor, teacher, devil's advocate, socratic. No manual switching — adapts automatically.
+
+**Self-Learning Feedback Loop**: AAM learns from every message → Recall Thermostat adjusts signal weights → Topic Tournament retires bad summaries → PMI Graduation promotes strong associations → Correction Learning verifies over 3 conversations. The system gets measurably better over time.
+
+**Zero-LLM Recall** — Memory retrieval needs no AI model. Core recall runs in <30ms on pure algorithms. LLM is optional (adds query rewriting + reranking).
 
 ---
 
 ## Quick Start
 
 ```bash
-npm install -g @cc-soul/openclaw
-# Done. API auto-starts at localhost:18800. Two endpoints, ready to use.
+npm install @cc-soul/openclaw
+# API auto-starts at localhost:18800
 ```
+
+### Verify it's running
+
+```bash
+curl http://localhost:18800/health
+# → {"status":"ok","version":"3.2.1", ...}
+```
+
+### Manual start (if auto-start didn't work)
+
+```bash
+# Option 1: Start from installed location
+node ~/.openclaw/plugins/cc-soul/cc-soul/soul-api.js
+
+# Option 2: Start from npm package directly
+node node_modules/@cc-soul/openclaw/cc-soul/soul-api.js
+
+# Option 3: Custom port
+SOUL_PORT=9900 node ~/.openclaw/plugins/cc-soul/cc-soul/soul-api.js
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `curl: Connection refused` | API not running. Start manually (see above) |
+| `EADDRINUSE` | Port 18800 already in use. Use `SOUL_PORT=9900` or kill the existing process |
+| `ERR_MODULE_NOT_FOUND` | Node.js version too old. Requires Node.js 20+ |
+| No LLM features | Edit `~/.cc-soul/data/ai_config.json` (see LLM Configuration below) |
 
 ---
 
@@ -139,18 +190,6 @@ Any OpenAI-compatible API works:
 | Claude | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514` |
 | Ollama (local) | `http://localhost:11434/v1` | `qwen2.5:7b` |
 
-**OpenClaw users**: just talk to your AI:
-
-```
-You: "帮我查看下 ~/.cc-soul/data/ai_config.json 并且告诉我怎么配置"
-AI:  (reads the file, shows current config, guides you step by step)
-
-You: "我要用 DeepSeek，key 是 sk-xxx"
-AI:  (writes the config for you, done)
-```
-
-No manual editing needed — your AI is your setup assistant.
-
 Config is hot-reloaded — save the file and cc-soul picks it up automatically, no restart needed.
 
 ---
@@ -225,13 +264,6 @@ curl -X POST http://localhost:18800/search \
 
 # Health
 curl http://localhost:18800/health
-```
-
-### OpenClaw Users
-
-```bash
-openclaw plugins install @cc-soul/openclaw
-# Done. Works automatically in the background. Say "help" to see commands.
 ```
 
 ---
@@ -390,7 +422,7 @@ All automatic. No setup, no toggles. Works from the first message.
 
 ## Privacy & Security
 
-All data stored locally (`~/.cc-soul/data/` or `~/.openclaw/plugins/cc-soul/data/` if using OpenClaw). Auto-detected, auto-created. Nothing ever leaves your machine. No telemetry.
+All data stored locally in `~/.cc-soul/data/` (SQLite). Auto-detected, auto-created. Nothing ever leaves your machine. No telemetry.
 
 - **Privacy mode** — say `隐私模式` to pause all memory storage
 - **PII filtering** — auto-strips emails, phone numbers, API keys, IPs
@@ -403,55 +435,82 @@ See SECURITY.md for full details.
 
 ---
 
-## Quick Commands
+## Commands (48 total)
 
+### Memory
 | Command | What it does |
 |---------|-------------|
-| `help` / `帮助` | Full command guide |
-| `stats` | Dashboard — messages, memories, quality, mood |
-| `soul state` | AI energy, mood, emotion vector |
 | `我的记忆` / `my memories` | View recent memories |
 | `搜索记忆 <词>` / `search memory <kw>` | Search memories |
 | `删除记忆 <词>` / `delete memory <kw>` | Remove matching memories |
 | `pin 记忆 <词>` / `pin memory <kw>` | Pin memory (never decays) |
+| `unpin 记忆 <词>` | Unpin memory |
+| `恢复记忆 <词>` / `restore memory <kw>` | Restore deleted memory |
+| `记忆时间线 <词>` / `memory timeline <kw>` | Timeline view of a topic |
+| `记忆链路 <词>` / `memory chain <kw>` | Show association chain |
+| `记忆健康` / `memory health` | Memory health stats |
+| `记忆审计` / `memory audit` | Memory audit report |
+| `共享记忆 <词>` / `share memory <kw>` | Mark memory as shared |
+| `私有记忆 <词>` / `private memory <kw>` | Mark memory as private |
+| `别记这个` / `don't remember` | Skip storing next message |
 | `隐私模式` / `privacy mode` | Pause all memory storage |
-| `打卡 <习惯>` / `checkin <habit>` | Track a habit |
-| `新目标 <描述>` / `new goal <desc>` | Create a goal |
-| `提醒 HH:MM <消息>` / `remind HH:MM <msg>` | Daily reminder |
+| `可以了` / `关闭隐私` | Resume memory storage |
+
+### Import / Export
+| Command | What it does |
+|---------|-------------|
+| `导出全部` / `export all` | Full backup to JSON |
+| `导入全部 <路径>` / `import all <path>` | Restore from backup |
+| `导出lorebook` / `export lorebook` | Export lorebook |
+| `导出进化` / `export evolution` | Export evolution data |
+| `导入进化 <路径>` / `import evolution <path>` | Import evolution data |
+| `摄入文档 <路径>` / `ingest <path>` | Import document to memory |
+
+### Context & Topics
+| Command | What it does |
+|---------|-------------|
+| `保存话题` / `save topic` | Save current topic |
+| `切换话题 <名>` / `switch topic <name>` | Switch to saved topic |
+| `话题列表` / `topic list` | List saved topics |
+| `对话摘要` / `conversation summary` | Summarize current conversation |
+| `当聊到X时提醒我Y` | Context-triggered reminder |
+
+### Insights
+| Command | What it does |
+|---------|-------------|
+| `时间旅行 <词>` / `time travel <kw>` | Explore memory history |
+| `推理链` / `reasoning chain` | Show reasoning chain |
+| `情绪锚点` / `emotion anchors` | Show emotional anchor points |
+| `记忆图谱 html` / `memory map html` | Visual knowledge graph |
+
+### Status & Analytics
+| Command | What it does |
+|---------|-------------|
+| `help` / `帮助` | Full command guide |
+| `stats` | Dashboard — messages, memories, quality, mood |
+| `soul state` / `灵魂状态` | AI energy, mood, emotion vector |
 | `情绪周报` / `mood report` | 7-day emotional trend |
 | `能力评分` / `capability score` | Domain confidence scores |
-| `摄入文档 <路径>` / `ingest <path>` | Import document to memory |
-| `知识图谱` / `knowledge map` | Visualize knowledge graph |
-| `features` / `功能状态` | View feature toggles |
-| `开启 <X>` / `关闭 <X>` | Enable/disable feature |
-| `dashboard` / `仪表盘` | Open web dashboard |
+| `我的技能` / `my skills` | Skill assessment |
+| `metrics` / `监控` | Runtime metrics |
 | `cost` / `成本` | Token usage statistics |
-| `audit log` / `审计日志` | View audit trail |
-| `导出全部` / `export all` | Full backup: memories + persona + values + rules to one JSON |
-| `导入全部 <路径>` / `import all <path>` | Restore from full backup |
-| `别记这个` / `don't remember` | Skip storing next message to memory |
+| `dashboard` / `仪表盘` | Web dashboard |
+
+### Persona & Identity
+| Command | What it does |
+|---------|-------------|
 | `人格列表` / `personas` | List all 11 personas |
 | `价值观` / `values` | Show value priorities |
+| `我是 <名字>` | Set your identity |
+| `灵魂模式` | Enter soul reply mode |
 
----
-
-## All Commands
-
-**Memory:** `我的记忆` · `搜索记忆 <词>` · `删除记忆 <词>` · `pin 记忆 <词>` · `unpin 记忆 <词>` · `记忆时间线 <词>` · `记忆健康` · `记忆审计` · `恢复记忆 <词>` · `记忆链路 <词>` · `共享记忆 <词>` · `私有记忆 <词>`
-
-**Import/Export:** `导出全部` · `导入全部 <路径>` · `导出lorebook` · `导出进化` · `导入进化 <路径>` · `摄入文档 <路径>`
-
-**Daily Life:** `打卡 <习惯>` · `习惯状态` · `新目标 <描述>` · `目标进度 <目标> <更新>` · `我的目标` · `提醒 HH:MM <消息>` · `我的提醒` · `删除提醒 <序号>`
-
-**Status:** `stats` · `soul state` · `晨报` · `周报` · `情绪周报` · `能力评分` · `成长轨迹` · `我的技能` · `metrics` · `cost` · `dashboard` · `记忆图谱 html` · `对话摘要`
-
-**Insights:** `时间旅行 <词>` · `推理链` · `情绪锚点` · `记忆链路 <词>`
-
-**Experience:** `讲讲我们的故事` · `每日复盘` · `保存话题` · `切换话题 <名称>` · `话题列表`
-
-**Persona & Values:** `人格列表` · `价值观` · `别记这个`
-
-**Advanced:** `功能状态` · `开启 <功能>` · `关闭 <功能>` · `审计日志` · `开始实验 <描述>`
+### Advanced
+| Command | What it does |
+|---------|-------------|
+| `功能状态` / `features` | View feature toggles |
+| `开启 <X>` / `关闭 <X>` | Enable/disable feature |
+| `开始实验 <描述>` | Start an experiment |
+| `安装向量` / `vector status` | Vector search status |
 
 ---
 
