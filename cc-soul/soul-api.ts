@@ -141,7 +141,8 @@ export function startSoulApi() {
       // ── POST /memories — add memory ──
       if (url === '/memories' && req.method === 'POST') {
         try {
-          const { addMemory } = await import('./memory.ts')
+          const { addMemory, ensureMemoriesLoaded } = await import('./memory.ts')
+          ensureMemoriesLoaded()  // fix: 确保内存数组已加载，否则 addMemory 的去重/冲突检测基于空数组
           const { extractFacts, addFacts } = await import('./fact-store.ts')
           const content = body.content || body.message || body.text || ''
           const userId = body.user_id || body.userId || 'default'
@@ -159,8 +160,9 @@ export function startSoulApi() {
       // ── POST /search — search memories ──
       if (url === '/search' && req.method === 'POST') {
         try {
-          const { recall, ensureMemoriesLoaded } = await import('./memory.ts')
+          const { recall, ensureMemoriesLoaded, resyncFromSQLiteIfNeeded } = await import('./memory.ts')
           ensureMemoriesLoaded()
+          resyncFromSQLiteIfNeeded()  // fix: 检测 SQLite 与内存不同步（多进程/外部写入场景）
           let query = body.query || body.message || ''
           const userId = body.user_id || body.userId || 'default'
           const topN = body.top_n || body.limit || 5

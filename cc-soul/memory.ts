@@ -191,6 +191,29 @@ export function ensureMemoriesLoaded(): void {
   loadMemories()
 }
 
+/**
+ * Resync memoryState.memories from SQLite if out-of-sync.
+ * Handles: multi-process writes, external SQLite inserts, crash recovery.
+ * Cheap check: only reloads when SQLite count > memory array length.
+ */
+export function resyncFromSQLiteIfNeeded(): void {
+  if (!useSQLite || !_memoriesLoaded) return
+  try {
+    const dbCount = sqliteCount()
+    const memCount = memoryState.memories.length
+    if (dbCount > memCount) {
+      console.log(`[cc-soul][memory] resync: SQLite has ${dbCount} but memory has ${memCount}, reloading...`)
+      const fromDb = sqliteGetAll(true)
+      memoryState.memories.length = 0
+      memoryState.memories.push(...fromDb)
+      rebuildRecallIndex(memoryState.memories)
+      console.log(`[cc-soul][memory] resync complete: ${memoryState.memories.length} memories loaded`)
+    }
+  } catch (e: any) {
+    console.error(`[cc-soul][memory] resync check failed: ${e.message}`)
+  }
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Mutable state — exported as object so ESM consumers can read live values
